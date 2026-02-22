@@ -77,7 +77,7 @@ crew = Crew(
     agents=[researcher, analyst, reporter],
     tasks=[research_task, analysis_task, report_task],
     process="sequential",
-    verbose=2
+    verbose=True
 )
 
 # ================== 執行 ==================
