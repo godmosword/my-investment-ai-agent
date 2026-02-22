@@ -1,1 +1,6 @@
-
+crewai==0.95.0
+crewai-tools
+yfinance
+requests
+duckduckgo-search
+google-generativeai
