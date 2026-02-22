@@ -1,0 +1,30 @@
+name: 每日投資 AI 報告 (Docker + Gemini)
+
+on:
+  schedule:
+    - cron: '30 22 * * *'   # 台灣時間早上 6:30（UTC 22:30）
+  workflow_dispatch:
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Run Docker Container
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          docker build -t investment-agent .
+          docker run --rm \
+            -e GEMINI_API_KEY \
+            -e TELEGRAM_BOT_TOKEN \
+            -e TELEGRAM_CHAT_ID \
+            investment-agent
