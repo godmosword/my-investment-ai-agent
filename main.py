@@ -1,13 +1,13 @@
 import os
-import yfinance as yf
 from crewai import Agent, Task, Crew, LLM
-from crewai_tools import DuckDuckGoSearchTool
+from crewai.tools import tool
+from duckduckgo_search import DDGS
 import requests
 from datetime import datetime
 
 # ================== 設定 ==================
-WATCHLIST = ["2330.TW", "NVDA", "TSLA", "BTC-USD", "ETH-USD"]  # ← 想追的標的在這裡改
-GEMINI_MODEL = "gemini/gemini-2.5-flash"   # 免費、快、強
+WATCHLIST = ["NVDA", "TSLA", "BTC-USD", "ETH-USD"]  # ← 想追的標的在這裡改
+GEMINI_MODEL = "gemini/gemini-2.5-flash"   
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -21,7 +21,10 @@ gemini_llm = LLM(
 )
 
 # ================== Tools ==================
-search_tool = DuckDuckGoSearchTool()
+@tool("DuckDuckGo Search")
+def search_tool(query: str) -> str:
+    """搜尋網路上的最新財報、新聞與趨勢資訊。"""
+    return str(DDGS().text(query, max_results=5))
 
 # ================== Agents ==================
 researcher = Agent(
