@@ -6,8 +6,7 @@ import requests
 from datetime import datetime
 
 # ================== 設定 ==================
-# 追蹤標的（專注海外市場與加密貨幣）
-WATCHLIST = ["NVDA", "TSLA", "BTC-USD", "ETH-USD"]  
+WATCHLIST = ["BTC-USD", "ETH-USD"]  # 專注於加密貨幣
 GEMINI_MODEL = "gemini/gemini-2.5-flash"   
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -24,13 +23,13 @@ gemini_llm = LLM(
 # ================== Tools ==================
 @tool("DuckDuckGo Search")
 def search_tool(query: str) -> str:
-    """搜尋網路上的最新財報、新聞與趨勢資訊。"""
+    """搜尋網路上的最新價格、新聞與趨勢資訊。"""
     return str(DDGS().text(query, max_results=5))
 
 # ================== Agents ==================
 researcher = Agent(
-    role="Senior Market Researcher",
-    goal="只抓最新財報、財測、權威新聞，忽略社群噪音",
+    role="Senior Crypto Market Researcher",
+    goal="只抓最新價格、鏈上數據、重大新聞與趨勢，忽略社群噪音",
     backstory="你只相信官方數據與權威媒體",
     tools=[search_tool],
     llm=gemini_llm,
@@ -38,7 +37,7 @@ researcher = Agent(
 )
 
 analyst = Agent(
-    role="Investment Analyst",
+    role="Crypto Investment Analyst",
     goal="給出明確買/賣/持建議 + 信心分數 + 風險",
     backstory="你非常保守，只在多源一致時才建議買入",
     llm=gemini_llm,
@@ -55,7 +54,7 @@ reporter = Agent(
 
 # ================== Tasks ==================
 research_task = Task(
-    description=f"針對 {WATCHLIST} 收集最新數據：股價、財報重點、重大新聞、產業趨勢。只用可驗證來源。",
+    description=f"針對 {WATCHLIST} 收集最新數據：價格走勢、重大新聞、市場情緒與產業趨勢。只用可驗證來源。",
     expected_output="每檔標的 4-6 點 bullet points",
     agent=researcher
 )
@@ -78,18 +77,19 @@ crew = Crew(
     agents=[researcher, analyst, reporter],
     tasks=[research_task, analysis_task, report_task],
     process="sequential",
-    verbose=True  # 已經確保為布林值 True
+    verbose=True,
+    max_rpm=4  # ← 加上速率限制，避免觸發 Gemini API 免費版限制
 )
 
 # ================== 執行 ==================
 if __name__ == "__main__":
-    print(f"🚀 {TODAY} 開始產生投資報告 (Gemini {GEMINI_MODEL})...")
+    print(f"🚀 {TODAY} 開始產生加密貨幣報告 (Gemini {GEMINI_MODEL})...")
     
     try:
         result = crew.kickoff()
         report = result.raw
 
-        message = f"📈 **每日投資快報 - {TODAY}**\n\n{report}"
+        message = f"📈 **每日加密貨幣快報 - {TODAY}**\n\n{report}"
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
         response = requests.post(url, json=payload)
