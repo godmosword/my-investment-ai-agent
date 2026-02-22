@@ -6,7 +6,8 @@ import requests
 from datetime import datetime
 
 # ================== 設定 ==================
-WATCHLIST = ["NVDA", "TSLA", "BTC-USD", "ETH-USD"]  # ← 想追的標的在這裡改
+# 追蹤標的（專注海外市場與加密貨幣）
+WATCHLIST = ["NVDA", "TSLA", "BTC-USD", "ETH-USD"]  
 GEMINI_MODEL = "gemini/gemini-2.5-flash"   
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -77,21 +78,26 @@ crew = Crew(
     agents=[researcher, analyst, reporter],
     tasks=[research_task, analysis_task, report_task],
     process="sequential",
-    verbose=True
+    verbose=True  # 已經確保為布林值 True
 )
 
 # ================== 執行 ==================
 if __name__ == "__main__":
     print(f"🚀 {TODAY} 開始產生投資報告 (Gemini {GEMINI_MODEL})...")
-    result = crew.kickoff()
-    report = result.raw
-
-    message = f"📈 **每日投資快報 - {TODAY}**\n\n{report}"
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    response = requests.post(url, json=payload)
     
-    if response.status_code == 200:
-        print("✅ 報告已推送到 Telegram！")
-    else:
-        print("⚠️ Telegram 推送失敗：", response.text)
+    try:
+        result = crew.kickoff()
+        report = result.raw
+
+        message = f"📈 **每日投資快報 - {TODAY}**\n\n{report}"
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+        response = requests.post(url, json=payload)
+        
+        if response.status_code == 200:
+            print("✅ 報告已推送到 Telegram！")
+        else:
+            print("⚠️ Telegram 推送失敗：", response.text)
+            
+    except Exception as e:
+        print(f"❌ 執行過程中發生錯誤: {e}")
