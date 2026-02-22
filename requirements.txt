@@ -1,4 +1,4 @@
-crewai
+crewai[google-genai]
 crewai-tools
 yfinance
 requests
