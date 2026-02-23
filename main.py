@@ -6,70 +6,82 @@ import requests
 from datetime import datetime
 
 # ================== 設定 ==================
-WATCHLIST = ["BTC-USD", "ETH-USD"]  # 專注於加密貨幣
-GEMINI_MODEL = "gemini/gemini-2.5-flash"   
+WATCHLIST = ["BTC-USD", "ETH-USD"]
+TODAY = datetime.now().strftime("%Y-%m-%d")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-TODAY = datetime.now().strftime("%Y-%m-%d")
 
-# ================== Gemini LLM ==================
+# ================== LLM 大腦 ==================
 gemini_llm = LLM(
-    model=GEMINI_MODEL,
+    model="gemini/gemini-2.5-flash",
     api_key=os.getenv("GEMINI_API_KEY"),
-    temperature=0.7
+    temperature=0.4 # 稍微調低創意度，減少日期幻覺
 )
 
-# ================== Tools ==================
+# ================== Tools (賦予員工新武器) ==================
 @tool("DuckDuckGo Search")
 def search_tool(query: str) -> str:
-    """搜尋網路上的最新價格、新聞與趨勢資訊。"""
+    """搜尋網路上的最新新聞與市場分析。關鍵字請加上 '2026' 與 '最新'。"""
     return str(DDGS().text(query, max_results=5))
+
+@tool("CoinGecko Price API")
+def crypto_price_tool(query: str = "") -> str:
+    """獲取比特幣(BTC)和以太幣(ETH)的最精準即時價格與24小時漲跌幅。不需要傳入參數。"""
+    try:
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true"
+        response = requests.get(url, timeout=10).json()
+        btc_p = response.get('bitcoin', {}).get('usd', 'N/A')
+        btc_c = response.get('bitcoin', {}).get('usd_24h_change', 0)
+        eth_p = response.get('ethereum', {}).get('usd', 'N/A')
+        eth_c = response.get('ethereum', {}).get('usd_24h_change', 0)
+        return f"【CoinGecko 權威即時報價】\nBTC: ${btc_p} (24h變化: {btc_c:.2f}%)\nETH: ${eth_p} (24h變化: {eth_c:.2f}%)"
+    except Exception as e:
+        return "報價API暫時無回應，請依賴搜尋引擎。"
 
 # ================== Agents ==================
 researcher = Agent(
     role="Senior Crypto Market Researcher",
-    goal="只抓最新價格、鏈上數據、重大新聞與趨勢，忽略社群噪音",
-    backstory="你只相信官方數據與權威媒體",
-    tools=[search_tool],
+    goal=f"使用 CoinGecko API 取得精確報價，並用搜尋引擎找出今日 ({TODAY}) 影響行情的具體新聞。",
+    backstory="你是一個實戰派的情報員。比起完美的數據，你更在乎在現有資訊中挖掘出有價值的市場動態。不要抱怨工具，善用你手邊的資源。",
+    tools=[search_tool, crypto_price_tool], # 👈 同時裝備搜尋和報價工具
     llm=gemini_llm,
     verbose=True
 )
 
 analyst = Agent(
     role="Crypto Investment Analyst",
-    goal="給出明確買/賣/持建議 + 信心分數 + 風險",
-    backstory="你非常保守，只在多源一致時才建議買入",
+    goal="根據情報給出具體的投資方向，不要寫免責聲明或拒絕分析。",
+    backstory="你是實戰派分析師。就算資訊不完美，你也能憑藉經驗給出當下的判斷（買入/觀望/減持）、信心分數與具體風險。",
     llm=gemini_llm,
     verbose=True
 )
 
 reporter = Agent(
-    role="Report Writer",
-    goal="用繁體中文寫 1 頁乾淨報告，Markdown 格式",
-    backstory="你寫報告像華爾街日報一樣專業簡潔",
+    role="Chief Report Writer",
+    goal=f"寫一份清楚標示日期為 {TODAY} 的繁體中文報告，直接切入數據與分析，不要提及工具限制。",
+    backstory="你最討厭廢話和藉口。你的報告總是單刀直入，排版乾淨，讓老闆一眼就能看出重點。",
     llm=gemini_llm,
     verbose=True
 )
 
 # ================== Tasks ==================
 research_task = Task(
-    description=f"針對 {WATCHLIST} 收集最新數據：價格走勢、重大新聞、市場情緒與產業趨勢。只用可驗證來源。",
-    expected_output="每檔標的 4-6 點 bullet points",
+    description=f"1. 呼叫 CoinGecko API 獲取 {WATCHLIST} 最新價格。\n2. 搜尋今日重大新聞。列出 4 點具體的情報。",
+    expected_output="包含準確價格與具體新聞的情報清單。",
     agent=researcher
 )
 
 analysis_task = Task(
-    description="根據研究結果，給出每檔標的的投資建議（強力買入/買入/持平/觀望/減持），附信心分數 0-100% 和主要風險。",
-    expected_output="每檔標的：建議 + 信心% + 風險 3 點",
+    description="閱讀情報，強制給出具體的投資建議、信心分數，以及 2 個潛在風險。嚴禁輸出無法分析的理由。",
+    expected_output="明確的建議、分數與風險。",
     agent=analyst
 )
 
 report_task = Task(
-    description="把以上統整成一份繁體中文報告，標題含今日日期，結尾加『本報告由私人 AI Agent 產生，僅供參考』",
-    expected_output="完整 Markdown 報告（不超過 800 字）",
-    agent=reporter,
-    output_file="daily_report.md"
+    description=f"統整資訊。確保報告標題日期為 {TODAY}。格式必須是 Markdown，包含：即時報價、市場動態、投資建議與風險。",
+    expected_output="一份不包含任何推託之詞的專業繁體中文報告。",
+    agent=reporter
 )
 
 # ================== Crew ==================
@@ -78,26 +90,20 @@ crew = Crew(
     tasks=[research_task, analysis_task, report_task],
     process="sequential",
     verbose=True,
-    max_rpm=4  # ← 加上速率限制，避免觸發 Gemini API 免費版限制
+    max_rpm=10
 )
 
 # ================== 執行 ==================
 if __name__ == "__main__":
-    print(f"🚀 {TODAY} 開始產生加密貨幣報告 (Gemini {GEMINI_MODEL})...")
-    
     try:
         result = crew.kickoff()
         report = result.raw
-
-        message = f"📈 **每日加密貨幣快報 - {TODAY}**\n\n{report}"
+        
+        # 強制加入防呆日期標頭
+        message = f"👑 **加密貨幣快報 - {TODAY}**\n\n{report}"
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-        response = requests.post(url, json=payload)
-        
-        if response.status_code == 200:
-            print("✅ 報告已推送到 Telegram！")
-        else:
-            print("⚠️ Telegram 推送失敗：", response.text)
+        requests.post(url, json=payload)
             
     except Exception as e:
-        print(f"❌ 執行過程中發生錯誤: {e}")
+        print(f"❌ 錯誤: {e}")
