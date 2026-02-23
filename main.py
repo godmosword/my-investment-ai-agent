@@ -9,13 +9,21 @@ from datetime import datetime
 TODAY = datetime.now().strftime("%Y/%m/%d")
 
 # ================== 雙神獸 LLM 大腦配置 ==================
-# Grok-beta: 負責最具侵略性的社群情緒與利多挖掘
-# 修改前：model="xai/grok-beta"
+# 使用 2026 年旗艦款：Grok 4.1 快速推理版
 grok_llm = LLM(
-    model="xai/grok-2-1212", # 👈 改用 2026 年最穩定的 Grok 2 版本
+    model="xai/grok-4-1-fast-reasoning", # 👈 2026 年最新最強的 API ID
     api_key=os.getenv("XAI_API_KEY"),
-    temperature=0.8
+    temperature=0.7
 )
+
+gemini_llm = LLM(
+    model="gemini/gemini-3.1-pro",
+    api_key=os.getenv("GEMINI_API_KEY"),
+    temperature=0.2
+)
+
+# ... 導入部分請確保如下 ...
+from crewai.tools import tool # 👈 確保從 tools 導入，解決 Pydantic 驗證問題
 
 # Gemini 3.1 Pro: 負責數據精算、風險質疑與最終專業排版 (訂閱感核心)
 gemini_llm = LLM(
