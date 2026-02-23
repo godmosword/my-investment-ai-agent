@@ -11,24 +11,36 @@ from crewai.tools import tool
 
 @tool("Tavily Market Search")
 def market_search_tool(query: str) -> str:
-    """用於搜尋最新的全球宏觀數據與數位資產即時新聞。"""
+    """搜尋全球宏觀數據與數位資產即時新聞。"""
     api_key = os.getenv("TAVILY_API_KEY")
-    if not api_key:
-        return "System Error: TAVILY_API_KEY not found."
+    if not api_key: return "System Error: TAVILY_API_KEY not found."
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
-        response = client.search(query=query, search_depth="advanced", max_results=3)
+        response = client.search(query=query, search_depth="advanced", max_results=5)
         return str(response.get("results", "No results found."))
-    except Exception as e:
-        return f"Search Failed: {str(e)}"
+    except Exception as e: return f"Tavily Failed: {str(e)}"
+
+@tool("X Real-time Trend Search")
+def x_search_tool(query: str) -> str:
+    """搜尋 X (Twitter) 上最新的加密貨幣討論情緒。"""
+    bearer_token = os.getenv("X_BEARER_TOKEN")
+    if not bearer_token: return "System Error: X_BEARER_TOKEN not found."
+    url = f"https://api.twitter.com/2/tweets/search/recent?query={query}&max_results=10"
+    headers = {"Authorization": f"Bearer {bearer_token}"}
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            tweets = response.json().get("data", [])
+            return "\n".join([f"- {t['text']}" for t in tweets])
+        return f"X API Error: {response.status_code}"
+    except Exception as e: return f"X Search Failed: {str(e)}"
 
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
-    """獲取加密貨幣衍生品數據。參數: 'open_interest', 'funding_rate', 'liquidation'。"""
+    """獲取加密貨幣衍生品數據：open_interest, funding_rate, liquidation。"""
     api_key = os.getenv("COINGLASS_API_KEY")
-    if not api_key:
-        return "System Error: COINGLASS_API_KEY not found."
+    if not api_key: return "System Error: COINGLASS_API_KEY not found."
     headers = {"accept": "application/json", "coinglassSecret": api_key}
     endpoints = {
         "open_interest": "https://open-api-v4.coinglass.com/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d",
@@ -38,84 +50,86 @@ def coinglass_data_tool(metric: str) -> str:
     url = endpoints.get(metric.lower(), endpoints["open_interest"])
     try:
         response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            return str(response.json().get("data", []))[:2000]
-        return f"CoinGlass API Error: {response.status_code}"
-    except Exception as e:
-        return f"CoinGlass Request Failed: {str(e)}"
+        if response.status_code == 200: return str(response.json().get("data", []))[:2000]
+        return f"CoinGlass Error: {response.status_code}"
+    except Exception as e: return f"CoinGlass Failed: {str(e)}"
 
 # ==========================================
-# 二、 三大 Agent 陣容：Grok + Gemini + OpenAI
+# 二、 Agent 陣容：三核審議系統
 # ==========================================
 
 class QSiliconResearchCrew:
     def __init__(self):
+        # 1. 宏觀偵察兵 (Grok 4.1) - 加入過濾垃圾新聞指令
         self.macro_researcher = Agent(
-            role="華爾街首席市場研究員",
-            goal="捕捉具備『市場爆點』的宏觀敘事。使用 Grok-4-1。",
-            backstory="專注於地緣政治與宏觀催化劑分析。嚴禁提及台股。",
+            role="華爾街首席市場研究員 (Spam-Filter Expert)",
+            goal="搜尋並篩選出 3 則具備『敘事轉折點』的高質量幣圈新聞，徹底避開 Spam 與低質量推廣內容。",
+            backstory=dedent("""
+                你使用 Grok-4-1，擁有最強的市場嗅覺。
+                核心指令：篩選新聞時必須剔除任何重複標題、空洞的空投廣告(Airdrop Spam)與無數據支撐的喊單內容。
+                你將提供新聞初稿並附上你的冷峻短評。嚴禁台股。
+            """),
             llm="xai/grok-4-1-fast-reasoning",
-            tools=[market_search_tool],
+            tools=[market_search_tool, x_search_tool],
             verbose=True
         )
 
-        self.quant_strategist = Agent(
-            role="機構宏觀策略分析師",
-            goal="提供鏈上數據深度解讀，並整合最終意見產出報告。使用 Gemini-3.1。",
-            backstory="擅長視覺化 Dashboard 製作。維持冷靜風格，不說廢話。",
-            llm="google/gemini-3.1-pro-preview",
-            tools=[coinglass_data_tool],
-            verbose=True
-        )
-
+        # 2. 首席風控評論員 (GPT-4o)
         self.risk_critic = Agent(
             role="首席風險評論員 (Chief Risk Critic)",
-            goal="挑戰前兩者的邏輯漏洞，並給予 1-10 分的最終質量評分。",
+            goal="針對新聞的真實性與市場風險進行『毒舌』審計，並給予 1-10 分。 ",
             backstory=dedent("""
-                你使用 OpenAI 旗艦模型 GPT-4o。身為華爾街合夥人，你負責執行最嚴苛的審計。
-                你會挑戰 Grok 的情緒與 Gemini 的數據推論。必須要求兩者進行辯論。
+                你使用 GPT-4o。你是華爾街的合夥人，負責質疑一切。
+                你的短評必須直指要害：這則新聞是否只是市場噪音？是否隱含清算風險？
             """),
             llm="openai/gpt-4o",
             allow_delegation=True,
             verbose=True
         )
 
+        # 3. 機構策略分析師 (Gemini 3.1)
+        self.quant_strategist = Agent(
+            role="機構宏觀策略分析師",
+            goal="結合鏈上數據進行終極定稿，並製作視覺化 Dashboard。",
+            backstory=dedent("""
+                你使用 Gemini-3.1。你負責將前兩者的觀點與即時鏈上數據結合。
+                你的短評將側重於數據層面的證實或證偽。
+            """),
+            llm="google/gemini-3.1-pro-preview",
+            tools=[coinglass_data_tool],
+            verbose=True
+        )
+
     def run(self):
+        # 任務一：情報偵察與過濾 (Grok)
         research_task = Task(
-            description="搜尋宏觀趨勢與具備衝擊力的新聞，嚴禁包含台股資訊。",
-            expected_output="市場研究初稿。",
+            description="抓取宏觀數據與 3 則幣圈新聞。必須過濾掉所有垃圾資訊與台股內容。",
+            expected_output="包含新聞初稿與 Grok 個人短評的摘要。",
             agent=self.macro_researcher
         )
 
+        # 任務二：風險審核與評分 (GPT-4o)
         review_task = Task(
-            description="審閱初稿，指出盲點，給予毒舌修正建議並進行 1-10 分邏輯評分。",
-            expected_output="包含批判建議與專家評分的審閱報告。",
+            description="對 Grok 抓取的新聞進行風險評分，並提供你的獨立毒舌短評。",
+            expected_output="包含評分與批判短評的備忘錄。",
             agent=self.risk_critic,
             context=[research_task]
         )
 
+        # 任務三：數據整合與最終視覺化 (Gemini)
         final_report_task = Task(
             description=dedent("""
-                綜合所有意見，產出 [Q-Silicon Institutional Research] Daily Brief。
+                撰寫 [Q-Silicon Institutional Research] Daily Brief。
                 
-                【📊 儀表板視覺化強化要求】：
-                請將報告開頭優化為極具直覺感的視覺區塊，嚴格使用以下格式呈現數據：
-
-                ### 📊 鏈上微觀儀表板 (On-chain Dashboard)
-                ```text
-                [ 指標名稱 ]      [ 指標狀態與進度條 ]          [ 趨勢 ]
-                --------------------------------------------------------
-                情緒權重 (F&G):  [██████░░░░] 60%            Neutral
-                多空力量 (24h):  Long 52% [█████░░░░░] 48%   ⚖️
-                持倉動能 (OI):   $XX.X 億 (Delta: X.X%)      ↗️
-                資金費率 (FR):   +0.012% (年化: X.X%)        🟢
-                關鍵清算牆:      上行 $XXk / 下行 $XXk       🧱
-                --------------------------------------------------------
-                ```
-                後續請依序產出：一、宏觀觀測；二、新聞摘要；三、鏈上分析；四、備忘錄。
-                結尾必須附上【💡 Q-Silicon Peer Review】。
+                【排版格式規範】：
+                1. 📊 儀表板：使用 ASCII 進度條。
+                2. 📰 即時熱點追蹤：每則新聞後必須排列以下『三核評選』區塊：
+                   - 🛸 **Grok 觀點**: (短評)
+                   - 🛡️ **GPT 評分**: (X/10 + 短評)
+                   - 💎 **Gemini 洞察**: (數據短評)
+                3. 維持四大標準結構與 80/20 比例。
             """),
-            expected_output="一份具備高度視覺化指標、專家討論且無情緒化的 Markdown 報告。",
+            expected_output="具備視覺儀表板與 Agent 分開短評的專業報告。",
             agent=self.quant_strategist,
             context=[research_task, review_task]
         )
@@ -127,12 +141,8 @@ class QSiliconResearchCrew:
         )
         return crew.kickoff()
 
-# ==========================================
-# 三、 執行與發送邏輯
-# ==========================================
-
+# ... (後續 Telegram 發送邏輯與 main 執行部分保持不變) ...
 if __name__ == "__main__":
-    print("Initializing Q-Silicon Three-Agent Consensus System...")
     research_crew = QSiliconResearchCrew()
     final_report = str(research_crew.run())
     
@@ -143,9 +153,5 @@ if __name__ == "__main__":
         bot = telebot.TeleBot(token)
         try:
             bot.send_message(chat_id, final_report, parse_mode="Markdown")
-            print("Report sent via Markdown.")
         except Exception as e:
-            print(f"Markdown failed, trying plain text: {e}")
             bot.send_message(chat_id, final_report)
-    else:
-        print("Telegram configuration missing.")
