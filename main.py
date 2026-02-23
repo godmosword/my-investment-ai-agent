@@ -1,6 +1,6 @@
 import os
 import requests
-import telebot  # 需在 requirements.txt 加入 pyTelegramBotAPI
+import telebot
 from textwrap import dedent
 from crewai import Agent, Task, Crew, Process
 from crewai.tools import tool
@@ -11,13 +11,10 @@ from crewai.tools import tool
 
 @tool("Tavily Market Search")
 def market_search_tool(query: str) -> str:
-    """
-    用於搜尋最新的宏觀經濟數據（如 DXY、美債）與數位資產即時新聞。
-    """
+    """用於搜尋最新的宏觀經濟數據與數位資產即時新聞。"""
     api_key = os.getenv("TAVILY_API_KEY")
     if not api_key:
         return "System Error: TAVILY_API_KEY not found."
-    
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
@@ -28,103 +25,70 @@ def market_search_tool(query: str) -> str:
 
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
-    """
-    用於獲取加密貨幣衍生品的數據。
-    參數 metric 可選值: 'open_interest' (持倉), 'funding_rate' (資金費率), 'liquidation' (清算)。
-    """
+    """獲取加密貨幣衍生品數據：open_interest, funding_rate, liquidation。"""
     api_key = os.getenv("COINGLASS_API_KEY")
     if not api_key:
         return "System Error: COINGLASS_API_KEY not found."
-        
-    headers = {
-        "accept": "application/json",
-        "coinglassSecret": api_key
-    }
-    
-    # 根據 metric 對應不同的 V4 API 端點
+    headers = {"accept": "application/json", "coinglassSecret": api_key}
     endpoints = {
         "open_interest": "https://open-api-v4.coinglass.com/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d",
         "funding_rate": "https://open-api-v4.coinglass.com/api/futures/funding-rate/history?symbol=BTC&interval=1d",
         "liquidation": "https://open-api-v4.coinglass.com/api/futures/liquidation/aggregated-history?symbol=BTC&interval=1d"
     }
-    
     url = endpoints.get(metric.lower(), endpoints["open_interest"])
-    
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
-            data = response.json()
-            # 僅回傳前幾筆數據以避免 context 過長
-            return str(data.get("data", []))[:2000]
+            return str(response.json().get("data", []))[:2000]
         return f"CoinGlass API Error: {response.status_code}"
     except Exception as e:
         return f"CoinGlass Request Failed: {str(e)}"
-
 
 # ==========================================
 # 二、 Agent 與 Crew 核心邏輯
 # ==========================================
 
 class QSiliconResearchCrew:
-    def __init__(self): # <--- 必須加入這個方法定義
-        # 1. 宏觀研究員 (Grok)：縮排必須在 __init__ 之內
+    def __init__(self):
+        # 1. 宏觀研究員 (Grok 4.1)
         self.macro_researcher = Agent(
             role="華爾街首席市場研究員",
             goal="捕捉具備『市場爆點』的新聞敘事與全球宏觀數據變化。",
             backstory=dedent("""
-                你具備敏銳的市場嗅覺。除了宏觀數據，你更擅長捕捉那些能引發市場情緒劇烈波動的『催化劑』。
-                在搜集新聞時，優先尋找涉及：資金大遷徙、權力階層對話、以及能推動市場共識改變的事件。
-                嚴禁提及台灣股市。
+                你具備敏銳的市場嗅覺。專注於催化劑分析，嚴禁提及台灣股市。
             """),
             llm="xai/grok-4-1-fast-reasoning",
             tools=[market_search_tool],
             verbose=True
         )
 
-        # 2. 策略分析師 (Gemini)
+        # 2. 策略分析師 (Gemini 3.1)
         self.quant_strategist = Agent(
             role="機構宏觀策略分析師",
-            goal="將枯燥的鏈上數據轉化為視覺化的指標儀表板，並產出深度的 80/20 專業報告。",
+            goal="將鏈上數據轉化為視覺化的指標儀表板，並產出深度的 80/20 專業報告。",
             backstory=dedent("""
-                你擅長將複雜的 CoinGlass 數據（如 OI、Funding Rate）提煉成讀者一眼就能看懂的『模擬線圖指標』。
-                寫作要求：
-                1. 在報告中加入『市場儀表板』區塊。
-                2. 描述數據時要帶有『動態感』（例如：RSI 正在背離、爆倉牆正在向上平移）。
-                3. 維持華爾街冷靜風格，但用更有張力的標題吸睛。
+                你擅長製作 Market Dashboard。維持華爾街冷靜風格，不說廢話。
             """),
             llm="google/gemini-3.1-pro-preview",
             tools=[coinglass_data_tool],
             verbose=True
         )
 
-def run(self):
-        # 任務一：偵察「市場催化劑」
+    def run(self): # <--- 修正：現在正確縮排在類別內部
         research_task = Task(
-            description=dedent("""
-                請使用工具搜尋最新的宏觀經濟數據（如 DXY、美債殖利率）及 3 則最具『敘事轉折感』的新聞。
-                重點在於：為什麼這些事件會影響市場情緒？而非單純陳述事實。
-                嚴禁包含任何台灣股市資訊。
-            """),
-            expected_output="包含宏觀趨勢與具備衝擊力的新聞催化劑摘要。",
+            description=dedent("""搜尋宏觀數據與 3 則具『敘事轉折感』的新聞，嚴禁包含台股資訊。"""),
+            expected_output="宏觀趨勢與新聞催化劑摘要。",
             agent=self.macro_researcher
         )
 
-        # 任務二：數據指標化與最終定稿
         compile_report_task = Task(
             description=dedent("""
-                請基於 research_task 的內容與 CoinGlass 數據，撰寫 [Q-Silicon Institutional Research] Daily Brief。
-                
-                必須包含以下元素：
-                1. 【📊 Market Dashboard】：使用 Markdown 模擬指標（如：[████░░░░░░] 40%）呈現恐慌指數、RSI、多空比。
-                2. 【新聞標題】：使用冷峻但具衝擊力的名稱，強調其對後市預期的傳導。
-                3. 【排版結構】：
-                   #### 📊 Market Dashboard (即時指標)
-                   #### 一、 宏觀環境觀測 (Macro Sentiment)
-                   #### 二、 即時新聞摘要 (Market Catalysts)
-                   #### 三、 鏈上結構分析 (On-chain Dynamics)
-                   #### 四、 策略分析師備忘錄 (Executive Summary)
+                撰寫 [Q-Silicon Institutional Research] Daily Brief。
+                必須包含：
+                1. 【📊 Market Dashboard】：使用文字模擬指標呈現數據。
+                2. 四大標準結構排版。
             """),
-            expected_output="一份具備視覺化指標、高衝擊力敘事且不帶情緒的 Markdown 機構報告。",
+            expected_output="一份具備視覺化指標且不帶情緒的 Markdown 報告。",
             agent=self.quant_strategist
         )
 
@@ -135,32 +99,25 @@ def run(self):
         )
         return crew.kickoff()
 
+# ==========================================
+# 三、 執行與發送邏輯
+# ==========================================
 
 if __name__ == "__main__":
     print("Initializing Q-Silicon Institutional Research Agent...")
     research_crew = QSiliconResearchCrew()
     final_report = str(research_crew.run())
     
-    print("\n=== Q-Silicon Report Generated ===\n")
-    print(final_report)
-    
-  # --- Telegram 發送邏輯 ---
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     
     if token and chat_id:
         bot = telebot.TeleBot(token)
         try:
-            # 優先嘗試使用 Markdown 發送，維持精美排版
             bot.send_message(chat_id, final_report, parse_mode="Markdown")
-            print("Report sent to Telegram successfully (Markdown format).")
+            print("Report sent via Markdown.")
         except Exception as e:
-            print(f"Markdown parsing failed: {e}. Falling back to plain text.")
-            try:
-                # 若 Markdown 解析失敗，降級為純文字發送，確保你一定收得到戰報
-                bot.send_message(chat_id, final_report)
-                print("Report sent to Telegram successfully (Plain text format).")
-            except Exception as e2:
-                print(f"Critical failure in sending Telegram message: {e2}")
+            bot.send_message(chat_id, final_report)
+            print("Fallback to Plain Text sent.")
     else:
-        print("Telegram configuration missing. Skipping broadcast.")
+        print("Telegram config missing.")
