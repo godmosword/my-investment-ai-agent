@@ -66,33 +66,36 @@ def coinglass_data_tool(metric: str) -> str:
 # ==========================================
 
 class QSiliconResearchCrew:
-self.macro_researcher = Agent(
-    role="華爾街首席市場研究員",
-    goal="追蹤具有『市場爆點』的新聞敘事與全球宏觀數據變化。",
-    backstory=dedent("""
-        你具備敏銳的市場嗅覺。除了宏觀數據，你更擅長捕捉那些能引發市場情緒劇烈波動的『催化劑』。
-        在搜集新聞時，優先尋找涉及：資金大遷徙、權力階層對話、以及能推動市場共識改變的事件。
-        嚴禁提及台灣股市。
-    """),
-    llm="xai/grok-4-1-fast-reasoning",
-    tools=[market_search_tool],
-    verbose=True
-)
+    def __init__(self): # <--- 必須加入這個方法定義
+        # 1. 宏觀研究員 (Grok)：縮排必須在 __init__ 之內
+        self.macro_researcher = Agent(
+            role="華爾街首席市場研究員",
+            goal="捕捉具備『市場爆點』的新聞敘事與全球宏觀數據變化。",
+            backstory=dedent("""
+                你具備敏銳的市場嗅覺。除了宏觀數據，你更擅長捕捉那些能引發市場情緒劇烈波動的『催化劑』。
+                在搜集新聞時，優先尋找涉及：資金大遷徙、權力階層對話、以及能推動市場共識改變的事件。
+                嚴禁提及台灣股市。
+            """),
+            llm="xai/grok-4-1-fast-reasoning",
+            tools=[market_search_tool],
+            verbose=True
+        )
 
-self.quant_strategist = Agent(
-    role="機構宏觀策略分析師",
-    goal="將枯燥的鏈上數據轉化為視覺化的指標儀表板，並產出深度的 80/20 專業報告。",
-    backstory=dedent("""
-        你擅長將複雜的 CoinGlass 數據（如 OI、Funding Rate）提煉成讀者一眼就能看懂的『模擬線圖指標』。
-        寫作要求：
-        1. 在報告中加入『市場儀表板』區塊。
-        2. 描述數據時要帶有『動態感』（例如：RSI 正在背離、爆倉牆正在向上平移）。
-        3. 維持華爾街冷靜風格，但用更有張力的標題吸睛。
-    """),
-    llm="google/gemini-3.1-pro-preview",
-    tools=[coinglass_data_tool],
-    verbose=True
-)
+        # 2. 策略分析師 (Gemini)
+        self.quant_strategist = Agent(
+            role="機構宏觀策略分析師",
+            goal="將枯燥的鏈上數據轉化為視覺化的指標儀表板，並產出深度的 80/20 專業報告。",
+            backstory=dedent("""
+                你擅長將複雜的 CoinGlass 數據（如 OI、Funding Rate）提煉成讀者一眼就能看懂的『模擬線圖指標』。
+                寫作要求：
+                1. 在報告中加入『市場儀表板』區塊。
+                2. 描述數據時要帶有『動態感』（例如：RSI 正在背離、爆倉牆正在向上平移）。
+                3. 維持華爾街冷靜風格，但用更有張力的標題吸睛。
+            """),
+            llm="google/gemini-3.1-pro-preview",
+            tools=[coinglass_data_tool],
+            verbose=True
+        )
 
 def run(self):
         # 任務一：偵察「市場催化劑」
