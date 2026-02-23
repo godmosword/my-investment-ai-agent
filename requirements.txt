@@ -1,6 +1,7 @@
-crewai[google-genai]
-crewai-tools
-yfinance
-requests
+crewai
+langchain-google-genai
+litellm
 duckduckgo-search
-google-generativeai
+requests
+python-dotenv
+
