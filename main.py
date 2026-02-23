@@ -94,34 +94,37 @@ self.quant_strategist = Agent(
     verbose=True
 )
 
-    def run(self):
-        # 任務一：由 Grok 負責的宏觀與新聞偵察
+def run(self):
+        # 任務一：偵察「市場催化劑」
         research_task = Task(
             description=dedent("""
-                請使用 Tavily Market Search 工具，搜尋最新的全球宏觀經濟數據（如 DXY、美債殖利率變化）
-                以及 3 則具備邊際影響力的數位資產市場新聞。
-                請將結果整理成結構化的摘要，嚴禁包含任何台灣股市 (TAIEX) 的資訊。
+                請使用工具搜尋最新的宏觀經濟數據（如 DXY、美債殖利率）及 3 則最具『敘事轉折感』的新聞。
+                重點在於：為什麼這些事件會影響市場情緒？而非單純陳述事實。
+                嚴禁包含任何台灣股市資訊。
             """),
-            expected_output="包含最新宏觀數據與 3 則關鍵新聞的結構化摘要。",
+            expected_output="包含宏觀趨勢與具備衝擊力的新聞催化劑摘要。",
             agent=self.macro_researcher
         )
 
-        # 任務二：由 Gemini 負責抓取鏈上數據並最終定稿
+        # 任務二：數據指標化與最終定稿
         compile_report_task = Task(
             description=dedent("""
-                請基於上一個任務(research_task)的研究摘要，並主動運用 CoinGlass 工具擷取最新鏈上數據，
-                將所有資訊彙整成一份 [Q-Silicon Institutional Research] Daily Brief。
-                架構：
-                #### 一、 宏觀環境觀測 (Macro Sentiment)
-                #### 二、 即時新聞摘要 (Market Catalysts)
-                #### 三、 鏈上結構分析 (On-chain Dynamics)
-                #### 四、 策略分析師備忘錄 (Executive Summary)
+                請基於 research_task 的內容與 CoinGlass 數據，撰寫 [Q-Silicon Institutional Research] Daily Brief。
+                
+                必須包含以下元素：
+                1. 【📊 Market Dashboard】：使用 Markdown 模擬指標（如：[████░░░░░░] 40%）呈現恐慌指數、RSI、多空比。
+                2. 【新聞標題】：使用冷峻但具衝擊力的名稱，強調其對後市預期的傳導。
+                3. 【排版結構】：
+                   #### 📊 Market Dashboard (即時指標)
+                   #### 一、 宏觀環境觀測 (Macro Sentiment)
+                   #### 二、 即時新聞摘要 (Market Catalysts)
+                   #### 三、 鏈上結構分析 (On-chain Dynamics)
+                   #### 四、 策略分析師備忘錄 (Executive Summary)
             """),
-            expected_output="一份符合華爾街機構標準、不帶情緒且排版精確的 Markdown 報告。",
+            expected_output="一份具備視覺化指標、高衝擊力敘事且不帶情緒的 Markdown 機構報告。",
             agent=self.quant_strategist
         )
 
-        # 將兩個任務放入陣列，確保 Grok 先跑，Gemini 接力
         crew = Crew(
             agents=[self.macro_researcher, self.quant_strategist],
             tasks=[research_task, compile_report_task], 
