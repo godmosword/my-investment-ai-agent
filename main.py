@@ -77,7 +77,7 @@ class QSiliconResearchCrew:
         # 2. 首席風控評論員 (GPT-4o)
         self.risk_critic = Agent(
             role="首席風險評論員 (Chief Risk Critic)",
-            goal="針對新聞的真實性與市場風險進行『毒舌』審計，並給予 1-10 分。 ",
+            goal="針對新聞的真實性與市場風險進行『毒舌』審計，並給予評分。",
             backstory=dedent("""
                 你使用 GPT-4o。你是華爾街的合夥人，負責質疑一切。
                 你的短評必須直指要害：這則新聞是否只是市場噪音？是否隱含清算風險？
@@ -101,14 +101,12 @@ class QSiliconResearchCrew:
         )
 
     def run(self):
-        # 任務一：情報偵察與過濾 (Grok)
         research_task = Task(
             description="抓取宏觀數據與 3 則幣圈新聞。必須過濾掉所有垃圾資訊與台股內容。",
             expected_output="包含新聞初稿與 Grok 個人短評的摘要。",
             agent=self.macro_researcher
         )
 
-        # 任務二：風險審核與評分 (GPT-4o)
         review_task = Task(
             description="對 Grok 抓取的新聞進行風險評分，並提供你的獨立毒舌短評。",
             expected_output="包含評分與批判短評的備忘錄。",
@@ -116,7 +114,6 @@ class QSiliconResearchCrew:
             context=[research_task]
         )
 
-        # 任務三：數據整合與最終視覺化 (Gemini)
         final_report_task = Task(
             description=dedent("""
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
@@ -141,10 +138,17 @@ class QSiliconResearchCrew:
         )
         return crew.kickoff()
 
-# ... (後續 Telegram 發送邏輯與 main 執行部分保持不變) ...
+# ==========================================
+# 三、 執行與 Telegram 推送邏輯 (完整版)
+# ==========================================
+
 if __name__ == "__main__":
+    print("Initializing Q-Silicon v4.0 Agent...")
     research_crew = QSiliconResearchCrew()
     final_report = str(research_crew.run())
+    
+    print("\n=== Report Generated ===\n")
+    print(final_report)
     
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -152,6 +156,16 @@ if __name__ == "__main__":
     if token and chat_id:
         bot = telebot.TeleBot(token)
         try:
+            # 優先嘗試使用 Markdown 發送
             bot.send_message(chat_id, final_report, parse_mode="Markdown")
+            print("Telegram Push Success (Markdown).")
         except Exception as e:
-            bot.send_message(chat_id, final_report)
+            print(f"Markdown failed, falling back to Plain Text: {e}")
+            try:
+                # 降級為純文字發送，確保資訊不遺失
+                bot.send_message(chat_id, final_report)
+                print("Telegram Push Success (Plain Text).")
+            except Exception as e2:
+                print(f"Critical Failure: {e2}")
+    else:
+        print("Telegram configuration missing. Skipping push.")
