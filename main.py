@@ -1,6 +1,6 @@
 import os
 import requests
-from crewai import Agent, Task, Crew, LLM
+from crewai import Agent, Task, Crew, LLM, tool  # 👈 加上這個 tool 就能動了
 from crewai_tools import TavilySearchTool  # 👈 修正後的正確導入名稱
 from datetime import datetime
 
