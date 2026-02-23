@@ -1,15 +1,6 @@
-# 核心框架與官方工具庫
-crewai
+crewai[google-genai]
 crewai_tools
-
-# LLM 溝通與 API 轉譯 (讓 Grok-beta 能順利運作)
 litellm
-
-# 專業搜尋工具 (Tavily AI)
 tavily-python
-
-# 數據請求與 API 串集 (CoinGlass, CoinGecko)
 requests
-
-# 環境變數管理
 python-dotenv
