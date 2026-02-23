@@ -17,7 +17,7 @@ grok_llm = LLM(
 )
 
 gemini_llm = LLM(
-    model="gemini/gemini-3.1-pro",
+    model="gemini/gemini-3.1-pro-preview",
     api_key=os.getenv("GEMINI_API_KEY"),
     temperature=0.2
 )
