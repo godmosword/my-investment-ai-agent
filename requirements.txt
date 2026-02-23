@@ -1,15 +1,9 @@
-# 核心框架
 crewai[google-genai]
 crewai_tools
-
-# LLM 溝通與排程依賴 (解決 apscheduler 與 fastapi 錯誤)
 litellm[proxy]
 fastapi
 uvicorn
 apscheduler
-backoff
-
-# 數據與系統
 tavily-python
 requests
 python-dotenv
