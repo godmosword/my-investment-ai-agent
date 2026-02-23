@@ -1,15 +1,19 @@
-# 核心與工具
+# Core Framework
 crewai
 crewai[google-genai]
 crewai_tools
 
-# 強制安裝 LiteLLM 與其必要組件
+# LLM Routing & API
 litellm
 openai
+
+# Server & Scheduling (LiteLLM dependencies)
 fastapi
 uvicorn
+apscheduler
 
-# 數據連線
+# Data Fetching & Utils
 tavily-python
 requests
 python-dotenv
+pydantic>=2.0.0
