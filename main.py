@@ -11,7 +11,7 @@ TODAY = datetime.now().strftime("%Y/%m/%d")
 # ================== 雙神獸 LLM 大腦 (火力全開配置) ==================
 # Grok-4.1: 狂暴情報員，負責挖掘極限利多與社群瘋狂
 grok_llm = LLM(
-    model="xai/grok-4.1", 
+    model="xai/grok-beta", 
     api_key=os.getenv("XAI_API_KEY"),
     temperature=0.8  # 高溫度讓觀點更犀利
 )
