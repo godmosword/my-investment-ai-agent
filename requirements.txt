@@ -1,7 +1,15 @@
+# 核心框架
 crewai
-langchain-google-genai
-litellm
-duckduckgo-search
-requests
-python-dotenv
 
+# LLM 溝通與 API 轉譯 (讓 Grok-beta 能順利運作)
+litellm
+
+# 專業搜尋工具 (Tavily AI)
+tavily-python
+
+# 數據請求與 API 串接 (CoinGecko, CoinGlass)
+requests
+
+# 其他必要的輔助套件
+duckduckgo-search
+python-dotenv
