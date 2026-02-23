@@ -1,9 +1,15 @@
+# 核心與工具
+crewai
 crewai[google-genai]
 crewai_tools
-litellm[proxy]
+
+# 強制安裝 LiteLLM 與其必要組件
+litellm
+openai
 fastapi
 uvicorn
-apscheduler
+
+# 數據連線
 tavily-python
 requests
 python-dotenv
