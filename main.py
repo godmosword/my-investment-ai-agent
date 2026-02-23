@@ -106,23 +106,22 @@ class QSiliconResearchCrew:
         # 任務三：最終彙整與儀表板強化 (Gemini 視覺化定稿)
         final_report_task = Task(
             description=dedent("""
-                根據意見修正，產出 [Q-Silicon Institutional Research] Daily Brief。
+                根據 Risk Critic 的意見修正，產出 [Q-Silicon Institutional Research] Daily Brief。
                 
-                【📊 鏈上微觀儀表板模板】：
-                請將報告開頭優化為極具直覺感的視覺區塊，嚴格使用以下格式呈現數據：
+                【📊 鏈上微觀儀表板強化要求】：
+                請將 CoinGlass 抓取到的即時數據轉換為以下視覺格式。若數據顯示極端值，請在指標後方加上 ⚠️ 警示：
 
                 ### 📊 鏈上微觀儀表板 (On-chain Dashboard)
-                > **市場結構與流動性觀測**
+                > **市場結構與流動性深度**
                 > * 🔴 **情緒權重：** `[██████░░░░] 60% (Fear & Greed)`
-                > * ⚖️ **多空比力量：** `Long 52% [█████░░░░░] Short 48%`
-                > * 🌊 **OI 持倉變動：** `$XX 億 (較 24H 變動 X%)`
-                > * 💰 **資金費率：** `+0.01% (中性偏多)`
-                > * 🧱 **關鍵清算壁：** `阻力 $XX,XXX / 支撐 $XX,XXX`
+                > * ⚖️ **多空力量 (24h)：** `Long 52% [█████░░░░░] Short 48%`
+                > * 🌊 **OI 持倉動能：** `$XX 億 (24H Delta: X.X%)` -> *反映資金進場意願*
+                > * 💰 **資金費率狀態：** `X.XXXX% (預測年化: X%)` -> *反映市場過熱度*
+                > * 🧱 **高強度清算區：** `阻力 $XX,XXX (空頭牆) / 支撐 $XX,XXX (多頭墊)`
 
-                之後請依序產出：宏觀環境、即時新聞、鏈上結構分析與策略師備忘錄。
-                最後必須附上【💡 Q-Silicon Peer Review】包含專家評分與討論摘要。
+                後續章節請維持華爾街分析師風格，並在結尾保留【💡 Q-Silicon Peer Review】。
             """),
-            expected_output="具備高度視覺化指標、專家討論且無情緒化的 Markdown 報告。",
+            expected_output="一份具備視覺化數據、專家批判意見且排版精確的 Markdown 報告。",
             agent=self.quant_strategist,
             context=[research_task, review_task]
         )
