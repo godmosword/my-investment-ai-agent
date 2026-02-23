@@ -1,6 +1,8 @@
 crewai[google-genai]
 crewai_tools
 litellm
+fastapi
+uvicorn
 tavily-python
 requests
 python-dotenv
