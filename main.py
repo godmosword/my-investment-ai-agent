@@ -139,17 +139,23 @@ if __name__ == "__main__":
     print("\n=== Q-Silicon Report Generated ===\n")
     print(final_report)
     
-    # --- Telegram 發送邏輯 ---
+  # --- Telegram 發送邏輯 ---
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     
     if token and chat_id:
+        bot = telebot.TeleBot(token)
         try:
-            bot = telebot.TeleBot(token)
-            # 使用 Markdown 格式發送，確保標題和加粗效果
+            # 優先嘗試使用 Markdown 發送，維持精美排版
             bot.send_message(chat_id, final_report, parse_mode="Markdown")
-            print("Report sent to Telegram successfully.")
+            print("Report sent to Telegram successfully (Markdown format).")
         except Exception as e:
-            print(f"Failed to send Telegram message: {e}")
+            print(f"Markdown parsing failed: {e}. Falling back to plain text.")
+            try:
+                # 若 Markdown 解析失敗，降級為純文字發送，確保你一定收得到戰報
+                bot.send_message(chat_id, final_report)
+                print("Report sent to Telegram successfully (Plain text format).")
+            except Exception as e2:
+                print(f"Critical failure in sending Telegram message: {e2}")
     else:
         print("Telegram configuration missing. Skipping broadcast.")
