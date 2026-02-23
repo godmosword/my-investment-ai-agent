@@ -7,7 +7,7 @@ crewai_tools
 litellm
 openai
 
-# Server & Scheduling (LiteLLM dependencies)
+# Server & Scheduling
 fastapi
 uvicorn
 apscheduler
@@ -17,3 +17,6 @@ tavily-python
 requests
 python-dotenv
 pydantic>=2.0.0
+
+# Telegram Bot
+pyTelegramBotAPI
