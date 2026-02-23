@@ -1,118 +1,69 @@
 import os
-import requests
-from crewai import Agent, Task, Crew, LLM
-from crewai.tools import tool  
-from crewai_tools import TavilySearchTool
-from datetime import datetime
+from crewai import Agent, Task, Crew, Process
+from textwrap import dedent
 
-# ================== 核心設定 ==================
-TODAY = datetime.now().strftime("%Y/%m/%d")
-
-# ================== 雙神獸 LLM 大腦配置 ==================
-# 旗艦組合：Grok 4.1 推理版 + Gemini 3.1 專業版
-grok_llm = LLM(
-    model="xai/grok-4-1-fast-reasoning", 
-    api_key=os.getenv("XAI_API_KEY"),
-    temperature=0.7
-)
-
-gemini_llm = LLM(
-    model="gemini/gemini-3.1-pro-preview",
-    api_key=os.getenv("GEMINI_API_KEY"),
-    temperature=0.2
-)
-
-# ================== 專業數據工具箱 ==================
-search_tool = TavilySearchTool()
-
-@tool
-def coinglass_tool(query: str = "") -> str:
-    """獲取全網 24H 爆倉數據與 BTC 多空比。"""
-    key = os.getenv("COINGLASS_API_KEY")
-    headers = {"accept": "application/json", "CG-API-KEY": key}
-    try:
-        liq_url = "https://open-api.coinglass.com/public/v2/liquidation_info"
-        liq_res = requests.get(liq_url, headers=headers, timeout=10).json()
-        total_liq = liq_res.get('data', [{}])[0].get('totalVolUsd', 'N/A')
-        
-        ls_url = "https://open-api.coinglass.com/public/v2/long_short?symbol=BTC&time_type=h24"
-        ls_res = requests.get(ls_url, headers=headers, timeout=10).json()
-        ls_ratio = ls_res.get('data', [{}])[0].get('longShortRatio', 'N/A')
-        return f"【CoinGlass】24H 總爆倉: ${total_liq} | BTC 多空比: {ls_ratio}"
-    except Exception as e:
-        return f"數據連線異常: {str(e)}"
-
-@tool
-def price_tool(query: str = "") -> str:
-    """獲取即時報價與恐懼貪婪指數。"""
-    try:
-        p = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true", timeout=10).json()
-        f = requests.get("https://api.alternative.me/fng/?limit=1", timeout=10).json()['data'][0]
-        return f"BTC: ${p['bitcoin']['usd']:,} ({p['bitcoin']['usd_24h_change']:.1f}%) | F&G Index: {f['value']} ({f['value_classification']})"
-    except Exception as e:
-        return f"報價異常: {str(e)}"
-
-# ================== Agent 辯論陣容 ==================
-bull_scout = Agent(
-    role="Aggressive Market Bull (Grok-4.1)",
-    goal="發揮 X 平台資訊時效優勢，挖掘最強大的上漲理由，找出空頭即將被軋空的證據。",
-    backstory="你是一位對科技與半導體充滿狂熱的分析師，講話風格犀利且具備侵略性。",
-    tools=[search_tool, coinglass_tool, price_tool],
-    llm=grok_llm,
-    verbose=True
-)
-
-risk_auditor = Agent(
-    role="Cold-Blooded Risk Assassin (Gemini-3.1)",
-    goal="無情質疑 Grok 的觀點。找出市場過熱與潛在的殺多訊號，產出具備訂閱價值的報告。",
-    backstory="你是一位具備多年半導體產業經驗的資深精算師，冷靜、毒舌。你的任務是守護投資人的本金。",
-    tools=[search_tool, coinglass_tool, price_tool],
-    llm=gemini_llm,
-    verbose=True
-)
-
-# ================== 任務流程 ==================
-tasks = [
-    Task(
-        description="分析最新數據與社群情緒，提出 2 個具備爆發力的看多觀點，並引用爆倉數據證明空頭回補的可能性。",
-        agent=bull_scout,
-        expected_output="充滿張力的看多分析。"
-    ),
-    Task(
-        description="針對 Grok 的觀點進行數據打臉。找出多空比中潛在的風險，並提出一個足以毀滅倉位的極端預警。",
-        agent=risk_auditor,
-        expected_output="冷酷、精準的風險審查報告。"
-    ),
-    Task(
-        description=f"""
-        將上述辯論彙整為一份專業投資日報。
-        【Qingpu Silicon Brain | 矽大腦戰報 - {TODAY}】
-        1. 🔍 **核心數據看板**：BTC 價格與全網爆倉總量。
-        2. ⚔️ **專家針鋒相對**：Grok 的看多理由 vs Gemini 的殺多預警。
-        3. 💡 **小白投資策略**：30 秒能看完的行動清單。
-        4. 🏛️ **產業洞察**：以半導體工程師視角，分析當前宏觀趨勢對幣圈的影響。
-        """,
-        agent=risk_auditor,
-        expected_output="最終可發送至 Telegram 的專業戰報。"
-    )
-]
-
-# ================== 執行與發送 ==================
-if __name__ == "__main__":
-    crew = Crew(agents=[bull_scout, risk_auditor], tasks=tasks, process="sequential")
-    try:
-        result = crew.kickoff()
-        # 增加分隔線提升排版層次感
-        message = f"🛡️ **Qingpu Silicon Brain | 戰報**\n━━━━━━━━━━━━\n{result.raw}"
-        
-        requests.post(
-            f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN')}/sendMessage", 
-            json={
-                "chat_id": os.getenv("TELEGRAM_CHAT_ID"), 
-                "text": message, 
-                "parse_mode": "Markdown"
-            }
+class QSiliconResearchCrew:
+    def __init__(self):
+        # 1. 多頭斥候：負責宏觀與新聞 (80% 淺顯概況)
+        self.macro_researcher = Agent(
+            role="華爾街首席市場研究員",
+            goal="追蹤 DXY、美債殖利率變化，並過濾出 3 則具備邊際影響力的加密貨幣市場新聞。",
+            backstory=dedent("""
+                你是一名專精於跨資產連動的華爾街研究員。
+                你的分析客觀冷靜，只描述『預期差』與『市場定價』，絕不使用情緒化字眼。
+            """),
+            llm="xai/grok-4-1-fast-reasoning",
+            allow_delegation=False,
+            verbose=True
         )
-        print("✅ 旗艦版戰報已發送！")
-    except Exception as e:
-        print(f"❌ 執行錯誤: {e}")
+
+        # 2. 數據精算師：負責鏈上結構 (20% 高深分析)
+        self.quant_strategist = Agent(
+            role="機構宏觀策略分析師",
+            goal="深度解讀 CoinGlass 的合約持倉(OI)、清算圖表與資金費率，並彙整最終的 Institutional Daily Digest。",
+            backstory=dedent("""
+                你代表頂級投行的量化水準。你的任務是揭示市場微觀結構的偏離。
+                寫作規範：
+                1. 嚴禁使用『此外、總結、令人驚訝的是』等 AI 慣用連接詞。
+                2. 分析必須基於數據的 Delta (變動量) 與歷史百分位。
+                3. 維持 80% 淺顯宏觀概況與 20% 高深結構分析的內容比例。
+            """),
+            llm="google/gemini-3.1-pro-preview",
+            allow_delegation=False,
+            verbose=True
+        )
+
+    def run(self):
+        # 定義最終產出任務
+        compile_report_task = Task(
+            description=dedent("""
+                請依據搜尋與擷取到的數據，撰寫一份 [Q-Silicon Institutional Research] Daily Brief。
+                
+                必須嚴格遵循以下 Markdown 結構：
+                #### **一、 宏觀環境觀測 (Macro Sentiment)**
+                (描述利率預期與跨資產連動)
+                #### **二、 即時新聞摘要 (Market Catalysts)**
+                (3則新聞及其對市場預期的傳導)
+                #### **三、 鏈上結構分析 (On-chain Dynamics)**
+                (深度解讀OI、流動性缺失與資金費率)
+                #### **四、 策略分析師備忘錄 (Executive Summary)**
+                (給出關鍵支撐/阻力位與風險提示)
+            """),
+            expected_output="一份符合華爾街機構標準、不帶情緒且排版精確的 Markdown 報告。",
+            agent=self.quant_strategist
+        )
+
+        crew = Crew(
+            agents=[self.macro_researcher, self.quant_strategist],
+            tasks=[compile_report_task],
+            process=Process.sequential
+        )
+        return crew.kickoff()
+
+if __name__ == "__main__":
+    # 啟動系統
+    research_crew = QSiliconResearchCrew()
+    final_report = research_crew.run()
+    print("=== Q-Silicon Report Generated ===")
+    print(final_report)
+    # 這裡可以接續你原本的 Telegram 發送邏輯
