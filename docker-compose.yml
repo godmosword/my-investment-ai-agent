@@ -1,13 +1,19 @@
-version: '3.8'
+# 採用 2026 穩定的 Python 3.11 Slim 版本
+FROM python:3.11-slim
 
-services:
-  investment-agent:
-    build: .
-    environment:
-      # 映射語法：把 GitHub 系統變數傳進容器
-      - XAI_API_KEY=${XAI_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
-      - COINGLASS_API_KEY=${COINGLASS_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+# 設定工作目錄
+WORKDIR /app
+
+# 環境變數優化：不生成 .pyc，且讓 stdout 即時輸出
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# 複製依賴清單並安裝
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 複製專案代碼
+COPY . .
+
+# 執行主程式 (假設你的入口文件為 main.py)
+CMD ["python", "main.py"]
