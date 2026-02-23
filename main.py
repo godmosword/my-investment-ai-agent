@@ -96,9 +96,22 @@ class QSiliconResearchCrew:
         )
 
     def run(self):
+        # 任務一：由 Grok 負責的宏觀與新聞偵察
+        research_task = Task(
+            description=dedent("""
+                請使用 Tavily Market Search 工具，搜尋最新的全球宏觀經濟數據（如 DXY、美債殖利率變化）
+                以及 3 則具備邊際影響力的數位資產市場新聞。
+                請將結果整理成結構化的摘要，嚴禁包含任何台灣股市 (TAIEX) 的資訊。
+            """),
+            expected_output="包含最新宏觀數據與 3 則關鍵新聞的結構化摘要。",
+            agent=self.macro_researcher
+        )
+
+        # 任務二：由 Gemini 負責抓取鏈上數據並最終定稿
         compile_report_task = Task(
             description=dedent("""
-                請主動運用工具擷取最新數據，並撰寫一份 [Q-Silicon Institutional Research] Daily Brief。
+                請基於上一個任務(research_task)的研究摘要，並主動運用 CoinGlass 工具擷取最新鏈上數據，
+                將所有資訊彙整成一份 [Q-Silicon Institutional Research] Daily Brief。
                 架構：
                 #### 一、 宏觀環境觀測 (Macro Sentiment)
                 #### 二、 即時新聞摘要 (Market Catalysts)
@@ -109,9 +122,10 @@ class QSiliconResearchCrew:
             agent=self.quant_strategist
         )
 
+        # 將兩個任務放入陣列，確保 Grok 先跑，Gemini 接力
         crew = Crew(
             agents=[self.macro_researcher, self.quant_strategist],
-            tasks=[compile_report_task],
+            tasks=[research_task, compile_report_task], 
             process=Process.sequential
         )
         return crew.kickoff()
