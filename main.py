@@ -14,7 +14,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # ================== LLM 大腦 ==================
 gemini_llm = LLM(
-    model="gemini/gemini-2.5-flash",
+    model="gemini/gemini-3.1-flash",
     api_key=os.getenv("GEMINI_API_KEY"),
     temperature=0.4 # 稍微調低創意度，減少日期幻覺
 )
