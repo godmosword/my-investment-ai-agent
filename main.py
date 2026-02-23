@@ -1,7 +1,7 @@
 import os
 import requests
 from crewai import Agent, Task, Crew, LLM
-from crewai.project import tool  # 2026 最新標準位置
+from crewai.tools import tool  # 👈 改回從 crewai.tools 導入，這才是 standalone 腳本用的
 from crewai_tools import TavilySearchTool
 from datetime import datetime
 
