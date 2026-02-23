@@ -23,7 +23,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # ================== LLM 大腦 (頂配版) ==================
 gemini_llm = LLM(
-    model="gemini/gemini-3.1-pro", # 👈 你的最強大腦
+    model="gemini/gemini-3.1-pro-preview", # 👈 你的最強大腦
     api_key=os.getenv("GEMINI_API_KEY"),
     temperature=0.3 # 降低創意度，讓財務分析更嚴謹
 )
