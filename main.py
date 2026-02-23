@@ -10,8 +10,9 @@ TODAY = datetime.now().strftime("%Y/%m/%d")
 
 # ================== 雙神獸 LLM 大腦配置 ==================
 # Grok-beta: 負責最具侵略性的社群情緒與利多挖掘
+# 修改前：model="xai/grok-beta"
 grok_llm = LLM(
-    model="xai/grok-beta", 
+    model="xai/grok-2-1212", # 👈 改用 2026 年最穩定的 Grok 2 版本
     api_key=os.getenv("XAI_API_KEY"),
     temperature=0.8
 )
