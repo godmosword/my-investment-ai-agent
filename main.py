@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
         message = f"📈 **每日加密貨幣快報 - {TODAY}**\n\n{report}"
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
         response = requests.post(url, json=payload)
         
         if response.status_code == 200:
