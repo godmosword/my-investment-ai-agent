@@ -1,30 +1,24 @@
-name: 每日投資 AI 報告 (Docker + Gemini)
+name: Crypto Agent Daily Report
 
 on:
+  workflow_dispatch: # 允許手動執行
   schedule:
-    - cron: '30 22 * * *'   # 台灣時間早上 6:30（UTC 22:30）
-  workflow_dispatch:
+    - cron: '0 0 * * *' # 每天早上 8 點執行
 
 jobs:
-  generate-report:
+  run-agent:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build & Run Docker Container
+      - name: Run Docker Compose
         env:
+          # 這裡最關鍵：將 Secrets 映射到系統環境變數
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          COINGLASS_API_KEY: ${{ secrets.COINGLASS_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          docker build -t investment-agent .
-          docker run --rm \
-            -e GEMINI_API_KEY \
-            -e TELEGRAM_BOT_TOKEN \
-            -e TELEGRAM_CHAT_ID \
-            investment-agent
+        run: docker-compose up --build --exit-code-from investment-agent
