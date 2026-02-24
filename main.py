@@ -67,14 +67,16 @@ def coinglass_data_tool(metric: str) -> str:
 
 class QSiliconResearchCrew:
     def __init__(self):
-        # 1. 宏觀偵察兵 (Grok 4.1) - 加入過濾垃圾新聞指令
+       # 1. 修改宏觀偵察兵 (加入嚴格時間要求)
         self.macro_researcher = Agent(
             role="華爾街首席市場研究員 (Spam-Filter Expert)",
-            goal="搜尋並篩選出 3 則具備『敘事轉折點』的高質量幣圈新聞，徹底避開 Spam 與低質量推廣內容。",
+            goal="搜尋並篩選出 3 則『過去 24 小時內』發生的高質量幣圈新聞，徹底避開舊新聞與 Spam。",
             backstory=dedent("""
                 你使用 Grok-4-1，擁有最強的市場嗅覺。
-                核心指令：篩選新聞時必須剔除任何重複標題、空洞的空投廣告(Airdrop Spam)與無數據支撐的喊單內容。
-                你將提供新聞初稿並附上你的冷峻短評。嚴禁台股。
+                核心指令：
+                1. 嚴格檢查新聞發布時間！如果新聞是超過 48 小時前的舊聞，立刻丟棄並重新搜尋。
+                2. 搜尋時主動在關鍵字加上 "latest news", "today", 或 "past 24 hours"。
+                3. 剔除重複標題、空洞廣告與台股內容。
             """),
             llm="xai/grok-4-1-fast-reasoning",
             tools=[market_search_tool, x_search_tool],
@@ -107,10 +109,11 @@ class QSiliconResearchCrew:
             verbose=True
         )
 
-    def run(self):
+        def run(self):
+        # 2. 修改研究任務 (強制加上時間戳記要求)
         research_task = Task(
-            description="抓取宏觀數據與 3 則幣圈新聞。必須過濾掉所有垃圾資訊與台股內容。",
-            expected_output="包含新聞初稿與 Grok 個人短評的摘要。",
+            description="抓取『過去 24 小時內』的宏觀數據與 3 則最新幣圈新聞。請在初稿中附上每則新聞的發布日期以供檢驗。必須過濾掉舊聞與垃圾資訊。",
+            expected_output="包含 3 則『今日最新』新聞初稿與 Grok 短評的摘要。",
             agent=self.macro_researcher
         )
 
