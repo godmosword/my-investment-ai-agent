@@ -17,7 +17,14 @@ def market_search_tool(query: str) -> str:
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
-        response = client.search(query=query, search_depth="advanced", max_results=5)
+        # 加上 topic="news" 與 days=1，強制只抓取過去 24 小時內的新聞
+        response = client.search(
+            query=query, 
+            search_depth="advanced", 
+            max_results=5,
+            topic="news",
+            days=1
+        )
         return str(response.get("results", "No results found."))
     except Exception as e: return f"Tavily Failed: {str(e)}"
 
