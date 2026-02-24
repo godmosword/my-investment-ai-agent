@@ -67,7 +67,7 @@ def coinglass_data_tool(metric: str) -> str:
 
 class QSiliconResearchCrew:
     def __init__(self):
-       # 1. 修改宏觀偵察兵 (加入嚴格時間要求)
+        # 1. 修改宏觀偵察兵 (加入嚴格時間要求)
         self.macro_researcher = Agent(
             role="華爾街首席市場研究員 (Spam-Filter Expert)",
             goal="搜尋並篩選出 3 則『過去 24 小時內』發生的高質量幣圈新聞，徹底避開舊新聞與 Spam。",
@@ -109,14 +109,16 @@ class QSiliconResearchCrew:
             verbose=True
         )
 
-        def run(self):
-        # 2. 修改研究任務 (強制加上時間戳記要求)
+    # 修正了這裡的縮排，確保 run 方法屬於 QSiliconResearchCrew 類別
+    def run(self):
+        # 任務一：偵查與情報獲取
         research_task = Task(
             description="抓取『過去 24 小時內』的宏觀數據與 3 則最新幣圈新聞。請在初稿中附上每則新聞的發布日期以供檢驗。必須過濾掉舊聞與垃圾資訊。",
             expected_output="包含 3 則『今日最新』新聞初稿與 Grok 短評的摘要。",
             agent=self.macro_researcher
         )
 
+        # 任務二：風險審核
         review_task = Task(
             description="對 Grok 抓取的新聞進行風險評分，並提供你的獨立毒舌短評。",
             expected_output="包含評分與批判短評的備忘錄。",
@@ -124,6 +126,7 @@ class QSiliconResearchCrew:
             context=[research_task]
         )
 
+        # 任務三：最終彙整與報告產出
         final_report_task = Task(
             description=dedent("""
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
@@ -153,7 +156,7 @@ class QSiliconResearchCrew:
 # ==========================================
 
 if __name__ == "__main__":
-    print("Initializing Q-Silicon v4.0 Agent...")
+    print("Initializing Q-Silicon Agent...")
     research_crew = QSiliconResearchCrew()
     final_report = str(research_crew.run())
     
