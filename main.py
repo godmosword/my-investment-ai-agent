@@ -11,6 +11,10 @@ from crewai.tools import tool
 # 載入環境變數
 load_dotenv()
 
+# 🚀 強制注入金鑰，確保 Google 原生 SDK 驗證通過
+if os.getenv("GEMINI_API_KEY"):
+    os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_API_KEY")
+
 # 設定日誌
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -47,7 +51,7 @@ def x_search_tool(query: str) -> str:
 
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
-    """獲取幣圈衍生品清算數據。"""
+    """獲取幣圈衍生品數據。"""
     api_key = os.getenv("COINGLASS_API_KEY")
     if not api_key: return "System Error: COINGLASS_API_KEY not found."
     headers = {"accept": "application/json", "coinglassSecret": api_key}
@@ -72,7 +76,7 @@ def cryptoquant_tool(indicator: str) -> str:
             if data: return f"BTC Inflow: {data[0].get('inflow')} BTC"
             return "No data found."
         elif response.status_code == 403:
-            return "CryptoQuant API 403: 權限不足，請忽略此數據直接繼續撰寫報告。"
+            return "CryptoQuant API 403: 權限不足，請忽略此數據直接撰寫報告。"
         return f"CryptoQuant Error: {response.status_code}"
     except Exception as e: return f"CryptoQuant Failed: {str(e)}"
 
@@ -90,7 +94,7 @@ class QSiliconResearchCrew:
             assistant_prefill=False
         )
         
-        # 🤖 GPT：直連 OpenAI 原生 API (修正識別 ID，移除 openai/ 前綴)
+        # 🤖 GPT：直連 OpenAI 原生 API (修正 ID 識別)
         gpt_latest = LLM(
             model="gpt-5.3-codex", 
             api_key=os.getenv("OPENAI_API_KEY"),
@@ -104,16 +108,16 @@ class QSiliconResearchCrew:
             assistant_prefill=False
         )
         
-        # 💎 Gemini：直連 Google 原生 API (保持官方路徑格式)
+        # 💎 Gemini：直連 Google 原生 API (使用 GEMINI_API_KEY)
         gemini_latest = LLM(
             model="gemini/gemini-3.1-pro-preview", 
-            api_key=os.getenv("GOOGLE_API_KEY"),
+            api_key=os.getenv("GEMINI_API_KEY"),
             assistant_prefill=False
         )
 
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
-            goal="挑選 5 則最具影響力的幣圈新聞，綜合 Tavily 與 X 情緒。若 X 上無即時熱度則淘汰。",
+            goal="挑選 5 則具影響力的幣圈新聞，綜合 Tavily 與 X 情緒。若 X 無熱度則淘汰。",
             backstory="您擁有最強的幣圈嗅覺，嚴禁台股內容。Grok 是您的思維核心。",
             llm=grok_latest, 
             tools=[market_search_tool, x_search_tool],
@@ -125,7 +129,7 @@ class QSiliconResearchCrew:
             goal="搜尋並篩選出 5 則『12小時內』最新、最具突破性的 AI 產業動態。",
             backstory=dedent("""
                 您是矽谷科技先驅，GPT 是您的思維核心。
-                1. 您必須搜尋 "announced today", "just released"。
+                1. 您的關鍵字必須包含 "announced today", "just released"。
                 2. 您必須交叉比對 X 討論，若該新聞在 X 上已經沒人討論，請立即視為舊聞捨棄。
                 3. 您只追求最領先、剛發布的新消息。
             """),
@@ -176,11 +180,11 @@ class QSiliconResearchCrew:
             description=dedent("""
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
                 
-                🚨🚨🚨【動態過濾排版最佳實踐】🚨🚨🚨
+                🚨🚨🚨【動態過濾排版規則】🚨🚨🚨
                 每一則新聞下方，請『分行』且『僅列出參與該則新聞審核之 Agent』的觀點：
                 1. 幣圈新聞：請顯示 🛸 **Grok**、🛡️ **Claude** 與 💎 **主編** 的觀點。
                 2. AI 新聞：請顯示 🤖 **GPT**、🛡️ **Claude** 與 💎 **主編** 的觀點。
-                3. **禁止**在該則新聞下方出現未參與 Agent 的標籤（例如：幣圈新聞下不可出現 GPT 觀點區塊）。
+                3. **禁止**在該則新聞下方出現未參與 Agent 的標籤（例如：幣圈新聞下不可出現 GPT 區塊）。
                 
                 🚨 嚴禁輸出任何思考過程或 "(Done)" 字眼。
             """),
@@ -201,14 +205,14 @@ class QSiliconResearchCrew:
 # ==========================================
 
 if __name__ == "__main__":
-    logging.info("Initializing Q-Silicon Ultimate High-End Stable Agent...")
+    logging.info("Initializing Q-Silicon Ultimate Native-API Agent...")
     
     try:
         research_crew = QSiliconResearchCrew()
         final_report = str(research_crew.run())
         logging.info("Report Generation Successful.")
     except Exception as e:
-        final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息：{str(e)}"
+        final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查日誌。\n錯誤訊息：{str(e)}"
         logging.error(f"Execution Failed: {e}")
     
     token = os.getenv("TELEGRAM_BOT_TOKEN")
