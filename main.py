@@ -8,10 +8,10 @@ from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import tool
 
-# 載入本地端 .env 變數
+# 載入環境變數
 load_dotenv()
 
-# 設定基礎日誌
+# 設定日誌
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ==========================================
@@ -77,34 +77,34 @@ def cryptoquant_tool(indicator: str) -> str:
     except Exception as e: return f"CryptoQuant Failed: {str(e)}"
 
 # ==========================================
-# 二、 Agent 陣容：原生 API 終極版
+# 二、 Agent 陣容：原生 API + 頂配型號
 # ==========================================
 
 class QSiliconResearchCrew:
     def __init__(self):
         
-        # 1. 🛸 幣圈偵察：直連 xAI 原生 API
+        # 🛸 Grok：直連 xAI 原生 API
         grok_latest = LLM(
             model="xai/grok-4.1-fast", 
             api_key=os.getenv("XAI_API_KEY"),
             assistant_prefill=False
         )
         
-        # 2. 🤖 AI 研究：直連 OpenAI 原生 API
+        # 🤖 GPT：直連 OpenAI 原生 API (確保名稱與官方伺服器識別一致)
         gpt_latest = LLM(
             model="openai/gpt-5.3-codex", 
             api_key=os.getenv("OPENAI_API_KEY"),
             assistant_prefill=False
         )
         
-        # 3. 🛡️ 風控審計：暫留 OpenRouter (因未要求更改 Claude)
+        # 🛡️ Claude：走 OpenRouter 中轉
         claude_latest = LLM(
             model="openrouter/anthropic/claude-sonnet-4.6", 
             api_key=os.getenv("OPENROUTER_API_KEY"),
             assistant_prefill=False
         )
         
-        # 4. 💎 機構主編：直連 Google 原生 API
+        # 💎 Gemini：直連 Google 原生 API (使用原生型號識別)
         gemini_latest = LLM(
             model="gemini/gemini-3.1-pro-preview", 
             api_key=os.getenv("GOOGLE_API_KEY"),
@@ -113,8 +113,8 @@ class QSiliconResearchCrew:
 
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
-            goal="挑選 5 則具影響力的幣圈新聞，綜合 Tavily 與 X 情緒。",
-            backstory="您擁有最強的幣圈嗅覺，嚴禁包含台灣股市內容。",
+            goal="挑選 5 則最具影響力的幣圈新聞，綜合 Tavily 與 X 情緒。",
+            backstory="您擁有最強的幣圈嗅覺，嚴禁台股內容。若 X 上無即時熱度則淘汰。",
             llm=grok_latest, 
             tools=[market_search_tool, x_search_tool],
             verbose=True
@@ -122,12 +122,12 @@ class QSiliconResearchCrew:
 
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
-            goal="搜尋並篩選出 5 則『24 小時內』最新、具震撼性的 AI 產業動態。",
+            goal="搜尋並篩選出 5 則『12小時內』最新、最具突破性的 AI 產業動態。",
             backstory=dedent("""
-                您是矽谷科技先驅。
-                1. 您的關鍵字必須包含 "announced today", "just released"。
-                2. 必須比對 X (Twitter) 討論熱度，如果推特上已經沒人在討論，請立即視為舊聞捨棄。
-                3. 您只追求『不到 12 小時』的最新科技突破。
+                您是矽谷科技先驅，對時效性有極高要求。
+                1. 您必須搜尋 "announced today", "just released"。
+                2. 您必須交叉比對 X 討論，若該新聞在 X 上已經沒人討論，請立即視為舊聞捨棄。
+                3. 您只追求最領先、剛發布的新消息。
             """),
             llm=gpt_latest, 
             tools=[market_search_tool, x_search_tool],
@@ -136,7 +136,7 @@ class QSiliconResearchCrew:
 
         self.risk_critic = Agent(
             role="首席風險與邏輯評論員",
-            goal="針對 10 則新聞進行嚴苛審計。",
+            goal="針對 10 則新聞進行嚴苛審計，揭露炒作風險。",
             backstory="華爾街合夥人。一針見血，不給數字評分。",
             llm=claude_latest, 
             allow_delegation=False,
@@ -145,8 +145,8 @@ class QSiliconResearchCrew:
 
         self.quant_strategist = Agent(
             role="機構策略主編",
-            goal="將情報整合為專業戰報。🚨必須分開列出不同 Agent 的評論。",
-            backstory="您負責排版。確保新聞均有 X 來源，且 Grok, GPT, Claude 的觀點需分行顯示。禁止輸出思考過程。",
+            goal="整合數據與 Agent 短評，輸出專業戰報。🚨必須分開列出不同 Agent 的評論。",
+            backstory="您負責排版。🚨絕對禁止輸出思考過程或重複字眼。確保每一則新聞都有分行的 Grok, GPT, Claude 觀點。",
             llm=gemini_latest, 
             tools=[coinglass_data_tool, cryptoquant_tool],
             verbose=True
@@ -154,19 +154,19 @@ class QSiliconResearchCrew:
 
     def run(self):
         crypto_task = Task(
-            description="搜尋 24 小時內幣圈新聞，比對 X 情緒，篩選 5 則並附上來源。",
-            expected_output="5 則含推特原聲與 Grok 短評的新聞初稿。",
+            description="搜尋 24 小時內幣圈新聞，比對 X 情緒，篩選 5 則並附上 X 來源。",
+            expected_output="5 則含推特原聲與短評的新聞初稿。",
             agent=self.crypto_researcher
         )
 
         ai_task = Task(
-            description="搜尋最新 AI 突破，比對 X 當下熱度，列出 5 則並附上 X 來源。",
-            expected_output="5 則時效性最強的 AI 新聞初稿，含 X 推特原聲與 GPT 短評。",
+            description="搜尋『過去 12 小時內』AI 突破，比對 X 當下熱度，列出 5 則並附上 X 來源。",
+            expected_output="5 則時效性最強的 AI 新聞初稿，含 X 來源與 GPT 短評。",
             agent=self.ai_researcher
         )
 
         review_task = Task(
-            description="審核上述 10 則新聞，給出嚴苛批判。不給分。",
+            description="審核上述 10 則新聞，給出毒舌批判。不給分。",
             expected_output="10 則新聞的批判備忘錄。",
             agent=self.risk_critic,
             context=[crypto_task, ai_task]
@@ -175,12 +175,13 @@ class QSiliconResearchCrew:
         final_report_task = Task(
             description=dedent("""
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
-                每一則新聞下方必須分別列出以下：
-                🛸 **Grok**: (對應評論)
-                🤖 **GPT**: (對應評論)
+                每一則新聞下方必須『分行』且『分標誌』列出以下觀點：
+                🛸 **Grok**: (短評內容)
+                🤖 **GPT**: (短評內容)
                 🛡️ **Claude**: (風險批判短評)
-                💎 **主編**: (綜合結語)
-                🚨 注意：嚴禁將評論混在一起，每個符號後都要換行。禁止輸出思考過程。
+                💎 **主編**: (綜合總結結語)
+                
+                🚨 注意：嚴禁混在一起，每個符號後都要換行。禁止輸出思考過程。
             """),
             expected_output="Telegram 最佳化、意見分立的純淨 Markdown 戰報文本。",
             agent=self.quant_strategist,
@@ -195,18 +196,18 @@ class QSiliconResearchCrew:
         return crew.kickoff()
 
 # ==========================================
-# 三、 執行與 Telegram 推送
+# 三、 執行與 Telegram 推送邏輯
 # ==========================================
 
 if __name__ == "__main__":
-    logging.info("Initializing Q-Silicon Native-API Stable Agent...")
+    logging.info("Initializing Q-Silicon Ultimate High-End Stable Agent...")
     
     try:
         research_crew = QSiliconResearchCrew()
         final_report = str(research_crew.run())
         logging.info("Report Generation Successful.")
     except Exception as e:
-        final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查日誌。\n錯誤：{str(e)}"
+        final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息：{str(e)}"
         logging.error(f"Execution Failed: {e}")
     
     token = os.getenv("TELEGRAM_BOT_TOKEN")
