@@ -15,9 +15,8 @@ jobs:
 
       - name: Run Docker Compose
         env:
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # 加入 OPENROUTER_API_KEY，並移除舊的個別模型金鑰
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           COINGLASS_API_KEY: ${{ secrets.COINGLASS_API_KEY }}
           X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
