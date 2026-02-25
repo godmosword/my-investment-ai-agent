@@ -74,7 +74,7 @@ def cryptoquant_tool(indicator: str) -> str:
     api_key = os.getenv("CRYPTOQUANT_API_KEY")
     if not api_key: return "System Error: CRYPTOQUANT_API_KEY not found."
     
-    # 已修正為正確的 CryptoQuant API Endpoint
+    # 使用正確的 CryptoQuant API Endpoint
     url = "https://api.cryptoquant.com/v1/btc/exchange-flows/netflow?limit=1"
     headers = {"Authorization": f"Bearer {api_key}"}
     try:
@@ -85,6 +85,7 @@ def cryptoquant_tool(indicator: str) -> str:
                 latest = data_list[0]
                 return f"BTC Exchange Netflow: {latest.get('netflow')} BTC (Date: {latest.get('date')})"
             return "CryptoQuant API 成功，但目前無最新數據。"
+        # 若發生 403 等錯誤，會被優雅擷取，不影響主程式
         return f"CryptoQuant Error: {response.status_code} - {response.text}"
     except Exception as e: 
         return f"CryptoQuant Failed: {str(e)}"
@@ -125,7 +126,7 @@ class QSiliconResearchCrew:
         self.quant_strategist = Agent(
             role="機構策略主編",
             goal="結合鏈上實體與衍生品數據，將情報統整為專業的 Telegram Markdown 戰報。",
-            backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，並且『幣圈與AI的新聞都必須包含 X 推文來源』。",
+            backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，並且『幣圈與AI的新聞都必須包含 X 推文來源』。🚨【絕對禁止】輸出任何思考過程或 '(Done)' 等無意義的重複字眼，只能輸出最終的純淨戰報。",
             llm="openrouter/google/gemini-3.1-pro-preview", 
             tools=[coinglass_data_tool, cryptoquant_tool],
             verbose=True
@@ -165,6 +166,12 @@ class QSiliconResearchCrew:
             description=dedent("""
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
                 
+                🚨🚨🚨【極度重要：防幻覺嚴格指令】🚨🚨🚨
+                1. 你的輸出必須「直接」是最終的 Telegram Markdown 戰報內容。
+                2. 絕對禁止輸出任何你的內心思考過程、自言自語（例如 "Let's do it", "Ready!", "Go!"）。
+                3. 絕對禁止在句尾或段落後輸出無意義的重複字眼（例如絕對禁止輸出 "(Done)"）。
+                4. 只要產出戰報文本即可，多餘的廢話會導致系統崩潰。
+                
                 【Telegram Markdown 排版規範】：
                 1. 版面分離：分為 `### 📊 市場鏈上數據`、`### 🌐 幣圈前沿`、`### 🧠 AI 視野`。
                 2. 鏈上數據區必須包含 CoinGlass 與 CryptoQuant 的狀態。
@@ -180,7 +187,7 @@ class QSiliconResearchCrew:
                    
                 4. 善用 Emoji，保留 ASCII 進度條。
             """),
-            expected_output="Telegram 最佳化純文字戰報。",
+            expected_output="純淨的 Telegram 最佳化 Markdown 戰報。絕對不包含任何 '(Done)' 或思考過程的純淨文本。",
             agent=self.quant_strategist,
             context=[crypto_task, ai_task, review_task]
         )
