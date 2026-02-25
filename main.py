@@ -19,7 +19,7 @@ if os.getenv("GEMINI_API_KEY"):
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ==========================================
-# 一、 外部 API 工具定義
+# 一、 外部 API 工具定義 (含 AI 算力與宏觀指標)
 # ==========================================
 
 @tool("AI Momentum Analyzer")
@@ -105,25 +105,25 @@ def cryptoquant_tool(indicator: str) -> str:
     return "API 403 or Error."
 
 # ==========================================
-# 二、 Agent 陣容：嚴格鎖定指定模型
+# 二、 Agent 陣容：嚴格鎖定指定模型 (修正 OpenAI 對話通道)
 # ==========================================
 
 class QSiliconResearchCrew:
     def __init__(self):
         
-        # 🛸 Grok：嚴格使用 xAI 原生 API (修正為正確的連字號 ID)
+        # 🛸 Grok：嚴格使用 xAI 原生 API (確保連字號格式正確)
         grok_latest = LLM(
             model="xai/grok-4-1-fast-reasoning", 
             api_key=os.getenv("XAI_API_KEY")
         )
         
-        # 🤖 GPT：嚴格使用 OpenAI 原生 API 
+        # 🤖 GPT：嚴格使用 OpenAI Chat 模型，完美解決 404 報錯
         gpt_latest = LLM(
-            model="openai/gpt-5.2-pro-2025-12-11", 
+            model="openai/gpt-5.2-chat-latest", 
             api_key=os.getenv("OPENAI_API_KEY")
         )
         
-        # 🛡️ Claude：嚴格使用 OpenRouter API (為防止崩潰，移除所有不相容參數)
+        # 🛡️ Claude：嚴格使用 OpenRouter API
         claude_latest = LLM(
             model="openrouter/anthropic/claude-sonnet-4.6", 
             api_key=os.getenv("OPENROUTER_API_KEY")
