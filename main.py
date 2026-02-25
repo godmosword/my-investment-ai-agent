@@ -26,7 +26,6 @@ def market_search_tool(query: str) -> str:
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
-        # 強制只抓取過去 24 小時內的新聞
         response = client.search(query=query, search_depth="advanced", max_results=5, topic="news", days=1)
         return str(response.get("results", "No results found."))
     except Exception as e: return f"Tavily Failed: {str(e)}"
@@ -68,14 +67,13 @@ def coinglass_data_tool(metric: str) -> str:
 @tool("CryptoQuant On-chain Data")
 def cryptoquant_tool(indicator: str) -> str:
     """
-    獲取比特幣(BTC)交易所淨流入實體數據。
-    【重要指令】：indicator 參數請務必精準輸入字串 "netflow"。
+    獲取比特幣(BTC)交易所單向流入(Inflow)數據。
+    【重要指令】：indicator 參數請務必精準輸入字串 "inflow"。
     """
     api_key = os.getenv("CRYPTOQUANT_API_KEY")
     if not api_key: return "System Error: CRYPTOQUANT_API_KEY not found."
     
-    # 使用正確的 CryptoQuant API Endpoint
-    url = "https://api.cryptoquant.com/v1/btc/exchange-flows/netflow?limit=1"
+    url = "https://api.cryptoquant.com/v1/btc/exchange-flows/inflow?limit=1"
     headers = {"Authorization": f"Bearer {api_key}"}
     try:
         response = requests.get(url, headers=headers, timeout=10)
@@ -83,9 +81,10 @@ def cryptoquant_tool(indicator: str) -> str:
             data_list = response.json().get("result", {}).get("data", [])
             if data_list:
                 latest = data_list[0]
-                return f"BTC Exchange Netflow: {latest.get('netflow')} BTC (Date: {latest.get('date')})"
+                return f"BTC Exchange Inflow: {latest.get('inflow')} BTC (Date: {latest.get('date')})"
             return "CryptoQuant API 成功，但目前無最新數據。"
-        # 若發生 403 等錯誤，會被優雅擷取，不影響主程式
+        elif response.status_code == 403:
+            return "CryptoQuant API 權限不足 (403)。免費版無法獲取此指標，請忽略此數據，直接繼續撰寫報告。"
         return f"CryptoQuant Error: {response.status_code} - {response.text}"
     except Exception as e: 
         return f"CryptoQuant Failed: {str(e)}"
@@ -126,8 +125,8 @@ class QSiliconResearchCrew:
         self.quant_strategist = Agent(
             role="機構策略主編",
             goal="結合鏈上實體與衍生品數據，將情報統整為專業的 Telegram Markdown 戰報。",
-            backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，並且『幣圈與AI的新聞都必須包含 X 推文來源』。🚨【絕對禁止】輸出任何思考過程或 '(Done)' 等無意義的重複字眼，只能輸出最終的純淨戰報。",
-            llm="openrouter/google/gemini-3.1-pro-preview", 
+            backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，並且『幣圈與AI的新聞都必須包含 X 推文來源』。🚨【絕對禁止】輸出任何思考過程、自言自語或 '(Done)' 等無意義的字眼，只能輸出最終的純淨戰報文本。",
+            llm="openrouter/anthropic/claude-sonnet-4.6", # 👑 堅持使用最新版 Claude 負責排版
             tools=[coinglass_data_tool, cryptoquant_tool],
             verbose=True
         )
@@ -168,13 +167,12 @@ class QSiliconResearchCrew:
                 
                 🚨🚨🚨【極度重要：防幻覺嚴格指令】🚨🚨🚨
                 1. 你的輸出必須「直接」是最終的 Telegram Markdown 戰報內容。
-                2. 絕對禁止輸出任何你的內心思考過程、自言自語（例如 "Let's do it", "Ready!", "Go!"）。
+                2. 絕對禁止輸出任何你的內心思考過程（例如 "Let's do it", "Ready!"）。
                 3. 絕對禁止在句尾或段落後輸出無意義的重複字眼（例如絕對禁止輸出 "(Done)"）。
-                4. 只要產出戰報文本即可，多餘的廢話會導致系統崩潰。
                 
                 【Telegram Markdown 排版規範】：
                 1. 版面分離：分為 `### 📊 市場鏈上數據`、`### 🌐 幣圈前沿`、`### 🧠 AI 視野`。
-                2. 鏈上數據區必須包含 CoinGlass 與 CryptoQuant 的狀態。
+                2. 鏈上數據區必須包含 CoinGlass 與 CryptoQuant (Inflow) 的狀態。若 CryptoQuant 無法獲取，請直接略過該數據。
                 3. 每則新聞 (無論幣圈或 AI) 都必須採用以下格式：
                 
                    **【新聞標題】**
@@ -183,11 +181,11 @@ class QSiliconResearchCrew:
                    
                    🛸 **Grok** / 🤖 **GPT**: (專屬短評)
                    🛡️ **Claude**: (風險批判短評)
-                   💎 **Gemini**: (總結短評)
+                   💎 **主編**: (綜合總結短評)
                    
                 4. 善用 Emoji，保留 ASCII 進度條。
             """),
-            expected_output="純淨的 Telegram 最佳化 Markdown 戰報。絕對不包含任何 '(Done)' 或思考過程的純淨文本。",
+            expected_output="純淨的 Telegram 最佳化 Markdown 戰報。絕對不包含任何 '(Done)' 或思考過程的文本。",
             agent=self.quant_strategist,
             context=[crypto_task, ai_task, review_task]
         )
