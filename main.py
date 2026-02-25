@@ -81,40 +81,36 @@ def cryptoquant_tool(indicator: str) -> str:
     except Exception as e: return f"CryptoQuant Failed: {str(e)}"
 
 # ==========================================
-# 二、 Agent 陣容：原生 API 識別優化版
+# 二、 Agent 陣容：原生 API 識別優化版 (已修正 prefill 報錯)
 # ==========================================
 
 class QSiliconResearchCrew:
     def __init__(self):
         
-        # 🛸 Grok：直連 xAI 原生 API
+        # 🛸 Grok：直連 xAI 原生 API (移除 assistant_prefill)
         grok_latest = LLM(
-            model="xai/grok-4-1-fast-reasoning", 
-            api_key=os.getenv("XAI_API_KEY"),
-            assistant_prefill=False
+            model="xai/grok-4.1-fast-reasoning", 
+            api_key=os.getenv("XAI_API_KEY")
         )
         
-        # 🤖 GPT：直連 OpenAI 原生 API (修正 ID 識別)
+        # 🤖 GPT：直連 OpenAI 原生 API (移除 assistant_prefill)
         gpt_latest = LLM(
             model="gpt-5.3-codex", 
-            api_key=os.getenv("OPENAI_API_KEY"),
-            assistant_prefill=False
+            api_key=os.getenv("OPENAI_API_KEY")
         )
         
-        # 🛡️ Claude：走 OpenRouter 中轉
+        # 🛡️ Claude：走 OpenRouter 中轉 (這個可以保留，因為 OpenRouter 支援此參數)
         claude_latest = LLM(
             model="openrouter/anthropic/claude-sonnet-4.6", 
             api_key=os.getenv("OPENROUTER_API_KEY"),
             assistant_prefill=False
         )
         
-        # 💎 Gemini：直連 Google 原生 API (使用 GEMINI_API_KEY)
+        # 💎 Gemini：直連 Google 原生 API (使用 GEMINI_API_KEY，移除 assistant_prefill)
         gemini_latest = LLM(
             model="gemini/gemini-3.1-pro-preview", 
-            api_key=os.getenv("GEMINI_API_KEY"),
-            assistant_prefill=False
+            api_key=os.getenv("GEMINI_API_KEY")
         )
-
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
             goal="挑選 5 則具影響力的幣圈新聞，綜合 Tavily 與 X 情緒。若 X 無熱度則淘汰。",
