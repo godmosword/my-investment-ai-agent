@@ -5,11 +5,10 @@ services:
       dockerfile: Dockerfile
     container_name: q_silicon_research_agent
     environment:
-      # 加入 OPENROUTER_API_KEY
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - COINGLASS_API_KEY=${COINGLASS_API_KEY}
-      - CRYPTOQUANT_API_KEY: ${{ secrets.CRYPTOQUANT_API_KEY }} # 或是 - CRYPTOQUANT_API_KEY=${CRYPTOQUANT_API_KEY}
+      - CRYPTOQUANT_API_KEY=${CRYPTOQUANT_API_KEY}
       - X_BEARER_TOKEN=${X_BEARER_TOKEN}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
