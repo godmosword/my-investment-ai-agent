@@ -70,66 +70,85 @@ def cryptoquant_tool(indicator: str) -> str:
     獲取比特幣(BTC)交易所單向流入(Inflow)數據。
     【重要指令】：indicator 參數請務必精準輸入字串 "inflow"。
     """
-    api_key = os.getenv("CRYPTOQUANT_API_KEY")
-    if not api_key: return "System Error: CRYPTOQUANT_API_KEY not found."
-    
-    url = "https://api.cryptoquant.com/v1/btc/exchange-flows/inflow?limit=1"
-    headers = {"Authorization": f"Bearer {api_key}"}
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            data_list = response.json().get("result", {}).get("data", [])
-            if data_list:
-                latest = data_list[0]
-                return f"BTC Exchange Inflow: {latest.get('inflow')} BTC (Date: {latest.get('date')})"
-            return "CryptoQuant API 成功，但目前無最新數據。"
-        elif response.status_code == 403:
-            return "CryptoQuant API 權限不足 (403)。免費版無法獲取此指標，請忽略此數據，直接繼續撰寫報告。"
-        return f"CryptoQuant Error: {response.status_code} - {response.text}"
-    except Exception as e: 
-        return f"CryptoQuant Failed: {str(e)}"
-
-# ==========================================
-# 二、 Agent 陣容：四大天王 (OpenRouter)
-# ==========================================
-
-class QSiliconResearchCrew:
-    def __init__(self):
-        self.crypto_researcher = Agent(
-            role="幣圈與宏觀市場研究員",
-            goal="搜尋並篩選出 5 則『過去 24 小時內』的高質量幣圈新聞。你必須綜合 Tavily 的報導與 X 上的討論熱度來判斷重要性。",
-            backstory="你擁有最強的幣圈嗅覺。如果一則新聞在 X 上沒有引起真實的社群共識或 FOMO/FUD，你會直接淘汰它。絕對禁止提供任何與台灣股市 (Taiwanese stocks) 相關的資訊。",
-            llm="openrouter/x-ai/grok-4.1-fast", 
-            tools=[market_search_tool, x_search_tool],
-            verbose=True
-        )
-
-        self.ai_researcher = Agent(
-            role="前沿 AI 科技研究員",
-            goal="搜尋並篩選出 5 則『過去 24 小時內』最新的 AI 產業動態。你必須嚴格交叉比對 Tavily 與 X 上的討論來確保它是最新的突破。",
-            backstory="你是矽谷的科技先驅。你極度看重資訊的『即時性』。如果一則 Tavily 找到的新聞在 X 上沒有任何知名開發者在討論，或者已經是舊聞，你會毫不猶豫地捨棄它。",
-            llm="openrouter/openai/gpt-5.3-codex", 
-            tools=[market_search_tool, x_search_tool],
-            verbose=True
-        )
-
-        self.risk_critic = Agent(
-            role="首席風險與邏輯評論員",
-            goal="針對 10 則新聞的真實性、市場影響力與潛在風險進行深度審計。",
-            backstory="你是華爾街最嚴謹的合夥人。你的短評必須一針見血，注意：絕對不需要給予任何數字評分。",
-            llm="openrouter/anthropic/claude-sonnet-4.6", 
-            allow_delegation=False,
-            verbose=True
-        )
-
-        self.quant_strategist = Agent(
-            role="機構策略主編",
-            goal="結合鏈上實體與衍生品數據，將情報統整為專業的 Telegram Markdown 戰報。",
-            backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，並且『幣圈與AI的新聞都必須包含 X 推文來源』。🚨【絕對禁止】輸出任何思考過程、自言自語或 '(Done)' 等無意義的字眼，只能輸出最終的純淨戰報文本。",
-            llm="openrouter/anthropic/claude-sonnet-4.6", # 👑 堅持使用最新版 Claude 負責排版
-            tools=[coinglass_data_tool, cryptoquant_tool],
-            verbose=True
-        )
+ (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
+diff --git a/main.py b/main.py
+index 48e521ebf2d59d6d02b11f5e3195883d54682463..b744cb50cc78fed5e06d9b7adaeb07357f65ec60 100644
+--- a/main.py
++++ b/main.py
+@@ -73,64 +73,69 @@ def cryptoquant_tool(indicator: str) -> str:
+     api_key = os.getenv("CRYPTOQUANT_API_KEY")
+     if not api_key: return "System Error: CRYPTOQUANT_API_KEY not found."
+     
+     url = "https://api.cryptoquant.com/v1/btc/exchange-flows/inflow?limit=1"
+     headers = {"Authorization": f"Bearer {api_key}"}
+     try:
+         response = requests.get(url, headers=headers, timeout=10)
+         if response.status_code == 200:
+             data_list = response.json().get("result", {}).get("data", [])
+             if data_list:
+                 latest = data_list[0]
+                 return f"BTC Exchange Inflow: {latest.get('inflow')} BTC (Date: {latest.get('date')})"
+             return "CryptoQuant API 成功，但目前無最新數據。"
+         elif response.status_code == 403:
+             return "CryptoQuant API 權限不足 (403)。免費版無法獲取此指標，請忽略此數據，直接繼續撰寫報告。"
+         return f"CryptoQuant Error: {response.status_code} - {response.text}"
+     except Exception as e: 
+         return f"CryptoQuant Failed: {str(e)}"
+ 
+ # ==========================================
+ # 二、 Agent 陣容：四大天王 (OpenRouter)
+ # ==========================================
+ 
+ class QSiliconResearchCrew:
+     def __init__(self):
++        # 某些 OpenRouter 後端（例如 Google provider）不支援 CrewAI 會使用到的
++        # assistant prefill 格式，會導致 `conversation must end with a user message` 錯誤。
++        # 因此預設改用相容性更高的 OpenAI 路由模型，並保留環境變數可覆寫。
++        ai_researcher_llm = os.getenv("AI_RESEARCHER_LLM", "openrouter/openai/gpt-4o-mini")
++
+         self.crypto_researcher = Agent(
+             role="幣圈與宏觀市場研究員",
+             goal="搜尋並篩選出 5 則『過去 24 小時內』的高質量幣圈新聞。你必須綜合 Tavily 的報導與 X 上的討論熱度來判斷重要性。",
+             backstory="你擁有最強的幣圈嗅覺。如果一則新聞在 X 上沒有引起真實的社群共識或 FOMO/FUD，你會直接淘汰它。絕對禁止提供任何與台灣股市 (Taiwanese stocks) 相關的資訊。",
+             llm="openrouter/x-ai/grok-4.1-fast", 
+             tools=[market_search_tool, x_search_tool],
+             verbose=True
+         )
+ 
+         self.ai_researcher = Agent(
+             role="前沿 AI 科技研究員",
+             goal="搜尋並篩選出 5 則『過去 24 小時內』最新的 AI 產業動態。你必須嚴格交叉比對 Tavily 與 X 上的討論來確保它是最新的突破。",
+             backstory="你是矽谷的科技先驅。你極度看重資訊的『即時性』。如果一則 Tavily 找到的新聞在 X 上沒有任何知名開發者在討論，或者已經是舊聞，你會毫不猶豫地捨棄它。",
+-            llm="openrouter/openai/gpt-5.3-codex", 
++            llm=ai_researcher_llm,
+             tools=[market_search_tool, x_search_tool],
+             verbose=True
+         )
+ 
+         self.risk_critic = Agent(
+             role="首席風險與邏輯評論員",
+             goal="針對 10 則新聞的真實性、市場影響力與潛在風險進行深度審計。",
+             backstory="你是華爾街最嚴謹的合夥人。你的短評必須一針見血，注意：絕對不需要給予任何數字評分。",
+             llm="openrouter/anthropic/claude-sonnet-4.6", 
+             allow_delegation=False,
+             verbose=True
+         )
+ 
+         self.quant_strategist = Agent(
+             role="機構策略主編",
+             goal="結合鏈上實體與衍生品數據，將情報統整為專業的 Telegram Markdown 戰報。",
+             backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，並且『幣圈與AI的新聞都必須包含 X 推文來源』。🚨【絕對禁止】輸出任何思考過程、自言自語或 '(Done)' 等無意義的字眼，只能輸出最終的純淨戰報文本。",
+             llm="openrouter/anthropic/claude-sonnet-4.6", # 👑 堅持使用最新版 Claude 負責排版
+             tools=[coinglass_data_tool, cryptoquant_tool],
+             verbose=True
+         )
+ 
+     def run(self):
+         crypto_task = Task(
+             description=dedent("""
+ 
+EOF
+)
 
     def run(self):
         crypto_task = Task(
