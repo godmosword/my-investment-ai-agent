@@ -26,7 +26,6 @@ def market_search_tool(query: str) -> str:
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
-        # 強制只抓取過去 24 小時內的新聞，並增加搜尋深度
         response = client.search(query=query, search_depth="advanced", max_results=5, topic="news", days=1)
         return str(response.get("results", "No results found."))
     except Exception as e: return f"Tavily Failed: {str(e)}"
@@ -48,7 +47,7 @@ def x_search_tool(query: str) -> str:
 
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
-    """獲取幣圈衍生品數據。"""
+    """獲取幣圈衍生品清算數據。"""
     api_key = os.getenv("COINGLASS_API_KEY")
     if not api_key: return "System Error: COINGLASS_API_KEY not found."
     headers = {"accept": "application/json", "coinglassSecret": api_key}
@@ -73,27 +72,49 @@ def cryptoquant_tool(indicator: str) -> str:
             if data: return f"BTC Inflow: {data[0].get('inflow')} BTC"
             return "No data found."
         elif response.status_code == 403:
-            return "CryptoQuant API 403: 權限不足，請忽略此數據直接繼續撰寫報告。"
+            return "CryptoQuant API 403: 權限不足，請忽略此數據撰寫報告。"
         return f"CryptoQuant Error: {response.status_code}"
     except Exception as e: return f"CryptoQuant Failed: {str(e)}"
 
 # ==========================================
-# 二、 Agent 陣容：堅持最新模型 + 防崩潰配置
+# 二、 Agent 陣容：原生 API 終極版
 # ==========================================
 
 class QSiliconResearchCrew:
     def __init__(self):
         
-        # 👑 頂配模型陣容 (強制關閉 Prefill 避開 Google 節點限制)
-        grok_latest = LLM(model="openrouter/x-ai/grok-4.1-fast", assistant_prefill=False)
-        gpt_latest = LLM(model="openrouter/openai/gpt-5.3-codex", assistant_prefill=False)
-        claude_latest = LLM(model="openrouter/anthropic/claude-sonnet-4.6", assistant_prefill=False)
-        gemini_latest = LLM(model="openrouter/google/gemini-3.1-pro-preview", assistant_prefill=False)
+        # 1. 🛸 幣圈偵察：直連 xAI 原生 API
+        grok_latest = LLM(
+            model="xai/grok-4.1-fast", 
+            api_key=os.getenv("XAI_API_KEY"),
+            assistant_prefill=False
+        )
+        
+        # 2. 🤖 AI 研究：直連 OpenAI 原生 API
+        gpt_latest = LLM(
+            model="openai/gpt-5.3-codex", 
+            api_key=os.getenv("OPENAI_API_KEY"),
+            assistant_prefill=False
+        )
+        
+        # 3. 🛡️ 風控審計：暫留 OpenRouter (因未要求更改 Claude)
+        claude_latest = LLM(
+            model="openrouter/anthropic/claude-sonnet-4.6", 
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            assistant_prefill=False
+        )
+        
+        # 4. 💎 機構主編：直連 Google 原生 API
+        gemini_latest = LLM(
+            model="gemini/gemini-3.1-pro-preview", 
+            api_key=os.getenv("GOOGLE_API_KEY"),
+            assistant_prefill=False
+        )
 
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
-            goal="挑選最具影響力的 5 則幣圈新聞，綜合 Tavily 與 X 情緒。若 X 無熱度則淘汰。",
-            backstory="您擁有最強的幣圈嗅覺。如果一則新聞在 X 上沒有引起真實的社群討論，您會視為舊聞並捨棄。嚴禁台股內容。",
+            goal="挑選 5 則具影響力的幣圈新聞，綜合 Tavily 與 X 情緒。",
+            backstory="您擁有最強的幣圈嗅覺，嚴禁包含台灣股市內容。",
             llm=grok_latest, 
             tools=[market_search_tool, x_search_tool],
             verbose=True
@@ -101,12 +122,12 @@ class QSiliconResearchCrew:
 
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
-            goal="搜尋並篩選出 5 則『24 小時內』最新、最具突破性的 AI 產業動態。",
+            goal="搜尋並篩選出 5 則『24 小時內』最新、具震撼性的 AI 產業動態。",
             backstory=dedent("""
-                您是矽谷科技先驅，對『時效性』有近乎偏執的要求。
-                1. 您的搜尋關鍵字必須包含 "today", "breaking", "just announced"。
-                2. 您必須交叉比對 X 上的開發者討論，如果該新聞在 X 上是 2 天前就有的討論，請立即捨棄。
-                3. 您的目標是找到那些『剛發布不到 12 小時』的震撼消息。
+                您是矽谷科技先驅。
+                1. 您的關鍵字必須包含 "announced today", "just released"。
+                2. 必須比對 X (Twitter) 討論熱度，如果推特上已經沒人在討論，請立即視為舊聞捨棄。
+                3. 您只追求『不到 12 小時』的最新科技突破。
             """),
             llm=gpt_latest, 
             tools=[market_search_tool, x_search_tool],
@@ -115,8 +136,8 @@ class QSiliconResearchCrew:
 
         self.risk_critic = Agent(
             role="首席風險與邏輯評論員",
-            goal="針對 10 則新聞進行嚴苛的毒舌審計，揭露市場炒作與潛在風險。",
-            backstory="華爾街合夥人。您的工作是潑冷水，分析為什麼這則新聞可能是騙局或過度吹捧。不給數字評分。",
+            goal="針對 10 則新聞進行嚴苛審計。",
+            backstory="華爾街合夥人。一針見血，不給數字評分。",
             llm=claude_latest, 
             allow_delegation=False,
             verbose=True
@@ -124,8 +145,8 @@ class QSiliconResearchCrew:
 
         self.quant_strategist = Agent(
             role="機構策略主編",
-            goal="將所有 Agent 的觀點整合為專業戰報。🚨必須分開列出不同 Agent 的評論。",
-            backstory="您負責最後排版，確保每一則新聞都有 X 推文來源，並強制分行顯示 Grok, GPT, Claude 的觀點。",
+            goal="將情報整合為專業戰報。🚨必須分開列出不同 Agent 的評論。",
+            backstory="您負責排版。確保新聞均有 X 來源，且 Grok, GPT, Claude 的觀點需分行顯示。禁止輸出思考過程。",
             llm=gemini_latest, 
             tools=[coinglass_data_tool, cryptoquant_tool],
             verbose=True
@@ -133,19 +154,14 @@ class QSiliconResearchCrew:
 
     def run(self):
         crypto_task = Task(
-            description="搜尋 24 小時內幣圈新聞，比對 X 情緒，挑選 5 則並明確標記 X 來源帳號與推文亮點。",
+            description="搜尋 24 小時內幣圈新聞，比對 X 情緒，篩選 5 則並附上來源。",
             expected_output="5 則含推特原聲與 Grok 短評的新聞初稿。",
             agent=self.crypto_researcher
         )
 
         ai_task = Task(
-            description=dedent("""
-                搜尋『過去 12-24 小時內』的 AI 突破消息。
-                1. 搜尋時請使用 "latest AI model release today" 或 "AI breaking news hours ago"。
-                2. 必須比對 X 上是否有『當下』的熱烈討論，捨棄所有已被冷落的舊資訊。
-                3. 挑選 5 則最新動態並附上 X 來源帳號。
-            """),
-            expected_output="5 則極具時效性的 AI 新聞初稿，含 X 推特原聲與 GPT 短評。",
+            description="搜尋最新 AI 突破，比對 X 當下熱度，列出 5 則並附上 X 來源。",
+            expected_output="5 則時效性最強的 AI 新聞初稿，含 X 推特原聲與 GPT 短評。",
             agent=self.ai_researcher
         )
 
@@ -159,17 +175,12 @@ class QSiliconResearchCrew:
         final_report_task = Task(
             description=dedent("""
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
-                
-                【強制排版格式範例】：
-                **【新聞標題】**
-                > 內容摘要...
-                > 🐦 **X 來源**: @帳號 (推文內容摘要)
-                
-                🛸 **Grok** / 🤖 **GPT**: (對應 Agent 的短評)
+                每一則新聞下方必須分別列出以下：
+                🛸 **Grok**: (對應評論)
+                🤖 **GPT**: (對應評論)
                 🛡️ **Claude**: (風險批判短評)
-                💎 **主編**: (您的綜合結語)
-                
-                🚨 注意：嚴禁將評論混在一起，每一位 Agent 的標誌符號後都必須換行顯示其觀點。禁止輸出思考過程。
+                💎 **主編**: (綜合結語)
+                🚨 注意：嚴禁將評論混在一起，每個符號後都要換行。禁止輸出思考過程。
             """),
             expected_output="Telegram 最佳化、意見分立的純淨 Markdown 戰報文本。",
             agent=self.quant_strategist,
@@ -188,7 +199,7 @@ class QSiliconResearchCrew:
 # ==========================================
 
 if __name__ == "__main__":
-    logging.info("Initializing Q-Silicon Ultimate High-End Stable Agent...")
+    logging.info("Initializing Q-Silicon Native-API Stable Agent...")
     
     try:
         research_crew = QSiliconResearchCrew()
@@ -203,7 +214,6 @@ if __name__ == "__main__":
     
     if token and chat_id:
         bot = telebot.TeleBot(token)
-        # 每段訊息不超過 4000 字以符合 Telegram 限制
         chunks = [final_report[i:i+4000] for i in range(0, len(final_report), 4000)]
         for chunk in chunks:
             try:
