@@ -89,7 +89,7 @@ class QSiliconResearchCrew:
         
         # 🛸 Grok：直連 xAI 原生 API
         grok_latest = LLM(
-            model="xai/grok-4.1-fast", 
+            model="xai/grok-4-1-fast-reasoning", 
             api_key=os.getenv("XAI_API_KEY"),
             assistant_prefill=False
         )
