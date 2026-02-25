@@ -145,4 +145,64 @@ class QSiliconResearchCrew:
             context=[crypto_task, ai_task]
         )
 
-        # 任務四
+        # 任務四：最終排版 (Gemini，Telegram Markdown)
+        final_report_task = Task(
+            description=dedent("""
+                撰寫 [Q-Silicon Institutional Research] Daily Brief。
+                
+                【Telegram Markdown 排版規範】：
+                1. 版面分離：分為 `### 📊 市場鏈上數據`、`### 🌐 幣圈前沿`、`### 🧠 AI 視野` 三大區塊。
+                2. 鏈上數據區必須包含 CoinGlass 的衍生品狀態與 CryptoQuant ('btc-exchange-flows') 的交易所流入狀態。
+                3. 每一則新聞都必須採用以下格式呈現：
+                
+                   **【新聞標題】**
+                   > 內容摘要...
+                   > 🐦 **X 來源/情緒**: (僅幣圈新聞需要，請直接貼上推文原文或重點來源)
+                   
+                   🛸 **Grok** / 🤖 **GPT**: (若是幣圈新聞放 Grok 短評；AI 新聞放 GPT 短評)
+                   🛡️ **Claude**: (風險批判短評)
+                   💎 **Gemini**: (總結短評)
+                   
+                4. 善用 Emoji 來增加閱讀性，保留 ASCII 進度條 `[████░░░░]` 作為數據呈現。
+            """),
+            expected_output="一份專為 Telegram 最佳化、包含 Markdown 語法與推文來源的純文字四核戰報。",
+            agent=self.quant_strategist,
+            context=[crypto_task, ai_task, review_task]
+        )
+
+        crew = Crew(
+            agents=[self.crypto_researcher, self.ai_researcher, self.risk_critic, self.quant_strategist],
+            tasks=[crypto_task, ai_task, review_task, final_report_task], 
+            process=Process.sequential
+        )
+        return crew.kickoff()
+
+# ==========================================
+# 三、 執行與 Telegram 推送邏輯
+# ==========================================
+
+if __name__ == "__main__":
+    print("Initializing Q-Silicon Four-Core Agent for Telegram...")
+    research_crew = QSiliconResearchCrew()
+    final_report = str(research_crew.run())
+    
+    print("\n=== Report Generated ===\n")
+    print(final_report)
+    
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    if token and chat_id:
+        bot = telebot.TeleBot(token)
+        try:
+            bot.send_message(chat_id, final_report, parse_mode="Markdown")
+            print("Telegram Push Success (Markdown).")
+        except Exception as e:
+            print(f"Markdown failed, falling back to Plain Text: {e}")
+            try:
+                bot.send_message(chat_id, final_report)
+                print("Telegram Push Success (Plain Text).")
+            except Exception as e2:
+                print(f"Critical Failure: {e2}")
+    else:
+        print("Telegram configuration missing. Skipping push.")
