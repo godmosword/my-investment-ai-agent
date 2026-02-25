@@ -119,8 +119,9 @@ class QSiliconResearchCrew:
         )
         
         # 🤖 GPT-5.3-Codex (直連 OpenAI)
+        # 🚨 強制走 text-completion-openai/ 通道，完美繞過 ChatGPT completions 404 報錯
         gpt_latest = LLM(
-            model="openai/gpt-5.3-codex", 
+            model="text-completion-openai/gpt-5.3-codex", 
             api_key=os.getenv("OPENAI_API_KEY")
         )
         
@@ -226,7 +227,6 @@ class QSiliconResearchCrew:
 
 if __name__ == "__main__":
     logging.info("Initializing 2026 Q-Silicon Ultimate Agent...")
-    
     try:
         research_crew = QSiliconResearchCrew()
         final_report = str(research_crew.run())
