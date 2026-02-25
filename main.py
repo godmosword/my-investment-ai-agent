@@ -68,20 +68,28 @@ def coinglass_data_tool(metric: str) -> str:
 @tool("CryptoQuant On-chain Data")
 def cryptoquant_tool(indicator: str) -> str:
     """
-    獲取交易所淨流入或礦工拋售數據。
-    【重要指令】：indicator 參數請務必精準輸入字串 "btc-exchange-flows"。
+    獲取比特幣(BTC)交易所淨流入實體數據。
+    【重要指令】：indicator 參數請務必精準輸入字串 "netflow"。
     """
     api_key = os.getenv("CRYPTOQUANT_API_KEY")
     if not api_key: return "System Error: CRYPTOQUANT_API_KEY not found."
-    url = f"https://api.cryptoquant.com/v1/{indicator}/current"
+    
+    # 修正為正確的 CryptoQuant API Endpoint (取得最新一筆交易所淨流入/流出)
+    url = "https://api.cryptoquant.com/v1/btc/exchange-flows/netflow?limit=1"
     headers = {"Authorization": f"Bearer {api_key}"}
+    
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
-            val = response.json().get("result", {}).get("data", [])[:1]
-            return f"Indicator {indicator}: {val}"
-        return f"CryptoQuant Error: {response.status_code}"
-    except Exception as e: return f"CryptoQuant Failed: {str(e)}"
+            data_list = response.json().get("result", {}).get("data", [])
+            if data_list:
+                latest = data_list[0]
+                # 回傳具體的 BTC 流入流出數量與日期
+                return f"BTC Exchange Netflow: {latest.get('netflow')} BTC (Date: {latest.get('date')})"
+            return "CryptoQuant API 成功，但目前無最新數據。"
+        return f"CryptoQuant Error: {response.status_code} - {response.text}"
+    except Exception as e: 
+        return f"CryptoQuant Failed: {str(e)}"
 
 # ==========================================
 # 二、 Agent 陣容：四大天王 (OpenRouter)
