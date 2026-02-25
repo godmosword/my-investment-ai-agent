@@ -6,6 +6,9 @@ services:
     container_name: q_silicon_research_agent
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}            # 新增 xAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}      # 新增 OpenAI
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}      # 新增 Google
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - COINGLASS_API_KEY=${COINGLASS_API_KEY}
       - CRYPTOQUANT_API_KEY=${CRYPTOQUANT_API_KEY}
