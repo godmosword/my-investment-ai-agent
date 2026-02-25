@@ -113,7 +113,6 @@ class QSiliconResearchCrew:
     def __init__(self):
         
         # 🛸 Grok 4.1-Fast Reasoning (直連 xAI)
-        # 🚨 修正：ID 需使用連字號 grok-4-1
         grok_latest = LLM(
             model="xai/grok-4-1-fast-reasoning", 
             api_key=os.getenv("XAI_API_KEY")
@@ -222,12 +221,30 @@ class QSiliconResearchCrew:
         return crew.kickoff()
 
 # ==========================================
-# 三、 Telegram 推送邏輯 (略，與之前版本相同)
+# 三、 執行與 Telegram 推送邏輯
 # ==========================================
 
 if __name__ == "__main__":
     logging.info("Initializing 2026 Q-Silicon Ultimate Agent...")
+    
     try:
         research_crew = QSiliconResearchCrew()
         final_report = str(research_crew.run())
-        # ... 推送代碼
+        logging.info("Report Generation Successful.")
+    except Exception as e:
+        final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息：{str(e)}"
+        logging.error(f"Execution Failed: {e}")
+    
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    if token and chat_id:
+        bot = telebot.TeleBot(token)
+        chunks = [final_report[i:i+4000] for i in range(0, len(final_report), 4000)]
+        for chunk in chunks:
+            try:
+                bot.send_message(chat_id, chunk, parse_mode="Markdown")
+            except:
+                bot.send_message(chat_id, chunk)
+    else:
+        logging.warning("Telegram configuration missing. Skipping push.")
