@@ -1,9 +1,18 @@
 import os
 import requests
 import telebot
+import logging
+from urllib.parse import quote
 from textwrap import dedent
+from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process
 from crewai.tools import tool
+
+# 載入本地端 .env 變數 (雲端部署時會自動覆蓋)
+load_dotenv()
+
+# 設定基礎日誌
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ==========================================
 # 一、 外部 API 工具定義 (Tools)
@@ -17,7 +26,6 @@ def market_search_tool(query: str) -> str:
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
-        # 強制只抓取過去 24 小時內的新聞
         response = client.search(query=query, search_depth="advanced", max_results=5, topic="news", days=1)
         return str(response.get("results", "No results found."))
     except Exception as e: return f"Tavily Failed: {str(e)}"
@@ -27,7 +35,8 @@ def x_search_tool(query: str) -> str:
     """搜尋 X (Twitter) 上最新的討論情緒與科技圈發文。"""
     bearer_token = os.getenv("X_BEARER_TOKEN")
     if not bearer_token: return "System Error: X_BEARER_TOKEN not found."
-    url = f"https://api.twitter.com/2/tweets/search/recent?query={query}&max_results=10"
+    # 加入 quote() 進行 URL 編碼，防止中文或空格導致 API 崩潰
+    url = f"https://api.twitter.com/2/tweets/search/recent?query={quote(query)}&max_results=10"
     headers = {"Authorization": f"Bearer {bearer_token}"}
     try:
         response = requests.get(url, headers=headers, timeout=10)
@@ -39,7 +48,10 @@ def x_search_tool(query: str) -> str:
 
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
-    """獲取幣圈衍生品清算與費率數據。"""
+    """
+    獲取幣圈衍生品清算與費率數據。
+    【重要指令】：metric 參數請務必精準輸入字串 "open_interest"。
+    """
     api_key = os.getenv("COINGLASS_API_KEY")
     if not api_key: return "System Error: COINGLASS_API_KEY not found."
     headers = {"accept": "application/json", "coinglassSecret": api_key}
@@ -55,7 +67,10 @@ def coinglass_data_tool(metric: str) -> str:
 
 @tool("CryptoQuant On-chain Data")
 def cryptoquant_tool(indicator: str) -> str:
-    """獲取交易所淨流入或礦工拋售數據 (如: btc-exchange-flows)。"""
+    """
+    獲取交易所淨流入或礦工拋售數據。
+    【重要指令】：indicator 參數請務必精準輸入字串 "btc-exchange-flows"。
+    """
     api_key = os.getenv("CRYPTOQUANT_API_KEY")
     if not api_key: return "System Error: CRYPTOQUANT_API_KEY not found."
     url = f"https://api.cryptoquant.com/v1/{indicator}/current"
@@ -74,7 +89,6 @@ def cryptoquant_tool(indicator: str) -> str:
 
 class QSiliconResearchCrew:
     def __init__(self):
-        # 1. 幣圈偵察兵 (Grok)
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
             goal="搜尋並篩選出 5 則『過去 24 小時內』的高質量幣圈新聞，並強制附上相關的 X (Twitter) 推文來源。",
@@ -84,88 +98,79 @@ class QSiliconResearchCrew:
             verbose=True
         )
 
-        # 2. AI 科技研究員 (ChatGPT)
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
             goal="搜尋並篩選出 5 則『過去 24 小時內』最新的 AI 產業動態、開源專案與大模型發布新聞。",
-            backstory="你是矽谷的科技先驅，專注於挖掘最具突破性的 AI 資訊。你會善用 Tavily 搜尋新聞，並從 X 上捕捉開發者的第一手討論。",
+            backstory="你是矽谷的科技先驅。你會善用 Tavily 搜尋新聞，並從 X 上捕捉開發者的第一手討論。",
             llm="openrouter/openai/gpt-5.3-codex", 
             tools=[market_search_tool, x_search_tool],
             verbose=True
         )
 
-        # 3. 首席風控評論員 (Claude)
         self.risk_critic = Agent(
             role="首席風險與邏輯評論員",
-            goal="針對 10 則新聞（幣圈+AI）的真實性、市場影響力與潛在風險進行深度審計。",
-            backstory="你是華爾街最嚴謹的合夥人，你的短評必須一針見血，揭露市場炒作與隱患。注意：絕對不需要給予任何數字評分。",
+            goal="針對 10 則新聞的真實性、市場影響力與潛在風險進行深度審計。",
+            backstory="你是華爾街最嚴謹的合夥人。你的短評必須一針見血，注意：絕對不需要給予任何數字評分。",
             llm="openrouter/anthropic/claude-sonnet-4.6", 
             allow_delegation=False,
             verbose=True
         )
 
-        # 4. 機構策略分析師 (Gemini)
         self.quant_strategist = Agent(
             role="機構策略主編",
             goal="結合鏈上實體與衍生品數據，將情報統整為專業的 Telegram Markdown 戰報。",
-            backstory="你負責排版定稿。你必須確保每則新聞都有 Agent 們的獨立短評，且幣圈新聞必須包含 X 推文來源。",
+            backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，幣圈新聞必須包含 X 推文來源。",
             llm="openrouter/google/gemini-3.1-pro-preview", 
             tools=[coinglass_data_tool, cryptoquant_tool],
             verbose=True
         )
 
     def run(self):
-        # 任務一：幣圈新聞與 X 觀測 (Grok)
         crypto_task = Task(
             description=dedent("""
                 1. 使用 Tavily 搜尋『過去 24 小時內』的 5 則最新幣圈新聞。
                 2. 針對重要主題，必須呼叫 X Real-time Trend Search 觀察推特情緒。
-                3. 初稿中除了新聞摘要與你的專屬短評，**必須明確列出你參考的 X 推文原文或來源 (Source)**。
+                3. 初稿中除了新聞摘要與短評，**必須明確列出參考的 X 推文原文或來源 (Source)**。
             """),
-            expected_output="5 則今日幣圈新聞初稿，包含推特原聲 (Source) 與 Grok 短評。",
+            expected_output="5 則幣圈新聞初稿，含推特原聲與 Grok 短評。",
             agent=self.crypto_researcher
         )
 
-        # 任務二：AI 科技新聞 (ChatGPT)
         ai_task = Task(
             description=dedent("""
-                1. 使用 Tavily 搜尋『過去 24 小時內』的 5 則最新 AI 人工智慧界重大新聞 (例如新模型、工具發表)。
-                2. 呼叫 X 搜尋工具，捕捉科技圈對於這些新工具的討論。
-                3. 附上發布時間與你的 GPT 專屬短評。
+                1. 使用 Tavily 搜尋『過去 24 小時內』的 5 則最新 AI 界重大新聞。
+                2. 呼叫 X 搜尋工具，捕捉科技圈對於新工具的討論。
+                3. 附上 GPT 專屬短評。
             """),
-            expected_output="5 則今日 AI 界新聞初稿，包含 GPT 短評。",
+            expected_output="5 則 AI 新聞初稿，含 GPT 短評。",
             agent=self.ai_researcher
         )
 
-        # 任務三：全面審核 (Claude，無評分)
         review_task = Task(
-            description="對 Grok 抓取的 5 則幣圈新聞與 GPT 抓取的 5 則 AI 新聞進行深度風險評估。給出你嚴苛的觀點，不需給予任何分數。",
-            expected_output="10 則新聞的批判備忘錄（純短評，無評分）。",
+            description="審核上述 10 則新聞，給出嚴苛的觀點，不需給予任何分數。",
+            expected_output="10 則新聞的純短評批判備忘錄。",
             agent=self.risk_critic,
             context=[crypto_task, ai_task]
         )
 
-        # 任務四：最終排版 (Gemini，Telegram Markdown)
         final_report_task = Task(
             description=dedent("""
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
                 
                 【Telegram Markdown 排版規範】：
-                1. 版面分離：分為 `### 📊 市場鏈上數據`、`### 🌐 幣圈前沿`、`### 🧠 AI 視野` 三大區塊。
-                2. 鏈上數據區必須包含 CoinGlass 的衍生品狀態與 CryptoQuant ('btc-exchange-flows') 的交易所流入狀態。
-                3. 每一則新聞都必須採用以下格式呈現：
-                
+                1. 版面分離：分為 `### 📊 市場鏈上數據`、`### 🌐 幣圈前沿`、`### 🧠 AI 視野`。
+                2. 鏈上數據區必須包含 CoinGlass 與 CryptoQuant 的狀態。
+                3. 每則新聞格式：
                    **【新聞標題】**
                    > 內容摘要...
-                   > 🐦 **X 來源/情緒**: (僅幣圈新聞需要，請直接貼上推文原文或重點來源)
+                   > 🐦 **X 來源/情緒**: (幣圈新聞專用，請貼推文原文)
                    
-                   🛸 **Grok** / 🤖 **GPT**: (若是幣圈新聞放 Grok 短評；AI 新聞放 GPT 短評)
+                   🛸 **Grok** / 🤖 **GPT**: (專屬短評)
                    🛡️ **Claude**: (風險批判短評)
                    💎 **Gemini**: (總結短評)
-                   
-                4. 善用 Emoji 來增加閱讀性，保留 ASCII 進度條 `[████░░░░]` 作為數據呈現。
+                4. 善用 Emoji，保留 ASCII 進度條。
             """),
-            expected_output="一份專為 Telegram 最佳化、包含 Markdown 語法與推文來源的純文字四核戰報。",
+            expected_output="Telegram 最佳化純文字戰報。",
             agent=self.quant_strategist,
             context=[crypto_task, ai_task, review_task]
         )
@@ -182,27 +187,35 @@ class QSiliconResearchCrew:
 # ==========================================
 
 if __name__ == "__main__":
-    print("Initializing Q-Silicon Four-Core Agent for Telegram...")
-    research_crew = QSiliconResearchCrew()
-    final_report = str(research_crew.run())
+    logging.info("Initializing Q-Silicon Four-Core Agent...")
     
-    print("\n=== Report Generated ===\n")
-    print(final_report)
+    try:
+        research_crew = QSiliconResearchCrew()
+        final_report = str(research_crew.run())
+        logging.info("Report Generation Successful.")
+    except Exception as e:
+        final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息：{str(e)}"
+        logging.error(f"Execution Failed: {e}")
     
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     
     if token and chat_id:
         bot = telebot.TeleBot(token)
-        try:
-            bot.send_message(chat_id, final_report, parse_mode="Markdown")
-            print("Telegram Push Success (Markdown).")
-        except Exception as e:
-            print(f"Markdown failed, falling back to Plain Text: {e}")
+        # Telegram 單則訊息上限為 4096 字元，這裡設定 4000 為安全分段點
+        max_length = 4000
+        chunks = [final_report[i:i+max_length] for i in range(0, len(final_report), max_length)]
+        
+        for i, chunk in enumerate(chunks):
             try:
-                bot.send_message(chat_id, final_report)
-                print("Telegram Push Success (Plain Text).")
-            except Exception as e2:
-                print(f"Critical Failure: {e2}")
+                bot.send_message(chat_id, chunk, parse_mode="Markdown")
+                logging.info(f"Telegram Push Success (Chunk {i+1}/{len(chunks)} - Markdown).")
+            except Exception as e:
+                logging.warning(f"Markdown failed on Chunk {i+1}, falling back to Plain Text: {e}")
+                try:
+                    bot.send_message(chat_id, chunk)
+                    logging.info(f"Telegram Push Success (Chunk {i+1}/{len(chunks)} - Plain Text).")
+                except Exception as e2:
+                    logging.error(f"Critical Failure sending Chunk {i+1}: {e2}")
     else:
-        print("Telegram configuration missing. Skipping push.")
+        logging.warning("Telegram configuration missing. Skipping push.")
