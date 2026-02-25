@@ -72,12 +72,12 @@ def cryptoquant_tool(indicator: str) -> str:
             if data: return f"BTC Inflow: {data[0].get('inflow')} BTC"
             return "No data found."
         elif response.status_code == 403:
-            return "CryptoQuant API 403: 權限不足，請忽略此數據撰寫報告。"
+            return "CryptoQuant API 403: 權限不足，請忽略此數據直接繼續撰寫報告。"
         return f"CryptoQuant Error: {response.status_code}"
     except Exception as e: return f"CryptoQuant Failed: {str(e)}"
 
 # ==========================================
-# 二、 Agent 陣容：原生 API + 頂配型號
+# 二、 Agent 陣容：原生 API 識別優化版
 # ==========================================
 
 class QSiliconResearchCrew:
@@ -90,9 +90,9 @@ class QSiliconResearchCrew:
             assistant_prefill=False
         )
         
-        # 🤖 GPT：直連 OpenAI 原生 API (確保名稱與官方伺服器識別一致)
+        # 🤖 GPT：直連 OpenAI 原生 API (修正識別 ID，移除 openai/ 前綴)
         gpt_latest = LLM(
-            model="openai/gpt-5.3-codex", 
+            model="gpt-5.3-codex", 
             api_key=os.getenv("OPENAI_API_KEY"),
             assistant_prefill=False
         )
@@ -104,7 +104,7 @@ class QSiliconResearchCrew:
             assistant_prefill=False
         )
         
-        # 💎 Gemini：直連 Google 原生 API (使用原生型號識別)
+        # 💎 Gemini：直連 Google 原生 API (保持官方路徑格式)
         gemini_latest = LLM(
             model="gemini/gemini-3.1-pro-preview", 
             api_key=os.getenv("GOOGLE_API_KEY"),
@@ -113,8 +113,8 @@ class QSiliconResearchCrew:
 
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
-            goal="挑選 5 則最具影響力的幣圈新聞，綜合 Tavily 與 X 情緒。",
-            backstory="您擁有最強的幣圈嗅覺，嚴禁台股內容。若 X 上無即時熱度則淘汰。",
+            goal="挑選 5 則最具影響力的幣圈新聞，綜合 Tavily 與 X 情緒。若 X 上無即時熱度則淘汰。",
+            backstory="您擁有最強的幣圈嗅覺，嚴禁台股內容。Grok 是您的思維核心。",
             llm=grok_latest, 
             tools=[market_search_tool, x_search_tool],
             verbose=True
@@ -124,7 +124,7 @@ class QSiliconResearchCrew:
             role="前沿 AI 科技研究員",
             goal="搜尋並篩選出 5 則『12小時內』最新、最具突破性的 AI 產業動態。",
             backstory=dedent("""
-                您是矽谷科技先驅，對時效性有極高要求。
+                您是矽谷科技先驅，GPT 是您的思維核心。
                 1. 您必須搜尋 "announced today", "just released"。
                 2. 您必須交叉比對 X 討論，若該新聞在 X 上已經沒人討論，請立即視為舊聞捨棄。
                 3. 您只追求最領先、剛發布的新消息。
@@ -137,7 +137,7 @@ class QSiliconResearchCrew:
         self.risk_critic = Agent(
             role="首席風險與邏輯評論員",
             goal="針對 10 則新聞進行嚴苛審計，揭露炒作風險。",
-            backstory="華爾街合夥人。一針見血，不給數字評分。",
+            backstory="華爾街合夥人。一針見血，不給數字評分。Claude 是您的思維核心。",
             llm=claude_latest, 
             allow_delegation=False,
             verbose=True
@@ -145,8 +145,8 @@ class QSiliconResearchCrew:
 
         self.quant_strategist = Agent(
             role="機構策略主編",
-            goal="整合數據與 Agent 短評，輸出專業戰報。🚨必須分開列出不同 Agent 的評論。",
-            backstory="您負責排版。🚨絕對禁止輸出思考過程或重複字眼。確保每一則新聞都有分行的 Grok, GPT, Claude 觀點。",
+            goal="整合數據與各 Agent 的觀點，輸出專業戰報。🚨僅列出有實際參與評述的 Agent。",
+            backstory="您負責排版。🚨絕對禁止輸出思考過程。Gemini 是您的思維核心。",
             llm=gemini_latest, 
             tools=[coinglass_data_tool, cryptoquant_tool],
             verbose=True
@@ -155,7 +155,7 @@ class QSiliconResearchCrew:
     def run(self):
         crypto_task = Task(
             description="搜尋 24 小時內幣圈新聞，比對 X 情緒，篩選 5 則並附上 X 來源。",
-            expected_output="5 則含推特原聲與短評的新聞初稿。",
+            expected_output="5 則含推特原聲與 Grok 短評的新聞初稿。",
             agent=self.crypto_researcher
         )
 
@@ -175,15 +175,16 @@ class QSiliconResearchCrew:
         final_report_task = Task(
             description=dedent("""
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
-                每一則新聞下方必須『分行』且『分標誌』列出以下觀點：
-                🛸 **Grok**: (短評內容)
-                🤖 **GPT**: (短評內容)
-                🛡️ **Claude**: (風險批判短評)
-                💎 **主編**: (綜合總結結語)
                 
-                🚨 注意：嚴禁混在一起，每個符號後都要換行。禁止輸出思考過程。
+                🚨🚨🚨【動態過濾排版最佳實踐】🚨🚨🚨
+                每一則新聞下方，請『分行』且『僅列出參與該則新聞審核之 Agent』的觀點：
+                1. 幣圈新聞：請顯示 🛸 **Grok**、🛡️ **Claude** 與 💎 **主編** 的觀點。
+                2. AI 新聞：請顯示 🤖 **GPT**、🛡️ **Claude** 與 💎 **主編** 的觀點。
+                3. **禁止**在該則新聞下方出現未參與 Agent 的標籤（例如：幣圈新聞下不可出現 GPT 觀點區塊）。
+                
+                🚨 嚴禁輸出任何思考過程或 "(Done)" 字眼。
             """),
-            expected_output="Telegram 最佳化、意見分立的純淨 Markdown 戰報文本。",
+            expected_output="Telegram 最佳化、動態過濾觀點的純淨 Markdown 戰報文本。",
             agent=self.quant_strategist,
             context=[crypto_task, ai_task, review_task]
         )
