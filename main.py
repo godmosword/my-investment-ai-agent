@@ -19,7 +19,7 @@ if os.getenv("GEMINI_API_KEY"):
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ==========================================
-# 一、 外部 API 工具定義 (含 2026 AI 算力與宏觀指標)
+# 一、 外部 API 工具定義
 # ==========================================
 
 @tool("AI Momentum Analyzer")
@@ -105,32 +105,31 @@ def cryptoquant_tool(indicator: str) -> str:
     return "API 403 or Error."
 
 # ==========================================
-# 二、 Agent 陣容：原生 2026 旗艦配置
+# 二、 Agent 陣容：嚴格鎖定指定模型
 # ==========================================
 
 class QSiliconResearchCrew:
     def __init__(self):
         
-        # 🛸 Grok 4.1-Fast Reasoning (直連 xAI)
+        # 🛸 Grok：嚴格使用 xAI 原生 API (修正為正確的連字號 ID)
         grok_latest = LLM(
-            model="xai/grok-4.1-fast-reasoning", 
+            model="xai/grok-4-1-fast-reasoning", 
             api_key=os.getenv("XAI_API_KEY")
         )
         
-        # 🤖 GPT-5.2-Pro 快照版本 (直連 OpenAI 原生 API)
+        # 🤖 GPT：嚴格使用 OpenAI 原生 API 
         gpt_latest = LLM(
             model="openai/gpt-5.2-pro-2025-12-11", 
             api_key=os.getenv("OPENAI_API_KEY")
         )
         
-        # 🛡️ Claude 4.6 (經由 OpenRouter 中轉)
+        # 🛡️ Claude：嚴格使用 OpenRouter API (為防止崩潰，移除所有不相容參數)
         claude_latest = LLM(
             model="openrouter/anthropic/claude-sonnet-4.6", 
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-            assistant_prefill=False
+            api_key=os.getenv("OPENROUTER_API_KEY")
         )
         
-        # 💎 Gemini 3.1-Pro-Preview (直連 Google)
+        # 💎 Gemini：嚴格使用 Google 原生 API 
         gemini_latest = LLM(
             model="gemini/gemini-3.1-pro-preview", 
             api_key=os.getenv("GEMINI_API_KEY")
@@ -139,7 +138,7 @@ class QSiliconResearchCrew:
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
             goal="挑選 5 則幣圈新聞並分析宏觀 M2/DXY 數據指標。",
-            backstory="您擅長交叉比對鏈上流向與全球流動性，Grok 4.1 是您的核心。",
+            backstory="您擅長交叉比對鏈上流向與全球流動性，Grok 是您的核心。",
             llm=grok_latest, 
             tools=[market_search_tool, x_search_tool, macro_liquidity_tool],
             verbose=True
@@ -148,7 +147,7 @@ class QSiliconResearchCrew:
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
             goal="挑選 5 則最新 AI 動態並分析 GPU 租賃成本與模型性能排名。",
-            backstory="您關注矽谷核心動態，GPT-5.2-Pro 是您的核心。您追求極致時效。",
+            backstory="您關注矽谷核心動態，GPT 是您的核心。您追求極致時效。",
             llm=gpt_latest, 
             tools=[market_search_tool, x_search_tool, ai_momentum_tool],
             verbose=True
@@ -165,7 +164,7 @@ class QSiliconResearchCrew:
 
         self.quant_strategist = Agent(
             role="機構策略主編",
-            goal="整合『精準數據儀表板』與 Agent 短評。Gemini 3.1 是您的靈魂。",
+            goal="整合『精準數據儀表板』與 Agent 短評。Gemini 是您的靈魂。",
             backstory="您負責最後排版，嚴禁廢話。僅列出有實際參與評述的 Agent。",
             llm=gemini_latest, 
             tools=[coinglass_data_tool, cryptoquant_tool],
@@ -224,7 +223,7 @@ class QSiliconResearchCrew:
 # ==========================================
 
 if __name__ == "__main__":
-    logging.info("Initializing 2026 Q-Silicon Ultimate Agent...")
+    logging.info("Initializing Q-Silicon Ultimate Agent...")
     
     try:
         research_crew = QSiliconResearchCrew()
