@@ -19,19 +19,19 @@ if os.getenv("GEMINI_API_KEY"):
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ==========================================
-# 一、 外部 API 工具定義 (含 AI 算力與宏觀指標)
+# 一、 外部 API 工具定義 (含 2026 AI 算力與宏觀指標)
 # ==========================================
 
 @tool("AI Momentum Analyzer")
 def ai_momentum_tool(metric: str) -> str:
-    """獲取 AI 產業核心指標。metric 請輸入 'gpu_pricing' (H100/B200 租賃價) 或 'model_benchmarks' (排名)。"""
+    """獲取 AI 產業核心數據。metric 請輸入 'gpu_pricing' (H100/B200 租賃價) 或 'model_benchmarks' (排名)。"""
     api_key = os.getenv("TAVILY_API_KEY")
     if not api_key: return "TAVILY_API_KEY not found."
     from tavily import TavilyClient
     client = TavilyClient(api_key=api_key)
     
     queries = {
-        "gpu_pricing": "current hourly rental price for NVIDIA H100 and B200 GPUs Feb 2026",
+        "gpu_pricing": "current hourly rental price for NVIDIA H100 and B200 GPUs today",
         "model_benchmarks": "latest LMSYS Chatbot Arena ELO rankings for GPT-5, Claude 4, Gemini 3"
     }
     query = queries.get(metric.lower(), "latest AI compute economy")
@@ -45,12 +45,11 @@ def macro_liquidity_tool(indicator: str) -> str:
     """獲取全球宏觀指標。indicator 請輸入 'M2' (貨幣供應), 'CPI' (通膨) 或 'DXY' (美指)。"""
     fred_key = os.getenv("FRED_API_KEY")
     if not fred_key:
-        # Fallback to Tavily if FRED key is missing
         api_key = os.getenv("TAVILY_API_KEY")
         from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
         try:
-            res = client.search(query=f"current {indicator} index value Feb 2026", max_results=1)
+            res = client.search(query=f"current {indicator} index value today", max_results=1)
             return str(res.get("results", "Macro data not found."))
         except: return "Macro Search Failed."
 
@@ -114,18 +113,17 @@ class QSiliconResearchCrew:
         
         # 🛸 Grok 4.1-Fast Reasoning (直連 xAI)
         grok_latest = LLM(
-            model="xai/grok-4-1-fast-reasoning", 
+            model="xai/grok-4.1-fast-reasoning", 
             api_key=os.getenv("XAI_API_KEY")
         )
         
-        # 🤖 GPT-5.3-Codex (直連 OpenAI)
-        # 🚨 強制走 text-completion-openai/ 通道，完美繞過 ChatGPT completions 404 報錯
+        # 🤖 GPT-5.2-Pro 快照版本 (直連 OpenAI 原生 API)
         gpt_latest = LLM(
-            model="text-completion-openai/gpt-5.3-codex", 
+            model="openai/gpt-5.2-pro-2025-12-11", 
             api_key=os.getenv("OPENAI_API_KEY")
         )
         
-        # 🛡️ Claude 4.6 (經由 OpenRouter)
+        # 🛡️ Claude 4.6 (經由 OpenRouter 中轉)
         claude_latest = LLM(
             model="openrouter/anthropic/claude-sonnet-4.6", 
             api_key=os.getenv("OPENROUTER_API_KEY"),
@@ -150,7 +148,7 @@ class QSiliconResearchCrew:
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
             goal="挑選 5 則最新 AI 動態並分析 GPU 租賃成本與模型性能排名。",
-            backstory="您關注矽谷核心動態，GPT-5.3 是您的核心。您追求極致時效。",
+            backstory="您關注矽谷核心動態，GPT-5.2-Pro 是您的核心。您追求極致時效。",
             llm=gpt_latest, 
             tools=[market_search_tool, x_search_tool, ai_momentum_tool],
             verbose=True
@@ -227,6 +225,7 @@ class QSiliconResearchCrew:
 
 if __name__ == "__main__":
     logging.info("Initializing 2026 Q-Silicon Ultimate Agent...")
+    
     try:
         research_crew = QSiliconResearchCrew()
         final_report = str(research_crew.run())
@@ -240,11 +239,14 @@ if __name__ == "__main__":
     
     if token and chat_id:
         bot = telebot.TeleBot(token)
+        # Telegram 訊息分段推送邏輯
         chunks = [final_report[i:i+4000] for i in range(0, len(final_report), 4000)]
         for chunk in chunks:
             try:
                 bot.send_message(chat_id, chunk, parse_mode="Markdown")
-            except:
+            except Exception as e:
+                logging.error(f"Telegram Message Failed: {e}")
+                # 降級嘗試發送純文字
                 bot.send_message(chat_id, chunk)
     else:
         logging.warning("Telegram configuration missing. Skipping push.")
