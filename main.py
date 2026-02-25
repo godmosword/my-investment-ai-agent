@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process
 from crewai.tools import tool
 
-# 載入本地端 .env 變數 (雲端部署時會自動覆蓋)
+# 載入本地端 .env 變數
 load_dotenv()
 
 # 設定基礎日誌
@@ -26,6 +26,7 @@ def market_search_tool(query: str) -> str:
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
+        # 強制只抓取過去 24 小時內的新聞
         response = client.search(query=query, search_depth="advanced", max_results=5, topic="news", days=1)
         return str(response.get("results", "No results found."))
     except Exception as e: return f"Tavily Failed: {str(e)}"
@@ -35,7 +36,6 @@ def x_search_tool(query: str) -> str:
     """搜尋 X (Twitter) 上最新的討論情緒與科技圈發文。"""
     bearer_token = os.getenv("X_BEARER_TOKEN")
     if not bearer_token: return "System Error: X_BEARER_TOKEN not found."
-    # 加入 quote() 進行 URL 編碼，防止中文或空格導致 API 崩潰
     url = f"https://api.twitter.com/2/tweets/search/recent?query={quote(query)}&max_results=10"
     headers = {"Authorization": f"Bearer {bearer_token}"}
     try:
@@ -74,17 +74,15 @@ def cryptoquant_tool(indicator: str) -> str:
     api_key = os.getenv("CRYPTOQUANT_API_KEY")
     if not api_key: return "System Error: CRYPTOQUANT_API_KEY not found."
     
-    # 修正為正確的 CryptoQuant API Endpoint (取得最新一筆交易所淨流入/流出)
+    # 已修正為正確的 CryptoQuant API Endpoint
     url = "https://api.cryptoquant.com/v1/btc/exchange-flows/netflow?limit=1"
     headers = {"Authorization": f"Bearer {api_key}"}
-    
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             data_list = response.json().get("result", {}).get("data", [])
             if data_list:
                 latest = data_list[0]
-                # 回傳具體的 BTC 流入流出數量與日期
                 return f"BTC Exchange Netflow: {latest.get('netflow')} BTC (Date: {latest.get('date')})"
             return "CryptoQuant API 成功，但目前無最新數據。"
         return f"CryptoQuant Error: {response.status_code} - {response.text}"
@@ -99,8 +97,8 @@ class QSiliconResearchCrew:
     def __init__(self):
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
-            goal="搜尋並篩選出 5 則『過去 24 小時內』的高質量幣圈新聞，並強制附上相關的 X (Twitter) 推文來源。",
-            backstory="你擁有最強的幣圈嗅覺。你必須避開舊聞與 Spam，並且絕對禁止提供任何與台灣股市 (Taiwanese stocks) 相關的資訊。",
+            goal="搜尋並篩選出 5 則『過去 24 小時內』的高質量幣圈新聞。你必須綜合 Tavily 的報導與 X 上的討論熱度來判斷重要性。",
+            backstory="你擁有最強的幣圈嗅覺。如果一則新聞在 X 上沒有引起真實的社群共識或 FOMO/FUD，你會直接淘汰它。絕對禁止提供任何與台灣股市 (Taiwanese stocks) 相關的資訊。",
             llm="openrouter/x-ai/grok-4.1-fast", 
             tools=[market_search_tool, x_search_tool],
             verbose=True
@@ -108,8 +106,8 @@ class QSiliconResearchCrew:
 
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
-            goal="搜尋並篩選出 5 則『過去 24 小時內』最新的 AI 產業動態、開源專案與大模型發布新聞。",
-            backstory="你是矽谷的科技先驅。你會善用 Tavily 搜尋新聞，並從 X 上捕捉開發者的第一手討論。",
+            goal="搜尋並篩選出 5 則『過去 24 小時內』最新的 AI 產業動態。你必須嚴格交叉比對 Tavily 與 X 上的討論來確保它是最新的突破。",
+            backstory="你是矽谷的科技先驅。你極度看重資訊的『即時性』。如果一則 Tavily 找到的新聞在 X 上沒有任何知名開發者在討論，或者已經是舊聞，你會毫不猶豫地捨棄它。",
             llm="openrouter/openai/gpt-5.3-codex", 
             tools=[market_search_tool, x_search_tool],
             verbose=True
@@ -127,7 +125,7 @@ class QSiliconResearchCrew:
         self.quant_strategist = Agent(
             role="機構策略主編",
             goal="結合鏈上實體與衍生品數據，將情報統整為專業的 Telegram Markdown 戰報。",
-            backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，幣圈新聞必須包含 X 推文來源。",
+            backstory="你負責排版定稿。確保每則新聞都有 Agent 的短評，並且『幣圈與AI的新聞都必須包含 X 推文來源』。",
             llm="openrouter/google/gemini-3.1-pro-preview", 
             tools=[coinglass_data_tool, cryptoquant_tool],
             verbose=True
@@ -136,21 +134,23 @@ class QSiliconResearchCrew:
     def run(self):
         crypto_task = Task(
             description=dedent("""
-                1. 使用 Tavily 搜尋『過去 24 小時內』的 5 則最新幣圈新聞。
-                2. 針對重要主題，必須呼叫 X Real-time Trend Search 觀察推特情緒。
-                3. 初稿中除了新聞摘要與短評，**必須明確列出參考的 X 推文原文或來源 (Source)**。
+                1. 使用 Tavily 搜尋『過去 24 小時內』的最新幣圈新聞。
+                2. 將找到的主題丟入 X 搜尋工具，比對推特情緒。
+                3. 【重要判斷】：綜合新聞與推特情緒，挑選出最具市場影響力的 5 則。若缺乏社群討論度則淘汰。
+                4. 初稿中除了摘要與短評，**必須明確列出參考的 X 推文原文或來源**。
             """),
-            expected_output="5 則幣圈新聞初稿，含推特原聲與 Grok 短評。",
+            expected_output="5 則高質量幣圈新聞初稿，含推特原聲與 Grok 短評。",
             agent=self.crypto_researcher
         )
 
         ai_task = Task(
             description=dedent("""
-                1. 使用 Tavily 搜尋『過去 24 小時內』的 5 則最新 AI 界重大新聞。
-                2. 呼叫 X 搜尋工具，捕捉科技圈對於新工具的討論。
-                3. 附上 GPT 專屬短評。
+                1. 使用 Tavily 搜尋『過去 24 小時內』的 AI 界重大新聞（可加入 "latest", "today" 等關鍵字過濾舊聞）。
+                2. 將找到的主題丟入 X 搜尋工具，確認科技圈是否正在熱烈討論。
+                3. 【重要判斷】：綜合新聞與推特情緒，挑選出最具突破性的 5 則。如果 X 上無人討論或屬舊聞，請直接淘汰。
+                4. 初稿中除了摘要，**必須明確列出開發者或社群的 X 推文原文來源**，並附上 GPT 短評。
             """),
-            expected_output="5 則 AI 新聞初稿，含 GPT 短評。",
+            expected_output="5 則高質量 AI 新聞初稿，含 X 科技圈推特原聲與 GPT 短評。",
             agent=self.ai_researcher
         )
 
@@ -168,14 +168,16 @@ class QSiliconResearchCrew:
                 【Telegram Markdown 排版規範】：
                 1. 版面分離：分為 `### 📊 市場鏈上數據`、`### 🌐 幣圈前沿`、`### 🧠 AI 視野`。
                 2. 鏈上數據區必須包含 CoinGlass 與 CryptoQuant 的狀態。
-                3. 每則新聞格式：
+                3. 每則新聞 (無論幣圈或 AI) 都必須採用以下格式：
+                
                    **【新聞標題】**
                    > 內容摘要...
-                   > 🐦 **X 來源/情緒**: (幣圈新聞專用，請貼推文原文)
+                   > 🐦 **X 來源/情緒**: (請直接貼上推文原文或重點社群討論來源)
                    
                    🛸 **Grok** / 🤖 **GPT**: (專屬短評)
                    🛡️ **Claude**: (風險批判短評)
                    💎 **Gemini**: (總結短評)
+                   
                 4. 善用 Emoji，保留 ASCII 進度條。
             """),
             expected_output="Telegram 最佳化純文字戰報。",
@@ -210,7 +212,6 @@ if __name__ == "__main__":
     
     if token and chat_id:
         bot = telebot.TeleBot(token)
-        # Telegram 單則訊息上限為 4096 字元，這裡設定 4000 為安全分段點
         max_length = 4000
         chunks = [final_report[i:i+max_length] for i in range(0, len(final_report), max_length)]
         
