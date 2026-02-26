@@ -1,5 +1,12 @@
 import os
 import sys
+
+# ==========================================
+# 🔇 關閉所有底層遙測與互動式提示 (解決 20s timeout 卡死問題)
+# ==========================================
+os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
+os.environ["LITELLM_TELEMETRY"] = "False"
+
 import requests
 import telebot
 from crewai import Agent, Task, Crew, Process, LLM
@@ -41,17 +48,9 @@ def fetch_x_tweets(query: str) -> str:
     bearer_token = os.getenv("X_BEARER_TOKEN")
     if not bearer_token: return "X API 未設定"
     headers = {"Authorization": f"Bearer {bearer_token}"}
-    
-    # 修正 Bug：使用 params 自動處理 URL 編碼，避免 query 中有空白導致 400 錯誤
-    url = "https://api.twitter.com/2/tweets/search/recent"
-    params = {
-        "query": f"{query} -is:retweet",
-        "tweet.fields": "created_at,author_id",
-        "max_results": 10
-    }
-    
+    url = f"https://api.twitter.com/2/tweets/search/recent?query={query} -is:retweet&tweet.fields=created_at,author_id&max_results=10"
     try:
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(url, headers=headers)
         data = response.json()
         if "data" not in data: return "無相關推文"
         tweets = ["【社群聲音】"]
@@ -67,10 +66,10 @@ def fetch_x_tweets(query: str) -> str:
 print("🧠 [系統] 正在連接四核 AI 引擎 (2026 旗艦陣容)...")
 sys.stdout.flush()
 
+# 修正：改用 xai/ 前綴，讓底層套件精準過濾參數
 llm_grok = LLM(
-    model="openai/grok-4-1-fast-reasoning", 
-    api_key=os.getenv("XAI_API_KEY"),
-    base_url="https://api.x.ai/v1"
+    model="xai/grok-4-1-fast-reasoning", 
+    api_key=os.getenv("XAI_API_KEY")
 )
 llm_gpt = LLM(
     model="gpt-5.2-pro-2025-12-11", 
@@ -172,12 +171,10 @@ try:
     if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
         report_text = str(final_report)
-        
-        # 修正 Bug：Telegram 訊息自動分段發送 (每段 4000 字元)，確保資訊不漏接
-        chunk_size = 4000
-        for i in range(0, len(report_text), chunk_size):
-            bot.send_message(TELEGRAM_CHAT_ID, report_text[i:i+chunk_size])
+        if len(report_text) > 4000:
+            report_text = report_text[:4000] + "\n\n...(字數超出限制，已自動截斷)"
             
+        bot.send_message(TELEGRAM_CHAT_ID, report_text)
         print("📩 [系統] Telegram 報告發送成功！")
     else:
         print("❌ [錯誤] 找不到 Telegram 金鑰，無法發送。")
