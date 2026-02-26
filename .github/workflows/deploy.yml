@@ -3,7 +3,7 @@ name: CI/CD to Cloud Run
 on:
   push:
     branches:
-      - main
+      - main # 當代碼推送到 main 分支時，就會觸發自動更新
   workflow_dispatch:
 
 env:
@@ -58,4 +58,3 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --quiet
-
