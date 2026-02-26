@@ -53,11 +53,10 @@ jobs:
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run Job
         run: |
-          gcloud run deploy "${CLOUD_RUN_SERVICE}" \
+          # 使用 gcloud run jobs deploy 指令，這不會要求程式監聽 Port 8080
+          gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
-            --region "${{ env.GCP_REGION }}" \
-            --platform managed \
-            --allow-unauthenticated \
+            --region "${GCP_REGION}" \
             --quiet
