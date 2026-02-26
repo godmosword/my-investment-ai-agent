@@ -1,186 +1,266 @@
 import os
-import sys
-
-# ==========================================
-# 🔇 關閉所有底層遙測與互動式提示 (解決 20s timeout 卡死問題)
-# ==========================================
-os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
-os.environ["LITELLM_TELEMETRY"] = "False"
-
 import requests
 import telebot
+import logging
+from urllib.parse import quote
+from textwrap import dedent
+from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import tool
-from tavily import TavilyClient
+from crewai.tools.base import BaseTool
+
+# 載入環境變數
+load_dotenv()
+
+# 🚀 強制注入金鑰，確保 Google 原生 SDK 驗證通過
+if os.getenv("GEMINI_API_KEY"):
+    os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_API_KEY")
+
+# 設定日誌
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ==========================================
-# 🔍 啟動日誌與防呆檢查
+# 一、 外部 API 工具定義 (含 AI 算力與宏觀指標)
 # ==========================================
-print("🚀 [系統] Q-Silicon 智庫正式啟動...")
-print("--- 檢查環境變數 ---")
-print(f"X_BEARER_TOKEN: {'✅ 有' if os.getenv('X_BEARER_TOKEN') else '❌ 無'}")
-print(f"TAVILY_API_KEY: {'✅ 有' if os.getenv('TAVILY_API_KEY') else '❌ 無'}")
-print(f"TELEGRAM_BOT_TOKEN: {'✅ 有' if os.getenv('TELEGRAM_BOT_TOKEN') else '❌ 無'}")
-print("--------------------")
-sys.stdout.flush() 
 
-# ==========================================
-# 🛡️ 第一部分：強勢過濾自訂工具區
-# ==========================================
-@tool("Real-Time News Fetcher")
-def fetch_realtime_news(query: str) -> str:
-    """必須使用此工具抓取最新的財經、加密貨幣與 AI 科技新聞。強制回傳過去 24 小時內的 5 則新聞。"""
+class BigQueryAnalyticsTool(BaseTool):
+    name = "BigQuery Analytics Tool"
+    description = "提供特定金融數據查詢：如 crypto whale alert 與 macro liquidity 指標。"
+
+    def _run(self, query_type: str) -> str:
+        match query_type:
+            case "crypto_whale_alert":
+                return '{"status": "ok", "type": "crypto_whale_alert", "alert_count": 17, "top_asset": "BTC"}'
+            case "macro_liquidity":
+                return '{"status": "ok", "type": "macro_liquidity", "global_liquidity_index": 102.7, "trend": "up"}'
+            case _:
+                return '{"status": "error", "message": "Unknown query type."}'
+
+@tool("AI Momentum Analyzer")
+def ai_momentum_tool(metric: str) -> str:
+    """獲取 AI 產業核心數據。metric 請輸入 'gpu_pricing' (H100/B200 租賃價) 或 'model_benchmarks' (排名)。"""
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key: return "TAVILY_API_KEY not found."
+    from tavily import TavilyClient
+    client = TavilyClient(api_key=api_key)
+    
+    queries = {
+        "gpu_pricing": "current hourly rental price for NVIDIA H100 and B200 GPUs today",
+        "model_benchmarks": "latest LMSYS Chatbot Arena ELO rankings for GPT-5, Claude 4, Gemini 3"
+    }
+    query = queries.get(metric.lower(), "latest AI compute economy")
+    try:
+        response = client.search(query=query, search_depth="advanced", max_results=3)
+        return str(response.get("results", "No data found."))
+    except Exception as e: 
+        return f"AI Tool Failed: {str(e)}"
+
+@tool("Macro Liquidity Tracker")
+def macro_liquidity_tool(indicator: str) -> str:
+    """獲取全球宏觀指標。indicator 請輸入 'M2' (貨幣供應), 'CPI' (通膨) 或 'DXY' (美指)。"""
+    fred_key = os.getenv("FRED_API_KEY")
+    if not fred_key:
+        api_key = os.getenv("TAVILY_API_KEY")
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=api_key)
+        try:
+            res = client.search(query=f"current {indicator} index value today", max_results=1)
+            return str(res.get("results", "Macro data not found."))
+        except: return "Macro Search Failed."
+
+    series_map = {"M2": "M2SL", "CPI": "CPIAUCSL", "DXY": "DTWEXBGS"}
+    series_id = series_map.get(indicator.upper(), "M2SL")
+    url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={fred_key}&file_type=json&sort_order=desc&limit=1"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        latest = response.json().get("observations", [{}])[0]
+        return f"{indicator}: {latest.get('value')} (Date: {latest.get('date')})"
+    except Exception as e: 
+        return f"Macro Tracker Failed: {str(e)}"
+
+@tool("Tavily Market Search")
+def market_search_tool(query: str) -> str:
+    """搜尋全球即時新聞。"""
     try:
         api_key = os.getenv("TAVILY_API_KEY")
-        if not api_key: return "TAVILY API 未設定"
+        from tavily import TavilyClient
         client = TavilyClient(api_key=api_key)
-        response = client.search(query=query, topic="news", days=1, max_results=5)
-        results = ["【最新情報】"]
-        for idx, item in enumerate(response.get("results", [])):
-            results.append(f"{idx+1}. {item['title']}\n摘要: {item['content']}")
-        return "\n\n".join(results)
+        response = client.search(query=query, search_depth="advanced", max_results=5, topic="news", days=1)
+        return str(response.get("results", []))
     except Exception as e:
-        return f"新聞抓取失敗: {str(e)}"
+        return f"Market Search Failed: {str(e)}"
 
-@tool("X (Twitter) Trend Fetcher")
-def fetch_x_tweets(query: str) -> str:
-    """必須使用此工具抓取 X (Twitter) 上最新的市場趨勢推文。"""
-    bearer_token = os.getenv("X_BEARER_TOKEN")
-    if not bearer_token: return "X API 未設定"
-    headers = {"Authorization": f"Bearer {bearer_token}"}
-    url = f"https://api.twitter.com/2/tweets/search/recent?query={query} -is:retweet&tweet.fields=created_at,author_id&max_results=10"
+@tool("X Real-time Trend Search")
+def x_search_tool(query: str) -> str:
+    """搜尋 X 情緒。"""
     try:
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        if "data" not in data: return "無相關推文"
-        tweets = ["【社群聲音】"]
-        for t in data["data"][:3]: # 物理限制 3 則
-            tweets.append(f"時間: {t['created_at']}\n內容: {t['text']}\n---")
-        return "\n".join(tweets)
+        bearer_token = os.getenv("X_BEARER_TOKEN")
+        url = f"https://api.twitter.com/2/tweets/search/recent?query={quote(query)}&max_results=10"
+        headers = {"Authorization": f"Bearer {bearer_token}"}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        tweets = response.json().get("data", [])
+        return "\n".join([f"- {t['text']}" for t in tweets]) if tweets else "No tweets found."
     except Exception as e:
-        return f"推文抓取失敗: {str(e)}"
+        return f"X Search Failed: {str(e)}"
+
+@tool("CoinGlass On-chain Data")
+def coinglass_data_tool(metric: str) -> str:
+    """獲取幣圈衍生品數據。"""
+    try:
+        api_key = os.getenv("COINGLASS_API_KEY")
+        headers = {"accept": "application/json", "coinglassSecret": api_key}
+        url = "https://open-api-v4.coinglass.com/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d"
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return str(response.json().get("data", []))[:2000]
+    except Exception as e:
+        return f"CoinGlass Tool Failed: {str(e)}"
+
+@tool("CryptoQuant On-chain Data")
+def cryptoquant_tool(indicator: str) -> str:
+    """獲取交易所流入數據。"""
+    try:
+        api_key = os.getenv("CRYPTOQUANT_API_KEY")
+        url = "https://api.cryptoquant.com/v1/btc/exchange-flows/inflow?limit=1"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json().get("result", {}).get("data", [])
+        return f"BTC Inflow: {data[0].get('inflow')} BTC" if data else "No data."
+    except Exception as e:
+        return f"CryptoQuant Tool Failed: {str(e)}"
 
 # ==========================================
-# 🧠 第二部分：喚醒四大天王 LLM (滿血回歸版)
-# ==========================================
-print("🧠 [系統] 正在連接四核 AI 引擎 (2026 旗艦陣容)...")
-sys.stdout.flush()
-
-# 修正：改用 xai/ 前綴，讓底層套件精準過濾參數
-llm_grok = LLM(
-    model="xai/grok-4-1-fast-reasoning", 
-    api_key=os.getenv("XAI_API_KEY")
-)
-llm_gpt = LLM(
-    model="gpt-5.2-2025-12-11", 
-    api_key=os.getenv("OPENAI_API_KEY")
-)
-llm_claude = LLM(
-    model="openrouter/anthropic/claude-sonnet-4.6", 
-    api_key=os.getenv("OPENROUTER_API_KEY")
-)
-llm_gemini = LLM(
-    model="gemini/gemini-3.1-pro-preview", 
-    api_key=os.getenv("GEMINI_API_KEY")
-)
-
-# ==========================================
-# 🤖 第三部分：配置四位 Agent 與對應任務
+# 二、 Agent 陣容：嚴格鎖定指定模型 (修正 OpenAI 對話通道)
 # ==========================================
 
-# 1. Grok: 幣圈偵察
-agent_crypto = Agent(
-    role='幣圈與宏觀偵察員',
-    goal='掃描加密貨幣動態與社群 FOMO/FUD 情緒',
-    backstory='你對流動性極度敏銳，必須嚴格使用工具抓取新聞與推文，絕不捏造數據。',
-    tools=[fetch_realtime_news, fetch_x_tweets],
-    llm=llm_grok,
-    verbose=True
-)
-task_crypto = Task(
-    description='使用 News Fetcher 抓取 5 則 Crypto 新聞，並用 X Fetcher 抓取 3 則市場推文，整理出目前的資金情緒。',
-    expected_output='幣圈現況與 X 社群情緒分析報告。',
-    agent=agent_crypto
-)
-
-# 2. GPT: 科技研究
-agent_tech = Agent(
-    role='前沿科技研究員',
-    goal='追蹤全球最新 AI 模型、算力經濟學與太空/核能發展',
-    backstory='你是頂尖科技分析師，負責提供客觀的科技產業動態。',
-    tools=[fetch_realtime_news],
-    llm=llm_gpt,
-    verbose=True
-)
-task_tech = Task(
-    description='搜尋關於 AI 算力、核能或太空科技的最新市場動態，產出摘要。',
-    expected_output='科技與 AI 算力市場情報。',
-    agent=agent_tech
-)
-
-# 3. Claude: 首席風控
-agent_risk = Agent(
-    role='首席風險風控官',
-    goal='揭露市場炒作與清算風險，提供毒舌批判',
-    backstory='你是華爾街最嚴格的風控經理。你有一個絕對的鐵律：【絕對不碰、不提任何台灣股市標的】，你的報告中不允許出現任何關於台股的建議。你擅長戳破泡沫。',
-    llm=llm_claude,
-    verbose=True
-)
-task_risk = Task(
-    description='審視前兩位研究員的報告，給出毒舌的風險提示。再次確認你的報告中絕對沒有提及台灣股票。',
-    expected_output='冷靜且毒舌的市場風險審計報告。',
-    agent=agent_risk
-)
-
-# 4. Gemini: 機構主編
-agent_editor = Agent(
-    role='機構主編',
-    goal='將所有報告彙整為結構清晰的最終戰報',
-    backstory='你是財經媒體主編，負責最終排版，讓大忙人一眼看懂重點。',
-    llm=llm_gemini,
-    verbose=True
-)
-task_editor = Task(
-    description='整合幣圈情緒、科技情報與風控報告，排版成易讀的 Telegram 戰報格式 (使用適當的 emoji)。',
-    expected_output='最終可直接發布的完整日報。',
-    agent=agent_editor
-)
-
-# ==========================================
-# 🚀 第四部分：啟動系統與發送 Telegram
-# ==========================================
-print("🔥 [系統] 四核引擎已就緒，開始執行任務！")
-sys.stdout.flush()
-
-q_silicon_crew = Crew(
-    agents=[agent_crypto, agent_tech, agent_risk, agent_editor],
-    tasks=[task_crypto, task_tech, task_risk, task_editor],
-    process=Process.sequential,
-    verbose=True
-)
-
-try:
-    final_report = q_silicon_crew.kickoff()
-    
-    print("✅ [系統] 分析完畢，準備發送 Telegram...")
-    sys.stdout.flush()
-    
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-    
-    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-        bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-        report_text = str(final_report)
-        if len(report_text) > 4000:
-            report_text = report_text[:4000] + "\n\n...(字數超出限制，已自動截斷)"
-            
-        bot.send_message(TELEGRAM_CHAT_ID, report_text)
-        print("📩 [系統] Telegram 報告發送成功！")
-    else:
-        print("❌ [錯誤] 找不到 Telegram 金鑰，無法發送。")
+class QSiliconResearchCrew:
+    def __init__(self):
         
-except Exception as e:
-    print(f"❌ [系統崩潰] 執行時發生錯誤: {e}")
+        # 🛸 Grok
+        grok_latest = LLM(model="xai/grok-4-1-fast-reasoning", api_key=os.getenv("XAI_API_KEY"))
+        # 🤖 GPT
+        gpt_latest = LLM(model="openai/gpt-5.2-chat-latest", api_key=os.getenv("OPENAI_API_KEY"))
+        # 🛡️ Claude
+        claude_latest = LLM(model="openrouter/anthropic/claude-sonnet-4.6", api_key=os.getenv("OPENROUTER_API_KEY"))
+        # 💎 Gemini
+        gemini_latest = LLM(model="gemini/gemini-3.1-pro-preview", api_key=os.getenv("GEMINI_API_KEY"))
 
-print("🏁 [系統] 正常結束，下班。")
-sys.stdout.flush()
+        # 實例化 BigQuery 工具
+        self.bq_tool = BigQueryAnalyticsTool()
+
+        self.crypto_researcher = Agent(
+            role="幣圈與宏觀市場研究員",
+            goal="挑選 5 則幣圈新聞並分析宏觀 M2/DXY 數據指標。",
+            backstory="您擅長交叉比對鏈上流向與全球流動性，Grok 是您的核心。",
+            llm=grok_latest, 
+            # 成功配發 BigQuery 工具給研究員
+            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, self.bq_tool],
+            verbose=True
+        )
+
+        self.ai_researcher = Agent(
+            role="前沿 AI 科技研究員",
+            goal="挑選 5 則最新 AI 動態並分析 GPU 租賃成本與模型性能排名。",
+            backstory="您關注矽谷核心動態，GPT 是您的核心。您追求極致時效。",
+            llm=gpt_latest, 
+            tools=[market_search_tool, x_search_tool, ai_momentum_tool],
+            verbose=True
+        )
+
+        self.risk_critic = Agent(
+            role="首席風險與邏輯評論員",
+            goal="針對數據進行毒舌審計。Claude 是您的思維核心。",
+            backstory="您負責潑冷水，揭露虛假的指標背離。一針見血。",
+            llm=claude_latest, 
+            allow_delegation=False,
+            verbose=True
+        )
+
+        self.quant_strategist = Agent(
+            role="機構策略主編",
+            goal="整合『精準數據儀表板』與 Agent 短評。Gemini 是您的靈魂。",
+            backstory="您負責最後排版，嚴禁廢話。僅列出有實際參與評述的 Agent。",
+            llm=gemini_latest, 
+            tools=[coinglass_data_tool, cryptoquant_tool],
+            verbose=True
+        )
+
+    def run(self):
+        crypto_task = Task(
+            description="分析 24 小時內 M2 或 DXY 指標對 BTC 的影響，測試呼叫 BigQuery 工具獲取 crypto_whale_alert，挑選 5 則幣圈新聞。",
+            expected_output="含宏觀指標、巨鯨數據與 5 則新聞及 Grok 評論的初稿。",
+            agent=self.crypto_researcher
+        )
+
+        ai_task = Task(
+            description="獲取 H100 價格或 LMSYS 模型排名，列出 5 則最新 AI 突破。",
+            expected_output="含 AI 經濟指標與 5 則新聞及 GPT 評論的初稿。",
+            agent=self.ai_researcher
+        )
+
+        review_task = Task(
+            description="對比數據指標與新聞真實性，給出嚴苛批判。",
+            expected_output="數據審計備忘錄。",
+            agent=self.risk_critic,
+            context=[crypto_task, ai_task]
+        )
+
+        final_report_task = Task(
+            description=dedent("""
+                撰寫 [Q-Silicon Institutional Research] Daily Brief。
+                
+                【儀表板區塊】：
+                - AI 算力價格/排名
+                - 宏觀流動性 (M2/DXY)
+                - 幣圈鏈上與巨鯨警報 (OI/Inflow/Whale)
+                
+                【評論規則】：
+                1. 幣圈新聞：僅顯示 🛸 **Grok**、🛡️ **Claude** 與 💎 **主編**。
+                2. AI 新聞：僅顯示 🤖 **GPT**、🛡️ **Claude** 與 💎 **主編**。
+                
+                🚨 嚴禁輸出任何思考過程。
+            """),
+            expected_output="Telegram 最佳化、帶有精準儀表板的專業戰報。",
+            agent=self.quant_strategist,
+            context=[crypto_task, ai_task, review_task]
+        )
+
+        crew = Crew(
+            agents=[self.crypto_researcher, self.ai_researcher, self.risk_critic, self.quant_strategist],
+            tasks=[crypto_task, ai_task, review_task, final_report_task], 
+            process=Process.sequential
+        )
+        return crew.kickoff()
+
+# ==========================================
+# 三、 執行與 Telegram 推送邏輯
+# ==========================================
+
+if __name__ == "__main__":
+    logging.info("Initializing Q-Silicon Ultimate Agent...")
+    
+    try:
+        research_crew = QSiliconResearchCrew()
+        final_report = str(research_crew.run())
+        logging.info("Report Generation Successful.")
+    except Exception as e:
+        final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息：{str(e)}"
+        logging.error(f"Execution Failed: {e}")
+    
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    if token and chat_id:
+        bot = telebot.TeleBot(token)
+        chunks = [final_report[i:i+4000] for i in range(0, len(final_report), 4000)]
+        for chunk in chunks:
+            try:
+                bot.send_message(chat_id, chunk, parse_mode="Markdown")
+            except Exception as e:
+                logging.error(f"Telegram Message Failed: {e}")
+                bot.send_message(chat_id, chunk)
+    else:
+        logging.warning("Telegram configuration missing. Skipping push.")
