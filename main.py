@@ -54,26 +54,26 @@ def fetch_x_tweets(query: str) -> str:
         return f"推文抓取失敗: {str(e)}"
 
 # ==========================================
-# 🧠 第二部分：喚醒四大天王 LLM (CrewAI 原生寫法)
+# 🧠 第二部分：喚醒四大天王 LLM (滿血回歸版)
 # ==========================================
-print("🧠 [系統] 正在連接四核 AI 引擎...")
+print("🧠 [系統] 正在連接四核 AI 引擎 (2026 旗艦陣容)...")
 sys.stdout.flush()
 
 llm_grok = LLM(
-    model="openai/grok-beta", 
+    model="openai/grok-4-1-fast-reasoning", 
     api_key=os.getenv("XAI_API_KEY"),
     base_url="https://api.x.ai/v1"
 )
 llm_gpt = LLM(
-    model="gpt-4o", 
+    model="gpt-5.2-pro-2025-12-11", 
     api_key=os.getenv("OPENAI_API_KEY")
 )
 llm_claude = LLM(
-    model="openrouter/anthropic/claude-3.5-sonnet", 
+    model="openrouter/anthropic/claude-sonnet-4.6", 
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 llm_gemini = LLM(
-    model="gemini/gemini-1.5-pro", 
+    model="gemini/gemini-3.1-pro-preview", 
     api_key=os.getenv("GEMINI_API_KEY")
 )
 
@@ -115,12 +115,12 @@ task_tech = Task(
 agent_risk = Agent(
     role='首席風險風控官',
     goal='揭露市場炒作與清算風險，提供毒舌批判',
-    backstory='你是華爾街最嚴格的風控經理，絕對不碰、也絕對不提任何「台灣股市」的標的。你擅長戳破泡沫。',
+    backstory='你是華爾街最嚴格的風控經理。你有一個絕對的鐵律：【絕對不碰、不提任何台灣股市標的】，你的報告中不允許出現任何關於台股的建議。你擅長戳破泡沫。',
     llm=llm_claude,
     verbose=True
 )
 task_risk = Task(
-    description='審視前兩位研究員的報告，給出毒舌的風險提示。確保你的報告中絕對不會提及台灣股票。',
+    description='審視前兩位研究員的報告，給出毒舌的風險提示。再次確認你的報告中絕對沒有提及台灣股票。',
     expected_output='冷靜且毒舌的市場風險審計報告。',
     agent=agent_risk
 )
