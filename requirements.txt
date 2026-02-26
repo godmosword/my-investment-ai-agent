@@ -1,5 +1,5 @@
-crewai[google-genai]>=0.102.0
-crewai_tools>=0.17.0
+crewai>=0.30.0
+crewai-tools>=0.0.15
 litellm>=1.60.0
 fastapi
 apscheduler

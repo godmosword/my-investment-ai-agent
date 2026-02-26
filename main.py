@@ -7,7 +7,7 @@ from textwrap import dedent
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import tool
-from crewai.tools.base import BaseTool
+from crewai.tools import BaseTool
 from google.cloud import bigquery  # 新增的 BigQuery 官方套件
 
 # 載入環境變數
