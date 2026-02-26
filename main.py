@@ -134,7 +134,6 @@ q_silicon_crew = Crew(
 )
 
 try:
-    # 這裡啟動整個分析流程
     final_report = q_silicon_crew.kickoff()
     
     print("✅ [系統] 分析完畢，準備發送 Telegram...")
@@ -145,12 +144,13 @@ try:
     
     if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-        # 截斷保護機制
         report_text = str(final_report)
-        if len(report_text) > 4000:
-            report_text = report_text[:4000] + "\n\n...(字數超出限制，已自動截斷)"
+        
+        # 修正 Bug：Telegram 訊息自動分段發送 (每段 4000 字元)，確保資訊不漏接
+        chunk_size = 4000
+        for i in range(0, len(report_text), chunk_size):
+            bot.send_message(TELEGRAM_CHAT_ID, report_text[i:i+chunk_size])
             
-        bot.send_message(TELEGRAM_CHAT_ID, report_text)
         print("📩 [系統] Telegram 報告發送成功！")
     else:
         print("❌ [錯誤] 找不到 Telegram 金鑰，無法發送。")
