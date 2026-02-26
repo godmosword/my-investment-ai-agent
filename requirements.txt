@@ -1,0 +1,13 @@
+crewai[google-genai]>=0.102.0
+crewai_tools>=0.17.0
+litellm>=1.60.0
+fastapi
+apscheduler
+tavily-python
+requests
+python-dotenv
+pydantic
+pyTelegramBotAPI
+email-validator
+fastapi-sso
+google-cloud-bigquery>=3.14.0
