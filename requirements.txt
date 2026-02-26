@@ -1,15 +1,12 @@
-# --- 核心 AI 框架 (維持嚴格鎖定，確保系統行為不變) ---
-crewai[google-genai]==0.102.0
-crewai_tools==0.17.0
-litellm==1.60.0
-
-# --- 應用與底層基礎套件 (適度放寬，讓 pip 自動化解衝突) ---
-fastapi>=0.115.0
-apscheduler==3.10.4
-tavily-python==0.5.0
-requests>=2.31.0
-python-dotenv==1.0.1
-pydantic>=2.9.0
-pyTelegramBotAPI==4.23.0
+crewai[google-genai]>=0.102.0
+crewai_tools>=0.17.0
+litellm>=1.60.0
+fastapi
+apscheduler
+tavily-python
+requests
+python-dotenv
+pydantic
+pyTelegramBotAPI
 email-validator
 fastapi-sso
