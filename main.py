@@ -6,8 +6,7 @@ from urllib.parse import quote
 from textwrap import dedent
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process, LLM
-from crewai.tools import tool
-from crewai.tools import BaseTool
+from crewai.tools import tool, BaseTool
 from google.cloud import bigquery  # 新增的 BigQuery 官方套件
 
 # 載入環境變數
@@ -25,8 +24,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # ==========================================
 
 class BigQueryAnalyticsTool(BaseTool):
-    name = "BigQuery Analytics Tool"
-    description = "提供特定金融數據查詢：如 crypto_whale_alert (巨鯨轉帳警報)。"
+    # 重點：在變數名稱後加上 : str
+    name: str = "BigQuery_Market_Data_Analyzer"
+    description: str = "A tool to query Bitcoin whale transactions from BigQuery."
 
     def _run(self, query_type: str) -> str:
         try:
