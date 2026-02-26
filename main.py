@@ -6,7 +6,34 @@ from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import tool
 from tavily import TavilyClient
 
-# ... [保留原本的啟動日誌與 fetch_realtime_news 不變] ...
+# ==========================================
+# 🔍 啟動日誌與防呆檢查
+# ==========================================
+print("🚀 [系統] Q-Silicon 智庫正式啟動...")
+print("--- 檢查環境變數 ---")
+print(f"X_BEARER_TOKEN: {'✅ 有' if os.getenv('X_BEARER_TOKEN') else '❌ 無'}")
+print(f"TAVILY_API_KEY: {'✅ 有' if os.getenv('TAVILY_API_KEY') else '❌ 無'}")
+print(f"TELEGRAM_BOT_TOKEN: {'✅ 有' if os.getenv('TELEGRAM_BOT_TOKEN') else '❌ 無'}")
+print("--------------------")
+sys.stdout.flush() 
+
+# ==========================================
+# 🛡️ 第一部分：強勢過濾自訂工具區
+# ==========================================
+@tool("Real-Time News Fetcher")
+def fetch_realtime_news(query: str) -> str:
+    """必須使用此工具抓取最新的財經、加密貨幣與 AI 科技新聞。強制回傳過去 24 小時內的 5 則新聞。"""
+    try:
+        api_key = os.getenv("TAVILY_API_KEY")
+        if not api_key: return "TAVILY API 未設定"
+        client = TavilyClient(api_key=api_key)
+        response = client.search(query=query, topic="news", days=1, max_results=5)
+        results = ["【最新情報】"]
+        for idx, item in enumerate(response.get("results", [])):
+            results.append(f"{idx+1}. {item['title']}\n摘要: {item['content']}")
+        return "\n\n".join(results)
+    except Exception as e:
+        return f"新聞抓取失敗: {str(e)}"
 
 @tool("X (Twitter) Trend Fetcher")
 def fetch_x_tweets(query: str) -> str:
