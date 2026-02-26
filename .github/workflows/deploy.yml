@@ -8,7 +8,7 @@ on:
 
 env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCP_REGION: ${{ secrets.GCP_REGION }}
+  GCP_REGION: asia-east1
   CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
   GAR_REPOSITORY: ${{ secrets.GAR_REPOSITORY }} # e.g. "cloud-run-source-deploy"
 
@@ -39,13 +39,13 @@ jobs:
 
       - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
       - name: Build and push Docker image
         env:
           IMAGE_NAME: ${{ env.CLOUD_RUN_SERVICE }}
         run: |
-          IMAGE_URI=${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}:$GITHUB_SHA
+          IMAGE_URI=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${IMAGE_NAME}:$GITHUB_SHA
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
           docker build -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
@@ -54,7 +54,7 @@ jobs:
         run: |
           gcloud run deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
-            --region "${GCP_REGION}" \
+            --region "${{ env.GCP_REGION }}" \
             --platform managed \
             --allow-unauthenticated \
             --quiet
