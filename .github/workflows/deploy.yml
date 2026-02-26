@@ -55,8 +55,8 @@ jobs:
 
       - name: Deploy to Cloud Run Job
         run: |
-          # 使用 gcloud run jobs deploy 指令，這不會要求程式監聽 Port 8080
+          # 改用 gcloud run jobs deploy，這不會要求程式監聽 8080 埠
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
-            --region "${GCP_REGION}" \
+            --region "${{ env.GCP_REGION }}" \
             --quiet
