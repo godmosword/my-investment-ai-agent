@@ -72,7 +72,7 @@ llm_grok = LLM(
     api_key=os.getenv("XAI_API_KEY")
 )
 llm_gpt = LLM(
-    model="gpt-5.2-pro-2025-12-11", 
+    model="gpt-5.2-2025-12-11", 
     api_key=os.getenv("OPENAI_API_KEY")
 )
 llm_claude = LLM(
