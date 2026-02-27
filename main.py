@@ -78,22 +78,37 @@ def ai_momentum_tool(metric: str) -> str:
 
 @tool("Macro Liquidity Tracker")
 def macro_liquidity_tool(indicator: str) -> str:
-    """獲取全球宏觀指標。indicator 請輸入 'M2' (貨幣供應), 'CPI' (通膨) 或 'DXY' (美指)。"""
-    fred_key = os.getenv("FRED_API_KEY")
-    if not fred_key:
+    """獲取全球宏觀指標。indicator 請輸入 'M2' (貨幣供應), 'CPI' (通膨) 或 'DXY' (ICE 美指)。"""
+    indicator_upper = indicator.upper()
+
+    # 特別處理 DXY：改用 Tavily 搜尋 ICE US Dollar Index 即時報價
+    if indicator_upper == "DXY":
         api_key = os.getenv("TAVILY_API_KEY")
         if not api_key:
-            return "FRED_API_KEY 與 TAVILY_API_KEY 都未設定，無法查詢宏觀指標。"
-        from tavily import TavilyClient
-        client = TavilyClient(api_key=api_key)
+            return "Macro Tracker Failed (Tavily)。TAVILY_API_KEY 未設定，無法查詢 ICE DXY。"
         try:
-            res = client.search(query=f"current {indicator} index value today", max_results=1)
-            return str(res.get("results", "Macro data not found."))
-        except Exception as e:
-            return f"Macro Search Failed (Tavily). 請檢查 TAVILY_API_KEY 或網路連線。詳細錯誤：{str(e)}"
+            from tavily import TavilyClient
 
-    series_map = {"M2": "M2SL", "CPI": "CPIAUCSL", "DXY": "DTWEXBGS"}
-    series_id = series_map.get(indicator.upper(), "M2SL")
+            client = TavilyClient(api_key=api_key)
+            res = client.search(
+                query="current ICE US Dollar Index (DXY) real-time quote today",
+                search_depth="basic",
+                max_results=3,
+            )
+            return str(res.get("results", "ICE DXY data not found."))
+        except Exception as e:
+            return f"Macro Tracker Failed (Tavily ICE DXY)。請檢查 TAVILY_API_KEY 或網路連線。詳細錯誤：{str(e)}"
+
+    # 其餘指標 (M2 / CPI) 走 FRED API
+    fred_key = os.getenv("FRED_API_KEY")
+    if not fred_key:
+        return "Macro Tracker Failed (FRED)。FRED_API_KEY 未設定，無法查詢 M2 / CPI。"
+
+    series_map = {"M2": "M2SL", "CPI": "CPIAUCSL"}
+    series_id = series_map.get(indicator_upper)
+    if not series_id:
+        return f"Macro Tracker Failed (FRED)。不支援的指標：{indicator}，僅支援 M2 與 CPI。"
+
     url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={fred_key}&file_type=json&sort_order=desc&limit=1"
     try:
         response = requests.get(url, timeout=10)
@@ -103,8 +118,8 @@ def macro_liquidity_tool(indicator: str) -> str:
             return "Macro Tracker Failed (FRED 429)。FRED API 流量超限，請稍後再試。"
         response.raise_for_status()
         latest = response.json().get("observations", [{}])[0]
-        return f"{indicator}: {latest.get('value')} (Date: {latest.get('date')})"
-    except Exception as e: 
+        return f"{indicator_upper}: {latest.get('value')} (Date: {latest.get('date')})"
+    except Exception as e:
         return f"Macro Tracker Failed (FRED)。請檢查 FRED_API_KEY、網路連線或 API 狀態。詳細錯誤：{str(e)}"
 
 @tool("Tavily Market Search")
@@ -327,13 +342,17 @@ class QSiliconResearchCrew:
                 - 宏觀流動性 (M2/DXY)
                 - 幣圈鏈上與巨鯨警報 (OI/Inflow/Whale)
                 
-                【評論規則】：
-                1. 幣圈新聞：僅顯示 🛸 **Grok**、🛡️ **Claude** 與 💎 **主編**。
-                2. AI 新聞：僅顯示 🤖 **GPT**、🛡️ **Claude** 與 💎 **主編**。
+                【內容排版規則 - 必須嚴格遵守】：
+                1. 幣圈區塊：
+                   - 必須先列出 Grok 找到的「5 則爭議新聞」與「3 則 X (Twitter) 原始推文」。
+                   - 接著再顯示 🛸 **Grok**、🛡️ **Claude** 與 💎 **主編** 的評論。
+                2. AI 區塊：
+                   - 必須先列出 GPT 找到的「5 則暗盤新聞」與「3 則 X (Twitter) 原始推文」。
+                   - 接著再顯示 🤖 **GPT**、🛡️ **Claude** 與 💎 **主編** 的評論。
                 
-                🚨 嚴禁輸出任何思考過程。
+                🚨 嚴禁主編(Gemini)私自刪減新聞標題與推文原文！保留原始內容！
             """),
-            expected_output="Telegram 最佳化、帶有精準儀表板的專業戰報。",
+            expected_output="Telegram 最佳化、同時完整保留 Grok/GPT 所提供的 5 則新聞與 3 則 X 推文原文，並附上各 Agent 評論與風險標註的專業戰報。",
             agent=self.quant_strategist,
             context=[crypto_task, ai_task, review_task]
         )
