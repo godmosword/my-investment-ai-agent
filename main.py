@@ -253,14 +253,61 @@ class QSiliconResearchCrew:
 
     def run(self):
         crypto_task = Task(
-            description="分析 24 小時內 M2 或 DXY 指標對 BTC 的影響，測試呼叫 BigQuery 工具獲取 crypto_whale_alert，挑選 5 則幣圈新聞。",
-            expected_output="含宏觀指標、巨鯨數據與 5 則新聞及 Grok 評論的初稿。",
+            description=dedent("""
+                【幣圈「八卦與內線」情報網任務——請嚴格依照以下指示行動】
+
+                1. 必須呼叫 macro_liquidity_tool，獲取「最新 DXY 指標」與說明其變動方向，僅使用公開數據。
+                2. 必須呼叫 BigQuery 工具（BigQuery_Market_Data_Analyzer），以 query_type="crypto_whale_alert" 取得過去 24 小時的巨鯨交易統計。
+                3. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
+                   'crypto market maker manipulation OR Jane Street rumor OR BTC ETF flow leak'
+                4. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
+                   'crypto rumor OR BTC leak OR whale manipulation'
+
+                【強制輸出規範（極為嚴格，請逐條遵守）】：
+                - 僅使用可公開取得的新聞與社群內容，不得捏造任何「未出現於來源中的」具體事實或人物指控。
+                - 必須明確列出「5 則具爭議性或前瞻性」的市場新聞，內容需與：
+                  做市商行為、槓桿清算風險、ETF 資金流、巨鯨行為或 Jane Street 類型機構操作「傳聞」相關。
+                - 對每一則新聞，需標註：
+                  (a) 資訊來源（例如：媒體 / 報告 / 研究機構）
+                  (b) 性質：confirmed / likely / unverified rumor（三選一）
+                  (c) 您的風險與可信度評論。
+                - 必須原汁原味列出「3 則最具殺傷力的 X 原始推文內容」，並對每則推文加上：
+                  (a) 該推文的具體主張
+                  (b) 您對其可信度的評估
+                  (c) 若為純情緒帶風向，請明確指出。
+
+                嚴禁輸出任何法律建議或保證某傳聞為真。所有內容必須標註為「市場敘事 / 傳聞」，僅供風險研究與情緒監控使用。
+            """),
+            expected_output="一份包含：最新 DXY 指標解讀、BigQuery 巨鯨警報摘要、5 則具爭議性的幣圈新聞（附來源與可信度標註），以及 3 則最具殺傷力 X 推文與 Grok 的辛辣評論與風險評分的完整初稿。",
             agent=self.crypto_researcher
         )
 
         ai_task = Task(
-            description="獲取 H100 價格或 LMSYS 模型排名，列出 5 則最新 AI 突破。",
-            expected_output="含 AI 經濟指標與 5 則新聞及 GPT 評論的初稿。",
+            description=dedent("""
+                【AI 圈「黑暗傳聞」情資任務——請嚴格依照以下指示行動】
+
+                1. 必須獲取最新 H100/B200 價格或 LMSYS 模型排名，可透過 ai_momentum_tool 或 Tavily 等工具，不得捏造指標數值。
+                2. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
+                   'AI model leak OR OpenAI internal drama OR NVIDIA secret project'
+                3. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
+                   '#OpenSourceAI breakthrough OR AI rumor OR Sam Altman drama'
+
+                【強制輸出規範（極為嚴格，請逐條遵守）】：
+                - 僅使用可公開取得的新聞、部落格與開發者社群內容，不得捏造「從未出現在來源中的」內線或機密資訊。
+                - 必須明確列出「5 則矽谷暗盤或未正式對外公關包裝的 AI 產業動態」，例如：
+                  模型洩漏事件、內部文化與管理爭議、GPU 供應與算力壟斷爭議、開源社群爆料等。
+                - 對每一則動態，需標註：
+                  (a) 資訊來源（開發者論壇、技術部落格、主流媒體等）
+                  (b) 性質：confirmed / likely / unverified rumor
+                  (c) 您對其對產業格局與投資情緒之潛在影響。
+                - 必須原汁原味列出「3 則來自開發者社群的 X 原始推文內容」，並對每則推文加上：
+                  (a) 具體技術或內部狀況主張
+                  (b) 您對其專業度與可信度的評估
+                  (c) 是否可能被誇大、帶有個人情緒或商業動機。
+
+                嚴禁聲稱掌握真實內線或未公開機密；所有內容均須標註為「產業傳聞與社群敘事」，僅供風險研究與前瞻情緒分析使用。
+            """),
+            expected_output="一份包含：最新 H100/B200 價格或 LMSYS 排名摘要、5 則具爭議性的 AI 產業傳聞與動態（附來源與可信度標註），以及 3 則來自開發者社群的代表性 X 推文與 GPT 的辛辣評論與產業風險評估的完整初稿。",
             agent=self.ai_researcher
         )
 
