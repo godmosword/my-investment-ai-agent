@@ -290,6 +290,8 @@ class QSiliconResearchCrew:
                   (a) 該推文的具體主張
                   (b) 您對其可信度的評估
                   (c) 若為純情緒帶風向，請明確指出。
+                - 對於每一則新聞與推文，請額外給出統一格式的標籤行：
+                  【RISK_SCORE】x/5｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle
 
                 嚴禁輸出任何法律建議或保證某傳聞為真。所有內容必須標註為「市場敘事 / 傳聞」，僅供風險研究與情緒監控使用。
             """),
@@ -319,6 +321,8 @@ class QSiliconResearchCrew:
                   (a) 具體技術或內部狀況主張
                   (b) 您對其專業度與可信度的評估
                   (c) 是否可能被誇大、帶有個人情緒或商業動機。
+                - 對於每一則新聞與推文，請額外給出統一格式的標籤行：
+                  【RISK_SCORE】x/5｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle
 
                 嚴禁聲稱掌握真實內線或未公開機密；所有內容均須標註為「產業傳聞與社群敘事」，僅供風險研究與前瞻情緒分析使用。
             """),
@@ -327,8 +331,17 @@ class QSiliconResearchCrew:
         )
 
         review_task = Task(
-            description="對比數據指標與新聞真實性，給出嚴苛批判。",
-            expected_output="數據審計備忘錄。",
+            description=dedent("""
+                綜合幣圈與 AI 區塊的所有數據與傳聞，執行以下任務：
+                1. 審查各指標與新聞、推文的一致性與可信度，指出明顯誇大或自相矛盾之處。
+                2. 對每一類主要敘事（例如：ETF 資金流、巨鯨操盤、模型洩漏、算力壟斷）給出「風險說明」與「可能被市場過度/不足定價」的簡短評語。
+                3. 給出當前市場的整體模式標籤 (market_regime)，只能從下列三者中擇一：
+                   - risk_on
+                   - risk_off
+                   - neutral
+                   並用不超過 3 個關鍵驅動因子說明理由（例如：DXY 走強 + OI 降溫 + FUD 類傳聞升溫）。
+            """),
+            expected_output="一份包含：各主要敘事的可信度與風險批註、以及最終 market_regime（risk_on / risk_off / neutral）與 3 個關鍵驅動因子的審計備忘錄。",
             agent=self.risk_critic,
             context=[crypto_task, ai_task]
         )
@@ -341,6 +354,10 @@ class QSiliconResearchCrew:
                 - AI 算力價格/排名
                 - 宏觀流動性 (M2/DXY)
                 - 幣圈鏈上與巨鯨警報 (OI/Inflow/Whale)
+                
+                【開頭總結區塊】：
+                - 先明確給出「今日市場模式 (market_regime)」：risk_on / risk_off / neutral（三選一）。
+                - 緊接著列出 3 個最關鍵的驅動因子，簡短說明為何形成這個模式（可引用風險審計備忘錄中的結論）。
                 
                 【內容排版規則 - 必須嚴格遵守】：
                 1. 幣圈區塊：
