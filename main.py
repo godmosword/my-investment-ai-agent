@@ -160,6 +160,41 @@ def cryptoquant_tool(indicator: str) -> str:
     except Exception as e:
         return f"CryptoQuant Tool Failed: {str(e)}"
 
+
+@tool("Rumor & Controversy Scanner")
+def rumor_scanner_tool(topic: str) -> str:
+    """
+    掃描圍繞指定主題的爭議、調查報導與未證實傳聞，只使用公開資訊來源。
+    嚴格標註「傳聞性質 / 可信度」，僅供風險研究與情緒監控使用，不構成投資建議或事實認定。
+    """
+    api_key = os.getenv("TAVILY_API_KEY")
+    if not api_key:
+        return "TAVILY_API_KEY not found."
+
+    from tavily import TavilyClient
+
+    client = TavilyClient(api_key=api_key)
+
+    # 加強偏向「爭議 / 風險」的搜尋語意，但同時要求來源與可信度評估
+    query = (
+        f"recent controversies, investigations, lawsuits, market manipulation accusations, "
+        f"security incidents, model leaks, whistleblower reports related to {topic}. "
+        "Return only publicly reported information from credible sources. "
+        "For each item, clearly state if it is: confirmed, likely, or unverified rumor."
+    )
+
+    try:
+        result = client.search(
+            query=query,
+            search_depth="advanced",
+            max_results=8,
+            topic="news",
+            days=30,
+        )
+        return str(result.get("results", []))
+    except Exception as e:
+        return f"Rumor Scanner Failed: {str(e)}"
+
 # ==========================================
 # 二、 Agent 陣容：嚴格鎖定指定模型 (修正 OpenAI 對話通道)
 # ==========================================
@@ -181,27 +216,27 @@ class QSiliconResearchCrew:
 
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
-            goal="挑選 5 則幣圈新聞並分析宏觀 M2/DXY 數據指標。",
-            backstory="您擅長交叉比對鏈上流向與全球流動性，Grok 是您的核心。",
+            goal="挑選 5 則幣圈新聞並分析宏觀 M2/DXY 指標，同時標記潛在『未證實市場傳聞』與操盤爭議。",
+            backstory="您擅長交叉比對鏈上流向、全球流動性與市場敘事，特別留意具殺傷力的負面訊號，但嚴格區分事實與傳聞。",
             llm=grok_latest, 
-            # 成功配發 BigQuery 工具給研究員
-            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, self.bq_tool],
+            # BigQuery + 市場新聞 + X 情緒 + Rumor 掃描
+            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, self.bq_tool, rumor_scanner_tool],
             verbose=True
         )
 
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
-            goal="挑選 5 則最新 AI 動態並分析 GPU 租賃成本與模型性能排名。",
-            backstory="您關注矽谷核心動態，GPT 是您的核心。您追求極致時效。",
+            goal="挑選 5 則最新 AI 動態並分析 GPU 租賃成本與模型性能排名，特別追蹤模型洩漏、數據濫用與安全爭議。",
+            backstory="您關注矽谷與全球 AI 生態的黑暗面，包含模型洩漏、算力壟斷與安全事故，同時會標明可信度與風險等級。",
             llm=gpt_latest, 
-            tools=[market_search_tool, x_search_tool, ai_momentum_tool],
+            tools=[market_search_tool, x_search_tool, ai_momentum_tool, rumor_scanner_tool],
             verbose=True
         )
 
         self.risk_critic = Agent(
             role="首席風險與邏輯評論員",
-            goal="針對數據進行毒舌審計。Claude 是您的思維核心。",
-            backstory="您負責潑冷水，揭露虛假的指標背離。一針見血。",
+            goal="針對數據與『八卦 / 傳聞』進行毒舌審計，區分可驗證事實與純敘事炒作，並標註風險等級。",
+            backstory="您負責潑冷水，揭露虛假的指標背離與敘事操縱，特別審視所謂內線或八卦是否有足夠證據支撐。",
             llm=claude_latest, 
             allow_delegation=False,
             verbose=True
