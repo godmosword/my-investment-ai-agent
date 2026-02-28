@@ -3,14 +3,14 @@ name: CI/CD to Cloud Run
 on:
   push:
     branches:
-      - main # 當代碼推送到 main 分支時，就會觸發自動更新
+      - main
   workflow_dispatch:
 
 env:
-  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCP_REGION: asia-east1
+  GCP_PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION:        asia-east1
   CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
-  GAR_REPOSITORY: ${{ secrets.GAR_REPOSITORY }} # e.g. "cloud-run-source-deploy"
+  GAR_REPOSITORY:    ${{ secrets.GAR_REPOSITORY }}
 
 jobs:
   build-and-deploy:
@@ -18,25 +18,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
@@ -55,8 +45,28 @@ jobs:
 
       - name: Deploy to Cloud Run Job
         run: |
-          # 改用 gcloud run jobs deploy，這不會要求程式監聽 8080 埠
+          # 所有 API 金鑰透過 GCP Secret Manager 注入，不在 image 或 workflow 裡明文存放。
+          # 前置作業：請在 GCP Secret Manager 建立以下 secret（名稱需與下方一致）：
+          #   XAI_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY,
+          #   TAVILY_API_KEY, X_BEARER_TOKEN, COINGLASS_API_KEY,
+          #   CRYPTOQUANT_API_KEY, FRED_API_KEY,
+          #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+          # Service Account 需要 roles/secretmanager.secretAccessor 權限。
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
             --region "${{ env.GCP_REGION }}" \
+            --cpu 2 \
+            --memory 2Gi \
+            --task-timeout 3600 \
+            --set-secrets="XAI_API_KEY=XAI_API_KEY:latest,\
+OPENAI_API_KEY=OPENAI_API_KEY:latest,\
+OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest,\
+GEMINI_API_KEY=GEMINI_API_KEY:latest,\
+TAVILY_API_KEY=TAVILY_API_KEY:latest,\
+X_BEARER_TOKEN=X_BEARER_TOKEN:latest,\
+COINGLASS_API_KEY=COINGLASS_API_KEY:latest,\
+CRYPTOQUANT_API_KEY=CRYPTOQUANT_API_KEY:latest,\
+FRED_API_KEY=FRED_API_KEY:latest,\
+TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,\
+TELEGRAM_CHAT_ID=TELEGRAM_CHAT_ID:latest" \
             --quiet

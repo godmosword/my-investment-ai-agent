@@ -1,0 +1,71 @@
+name: Setup Cloud Scheduler (Run Once)
+
+# 手動觸發，只需在第一次部署後執行一次。
+# 此 workflow 會建立（或更新）Cloud Scheduler Job，每天在指定時間自動觸發 Cloud Run Job。
+# 時區設定為 Asia/Taipei（UTC+8），預設每日 09:00 台北時間執行。
+on:
+  workflow_dispatch:
+    inputs:
+      schedule_cron:
+        description: "Cron 排程（預設：每日 09:00 台北時間）"
+        required: false
+        default: "0 1 * * *"   # UTC 01:00 = 台北 09:00
+
+env:
+  GCP_PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION:        asia-east1
+  CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+  SCHEDULER_JOB:     q-silicon-daily-trigger
+  SA_EMAIL:          ${{ secrets.GCP_SCHEDULER_SA_EMAIL }}
+
+jobs:
+  setup-scheduler:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Create or update Cloud Scheduler Job
+        run: |
+          CRON="${{ github.event.inputs.schedule_cron }}"
+          echo "Setting up scheduler with cron: ${CRON}"
+
+          # 嘗試建立，若已存在則更新（--quiet 抑制確認提示）
+          if gcloud scheduler jobs describe "${SCHEDULER_JOB}" \
+               --location="${GCP_REGION}" \
+               --project="${GCP_PROJECT_ID}" &>/dev/null; then
+
+            echo "Scheduler job exists — updating..."
+            gcloud scheduler jobs update http "${SCHEDULER_JOB}" \
+              --location="${GCP_REGION}" \
+              --schedule="${CRON}" \
+              --time-zone="Asia/Taipei" \
+              --uri="https://${GCP_REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${GCP_PROJECT_ID}/jobs/${CLOUD_RUN_SERVICE}:run" \
+              --message-body="{}" \
+              --oauth-service-account-email="${SA_EMAIL}" \
+              --quiet
+
+          else
+            echo "Scheduler job not found — creating..."
+            gcloud scheduler jobs create http "${SCHEDULER_JOB}" \
+              --location="${GCP_REGION}" \
+              --schedule="${CRON}" \
+              --time-zone="Asia/Taipei" \
+              --uri="https://${GCP_REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${GCP_PROJECT_ID}/jobs/${CLOUD_RUN_SERVICE}:run" \
+              --message-body="{}" \
+              --oauth-service-account-email="${SA_EMAIL}" \
+              --quiet
+          fi
+
+          echo "Cloud Scheduler setup complete."
+          gcloud scheduler jobs describe "${SCHEDULER_JOB}" \
+            --location="${GCP_REGION}" \
+            --project="${GCP_PROJECT_ID}"
