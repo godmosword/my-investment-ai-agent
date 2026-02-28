@@ -64,11 +64,18 @@ jobs:
           SECRETS="$SECRETS,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest"
           SECRETS="$SECRETS,TELEGRAM_CHAT_ID=TELEGRAM_CHAT_ID:latest"
 
+          # 若這些金鑰先前是以普通 env var 形式存在，先移除以允許升級為 secret 型態
+          REMOVE_VARS="XAI_API_KEY,OPENAI_API_KEY,OPENROUTER_API_KEY,GEMINI_API_KEY"
+          REMOVE_VARS="$REMOVE_VARS,TAVILY_API_KEY,X_BEARER_TOKEN,COINGLASS_API_KEY"
+          REMOVE_VARS="$REMOVE_VARS,CRYPTOQUANT_API_KEY,FRED_API_KEY"
+          REMOVE_VARS="$REMOVE_VARS,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID"
+
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
             --region "${{ env.GCP_REGION }}" \
             --cpu 2 \
             --memory 2Gi \
             --task-timeout 3600 \
+            --remove-env-vars="$REMOVE_VARS" \
             --set-secrets="$SECRETS" \
             --quiet
