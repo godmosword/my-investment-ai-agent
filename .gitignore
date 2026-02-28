@@ -1,2 +1,24 @@
+# 環境變數與機密金鑰
 .env
+*.json
+!package.json
+*-credentials.json
+service-account*.json
+gcp-key*.json
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

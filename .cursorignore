@@ -1,0 +1,6 @@
+.env
+*.json
+!package.json
+*-credentials.json
+service-account*.json
+gcp-key*.json
