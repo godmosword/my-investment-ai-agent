@@ -293,5 +293,8 @@ if __name__ == "__main__":
     else:
         logging.warning("Telegram configuration missing. Skipping push.")
 
-    # 每日戰報指標寫入 BigQuery（Telegram 推送完畢後執行）
-    extract_and_save_metrics(final_report)
+    # 每日戰報指標寫入 BigQuery（僅在戰報正常產出時執行，避免寫入空值污染 delta）
+    if final_report and not final_report.startswith("🚨"):
+        extract_and_save_metrics(final_report)
+    else:
+        logging.warning("Skipping BigQuery metrics write — report is an error message.")

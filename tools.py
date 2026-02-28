@@ -282,23 +282,35 @@ def coinglass_data_tool(metric: str) -> str:
 
 @tool("CryptoQuant On-chain Data")
 def cryptoquant_tool(indicator: str) -> str:
-    """獲取交易所流入數據。"""
+    """獲取 BTC 交易所資金流數據。indicator 請輸入 'inflow'（流入）或 'outflow'（流出）。"""
     api_key = os.getenv("CRYPTOQUANT_API_KEY")
     if not api_key:
         return "CryptoQuant Tool Failed：CRYPTOQUANT_API_KEY 未設定。"
 
-    cache_key = ("cryptoquant", indicator)
+    indicator_lower = indicator.lower()
+    endpoint_map = {
+        "inflow":  "https://api.cryptoquant.com/v1/btc/exchange-flows/inflow?limit=1",
+        "outflow": "https://api.cryptoquant.com/v1/btc/exchange-flows/outflow?limit=1",
+    }
+    url = endpoint_map.get(indicator_lower)
+    if not url:
+        return f"CryptoQuant Tool Failed：不支援的 indicator '{indicator}'，僅支援 inflow / outflow。"
+
+    cache_key = ("cryptoquant", indicator_lower)
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
     try:
-        url = "https://api.cryptoquant.com/v1/btc/exchange-flows/inflow?limit=1"
         headers = {"Authorization": f"Bearer {api_key}"}
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         data = response.json().get("result", {}).get("data", [])
-        result = f"BTC Inflow: {data[0].get('inflow')} BTC" if data else "No data."
+        if data:
+            value = data[0].get(indicator_lower, "N/A")
+            result = f"BTC {indicator_lower.capitalize()}: {value} BTC"
+        else:
+            result = "No data."
         _set_cache(cache_key, result)
         return result
     except Exception as e:
