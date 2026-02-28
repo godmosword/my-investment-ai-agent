@@ -52,21 +52,23 @@ jobs:
           #   CRYPTOQUANT_API_KEY, FRED_API_KEY,
           #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
           # Service Account 需要 roles/secretmanager.secretAccessor 權限。
+          SECRETS="XAI_API_KEY=XAI_API_KEY:latest"
+          SECRETS="$SECRETS,OPENAI_API_KEY=OPENAI_API_KEY:latest"
+          SECRETS="$SECRETS,OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest"
+          SECRETS="$SECRETS,GEMINI_API_KEY=GEMINI_API_KEY:latest"
+          SECRETS="$SECRETS,TAVILY_API_KEY=TAVILY_API_KEY:latest"
+          SECRETS="$SECRETS,X_BEARER_TOKEN=X_BEARER_TOKEN:latest"
+          SECRETS="$SECRETS,COINGLASS_API_KEY=COINGLASS_API_KEY:latest"
+          SECRETS="$SECRETS,CRYPTOQUANT_API_KEY=CRYPTOQUANT_API_KEY:latest"
+          SECRETS="$SECRETS,FRED_API_KEY=FRED_API_KEY:latest"
+          SECRETS="$SECRETS,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest"
+          SECRETS="$SECRETS,TELEGRAM_CHAT_ID=TELEGRAM_CHAT_ID:latest"
+
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
             --region "${{ env.GCP_REGION }}" \
             --cpu 2 \
             --memory 2Gi \
             --task-timeout 3600 \
-            --set-secrets="XAI_API_KEY=XAI_API_KEY:latest,\
-OPENAI_API_KEY=OPENAI_API_KEY:latest,\
-OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest,\
-GEMINI_API_KEY=GEMINI_API_KEY:latest,\
-TAVILY_API_KEY=TAVILY_API_KEY:latest,\
-X_BEARER_TOKEN=X_BEARER_TOKEN:latest,\
-COINGLASS_API_KEY=COINGLASS_API_KEY:latest,\
-CRYPTOQUANT_API_KEY=CRYPTOQUANT_API_KEY:latest,\
-FRED_API_KEY=FRED_API_KEY:latest,\
-TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,\
-TELEGRAM_CHAT_ID=TELEGRAM_CHAT_ID:latest" \
+            --set-secrets="$SECRETS" \
             --quiet
