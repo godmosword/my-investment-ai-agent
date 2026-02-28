@@ -3,7 +3,6 @@ import pandas as pd
 from google.cloud import bigquery
 import plotly.express as px
 import plotly.graph_objects as go
-import os
 from datetime import date, timedelta
 from dotenv import load_dotenv
 
@@ -125,7 +124,7 @@ def load_daily_metrics() -> dict:
             if prev is None:
                 return None
             cur, old = latest.get(col), prev.get(col)
-            if cur is not None and old is not None:
+            if pd.notna(cur) and pd.notna(old):
                 return round(cur - old, 4)
             return None
 
