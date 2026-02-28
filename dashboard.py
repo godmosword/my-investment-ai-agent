@@ -22,7 +22,8 @@ def load_daily_metrics() -> dict:
     try:
         client = bigquery.Client(project=PROJECT_ID)
         query = f"""
-            SELECT timestamp, dxy, etf_flow_millions, avg_risk_score
+            SELECT timestamp, dxy, etf_flow_millions, avg_risk_score,
+                   gpu_b200_price, grok_summary, gpt_summary
             FROM `{PROJECT_ID}.market_data.daily_metrics`
             ORDER BY timestamp DESC
             LIMIT 1
@@ -36,6 +37,9 @@ def load_daily_metrics() -> dict:
             "dxy":              row.get("dxy"),
             "etf_flow":         row.get("etf_flow_millions"),
             "avg_risk_score":   row.get("avg_risk_score"),
+            "gpu_b200_price":   row.get("gpu_b200_price"),
+            "grok_summary":     row.get("grok_summary"),
+            "gpt_summary":      row.get("gpt_summary"),
         }
     except Exception as e:
         st.warning(f"⚠️ 無法讀取 daily_metrics：{e}")
@@ -83,7 +87,10 @@ else:
     regime_delta = "尚無數據"
     regime_color = "off"
 
+b200_val   = metrics.get("gpu_b200_price")
+
 dxy_display = f"{dxy_val:.2f}" if dxy_val is not None else "N/A"
+b200_display = f"${b200_val:.2f} / hr" if b200_val is not None else "N/A"
 etf_display = (
     f"-${abs(etf_val):.0f}億" if etf_val is not None and etf_val < 0
     else f"+${etf_val:.0f}億" if etf_val is not None
@@ -98,7 +105,7 @@ with col1:
 with col2:
     st.metric(label="ICE DXY（美元指數）", value=dxy_display)
 with col3:
-    st.metric(label="NVIDIA B200 租賃價", value="$3.40 / hr", delta="算力通縮")
+    st.metric(label="NVIDIA B200 租賃價", value=b200_display)
 with col4:
     st.metric(label="BTC ETF 資金流", value=etf_display, delta_color=etf_color)
 
@@ -194,12 +201,19 @@ st.divider()
 st.subheader("🧠 核心 Agent 戰略點評")
 tab1, tab2 = st.tabs(["🛸 幣圈暗網情報 (Grok)", "🤖 AI 前沿與算力 (GPT)"])
 
+grok_text = metrics.get("grok_summary")
+gpt_text  = metrics.get("gpt_summary")
+
 with tab1:
-    st.warning("⚠️ **Grok 警告**：Jane Street 訴訟案正在發酵，市場深陷 10am dump 陰謀論。散戶 FUD 嚴重，請勿盲目抄底。")
-    st.write("🔥 **熱門推文擷取**：'Reddit user claims DOJ has started internal investigation into Jane Street...'")
+    if grok_text:
+        st.markdown(grok_text)
+    else:
+        st.info("尚無幣圈情報摘要，等待第一次戰報寫入後自動顯示。")
 
 with tab2:
-    st.info("💡 **GPT 洞察**：算力從軍備競賽轉向資本效率。OpenAI 1100億美元超級融資鎖死算力霸權，中小型開源模型生存空間遭壓縮。")
-    st.write("🔥 **熱門推文擷取**：'Sam Altman spills tea on Anthropic's Pentagon drama...'")
+    if gpt_text:
+        st.markdown(gpt_text)
+    else:
+        st.info("尚無 AI 產業情報摘要，等待第一次戰報寫入後自動顯示。")
 
 st.caption("Powered by CrewAI & Google Cloud BigQuery")
