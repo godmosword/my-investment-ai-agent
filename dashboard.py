@@ -2,23 +2,110 @@ import streamlit as st
 import pandas as pd
 from google.cloud import bigquery
 import plotly.express as px
+import plotly.graph_objects as go
 import os
+from datetime import date, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
 
 st.set_page_config(page_title="Q-Silicon 戰情室", page_icon="🛡️", layout="wide")
 
+# ── 統一色盤 ──────────────────────────────────────────────────────────
+COLORS = {
+    "green":      "#00d2a0",
+    "yellow":     "#f5c542",
+    "red":        "#ff4b5c",
+    "blue":       "#3a86ff",
+    "purple":     "#8338ec",
+    "bg_card":    "rgba(30, 36, 50, 0.55)",
+    "border":     "rgba(255,255,255,0.08)",
+    "text_muted": "#8e99a4",
+}
+
+PLOTLY_TEMPLATE = dict(
+    layout=go.Layout(
+        font=dict(family="Inter, sans-serif", color="#c9d1d9"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        title_font_color="#e6edf3",
+        xaxis=dict(gridcolor="rgba(255,255,255,0.06)", zerolinecolor="rgba(255,255,255,0.06)"),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.06)", zerolinecolor="rgba(255,255,255,0.06)"),
+        colorway=[COLORS["blue"], COLORS["green"], COLORS["purple"], COLORS["yellow"], COLORS["red"]],
+    )
+)
+
+# ── 自訂 CSS ──────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* KPI 卡片背景 */
+div[data-testid="stMetric"] {
+    background: %(bg_card)s;
+    border: 1px solid %(border)s;
+    border-radius: 12px;
+    padding: 16px 20px;
+}
+div[data-testid="stMetric"] label {
+    color: %(text_muted)s !important;
+    font-size: 0.82rem !important;
+    letter-spacing: 0.03em;
+}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    font-weight: 700;
+}
+
+/* Section 標題左側色條 */
+h2, h3 {
+    border-left: 4px solid %(blue)s;
+    padding-left: 12px;
+}
+
+/* Tab 底線色 */
+button[data-baseweb="tab"] {
+    font-weight: 600 !important;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    border-bottom-color: %(blue)s !important;
+}
+
+/* Expander 圓角 */
+details[data-testid="stExpander"] {
+    border-radius: 10px;
+    border: 1px solid %(border)s;
+}
+
+/* Divider 淡化 */
+hr {
+    border-color: %(border)s !important;
+    opacity: 0.5;
+}
+
+/* Sidebar 底部 caption */
+section[data-testid="stSidebar"] .stCaption {
+    color: %(text_muted)s;
+}
+</style>
+""" % COLORS, unsafe_allow_html=True)
+
 st.title("🛡️ Q-Silicon 終極投資戰情室")
 st.caption("自動化情報聚合 ｜ 巨鯨資金流向 ｜ AI 算力定價")
 
 PROJECT_ID = "my-investment-ai-agent"
 
+# ── Sidebar：全域篩選與設定 ──────────────────────────────────────────
+with st.sidebar:
+    st.header("篩選設定")
+    RANGE_OPTIONS = {"7 天": 7, "14 天": 14, "30 天": 30, "90 天": 90}
+    selected_range = st.radio("趨勢圖時間範圍", list(RANGE_OPTIONS.keys()), index=2, horizontal=True)
+    trend_days = RANGE_OPTIONS[selected_range]
+    st.divider()
+    st.caption("🛡️ Q-Silicon 戰情室 v2")
+
 
 # ── 讀取每日指標（動態 KPI 來源）─────────────────────────────────────
 @st.cache_data(ttl=300)
 def load_daily_metrics() -> dict:
-    """從 BigQuery daily_metrics 取最新一筆紀錄，回傳 dict，失敗時全為 None。"""
+    """從 BigQuery daily_metrics 取最新兩筆紀錄，回傳 dict（含日環比 delta）。"""
     try:
         client = bigquery.Client(project=PROJECT_ID)
         query = f"""
@@ -26,20 +113,34 @@ def load_daily_metrics() -> dict:
                    gpu_b200_price, grok_summary, gpt_summary
             FROM `{PROJECT_ID}.market_data.daily_metrics`
             ORDER BY timestamp DESC
-            LIMIT 1
+            LIMIT 2
         """
         df = client.query(query).to_dataframe()
         if df.empty:
             return {}
-        row = df.iloc[0]
+        latest = df.iloc[0]
+        prev = df.iloc[1] if len(df) > 1 else None
+
+        def _delta(col: str):
+            if prev is None:
+                return None
+            cur, old = latest.get(col), prev.get(col)
+            if cur is not None and old is not None:
+                return round(cur - old, 4)
+            return None
+
         return {
-            "timestamp":        row.get("timestamp"),
-            "dxy":              row.get("dxy"),
-            "etf_flow":         row.get("etf_flow_millions"),
-            "avg_risk_score":   row.get("avg_risk_score"),
-            "gpu_b200_price":   row.get("gpu_b200_price"),
-            "grok_summary":     row.get("grok_summary"),
-            "gpt_summary":      row.get("gpt_summary"),
+            "timestamp":        latest.get("timestamp"),
+            "dxy":              latest.get("dxy"),
+            "etf_flow":         latest.get("etf_flow_millions"),
+            "avg_risk_score":   latest.get("avg_risk_score"),
+            "gpu_b200_price":   latest.get("gpu_b200_price"),
+            "grok_summary":     latest.get("grok_summary"),
+            "gpt_summary":      latest.get("gpt_summary"),
+            "delta_dxy":        _delta("dxy"),
+            "delta_etf":        _delta("etf_flow_millions"),
+            "delta_risk":       _delta("avg_risk_score"),
+            "delta_b200":       _delta("gpu_b200_price"),
         }
     except Exception as e:
         st.warning(f"⚠️ 無法讀取 daily_metrics：{e}")
@@ -98,43 +199,110 @@ etf_display = (
 )
 etf_color = "inverse" if (etf_val is not None and etf_val < 0) else "normal"
 
+delta_dxy  = metrics.get("delta_dxy")
+delta_b200 = metrics.get("delta_b200")
+delta_etf  = metrics.get("delta_etf")
+
+dxy_delta_str  = f"{delta_dxy:+.2f}" if delta_dxy is not None else None
+b200_delta_str = f"{delta_b200:+.2f}" if delta_b200 is not None else None
+etf_delta_str  = f"{delta_etf:+.1f}億" if delta_etf is not None else None
+
 st.subheader("市場模式總覽")
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric(label="當前市場模式", value=regime_label, delta=regime_delta, delta_color=regime_color)
 with col2:
-    st.metric(label="ICE DXY（美元指數）", value=dxy_display)
+    st.metric(label="ICE DXY（美元指數）", value=dxy_display, delta=dxy_delta_str, delta_color="inverse")
 with col3:
-    st.metric(label="NVIDIA B200 租賃價", value=b200_display)
+    st.metric(label="NVIDIA B200 租賃價", value=b200_display, delta=b200_delta_str, delta_color="inverse")
 with col4:
-    st.metric(label="BTC ETF 資金流", value=etf_display, delta_color=etf_color)
+    st.metric(label="BTC ETF 資金流", value=etf_display, delta=etf_delta_str, delta_color=etf_color)
 
 # 最後更新時間
 if metrics.get("timestamp"):
     st.caption(f"數據更新時間：{metrics['timestamp']}")
 
+# ════════════════════════════════════════════════════════════════════
+# 風險儀表盤（Gauge）
+# ════════════════════════════════════════════════════════════════════
+st.divider()
+gauge_col, info_col = st.columns([1, 2])
+
+with gauge_col:
+    risk_value = avg_risk if avg_risk is not None else 0
+    fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=risk_value,
+        number={"suffix": " / 5", "font": {"size": 36, "color": "#e6edf3"}},
+        delta={
+            "reference": risk_value - (metrics.get("delta_risk") or 0),
+            "relative": False,
+            "increasing": {"color": COLORS["red"]},
+            "decreasing": {"color": COLORS["green"]},
+        },
+        gauge={
+            "axis": {"range": [0, 5], "tickwidth": 2, "dtick": 1, "tickcolor": "#8e99a4"},
+            "bar": {"color": COLORS["blue"]},
+            "bgcolor": "rgba(0,0,0,0)",
+            "steps": [
+                {"range": [0, 2],   "color": COLORS["green"]},
+                {"range": [2, 3.5], "color": COLORS["yellow"]},
+                {"range": [3.5, 5], "color": COLORS["red"]},
+            ],
+            "threshold": {
+                "line": {"color": COLORS["red"], "width": 3},
+                "thickness": 0.8,
+                "value": 3.5,
+            },
+        },
+        title={"text": "平均風險分數", "font": {"size": 18, "color": "#e6edf3"}},
+    ))
+    fig_gauge.update_layout(
+        height=260,
+        margin={"t": 60, "b": 20, "l": 30, "r": 30},
+        paper_bgcolor="rgba(0,0,0,0)",
+        font_color="#c9d1d9",
+    )
+    st.plotly_chart(fig_gauge, use_container_width=True)
+
+with info_col:
+    st.markdown("**風險等級說明**")
+    st.markdown(
+        "- 🟢 **0 ~ 2.0**：低風險，市場情緒穩定，可積極尋找機會\n"
+        "- 🟡 **2.0 ~ 3.5**：中等風險，保持警覺，控制倉位\n"
+        "- 🔴 **3.5 ~ 5.0**：高風險，市場 FUD 升溫，建議防禦策略"
+    )
+    if avg_risk is not None:
+        if avg_risk >= 3.5:
+            st.error(f"當前風險 {avg_risk:.1f}/5 — 建議減倉或對沖")
+        elif avg_risk >= 2.0:
+            st.warning(f"當前風險 {avg_risk:.1f}/5 — 謹慎操作")
+        else:
+            st.success(f"當前風險 {avg_risk:.1f}/5 — 市場相對安全")
+
 st.divider()
 
 # ════════════════════════════════════════════════════════════════════
-# 區塊 2：每日風險趨勢折線圖
+# 區塊 2：每日指標趨勢
 # ════════════════════════════════════════════════════════════════════
-st.subheader("📈 每日平均風險分數趨勢 (BigQuery)")
+st.subheader("📈 每日指標趨勢")
 
 @st.cache_data(ttl=600)
-def load_risk_trend() -> pd.DataFrame:
+def load_risk_trend(days: int = 30) -> pd.DataFrame:
     try:
         client = bigquery.Client(project=PROJECT_ID)
+        cutoff = (date.today() - timedelta(days=days)).isoformat()
         query = f"""
             SELECT timestamp, avg_risk_score, dxy, etf_flow_millions
             FROM `{PROJECT_ID}.market_data.daily_metrics`
+            WHERE timestamp >= '{cutoff}'
             ORDER BY timestamp ASC
-            LIMIT 30
         """
         return client.query(query).to_dataframe()
     except Exception:
         return pd.DataFrame()
 
-df_trend = load_risk_trend()
+df_trend = load_risk_trend(days=trend_days)
 
 if df_trend.empty:
     st.info("尚無歷史指標數據，等待第一次戰報寫入後自動顯示。")
@@ -145,17 +313,23 @@ else:
             df_trend, x="timestamp", y="avg_risk_score",
             title="每日平均風險分數（RISK x/5）",
             labels={"timestamp": "日期", "avg_risk_score": "平均風險分數"},
-            markers=True
+            markers=True, color_discrete_sequence=[COLORS["yellow"]],
         )
-        fig_risk.add_hline(y=3.5, line_dash="dash", line_color="red", annotation_text="Risk OFF 警戒線 (3.5)")
+        fig_risk.add_hline(
+            y=3.5, line_dash="dash", line_color=COLORS["red"],
+            annotation_text="Risk OFF 警戒線 (3.5)",
+            annotation_font_color=COLORS["red"],
+        )
+        fig_risk.update_layout(**PLOTLY_TEMPLATE["layout"].to_plotly_json())
         st.plotly_chart(fig_risk, use_container_width=True)
     with tab_dxy:
         fig_dxy = px.line(
             df_trend, x="timestamp", y="dxy",
             title="ICE DXY 美元指數趨勢",
             labels={"timestamp": "日期", "dxy": "DXY"},
-            markers=True
+            markers=True, color_discrete_sequence=[COLORS["blue"]],
         )
+        fig_dxy.update_layout(**PLOTLY_TEMPLATE["layout"].to_plotly_json())
         st.plotly_chart(fig_dxy, use_container_width=True)
     with tab_etf:
         fig_etf = px.bar(
@@ -163,8 +337,9 @@ else:
             title="BTC ETF 資金流（億，正為流入，負為流出）",
             labels={"timestamp": "日期", "etf_flow_millions": "資金流（億）"},
             color="etf_flow_millions",
-            color_continuous_scale=["#e74c3c", "#2ecc71"]
+            color_continuous_scale=[COLORS["red"], COLORS["green"]],
         )
+        fig_etf.update_layout(**PLOTLY_TEMPLATE["layout"].to_plotly_json())
         st.plotly_chart(fig_etf, use_container_width=True)
 
 st.divider()
@@ -186,8 +361,9 @@ else:
         title="BTC 巨鯨大額轉帳歷史（單位：BTC）",
         labels={'timestamp': '時間', 'amount': '轉帳數量 (BTC)'},
         color='amount',
-        color_continuous_scale=px.colors.sequential.Agsunset
+        color_continuous_scale=[COLORS["blue"], COLORS["purple"], COLORS["red"]],
     )
+    fig.update_layout(**PLOTLY_TEMPLATE["layout"].to_plotly_json())
     st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("查看原始數據"):
