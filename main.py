@@ -65,11 +65,14 @@ def validate_report(text: str) -> dict:
 
 def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> None:
     """從戰報文字萃取關鍵指標並寫入 BigQuery daily_metrics 資料表。"""
+    # 先剝除 HTML 標籤，避免 <code>97.65</code> 等結構干擾 regex 萃取
+    clean_text = strip_html(report_text)
+
     # ── 1. 萃取 DXY：匹配 "ICE DXY → 97.65" 格式 ──────────────────
     dxy = None
     dxy_match = re.search(
         r'ICE\s+DXY\s*[→\->\s→]+\s*(\d{2,3}\.\d{1,4})',
-        report_text, re.IGNORECASE
+        clean_text, re.IGNORECASE
     )
     if dxy_match:
         try:
@@ -81,12 +84,12 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     etf_flow = None
     etf_match = re.search(
         r'ETF.{0,60}?(流出|外流|流入)\D{0,10}?(\d+(?:\.\d+)?)\s*億',
-        report_text, re.IGNORECASE | re.DOTALL
+        clean_text, re.IGNORECASE | re.DOTALL
     )
     if not etf_match:
         etf_match = re.search(
             r'(流出|外流|流入)\s*(\d+(?:\.\d+)?)\s*億',
-            report_text, re.IGNORECASE
+            clean_text, re.IGNORECASE
         )
     if etf_match:
         try:
@@ -101,7 +104,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     avg_risk = None
     risk_scores = re.findall(
         r'RISK(?:_SCORE)?[】\s]*(\d(?:\.\d)?)\s*/\s*5',
-        report_text, re.IGNORECASE
+        clean_text, re.IGNORECASE
     )
     if risk_scores:
         try:
