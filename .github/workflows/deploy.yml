@@ -30,6 +30,59 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
+      - name: Enable required GCP APIs
+        run: |
+          gcloud services enable secretmanager.googleapis.com --quiet
+          gcloud services enable run.googleapis.com --quiet
+          gcloud services enable artifactregistry.googleapis.com --quiet
+
+      - name: Sync API keys to Secret Manager
+        env:
+          XAI_API_KEY:          ${{ secrets.XAI_API_KEY }}
+          OPENAI_API_KEY:       ${{ secrets.OPENAI_API_KEY }}
+          OPENROUTER_API_KEY:   ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY:       ${{ secrets.GEMINI_API_KEY }}
+          TAVILY_API_KEY:       ${{ secrets.TAVILY_API_KEY }}
+          X_BEARER_TOKEN:       ${{ secrets.X_BEARER_TOKEN }}
+          COINGLASS_API_KEY:    ${{ secrets.COINGLASS_API_KEY }}
+          CRYPTOQUANT_API_KEY:  ${{ secrets.CRYPTOQUANT_API_KEY }}
+          FRED_API_KEY:         ${{ secrets.FRED_API_KEY }}
+          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # 將 GitHub Secrets 的值同步進 GCP Secret Manager。
+          # 若 secret 不存在則建立，若已存在則新增一個版本（自動成為 latest）。
+          _upsert_secret() {
+            local NAME="$1"
+            local VALUE="$2"
+            if [ -z "$VALUE" ]; then
+              echo "⚠️  Skipping ${NAME}: GitHub Secret is empty or not set."
+              return
+            fi
+            if gcloud secrets describe "$NAME" --project="${GCP_PROJECT_ID}" &>/dev/null; then
+              echo "$VALUE" | gcloud secrets versions add "$NAME" \
+                --data-file=- --project="${GCP_PROJECT_ID}" --quiet
+              echo "✅ Updated secret: ${NAME}"
+            else
+              echo "$VALUE" | gcloud secrets create "$NAME" \
+                --data-file=- --replication-policy=automatic \
+                --project="${GCP_PROJECT_ID}" --quiet
+              echo "✅ Created secret: ${NAME}"
+            fi
+          }
+
+          _upsert_secret XAI_API_KEY         "$XAI_API_KEY"
+          _upsert_secret OPENAI_API_KEY       "$OPENAI_API_KEY"
+          _upsert_secret OPENROUTER_API_KEY   "$OPENROUTER_API_KEY"
+          _upsert_secret GEMINI_API_KEY       "$GEMINI_API_KEY"
+          _upsert_secret TAVILY_API_KEY       "$TAVILY_API_KEY"
+          _upsert_secret X_BEARER_TOKEN       "$X_BEARER_TOKEN"
+          _upsert_secret COINGLASS_API_KEY    "$COINGLASS_API_KEY"
+          _upsert_secret CRYPTOQUANT_API_KEY  "$CRYPTOQUANT_API_KEY"
+          _upsert_secret FRED_API_KEY         "$FRED_API_KEY"
+          _upsert_secret TELEGRAM_BOT_TOKEN   "$TELEGRAM_BOT_TOKEN"
+          _upsert_secret TELEGRAM_CHAT_ID     "$TELEGRAM_CHAT_ID"
+
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
@@ -45,13 +98,7 @@ jobs:
 
       - name: Deploy to Cloud Run Job
         run: |
-          # 所有 API 金鑰透過 GCP Secret Manager 注入，不在 image 或 workflow 裡明文存放。
-          # 前置作業：請在 GCP Secret Manager 建立以下 secret（名稱需與下方一致）：
-          #   XAI_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY,
-          #   TAVILY_API_KEY, X_BEARER_TOKEN, COINGLASS_API_KEY,
-          #   CRYPTOQUANT_API_KEY, FRED_API_KEY,
-          #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-          # Service Account 需要 roles/secretmanager.secretAccessor 權限。
+          # Secret Manager 金鑰已由上一步驟同步，此處直接引用 :latest 版本。
           SECRETS="XAI_API_KEY=XAI_API_KEY:latest"
           SECRETS="$SECRETS,OPENAI_API_KEY=OPENAI_API_KEY:latest"
           SECRETS="$SECRETS,OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest"
