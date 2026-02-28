@@ -70,6 +70,7 @@ jobs:
             --cpu 2 \
             --memory 2Gi \
             --task-timeout 3600 \
-            --remove-env-vars="$REMOVE_VARS" \
+            # 注意：首次部署時需將此行註解，後續更新若要清除舊變數可解開
+            # --remove-env-vars="$REMOVE_VARS" \
             --set-secrets="$SECRETS" \
             --quiet
