@@ -58,11 +58,13 @@ jobs:
           SECRETS="$SECRETS,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest"
           SECRETS="$SECRETS,TELEGRAM_CHAT_ID=TELEGRAM_CHAT_ID:latest"
 
-          # 若這些金鑰先前是以普通 env var 形式存在，先移除以允許升級為 secret 型態
-          REMOVE_VARS="XAI_API_KEY,OPENAI_API_KEY,OPENROUTER_API_KEY,GEMINI_API_KEY"
-          REMOVE_VARS="$REMOVE_VARS,TAVILY_API_KEY,X_BEARER_TOKEN,COINGLASS_API_KEY"
-          REMOVE_VARS="$REMOVE_VARS,CRYPTOQUANT_API_KEY,FRED_API_KEY"
-          REMOVE_VARS="$REMOVE_VARS,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID"
+          # 若這些金鑰先前是以普通 env var 形式存在，先移除以允許升級為 secret 型態。
+          # 注意：首次部署時不要加 --remove-env-vars，否則會因變數尚不存在而失敗。
+          # 後續更新若要清除舊的明文 env var，可取消下方 REMOVE_VARS 與對應參數的註解。
+          # REMOVE_VARS="XAI_API_KEY,OPENAI_API_KEY,OPENROUTER_API_KEY,GEMINI_API_KEY"
+          # REMOVE_VARS="$REMOVE_VARS,TAVILY_API_KEY,X_BEARER_TOKEN,COINGLASS_API_KEY"
+          # REMOVE_VARS="$REMOVE_VARS,CRYPTOQUANT_API_KEY,FRED_API_KEY"
+          # REMOVE_VARS="$REMOVE_VARS,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID"
 
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
@@ -70,7 +72,5 @@ jobs:
             --cpu 2 \
             --memory 2Gi \
             --task-timeout 3600 \
-            # 注意：首次部署時需將此行註解，後續更新若要清除舊變數可解開
-            # --remove-env-vars="$REMOVE_VARS" \
             --set-secrets="$SECRETS" \
             --quiet
