@@ -160,6 +160,18 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         table_ref = bigquery.Table(METRICS_TABLE, schema=schema)
         client.create_table(table_ref, exists_ok=True)
 
+        # 既有表不會因 create_table(exists_ok=True) 自動補新欄位，需手動 migration。
+        table = client.get_table(METRICS_TABLE)
+        existing_columns = {field.name for field in table.schema}
+        missing_fields = [field for field in schema if field.name not in existing_columns]
+        if missing_fields:
+            table.schema = list(table.schema) + missing_fields
+            client.update_table(table, ["schema"])
+            logging.info(
+                "Added missing BigQuery columns: %s",
+                ", ".join(field.name for field in missing_fields),
+            )
+
         row = {
             "timestamp":         datetime.now(timezone.utc).isoformat(),
             "dxy":               dxy,
