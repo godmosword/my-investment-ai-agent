@@ -30,12 +30,6 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
-      - name: Enable required GCP APIs
-        run: |
-          gcloud services enable secretmanager.googleapis.com --quiet
-          gcloud services enable run.googleapis.com --quiet
-          gcloud services enable artifactregistry.googleapis.com --quiet
-
       - name: Sync API keys to Secret Manager
         env:
           XAI_API_KEY:          ${{ secrets.XAI_API_KEY }}
