@@ -375,7 +375,15 @@ def mvrv_tool(window: str = "latest") -> str:
         _set_cache(cache_key, result)
         return result
     except requests.HTTPError as e:
-        return f"MVRV Tool Failed（HTTP {e.response.status_code}）：{e}"
+        status = e.response.status_code
+        if status == 403:
+            return (
+                "MVRV Tool Failed（HTTP 403 Forbidden）：CryptoQuant MVRV Z-Score 端點需要 "
+                "Advanced 或 Professional 方案。請至 https://cryptoquant.com/pricing 確認訂閱等級。"
+            )
+        if status == 429:
+            return "MVRV Tool Failed（HTTP 429）：CryptoQuant API 流量超限，請稍後重試。"
+        return f"MVRV Tool Failed（HTTP {status}）：{e}"
     except Exception as e:
         return f"MVRV Tool Failed: {str(e)}"
 
