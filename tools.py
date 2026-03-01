@@ -30,6 +30,7 @@ def _set_cache(key: tuple, value: str) -> None:
 # ═══════════════════════════════════════════════════════════════════
 
 _BQ_CLIENT: bigquery.Client | None = None
+_TAVILY_CLIENT = None
 
 
 def _get_bq_client() -> bigquery.Client:
@@ -37,6 +38,18 @@ def _get_bq_client() -> bigquery.Client:
     if _BQ_CLIENT is None:
         _BQ_CLIENT = bigquery.Client(project="my-investment-ai-agent")
     return _BQ_CLIENT
+
+
+def _get_tavily_client():
+    """TavilyClient singleton：同一次執行只初始化一次，統一驗證 API key。"""
+    global _TAVILY_CLIENT
+    if _TAVILY_CLIENT is None:
+        api_key = os.getenv("TAVILY_API_KEY")
+        if not api_key:
+            raise ValueError("TAVILY_API_KEY 未設定。")
+        from tavily import TavilyClient
+        _TAVILY_CLIENT = TavilyClient(api_key=api_key)
+    return _TAVILY_CLIENT
 
 
 class BigQueryAnalyticsTool(BaseTool):
@@ -90,17 +103,10 @@ class BigQueryAnalyticsTool(BaseTool):
 @tool("AI Momentum Analyzer")
 def ai_momentum_tool(metric: str) -> str:
     """獲取 AI 產業核心數據。metric 請輸入 'gpu_pricing' (H100/B200 租賃價) 或 'model_benchmarks' (排名)。"""
-    api_key = os.getenv("TAVILY_API_KEY")
-    if not api_key:
-        return "AI Momentum Tool Failed：TAVILY_API_KEY 未設定。"
-
     cache_key = ("ai_momentum", metric.lower())
     cached = _get_cache(cache_key)
     if cached:
         return cached
-
-    from tavily import TavilyClient
-    client = TavilyClient(api_key=api_key)
 
     queries = {
         "gpu_pricing":      "current hourly rental price for NVIDIA H100 and B200 GPUs today",
@@ -108,10 +114,13 @@ def ai_momentum_tool(metric: str) -> str:
     }
     query = queries.get(metric.lower(), "latest AI compute economy")
     try:
+        client = _get_tavily_client()
         response = client.search(query=query, search_depth="basic", max_results=3)
         result = str(response.get("results", "No data found."))
         _set_cache(cache_key, result)
         return result
+    except ValueError as e:
+        return f"AI Momentum Tool Failed：{e}"
     except Exception as e:
         return f"AI Tool Failed: {str(e)}"
 
@@ -131,12 +140,8 @@ def macro_liquidity_tool(indicator: str) -> str:
         return cached
 
     if indicator_upper == "DXY":
-        api_key = os.getenv("TAVILY_API_KEY")
-        if not api_key:
-            return "Macro Tracker Failed (Tavily)。TAVILY_API_KEY 未設定，無法查詢 ICE DXY。"
         try:
-            from tavily import TavilyClient
-            client = TavilyClient(api_key=api_key)
+            client = _get_tavily_client()
             res = client.search(
                 query="current ICE US Dollar Index (DXY) real-time quote today",
                 search_depth="basic",
@@ -145,6 +150,8 @@ def macro_liquidity_tool(indicator: str) -> str:
             result = str(res.get("results", "ICE DXY data not found."))
             _set_cache(cache_key, result)
             return result
+        except ValueError as e:
+            return f"Macro Tracker Failed (Tavily)。{e}"
         except Exception as e:
             return f"Macro Tracker Failed (Tavily ICE DXY)。詳細錯誤：{str(e)}"
 
@@ -192,22 +199,19 @@ def macro_liquidity_tool(indicator: str) -> str:
 @tool("Tavily Market Search")
 def market_search_tool(query: str) -> str:
     """搜尋全球即時新聞。"""
-    api_key = os.getenv("TAVILY_API_KEY")
-    if not api_key:
-        return "Market Search Failed：TAVILY_API_KEY 未設定。"
-
     cache_key = ("market_search", query)
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
     try:
-        from tavily import TavilyClient
-        client = TavilyClient(api_key=api_key)
+        client = _get_tavily_client()
         response = client.search(query=query, search_depth="basic", max_results=5, topic="news", days=1)
         result = str(response.get("results", []))
         _set_cache(cache_key, result)
         return result
+    except ValueError as e:
+        return f"Market Search Failed：{e}"
     except Exception as e:
         return f"Market Search Failed: {str(e)}"
 
@@ -327,17 +331,10 @@ def rumor_scanner_tool(topic: str) -> str:
     掃描圍繞指定主題的爭議、調查報導與未證實傳聞，只使用公開資訊來源。
     嚴格標註「傳聞性質 / 可信度」，僅供風險研究與情緒監控使用，不構成投資建議或事實認定。
     """
-    api_key = os.getenv("TAVILY_API_KEY")
-    if not api_key:
-        return "Rumor Scanner Failed：TAVILY_API_KEY 未設定。"
-
     cache_key = ("rumor_scanner", topic)
     cached = _get_cache(cache_key)
     if cached:
         return cached
-
-    from tavily import TavilyClient
-    client = TavilyClient(api_key=api_key)
 
     query = (
         f"recent controversies, investigations, lawsuits, market manipulation accusations, "
@@ -347,6 +344,7 @@ def rumor_scanner_tool(topic: str) -> str:
     )
 
     try:
+        client = _get_tavily_client()
         result_data = client.search(
             query=query,
             search_depth="advanced",
@@ -357,5 +355,7 @@ def rumor_scanner_tool(topic: str) -> str:
         result = str(result_data.get("results", []))
         _set_cache(cache_key, result)
         return result
+    except ValueError as e:
+        return f"Rumor Scanner Failed：{e}"
     except Exception as e:
         return f"Rumor Scanner Failed: {str(e)}"

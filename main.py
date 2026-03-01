@@ -63,6 +63,24 @@ def validate_report(text: str) -> dict:
     }
 
 
+_SECTION_RE_CACHE: dict[str, re.Pattern] = {}
+
+
+def _extract_section(text: str, header: str, max_chars: int = 500) -> str | None:
+    """從報告文字中萃取指定區塊的內容（模組級，避免重複編譯）。"""
+    if header not in _SECTION_RE_CACHE:
+        _SECTION_RE_CACHE[header] = re.compile(
+            re.escape(header) + r'[】]?\s*\n?([\s\S]*?)(?=────|$)'
+        )
+    m = _SECTION_RE_CACHE[header].search(text)
+    if not m:
+        return None
+    body = m.group(1).strip()
+    if len(body) > max_chars:
+        body = body[:max_chars] + "…"
+    return body or None
+
+
 def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> None:
     """從戰報文字萃取關鍵指標並寫入 BigQuery daily_metrics 資料表。"""
     # 先剝除 HTML 標籤，避免 <code>97.65</code> 等結構干擾 regex 萃取
@@ -126,16 +144,6 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             pass
 
     # ── 5. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
-    def _extract_section(text: str, header: str, max_chars: int = 500) -> str | None:
-        pattern = re.compile(re.escape(header) + r'[】]?\s*\n?([\s\S]*?)(?=────|$)')
-        m = pattern.search(text)
-        if not m:
-            return None
-        body = m.group(1).strip()
-        if len(body) > max_chars:
-            body = body[:max_chars] + "…"
-        return body or None
-
     grok_summary = _extract_section(clean_text, "【幣圈情報】")
     gpt_summary  = _extract_section(clean_text, "【AI 產業情報】")
 
