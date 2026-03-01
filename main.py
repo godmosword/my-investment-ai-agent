@@ -143,13 +143,25 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         except ValueError:
             pass
 
-    # ── 5. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
+    # ── 5. 萃取 MVRV Z-Score：匹配 "MVRV Z-Score → 2.34" 格式 ───────
+    mvrv_z = None
+    mvrv_match = re.search(
+        r'MVRV\s*Z[-\s]?Score\s*[→\->]+\s*(-?\d+(?:\.\d+)?)',
+        clean_text, re.IGNORECASE,
+    )
+    if mvrv_match:
+        try:
+            mvrv_z = float(mvrv_match.group(1))
+        except ValueError:
+            pass
+
+    # ── 6. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
     grok_summary = _extract_section(clean_text, "【幣圈情報】")
     gpt_summary  = _extract_section(clean_text, "【AI 產業情報】")
 
     logging.info(
         f"Extracted metrics — DXY: {dxy}, ETF Flow: {etf_flow}億, "
-        f"Avg Risk: {avg_risk}, B200: ${gpu_b200}"
+        f"Avg Risk: {avg_risk}, B200: ${gpu_b200}, MVRV Z: {mvrv_z}"
     )
 
     # ── 6. 寫入 BigQuery ──────────────────────────────────────────
@@ -164,6 +176,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             bigquery.SchemaField("gpu_b200_price",     "FLOAT"),
             bigquery.SchemaField("grok_summary",       "STRING"),
             bigquery.SchemaField("gpt_summary",        "STRING"),
+            bigquery.SchemaField("mvrv_z_score",       "FLOAT"),
         ]
         table_ref = bigquery.Table(METRICS_TABLE, schema=schema)
         client.create_table(table_ref, exists_ok=True)
@@ -188,6 +201,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             "gpu_b200_price":    gpu_b200,
             "grok_summary":      grok_summary,
             "gpt_summary":       gpt_summary,
+            "mvrv_z_score":      mvrv_z,
         }
         errors = client.insert_rows_json(METRICS_TABLE, [row])
         if errors:

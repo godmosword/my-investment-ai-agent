@@ -1,0 +1,372 @@
+"""
+Q-Silicon Quantitative Backtest Framework
+==========================================
+用途：驗證我們收集的鏈上指標（DXY、ETF Flow、Risk Score、MVRV Z-Score）
+     對 BTC 價格走勢的預測能力，並量化組合信號策略的表現。
+
+執行方式：
+    python backtest.py [--days 90] [--capital 10000] [--report html]
+
+依賴：
+    - google-cloud-bigquery（已在 requirements.txt）
+    - requests（已在 requirements.txt）
+    - pandas（已在 requirements.txt）
+    - 無需額外 API key（BTC 價格由 CoinGecko 免費 API 取得）
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import math
+import sys
+from datetime import date, timedelta
+
+import pandas as pd
+import requests
+from google.cloud import bigquery
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+PROJECT_ID    = "my-investment-ai-agent"
+METRICS_TABLE = f"{PROJECT_ID}.market_data.daily_metrics"
+
+# ── 策略參數（可透過 CLI 覆寫）─────────────────────────────────────────────
+DEFAULT_DAYS    = 90     # 回測天數
+DEFAULT_CAPITAL = 10_000 # 初始資金（USD）
+
+# ── 信號閾值 ──────────────────────────────────────────────────────────────
+DXY_BEARISH_THRESHOLD  = 104.0   # DXY > 104  → 美元強勢，BTC 通常承壓
+ETF_OUTFLOW_THRESHOLD  = -5.0    # ETF 流出 > 5億 → 拋壓
+RISK_OFF_THRESHOLD     = 3.5     # 風險分數 > 3.5 → Risk OFF
+MVRV_OVERBOUGHT        = 7.0     # MVRV Z > 7 → 嚴重高估，做空信號
+MVRV_OVERSOLD          = 0.0     # MVRV Z < 0 → 底部積累，做多信號
+MVRV_HEALTHY_HIGH      = 3.0     # MVRV Z 0~3 → 健康多頭區間
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 數據獲取
+# ══════════════════════════════════════════════════════════════════════════
+
+def fetch_btc_price(days: int) -> pd.DataFrame:
+    """從 CoinGecko 免費 API 取 BTC/USD 日收盤價。"""
+    url = (
+        f"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
+        f"?vs_currency=usd&days={days}&interval=daily"
+    )
+    logging.info("Fetching BTC price from CoinGecko (%d days)...", days)
+    try:
+        resp = requests.get(url, timeout=20)
+        resp.raise_for_status()
+        prices = resp.json().get("prices", [])
+        df = pd.DataFrame(prices, columns=["ts_ms", "close"])
+        df["date"] = pd.to_datetime(df["ts_ms"], unit="ms").dt.date
+        df = df.drop_duplicates("date").set_index("date").sort_index()
+        df = df[["close"]].copy()
+        logging.info("BTC price fetched: %d rows", len(df))
+        return df
+    except Exception as e:
+        logging.error("CoinGecko fetch failed: %s", e)
+        return pd.DataFrame(columns=["close"])
+
+
+def fetch_indicators(days: int) -> pd.DataFrame:
+    """從 BigQuery daily_metrics 取指標數據。"""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    query = f"""
+        SELECT
+            DATE(timestamp) AS date,
+            AVG(dxy)               AS dxy,
+            AVG(etf_flow_millions) AS etf_flow,
+            AVG(avg_risk_score)    AS risk_score,
+            AVG(mvrv_z_score)      AS mvrv_z
+        FROM `{METRICS_TABLE}`
+        WHERE timestamp >= '{cutoff}'
+        GROUP BY date
+        ORDER BY date ASC
+    """
+    logging.info("Fetching indicators from BigQuery (since %s)...", cutoff)
+    try:
+        client = bigquery.Client(project=PROJECT_ID)
+        df = client.query(query).to_dataframe()
+        if not df.empty:
+            df["date"] = pd.to_datetime(df["date"]).dt.date
+            df = df.set_index("date").sort_index()
+        logging.info("Indicators fetched: %d rows", len(df))
+        return df
+    except Exception as e:
+        logging.error("BigQuery fetch failed: %s", e)
+        return pd.DataFrame(columns=["dxy", "etf_flow", "risk_score", "mvrv_z"])
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 信號生成
+# ══════════════════════════════════════════════════════════════════════════
+
+def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    根據指標計算四個子信號（+1=多, -1=空, 0=中性），
+    再加總為複合信號並正規化為 [-1, +1]。
+
+    信號邏輯：
+      DXY    > 104      → -1（美元強勢壓制 BTC）
+      DXY    ≤ 100      → +1（美元走弱利多 BTC）
+      ETF    < -5億     → -1（機構拋壓）
+      ETF    > +5億     → +1（機構買入）
+      Risk   > 3.5      → -1（Risk OFF 市場）
+      Risk   ≤ 2.0      → +1（低風險環境）
+      MVRV   > 7        → -1（嚴重高估，賣出）
+      MVRV   < 0        → +1（低估，買入）
+      MVRV   0~3        → +0.5（健康多頭，輕倉持有）
+    """
+    df = df.copy()
+
+    # ── DXY 信號 ──────────────────────────────────────────────────
+    df["sig_dxy"] = 0.0
+    df.loc[df["dxy"] > DXY_BEARISH_THRESHOLD, "sig_dxy"] = -1.0
+    df.loc[df["dxy"] <= 100.0, "sig_dxy"] = 1.0
+
+    # ── ETF 資金流信號 ────────────────────────────────────────────
+    df["sig_etf"] = 0.0
+    df.loc[df["etf_flow"] < ETF_OUTFLOW_THRESHOLD, "sig_etf"] = -1.0
+    df.loc[df["etf_flow"] > 5.0, "sig_etf"] = 1.0
+
+    # ── 風險分數信號 ─────────────────────────────────────────────
+    df["sig_risk"] = 0.0
+    df.loc[df["risk_score"] > RISK_OFF_THRESHOLD, "sig_risk"] = -1.0
+    df.loc[df["risk_score"] <= 2.0, "sig_risk"] = 1.0
+
+    # ── MVRV Z-Score 信號 ────────────────────────────────────────
+    df["sig_mvrv"] = 0.0
+    df.loc[df["mvrv_z"] > MVRV_OVERBOUGHT, "sig_mvrv"] = -1.0
+    df.loc[df["mvrv_z"] < MVRV_OVERSOLD,   "sig_mvrv"] = 1.0
+    df.loc[(df["mvrv_z"] >= MVRV_OVERSOLD) & (df["mvrv_z"] <= MVRV_HEALTHY_HIGH), "sig_mvrv"] = 0.5
+
+    # ── 複合信號（加權求和，正規化到 [-1, +1]）─────────────────
+    weights = {"sig_dxy": 0.20, "sig_etf": 0.25, "sig_risk": 0.25, "sig_mvrv": 0.30}
+    df["composite"] = sum(df[col] * w for col, w in weights.items())
+
+    # 最終方向：composite > 0.1 → 多；< -0.1 → 空；否則觀望
+    df["position"] = 0.0
+    df.loc[df["composite"] > 0.10, "position"] = 1.0
+    df.loc[df["composite"] < -0.10, "position"] = -1.0
+
+    return df
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 回測引擎
+# ══════════════════════════════════════════════════════════════════════════
+
+def run_backtest(
+    merged: pd.DataFrame,
+    initial_capital: float = DEFAULT_CAPITAL,
+) -> tuple[pd.DataFrame, dict]:
+    """
+    簡化的每日收盤重新平衡策略回測：
+    - 每天根據前一天收盤計算信號，當天收盤執行（無未來偏差）
+    - 做多（+1）: 持有 BTC；做空（-1）: 做空 BTC；觀望（0）: 持有現金
+    - 不含手續費（保守起見後續可加 0.1% 滑點）
+    """
+    df = merged.copy().sort_index()
+    df["btc_return"] = df["close"].pct_change()
+
+    # 用前一天信號決定今天倉位（避免 look-ahead bias）
+    df["pos_shifted"] = df["position"].shift(1).fillna(0)
+    df["strategy_return"] = df["pos_shifted"] * df["btc_return"]
+    df["bh_return"]       = df["btc_return"]  # Buy & Hold 基準
+
+    df["equity"]    = initial_capital * (1 + df["strategy_return"]).cumprod()
+    df["bh_equity"] = initial_capital * (1 + df["bh_return"]).cumprod()
+
+    # ── 績效統計 ──────────────────────────────────────────────────
+    total_days = len(df)
+    strat_total = (df["equity"].iloc[-1] / initial_capital - 1) * 100
+    bh_total    = (df["bh_equity"].iloc[-1] / initial_capital - 1) * 100
+
+    ann_factor = 365 / total_days
+    strat_ann  = ((1 + strat_total / 100) ** ann_factor - 1) * 100
+    bh_ann     = ((1 + bh_total / 100) ** ann_factor - 1) * 100
+
+    # Sharpe ratio（無風險利率 = 5% / 年，日化）
+    rf_daily = 0.05 / 365
+    excess   = df["strategy_return"] - rf_daily
+    sharpe   = (excess.mean() / excess.std() * math.sqrt(365)) if excess.std() > 0 else 0
+
+    # Max Drawdown
+    roll_max  = df["equity"].cummax()
+    drawdown  = (df["equity"] - roll_max) / roll_max
+    max_dd    = drawdown.min() * 100
+
+    # Win Rate
+    trade_days = df[df["pos_shifted"] != 0]
+    wins       = (trade_days["strategy_return"] > 0).sum()
+    win_rate   = wins / len(trade_days) * 100 if len(trade_days) > 0 else 0
+
+    # 平均持倉比例
+    long_pct  = (df["pos_shifted"] == 1).mean() * 100
+    short_pct = (df["pos_shifted"] == -1).mean() * 100
+    cash_pct  = (df["pos_shifted"] == 0).mean() * 100
+
+    stats = {
+        "period_days":          total_days,
+        "strategy_total_pct":   round(strat_total, 2),
+        "bh_total_pct":         round(bh_total, 2),
+        "strategy_annual_pct":  round(strat_ann, 2),
+        "bh_annual_pct":        round(bh_ann, 2),
+        "sharpe_ratio":         round(sharpe, 3),
+        "max_drawdown_pct":     round(max_dd, 2),
+        "win_rate_pct":         round(win_rate, 2),
+        "long_pct":             round(long_pct, 1),
+        "short_pct":            round(short_pct, 1),
+        "cash_pct":             round(cash_pct, 1),
+        "final_equity":         round(df["equity"].iloc[-1], 2),
+        "bh_final_equity":      round(df["bh_equity"].iloc[-1], 2),
+    }
+    return df, stats
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 個別因子相關性分析
+# ══════════════════════════════════════════════════════════════════════════
+
+def factor_analysis(merged: pd.DataFrame) -> dict[str, float]:
+    """計算各因子（DXY/ETF/Risk/MVRV）與次日 BTC 報酬的 Pearson 相關係數。"""
+    df = merged.copy()
+    df["next_return"] = df["close"].pct_change().shift(-1)
+    factors = {
+        "DXY vs BTC_next_day":       ("dxy",        "next_return"),
+        "ETF_Flow vs BTC_next_day":  ("etf_flow",   "next_return"),
+        "Risk_Score vs BTC_next_day":("risk_score",  "next_return"),
+        "MVRV_Z vs BTC_next_day":    ("mvrv_z",     "next_return"),
+    }
+    correlations = {}
+    for label, (x_col, y_col) in factors.items():
+        if x_col in df.columns and y_col in df.columns:
+            valid = df[[x_col, y_col]].dropna()
+            if len(valid) > 5:
+                correlations[label] = round(valid[x_col].corr(valid[y_col]), 4)
+            else:
+                correlations[label] = None
+    return correlations
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 報告輸出
+# ══════════════════════════════════════════════════════════════════════════
+
+def print_report(stats: dict, correlations: dict[str, float], output: str = "console") -> None:
+    lines = [
+        "",
+        "═══════════════════════════════════════════════════════",
+        "  Q-Silicon Quantitative Backtest Report",
+        "═══════════════════════════════════════════════════════",
+        f"  回測天數：{stats['period_days']} 天",
+        f"  初始資金：${DEFAULT_CAPITAL:,.0f} USD",
+        "",
+        "── 策略表現 ────────────────────────────────────────",
+        f"  總報酬（策略）：{stats['strategy_total_pct']:+.2f}%",
+        f"  總報酬（Buy & Hold）：{stats['bh_total_pct']:+.2f}%",
+        f"  年化報酬（策略）：{stats['strategy_annual_pct']:+.2f}%",
+        f"  年化報酬（Buy & Hold）：{stats['bh_annual_pct']:+.2f}%",
+        f"  Sharpe Ratio：{stats['sharpe_ratio']:.3f}",
+        f"  最大回撤：{stats['max_drawdown_pct']:.2f}%",
+        f"  勝率：{stats['win_rate_pct']:.1f}%",
+        f"  期末資產（策略）：${stats['final_equity']:,.2f}",
+        f"  期末資產（BH）：  ${stats['bh_final_equity']:,.2f}",
+        "",
+        "── 持倉分佈 ────────────────────────────────────────",
+        f"  多頭（持 BTC）：{stats['long_pct']:.1f}%",
+        f"  空頭（做空）：  {stats['short_pct']:.1f}%",
+        f"  觀望（現金）：  {stats['cash_pct']:.1f}%",
+        "",
+        "── 因子相關性分析（vs 次日 BTC 報酬）─────────────",
+    ]
+    for label, corr in correlations.items():
+        corr_str = f"{corr:+.4f}" if corr is not None else "數據不足"
+        direction = ""
+        if corr is not None:
+            if abs(corr) >= 0.3:
+                direction = "★ 強信號"
+            elif abs(corr) >= 0.15:
+                direction = "◎ 中度信號"
+            else:
+                direction = "○ 弱信號"
+        lines.append(f"  {label:<35}: {corr_str}  {direction}")
+
+    lines += [
+        "",
+        "── 策略說明 ────────────────────────────────────────",
+        "  信號加權：DXY 20% | ETF Flow 25% | Risk Score 25% | MVRV 30%",
+        "  複合分數 > 0.10 → 做多；< -0.10 → 做空；其餘觀望",
+        "  無手續費假設，以前一日信號執行次日操作",
+        "═══════════════════════════════════════════════════════",
+        "",
+    ]
+    report_text = "\n".join(lines)
+    print(report_text)
+
+    if output == "json":
+        result = {"stats": stats, "factor_correlations": correlations}
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif output == "html":
+        html = "<pre style='font-family:monospace'>" + report_text + "</pre>"
+        with open("backtest_report.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        logging.info("HTML report saved to backtest_report.html")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 入口
+# ══════════════════════════════════════════════════════════════════════════
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Q-Silicon BTC Quantitative Backtest")
+    parser.add_argument("--days",    type=int,   default=DEFAULT_DAYS,    help="回測天數（預設 90）")
+    parser.add_argument("--capital", type=float, default=DEFAULT_CAPITAL, help="初始資金 USD（預設 10000）")
+    parser.add_argument("--report",  type=str,   default="console",       help="輸出格式：console / json / html")
+    args = parser.parse_args()
+
+    # 1. 取 BTC 價格
+    df_price = fetch_btc_price(args.days)
+    if df_price.empty:
+        logging.error("無法取得 BTC 價格，終止回測。")
+        sys.exit(1)
+
+    # 2. 取指標數據
+    df_ind = fetch_indicators(args.days)
+    if df_ind.empty:
+        logging.warning(
+            "BigQuery 無歷史指標數據，僅以 BTC Buy & Hold 作為輸出。\n"
+            "請先執行主程式產生至少一份戰報，讓指標寫入 BigQuery。"
+        )
+        # 降級：只跑 Buy & Hold 統計
+        df_price["position"] = 1.0
+        df_price["dxy"] = float("nan")
+        df_price["etf_flow"] = float("nan")
+        df_price["risk_score"] = float("nan")
+        df_price["mvrv_z"] = float("nan")
+        merged = df_price.copy()
+    else:
+        # 3. 對齊日期
+        merged = df_price.join(df_ind, how="inner")
+        if merged.empty:
+            logging.error("BTC 價格與 BigQuery 指標無法對齊日期，回測中止。")
+            sys.exit(1)
+
+    # 4. 計算信號
+    merged = compute_signals(merged)
+
+    # 5. 執行回測
+    result_df, stats = run_backtest(merged, initial_capital=args.capital)
+
+    # 6. 因子相關性
+    correlations = factor_analysis(merged)
+
+    # 7. 輸出報告
+    print_report(stats, correlations, output=args.report)
+
+
+if __name__ == "__main__":
+    main()
