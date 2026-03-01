@@ -14,7 +14,7 @@ env:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout repository
@@ -38,10 +38,13 @@ jobs:
         env:
           IMAGE_NAME: ${{ env.CLOUD_RUN_SERVICE }}
         run: |
-          IMAGE_URI=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${IMAGE_NAME}:$GITHUB_SHA
+          IMAGE_BASE=${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${IMAGE_NAME}
+          IMAGE_URI="${IMAGE_BASE}:$GITHUB_SHA"
+          IMAGE_LATEST="${IMAGE_BASE}:latest"
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-          docker build -t "$IMAGE_URI" .
+          docker build -t "$IMAGE_URI" -t "$IMAGE_LATEST" .
           docker push "$IMAGE_URI"
+          docker push "$IMAGE_LATEST"
 
       - name: Deploy to Cloud Run Job
         run: |
@@ -69,6 +72,7 @@ jobs:
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
             --region "${{ env.GCP_REGION }}" \
+            --service-account="${{ secrets.GCP_RUNTIME_SA_EMAIL }}" \
             --cpu 2 \
             --memory 2Gi \
             --task-timeout 3600 \

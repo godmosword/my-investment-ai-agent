@@ -9,6 +9,7 @@ inject_test_data.py
 dashboard.py
 dashboard_app.py
 deploy.sh
+upload_secrets.sh
 
 # Git
 .git/
