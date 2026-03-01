@@ -119,7 +119,7 @@ def load_daily_metrics() -> dict:
         client = _get_bq_client()
         query = f"""
             SELECT timestamp, dxy, etf_flow_millions, avg_risk_score,
-                   gpu_b200_price, grok_summary, gpt_summary
+                   gpu_b200_price, grok_summary, gpt_summary, mvrv_z_score
             FROM `{PROJECT_ID}.market_data.daily_metrics`
             ORDER BY timestamp DESC
             LIMIT 2
@@ -146,10 +146,12 @@ def load_daily_metrics() -> dict:
             "gpu_b200_price":   latest.get("gpu_b200_price"),
             "grok_summary":     latest.get("grok_summary"),
             "gpt_summary":      latest.get("gpt_summary"),
+            "mvrv_z_score":     latest.get("mvrv_z_score"),
             "delta_dxy":        _delta("dxy"),
             "delta_etf":        _delta("etf_flow_millions"),
             "delta_risk":       _delta("avg_risk_score"),
             "delta_b200":       _delta("gpu_b200_price"),
+            "delta_mvrv":       _delta("mvrv_z_score"),
         }
     except Exception as e:
         st.warning(f"⚠️ 無法讀取 daily_metrics：{e}")
@@ -198,6 +200,7 @@ else:
     regime_color = "off"
 
 b200_val   = metrics.get("gpu_b200_price")
+mvrv_val   = metrics.get("mvrv_z_score")
 
 dxy_display = f"{dxy_val:.2f}" if dxy_val is not None else "N/A"
 b200_display = f"${b200_val:.2f} / hr" if b200_val is not None else "N/A"
@@ -208,16 +211,32 @@ etf_display = (
 )
 etf_color = "inverse" if (etf_val is not None and etf_val < 0) else "normal"
 
+if mvrv_val is not None:
+    mvrv_display = f"{mvrv_val:.2f}"
+    if mvrv_val > 7:
+        mvrv_signal = "🔴 嚴重高估"
+    elif mvrv_val > 3:
+        mvrv_signal = "🟡 看漲過熱"
+    elif mvrv_val >= 0:
+        mvrv_signal = "🟢 健康多頭"
+    else:
+        mvrv_signal = "🔵 底部積累"
+else:
+    mvrv_display = "N/A"
+    mvrv_signal  = None
+
 delta_dxy  = metrics.get("delta_dxy")
 delta_b200 = metrics.get("delta_b200")
 delta_etf  = metrics.get("delta_etf")
+delta_mvrv = metrics.get("delta_mvrv")
 
 dxy_delta_str  = f"{delta_dxy:+.2f}" if delta_dxy is not None else None
 b200_delta_str = f"{delta_b200:+.2f}" if delta_b200 is not None else None
 etf_delta_str  = f"{delta_etf:+.1f}億" if delta_etf is not None else None
+mvrv_delta_str = f"{delta_mvrv:+.2f}" if delta_mvrv is not None else None
 
 st.subheader("市場模式總覽")
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
     st.metric(label="當前市場模式", value=regime_label, delta=regime_delta, delta_color=regime_color)
 with col2:
@@ -226,6 +245,8 @@ with col3:
     st.metric(label="NVIDIA B200 租賃價", value=b200_display, delta=b200_delta_str, delta_color="inverse")
 with col4:
     st.metric(label="BTC ETF 資金流", value=etf_display, delta=etf_delta_str, delta_color=etf_color)
+with col5:
+    st.metric(label="MVRV Z-Score", value=mvrv_display, delta=mvrv_signal or mvrv_delta_str, delta_color="off")
 
 # 最後更新時間
 if metrics.get("timestamp"):
@@ -302,7 +323,7 @@ def load_risk_trend(days: int = 30) -> pd.DataFrame:
         client = _get_bq_client()
         cutoff = (date.today() - timedelta(days=days)).isoformat()
         query = f"""
-            SELECT timestamp, avg_risk_score, dxy, etf_flow_millions
+            SELECT timestamp, avg_risk_score, dxy, etf_flow_millions, mvrv_z_score
             FROM `{PROJECT_ID}.market_data.daily_metrics`
             WHERE timestamp >= '{cutoff}'
             ORDER BY timestamp ASC
@@ -316,7 +337,7 @@ df_trend = load_risk_trend(days=trend_days)
 if df_trend.empty:
     st.info("尚無歷史指標數據，等待第一次戰報寫入後自動顯示。")
 else:
-    tab_risk, tab_dxy, tab_etf = st.tabs(["⚠️ 平均風險分數", "💵 ICE DXY", "💸 ETF 資金流"])
+    tab_risk, tab_dxy, tab_etf, tab_mvrv = st.tabs(["⚠️ 平均風險分數", "💵 ICE DXY", "💸 ETF 資金流", "🔗 MVRV Z-Score"])
     with tab_risk:
         fig_risk = px.line(
             df_trend, x="timestamp", y="avg_risk_score",
@@ -350,6 +371,29 @@ else:
         )
         fig_etf.update_layout(**_LAYOUT_KWARGS)
         st.plotly_chart(fig_etf, use_container_width=True)
+    with tab_mvrv:
+        fig_mvrv = px.line(
+            df_trend, x="timestamp", y="mvrv_z_score",
+            title="BTC MVRV Z-Score 鏈上估值趨勢",
+            labels={"timestamp": "日期", "mvrv_z_score": "MVRV Z-Score"},
+            markers=True, color_discrete_sequence=[COLORS["purple"]],
+        )
+        fig_mvrv.add_hline(
+            y=7, line_dash="dash", line_color=COLORS["red"],
+            annotation_text="嚴重高估（7）",
+            annotation_font_color=COLORS["red"],
+        )
+        fig_mvrv.add_hline(
+            y=0, line_dash="dot", line_color=COLORS["blue"],
+            annotation_text="低估積累區（0）",
+            annotation_font_color=COLORS["blue"],
+        )
+        fig_mvrv.add_hrect(
+            y0=0, y1=3, fillcolor=COLORS["green"], opacity=0.05, line_width=0,
+        )
+        fig_mvrv.update_layout(**_LAYOUT_KWARGS)
+        st.plotly_chart(fig_mvrv, use_container_width=True)
+        st.caption("MVRV Z-Score > 7：歷史頂部區域 ｜ 3~7：看漲但需留意過熱 ｜ 0~3：健康多頭 ｜ < 0：底部積累")
 
 st.divider()
 

@@ -7,6 +7,7 @@ from tools import (
     ai_momentum_tool,
     macro_liquidity_tool,
     market_search_tool,
+    mvrv_tool,
     x_search_tool,
     coinglass_data_tool,
     cryptoquant_tool,
@@ -52,7 +53,7 @@ class QSiliconResearchCrew:
             goal="挑選 5 則幣圈新聞並分析宏觀 M2/DXY 指標，同時標記潛在『未證實市場傳聞』與操盤爭議。",
             backstory="您擅長交叉比對鏈上流向、全球流動性與市場敘事，特別留意具殺傷力的負面訊號，但嚴格區分事實與傳聞。",
             llm=grok_latest,
-            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, self.bq_tool, rumor_scanner_tool],
+            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, self.bq_tool, rumor_scanner_tool],
             verbose=True
         )
 
@@ -90,10 +91,11 @@ class QSiliconResearchCrew:
                 【幣圈「八卦與內線」情報網任務——請嚴格依照以下指示行動】
 
                 1. 必須呼叫 macro_liquidity_tool 兩次，分別獲取「最新 DXY 指標」與「M2 貨幣供應」，並說明其變動方向，僅使用公開數據。
-                2. 必須呼叫 BigQuery 工具（BigQuery_Market_Data_Analyzer），以 query_type="crypto_whale_alert" 取得過去 24 小時的巨鯨交易統計。
-                3. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
+                2. 必須呼叫 mvrv_tool（參數: 'latest'）取得 BTC MVRV Z-Score，並根據數值解讀市場估值狀態（>7 高估 / <0 低估），嚴禁輸出 N/A。
+                3. 必須呼叫 BigQuery 工具（BigQuery_Market_Data_Analyzer），以 query_type="crypto_whale_alert" 取得過去 24 小時的巨鯨交易統計。
+                4. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'crypto market maker manipulation OR Jane Street rumor OR BTC ETF flow leak'
-                4. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
+                5. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
                    'crypto rumor OR BTC leak OR whale manipulation'
 
                 【強制輸出規範（極為嚴格，請逐條遵守）】：
@@ -113,7 +115,7 @@ class QSiliconResearchCrew:
 
                 嚴禁輸出任何法律建議或保證某傳聞為真。所有內容必須標註為「市場敘事 / 傳聞」，僅供風險研究與情緒監控使用。
             """),
-            expected_output="一份包含：最新 DXY 指標解讀、BigQuery 巨鯨警報摘要、5 則具爭議性的幣圈新聞（附來源與可信度標註），以及 3 則最具殺傷力 X 推文與 Grok 的辛辣評論與風險評分的完整初稿。",
+            expected_output="一份包含：最新 DXY 指標解讀、MVRV Z-Score 估值解讀、BigQuery 巨鯨警報摘要、5 則具爭議性的幣圈新聞（附來源與可信度標註），以及 3 則最具殺傷力 X 推文與 Grok 的辛辣評論與風險評分的完整初稿。",
             agent=self.crypto_researcher
         )
 
@@ -209,6 +211,7 @@ class QSiliconResearchCrew:
                 · LMSYS 模型排名 → （前三名）
                 · M2 → <code>xxx</code>（↑/↓ x%）
                 · ICE DXY → <code>xx.xx</code>（↑/↓ x%）
+                · MVRV Z-Score → <code>x.xx</code>（附估值信號：高估/低估/健康）
                 · BTC OI → <code>$xxB</code>（↑/↓ x%）
                 · BTC 交易所淨流入 → <code>xxx BTC</code>
                 · 24h 巨鯨大額轉帳 → <code>xx 筆，最大 xxx BTC</code>

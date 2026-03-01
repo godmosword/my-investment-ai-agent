@@ -322,6 +322,65 @@ def cryptoquant_tool(indicator: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# MVRV Z-Score（CryptoQuant On-chain Valuation）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("MVRV Z-Score Fetcher")
+def mvrv_tool(window: str = "latest") -> str:
+    """
+    獲取 BTC MVRV Z-Score 鏈上估值指標。
+    window 目前只支援 'latest'（最新一筆）。
+    MVRV Z-Score 解讀：
+      > 7   → 市場嚴重高估，歷史頂部區域
+      3~7   → 看漲但需留意過熱風險
+      0~3   → 健康多頭區間
+      < 0   → 市場低估，歷史底部積累區
+    """
+    api_key = os.getenv("CRYPTOQUANT_API_KEY")
+    if not api_key:
+        return "MVRV Tool Failed：CRYPTOQUANT_API_KEY 未設定。"
+
+    cache_key = ("mvrv", window)
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    url = "https://api.cryptoquant.com/v1/btc/market-data/mvrv-z-score?limit=1&window=day"
+    try:
+        headers = {"Authorization": f"Bearer {api_key}"}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json().get("result", {}).get("data", [])
+        if not data:
+            return "MVRV Tool：API 回應無資料。"
+        row = data[0]
+        mvrv_z = row.get("mvrv_z_score", "N/A")
+        date_str = row.get("date", "")
+        if mvrv_z != "N/A":
+            try:
+                z = float(mvrv_z)
+                if z > 7:
+                    signal = "🔴 嚴重高估（歷史頂部區域）"
+                elif z > 3:
+                    signal = "🟡 看漲但注意過熱"
+                elif z >= 0:
+                    signal = "🟢 健康多頭區間"
+                else:
+                    signal = "🔵 低估積累區（歷史底部）"
+            except ValueError:
+                signal = "N/A"
+            result = f"BTC MVRV Z-Score: {mvrv_z} ({date_str}) — {signal}"
+        else:
+            result = f"BTC MVRV Z-Score: N/A ({date_str})"
+        _set_cache(cache_key, result)
+        return result
+    except requests.HTTPError as e:
+        return f"MVRV Tool Failed（HTTP {e.response.status_code}）：{e}"
+    except Exception as e:
+        return f"MVRV Tool Failed: {str(e)}"
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Rumor & Controversy Scanner（降低強度：days=7, max_results=5）
 # ═══════════════════════════════════════════════════════════════════
 
