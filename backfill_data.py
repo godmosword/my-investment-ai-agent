@@ -29,12 +29,11 @@ import requests
 from dotenv import load_dotenv
 from google.cloud import bigquery
 
+from config import PROJECT_ID, METRICS_TABLE
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-
-PROJECT_ID    = "my-investment-ai-agent"
-METRICS_TABLE = f"{PROJECT_ID}.market_data.daily_metrics"
 
 SCHEMA = [
     bigquery.SchemaField("timestamp",          "TIMESTAMP"),
@@ -62,6 +61,9 @@ def fetch_btc_price_history(days: int) -> pd.Series:
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     prices = resp.json().get("prices", [])
+    if not prices:
+        logging.warning("CoinGecko 回應無價格資料。")
+        return pd.Series(dtype=float)
     df = pd.DataFrame(prices, columns=["ts_ms", "close"])
     df["date"] = pd.to_datetime(df["ts_ms"], unit="ms").dt.date
     return df.drop_duplicates("date").set_index("date")["close"]
@@ -87,6 +89,9 @@ def fetch_dxy_history(days: int) -> pd.Series:
     resp = requests.get(url, params=params, timeout=20)
     resp.raise_for_status()
     obs = resp.json().get("observations", [])
+    if not obs:
+        logging.warning("FRED 回應無 observations 資料。")
+        return pd.Series(dtype=float)
     df = pd.DataFrame(obs)[["date", "value"]]
     df["date"]  = pd.to_datetime(df["date"]).dt.date
     df["value"] = pd.to_numeric(df["value"], errors="coerce")

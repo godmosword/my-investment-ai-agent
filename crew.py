@@ -3,6 +3,12 @@ from datetime import datetime, timezone, timedelta
 from textwrap import dedent
 from crewai import Agent, Task, Crew, Process, LLM
 
+# LLM 模型常數（便於統一升級版本）
+MODEL_GROK   = "xai/grok-4-1-fast-reasoning"
+MODEL_GPT    = "openai/gpt-5.2-chat-latest"
+MODEL_CLAUDE = "openrouter/anthropic/claude-sonnet-4.6"
+MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
+
 from tools import (
     BigQueryAnalyticsTool,
     ai_momentum_tool,
@@ -20,28 +26,28 @@ class QSiliconResearchCrew:
     def __init__(self):
         # 🛸 Grok
         grok_latest = LLM(
-            model="xai/grok-4-1-fast-reasoning",
+            model=MODEL_GROK,
             api_key=os.getenv("XAI_API_KEY"),
             max_retries=3,
             timeout=120,
         )
         # 🤖 GPT
         gpt_latest = LLM(
-            model="openai/gpt-5.2-chat-latest",
+            model=MODEL_GPT,
             api_key=os.getenv("OPENAI_API_KEY"),
             max_retries=3,
             timeout=120,
         )
         # 🛡️ Claude
         claude_latest = LLM(
-            model="openrouter/anthropic/claude-sonnet-4.6",
+            model=MODEL_CLAUDE,
             api_key=os.getenv("OPENROUTER_API_KEY"),
             max_retries=3,
             timeout=120,
         )
         # 💎 Gemini — 加大 timeout 防止長任務期間 TCP connection reset
         gemini_latest = LLM(
-            model="gemini/gemini-3.1-pro-preview",
+            model=MODEL_GEMINI,
             api_key=os.getenv("GEMINI_API_KEY"),
             max_retries=5,
             timeout=180,

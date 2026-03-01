@@ -1,11 +1,13 @@
 import os
 import re
+import time
 import logging
 import telebot
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from google.cloud import bigquery
 
+from config import PROJECT_ID
 from crew import QSiliconResearchCrew
 
 # 載入環境變數
@@ -16,9 +18,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Telegram HTML 支援的標籤白名單
 _ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "blockquote"}
-
-PROJECT_ID = "my-investment-ai-agent"
-METRICS_TABLE = f"{PROJECT_ID}.market_data.daily_metrics"
 
 
 def sanitize_telegram_html(text: str) -> str:
@@ -36,6 +35,16 @@ def sanitize_telegram_html(text: str) -> str:
 def strip_html(text: str) -> str:
     """完全移除所有 HTML 標籤，回傳純文字。"""
     return re.sub(r'<[^>]+>', '', text)
+
+
+def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
+    """從 regex match 安全萃取 float，失敗回傳 None。"""
+    if not m:
+        return None
+    try:
+        return float(m.group(group))
+    except (ValueError, IndexError):
+        return None
 
 
 def validate_report(text: str) -> dict:
@@ -81,6 +90,55 @@ def _extract_section(text: str, header: str, max_chars: int = 500) -> str | None
     return body or None
 
 
+def _safe_chunks(text: str, max_len: int = 4000) -> list[str]:
+    """切分訊息且保證每塊不超過 max_len，盡量避免切斷 HTML 標籤。"""
+    if not text:
+        return [""]
+    chunks: list[str] = []
+    remaining = text
+    while len(remaining) > max_len:
+        cut = remaining.rfind("\n", 0, max_len + 1)
+        if cut == -1:
+            cut = remaining.rfind(" ", 0, max_len + 1)
+        if cut == -1:
+            cut = max_len
+        candidate = remaining[:cut]
+        if candidate.count("<") > candidate.count(">"):
+            last_open = candidate.rfind("<")
+            if last_open > 0:
+                cut = last_open
+        if cut <= 0:
+            cut = max_len
+        chunks.append(remaining[:cut])
+        remaining = remaining[cut:]
+    if remaining:
+        chunks.append(remaining)
+    return chunks
+
+
+def _send_telegram_report(text: str, token: str, chat_id: str) -> None:
+    """發送戰報至 Telegram，含重試與 fallback。"""
+    from telebot import apihelper
+
+    apihelper.SESSION_TIME_TO_LIVE = 5 * 60
+    bot = telebot.TeleBot(token)
+    cleaned = sanitize_telegram_html(text)
+    for chunk in _safe_chunks(cleaned):
+        for attempt in range(3):
+            try:
+                bot.send_message(chat_id, chunk, parse_mode="HTML", timeout=60)
+                break
+            except Exception as e:
+                logging.warning("Telegram send failed (attempt %d): %s", attempt + 1, e)
+                if attempt < 2:
+                    time.sleep(5)
+                else:
+                    try:
+                        bot.send_message(chat_id, strip_html(chunk), timeout=60)
+                    except Exception as final_e:
+                        logging.error("Fallback failed: %s", final_e)
+
+
 def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> None:
     """從戰報文字萃取關鍵指標並寫入 BigQuery daily_metrics 資料表。"""
     metrics_table = f"{project_id}.market_data.daily_metrics"
@@ -88,16 +146,8 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     clean_text = strip_html(report_text)
 
     # ── 1. 萃取 DXY：匹配 "ICE DXY → 97.65" 格式 ──────────────────
-    dxy = None
-    dxy_match = re.search(
-        r'ICE\s+DXY\s*[→\->\s→]+\s*(\d{2,3}\.\d{1,4})',
-        clean_text, re.IGNORECASE
-    )
-    if dxy_match:
-        try:
-            dxy = float(dxy_match.group(1))
-        except ValueError:
-            pass
+    dxy_match = re.search(r'ICE\s+DXY\s*[→\->\s→]+\s*(\d{2,3}\.\d{1,4})', clean_text, re.IGNORECASE)
+    dxy = _safe_float(dxy_match)
 
     # ── 2. 萃取 ETF 資金流：匹配中文語境的流出/流入 + 億 ────────────
     etf_flow = None
@@ -111,13 +161,11 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             clean_text, re.IGNORECASE
         )
     if etf_match:
-        try:
-            direction_raw = etf_match.group(1).lower()
-            value = float(etf_match.group(2))
+        direction_raw = etf_match.group(1).lower()
+        value = _safe_float(etf_match, 2)
+        if value is not None:
             is_outflow = any(k in direction_raw for k in ('流出', '外流'))
             etf_flow = -value if is_outflow else value
-        except ValueError:
-            pass
 
     # ── 3. 萃取所有 "RISK x/5" 並計算平均（含 RISK 4/5、RISK_SCORE 格式）──
     avg_risk = None
@@ -133,28 +181,12 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             pass
 
     # ── 4. 萃取 B200 租賃價：匹配 "B200 租賃價 → $3.40 / hr" 格式 ──
-    gpu_b200 = None
-    b200_match = re.search(
-        r'B200\s*租賃價\s*[→\->]+\s*\$?\s*(\d+(?:\.\d+)?)',
-        clean_text, re.IGNORECASE,
-    )
-    if b200_match:
-        try:
-            gpu_b200 = float(b200_match.group(1))
-        except ValueError:
-            pass
+    b200_match = re.search(r'B200\s*租賃價\s*[→\->]+\s*\$?\s*(\d+(?:\.\d+)?)', clean_text, re.IGNORECASE)
+    gpu_b200 = _safe_float(b200_match)
 
     # ── 5. 萃取 MVRV Z-Score：匹配 "MVRV Z-Score → 2.34" 格式 ───────
-    mvrv_z = None
-    mvrv_match = re.search(
-        r'MVRV\s*Z[-\s]?Score\s*[→\->]+\s*(-?\d+(?:\.\d+)?)',
-        clean_text, re.IGNORECASE,
-    )
-    if mvrv_match:
-        try:
-            mvrv_z = float(mvrv_match.group(1))
-        except ValueError:
-            pass
+    mvrv_match = re.search(r'MVRV\s*Z[-\s]?Score\s*[→\->]+\s*(-?\d+(?:\.\d+)?)', clean_text, re.IGNORECASE)
+    mvrv_z = _safe_float(mvrv_match)
 
     # ── 6. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
     grok_summary = _extract_section(clean_text, "【幣圈情報】")
@@ -253,66 +285,7 @@ if __name__ == "__main__":
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
     if token and chat_id:
-        from telebot import apihelper
-        import time
-
-        apihelper.SESSION_TIME_TO_LIVE = 5 * 60
-        bot = telebot.TeleBot(token)
-
-        cleaned_report = sanitize_telegram_html(final_report)
-
-        def _safe_chunks(text: str, max_len: int = 4000) -> list[str]:
-            """切分訊息且保證每塊不超過 max_len，盡量避免切斷 HTML 標籤。"""
-            if not text:
-                return [""]
-
-            chunks: list[str] = []
-            remaining = text
-
-            while len(remaining) > max_len:
-                cut = remaining.rfind("\n", 0, max_len + 1)
-                if cut == -1:
-                    cut = remaining.rfind(" ", 0, max_len + 1)
-                if cut == -1:
-                    cut = max_len
-
-                candidate = remaining[:cut]
-                # 若切點落在未閉合標籤中，回退到最後一個 '<' 前。
-                if candidate.count("<") > candidate.count(">"):
-                    last_open = candidate.rfind("<")
-                    if last_open > 0:
-                        cut = last_open
-
-                if cut <= 0:
-                    cut = max_len
-
-                chunks.append(remaining[:cut])
-                remaining = remaining[cut:]
-
-            if remaining:
-                chunks.append(remaining)
-            return chunks
-
-        chunks = _safe_chunks(cleaned_report)
-
-        for chunk in chunks:
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    bot.send_message(chat_id, chunk, parse_mode="HTML", timeout=60)
-                    break
-                except Exception as e:
-                    logging.warning(f"Telegram Message Failed on attempt {attempt+1}: {e}")
-                    if attempt < max_retries - 1:
-                        logging.info("Retrying in 5 seconds...")
-                        time.sleep(5)
-                    else:
-                        logging.error("Max retries reached. Falling back to plain text.")
-                        try:
-                            plain = strip_html(chunk)
-                            bot.send_message(chat_id, plain, timeout=60)
-                        except Exception as final_e:
-                            logging.error(f"Ultimate fallback failed: {final_e}")
+        _send_telegram_report(final_report, token, chat_id)
     else:
         logging.warning("Telegram configuration missing. Skipping push.")
 

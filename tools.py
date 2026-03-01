@@ -6,6 +6,8 @@ from urllib.parse import quote
 from crewai.tools import tool, BaseTool
 from google.cloud import bigquery
 
+from config import PROJECT_ID, WHALE_TABLE
+
 # ── 模組級 in-memory cache（同一次執行內避免重複打外部 API）────────────
 # key: (tool_name, query_string)  value: (result_str, expire_timestamp)
 _CACHE: dict[tuple, tuple] = {}
@@ -36,7 +38,7 @@ _TAVILY_CLIENT = None
 def _get_bq_client() -> bigquery.Client:
     global _BQ_CLIENT
     if _BQ_CLIENT is None:
-        _BQ_CLIENT = bigquery.Client(project="my-investment-ai-agent")
+        _BQ_CLIENT = bigquery.Client(project=PROJECT_ID)
     return _BQ_CLIENT
 
 
@@ -67,11 +69,11 @@ class BigQueryAnalyticsTool(BaseTool):
 
             match query_type:
                 case "crypto_whale_alert":
-                    query = """
+                    query = f"""
                         SELECT
                             COUNT(*) as alert_count,
                             MAX(amount) as max_transfer
-                        FROM `my-investment-ai-agent.market_data.btc_whale_transactions`
+                        FROM `{WHALE_TABLE}`
                         WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
                         AND amount > 100
                     """
@@ -179,7 +181,10 @@ def macro_liquidity_tool(indicator: str) -> str:
         if response.status_code == 429:
             return "Macro Tracker Failed (FRED 429)。FRED API 流量超限，請稍後再試。"
         response.raise_for_status()
-        latest = response.json().get("observations", [{}])[0]
+        obs = response.json().get("observations", [])
+        if not obs:
+            return f"Macro Tracker Failed (FRED)。{indicator_upper} 無歷史資料。"
+        latest = obs[0]
         result = f"{indicator_upper}: {latest.get('value')} (Date: {latest.get('date')})"
         _set_cache(cache_key, result)
         return result
@@ -272,10 +277,16 @@ def coinglass_data_tool(metric: str) -> str:
     try:
         headers = {"accept": "application/json", "coinglassSecret": api_key}
         response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 403:
+            return "CoinGlass Tool Failed（HTTP 403）：API key 無效或權限不足。"
+        if response.status_code == 429:
+            return "CoinGlass Tool Failed（HTTP 429）：API 流量超限，請稍後重試。"
         response.raise_for_status()
         result = str(response.json().get("data", []))[:2000]
         _set_cache(cache_key, result)
         return result
+    except requests.RequestException:
+        return "CoinGlass Tool Failed：網路或服務異常。"
     except Exception as e:
         return f"CoinGlass Tool Failed: {str(e)}"
 
@@ -308,6 +319,10 @@ def cryptoquant_tool(indicator: str) -> str:
     try:
         headers = {"Authorization": f"Bearer {api_key}"}
         response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 403:
+            return "CryptoQuant Tool Failed（HTTP 403）：API key 無效或權限不足。"
+        if response.status_code == 429:
+            return "CryptoQuant Tool Failed（HTTP 429）：API 流量超限，請稍後重試。"
         response.raise_for_status()
         data = response.json().get("result", {}).get("data", [])
         if data:

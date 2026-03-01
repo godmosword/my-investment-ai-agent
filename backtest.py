@@ -28,10 +28,9 @@ import pandas as pd
 import requests
 from google.cloud import bigquery
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+from config import PROJECT_ID, METRICS_TABLE
 
-PROJECT_ID    = "my-investment-ai-agent"
-METRICS_TABLE = f"{PROJECT_ID}.market_data.daily_metrics"
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 # ── 策略參數（可透過 CLI 覆寫）─────────────────────────────────────────────
 DEFAULT_DAYS    = 90     # 回測天數
@@ -83,6 +82,9 @@ def fetch_btc_price(days: int) -> pd.DataFrame:
 def fetch_indicators(days: int) -> pd.DataFrame:
     """從 BigQuery daily_metrics 取指標數據。"""
     cutoff = (date.today() - timedelta(days=days)).isoformat()
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("cutoff", "DATE", cutoff)]
+    )
     query = f"""
         SELECT
             DATE(timestamp) AS date,
@@ -91,14 +93,14 @@ def fetch_indicators(days: int) -> pd.DataFrame:
             AVG(avg_risk_score)    AS risk_score,
             AVG(mvrv_z_score)      AS mvrv_z
         FROM `{METRICS_TABLE}`
-        WHERE timestamp >= '{cutoff}'
+        WHERE timestamp >= @cutoff
         GROUP BY date
         ORDER BY date ASC
     """
     logging.info("Fetching indicators from BigQuery (since %s)...", cutoff)
     try:
         client = bigquery.Client(project=PROJECT_ID)
-        df = client.query(query).to_dataframe()
+        df = client.query(query, job_config=job_config).to_dataframe()
         if not df.empty:
             df["date"] = pd.to_datetime(df["date"]).dt.date
             df = df.set_index("date").sort_index()
