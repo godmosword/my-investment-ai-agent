@@ -9,7 +9,7 @@ Q-Silicon Historical Data Backfill
   - DXY 指數    → FRED API（需 FRED_API_KEY）
   - MVRV Z-Score→ CryptoQuant API（需 CRYPTOQUANT_API_KEY，Advanced 方案）
   - ETF 資金流  → 無公開免費歷史 API，以 0 填充（未來可手動補入）
-  - Risk Score  → 無歷史數據，以 NaN 填充
+  - Risk Score  → 由 DXY、MVRV、BTC 日波動率回算（0~5 分）
 
 執行方式：
     python backfill_data.py --years 3
@@ -154,9 +154,17 @@ def build_dataframe(days: int) -> pd.DataFrame:
     else:
         df["mvrv_z_score"] = float("nan")
 
+    # 回算歷史 Risk Score（DXY + MVRV + BTC 日波動率，0~5 分）
+    df["btc_return"] = df["btc_close"].pct_change().abs()
+    risk = 2.5  # 中性基準
+    risk = risk + (df["dxy"] > 104).astype(float) * 1.0 - (df["dxy"] <= 100).astype(float) * 0.8
+    risk = risk + (df["mvrv_z_score"] > 5).astype(float) * 1.0 - (df["mvrv_z_score"] < 0).astype(float) * 0.8
+    risk = risk + (df["btc_return"] > 0.05).astype(float) * 0.8
+    df["avg_risk_score"] = risk.clip(0, 5).round(2)
+    df = df.drop(columns=["btc_return"])
+
     # 無歷史來源的欄位以 None 填充
     df["etf_flow_millions"] = None
-    df["avg_risk_score"]    = None
     df["gpu_b200_price"]    = None
     df["grok_summary"]      = None
     df["gpt_summary"]       = None
@@ -204,12 +212,24 @@ def write_to_bigquery(df: pd.DataFrame, dry_run: bool = False) -> None:
         logging.info("沒有新數據需要寫入。")
         return
 
-    rows = new_rows.where(pd.notna(new_rows), None).to_dict(orient="records")
-    errors = client.insert_rows_json(METRICS_TABLE, rows)
-    if errors:
-        logging.error("BigQuery 插入錯誤：%s", errors)
-    else:
-        logging.info("成功寫入 %d 筆歷史數據到 BigQuery。", len(rows))
+    # 批次寫入（load_table_from_dataframe 比 insert_rows_json 更高效）
+    clean_df = new_rows.where(pd.notna(new_rows), None)
+    try:
+        job_config = bigquery.LoadJobConfig(
+            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            schema_update_options=[bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION],
+        )
+        job = client.load_table_from_dataframe(clean_df, METRICS_TABLE, job_config=job_config)
+        job.result()
+        logging.info("成功批次寫入 %d 筆歷史數據到 BigQuery。", len(new_rows))
+    except Exception as e:
+        logging.warning("load_table_from_dataframe 失敗（%s），降級為 insert_rows_json。", e)
+        rows = clean_df.to_dict(orient="records")
+        errors = client.insert_rows_json(METRICS_TABLE, rows)
+        if errors:
+            logging.error("BigQuery 插入錯誤：%s", errors[:3])
+        else:
+            logging.info("成功寫入 %d 筆歷史數據到 BigQuery。", len(rows))
 
 
 # ══════════════════════════════════════════════════════════════════════════
