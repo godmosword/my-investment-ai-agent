@@ -89,7 +89,7 @@ class QSiliconResearchCrew:
             description=dedent("""
                 【幣圈「八卦與內線」情報網任務——請嚴格依照以下指示行動】
 
-                1. 必須呼叫 macro_liquidity_tool，獲取「最新 DXY 指標」與說明其變動方向，僅使用公開數據。
+                1. 必須呼叫 macro_liquidity_tool 兩次，分別獲取「最新 DXY 指標」與「M2 貨幣供應」，並說明其變動方向，僅使用公開數據。
                 2. 必須呼叫 BigQuery 工具（BigQuery_Market_Data_Analyzer），以 query_type="crypto_whale_alert" 取得過去 24 小時的巨鯨交易統計。
                 3. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'crypto market maker manipulation OR Jane Street rumor OR BTC ETF flow leak'
@@ -122,7 +122,7 @@ class QSiliconResearchCrew:
             description=dedent("""
                 【AI 圈「黑暗傳聞」情資任務——請嚴格依照以下指示行動】
 
-                1. 必須獲取最新 H100/B200 價格或 LMSYS 模型排名，可透過 ai_momentum_tool 或 Tavily 等工具，不得捏造指標數值。
+                1. 必須呼叫 ai_momentum_tool 等工具，獲取「最新 H100 與 B200 租賃價格」，以及「LMSYS 模型排名」，兩者都必須取得，不得遺漏或捏造數值。
                 2. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'AI model leak OR OpenAI internal drama OR NVIDIA secret project'
                 3. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
@@ -167,6 +167,11 @@ class QSiliconResearchCrew:
 
         final_report_task = Task(
             description=dedent("""
+                【強制數據獲取指令】在開始排版前，你必須親自執行以下動作：
+                - 呼叫 `coinglass_data_tool` (參數: 'open_interest') 取得 BTC OI。
+                - 呼叫 `cryptoquant_tool` (參數: 'inflow' 或 'outflow') 取得 BTC 交易所淨流入/流出。
+                嚴禁在數據儀表板輸出 N/A，如果工具失敗，請寫「API 暫時無回應」。
+
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
                 輸出格式為 Telegram HTML，Telegram 只支援以下標籤，嚴禁使用其他任何 HTML 標籤：
                 <b>粗體</b>、<i>斜體</i>、<u>底線</u>、<s>刪除線</s>、<code>等寬</code>、<blockquote>引用</blockquote>
