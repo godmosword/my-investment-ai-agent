@@ -48,7 +48,7 @@ def validate_report(text: str) -> dict:
     issues = []
     if news_count < 5:
         issues.append(f"新聞數不足（{news_count}/5）")
-    if tweet_count < 3:
+    if tweet_count < 6:
         issues.append(f"推文數不足（{tweet_count}/6）")
     if not has_regime:
         issues.append("缺少 market_regime 標籤")
@@ -83,6 +83,7 @@ def _extract_section(text: str, header: str, max_chars: int = 500) -> str | None
 
 def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> None:
     """從戰報文字萃取關鍵指標並寫入 BigQuery daily_metrics 資料表。"""
+    metrics_table = f"{project_id}.market_data.daily_metrics"
     # 先剝除 HTML 標籤，避免 <code>97.65</code> 等結構干擾 regex 萃取
     clean_text = strip_html(report_text)
 
@@ -164,7 +165,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         f"Avg Risk: {avg_risk}, B200: ${gpu_b200}, MVRV Z: {mvrv_z}"
     )
 
-    # ── 6. 寫入 BigQuery ──────────────────────────────────────────
+    # ── 7. 寫入 BigQuery ──────────────────────────────────────────
     try:
         client = bigquery.Client(project=project_id)  # noqa: 每次戰報執行一次，不需全域 client
 
@@ -178,11 +179,11 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             bigquery.SchemaField("gpt_summary",        "STRING"),
             bigquery.SchemaField("mvrv_z_score",       "FLOAT"),
         ]
-        table_ref = bigquery.Table(METRICS_TABLE, schema=schema)
+        table_ref = bigquery.Table(metrics_table, schema=schema)
         client.create_table(table_ref, exists_ok=True)
 
         # 既有表不會因 create_table(exists_ok=True) 自動補新欄位，需手動 migration。
-        table = client.get_table(METRICS_TABLE)
+        table = client.get_table(metrics_table)
         existing_columns = {field.name for field in table.schema}
         missing_fields = [field for field in schema if field.name not in existing_columns]
         if missing_fields:
@@ -203,7 +204,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             "gpt_summary":       gpt_summary,
             "mvrv_z_score":      mvrv_z,
         }
-        errors = client.insert_rows_json(METRICS_TABLE, [row])
+        errors = client.insert_rows_json(metrics_table, [row])
         if errors:
             logging.error(f"BigQuery insert errors: {errors}")
         else:
