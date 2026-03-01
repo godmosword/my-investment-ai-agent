@@ -1,6 +1,51 @@
+# ==========================================
+# Q-Silicon 專案專用 .cursorignore
+# ==========================================
+
+# 1. 環境變數與機密憑證 (最高資安風險，絕對禁止 AI 讀取)
 .env
-*.json
-!package.json
+.env.*
+upload_secrets.sh
+secrets/
 *-credentials.json
 service-account*.json
 gcp-key*.json
+*.pem
+
+# 2. JSON 設定檔與巨量資料 (防止誤讀數萬行的 GCP 金鑰或 API 回傳快取)
+*.json
+# 如果你未來沒有要用 Node.js，這行其實可以不用，但保留以防萬一
+!package.json 
+
+# 3. 專案生成的回測報告與日誌 (Token 殺手！)
+# 你的 backtest.py 會生成這個檔案，裡面全是 HTML 與報表數據，對 AI 寫 code 毫無幫助
+backtest_report.html
+*.log
+logs/
+agent_traces/
+output/
+
+# 4. Python 虛擬環境與編譯快取 (無意義的二進制與依賴庫)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+dist/
+build/
+.pytest_cache/
+
+# 5. IDE 與作業系統暫存檔
+.idea/
+.vscode/
+.DS_Store
+__MACOSX/
+
+# 6. 本地暫存的歷史回測數據 (預防未來你把 BigQuery 倒出成本地 CSV 檔)
+*.csv
+*.tsv
+*.parquet
+*.sqlite3
