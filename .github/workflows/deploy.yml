@@ -9,7 +9,7 @@ on:
 env:
   GCP_PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
   GCP_REGION:        asia-east1
-  CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+  CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE || 'my-investment-ai-agent' }}
   GAR_REPOSITORY:    ${{ secrets.GAR_REPOSITORY }}
 
 jobs:
