@@ -23,6 +23,7 @@ import math
 import sys
 from datetime import date, timedelta
 
+import numpy as np
 import pandas as pd
 import requests
 from google.cloud import bigquery
@@ -43,6 +44,9 @@ RISK_OFF_THRESHOLD     = 3.5     # 風險分數 > 3.5 → Risk OFF
 MVRV_OVERBOUGHT        = 7.0     # MVRV Z > 7 → 嚴重高估，做空信號
 MVRV_OVERSOLD          = 0.0     # MVRV Z < 0 → 底部積累，做多信號
 MVRV_HEALTHY_HIGH      = 3.0     # MVRV Z 0~3 → 健康多頭區間
+
+# ── 交易摩擦成本 ──────────────────────────────────────────────────────────
+TRANSACTION_COST = 0.001  # 0.1%：含 Taker 手續費 + 滑點，換倉日才扣除
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -162,20 +166,26 @@ def compute_signals(df: pd.DataFrame) -> pd.DataFrame:
 def run_backtest(
     merged: pd.DataFrame,
     initial_capital: float = DEFAULT_CAPITAL,
+    transaction_cost: float = TRANSACTION_COST,
 ) -> tuple[pd.DataFrame, dict]:
     """
-    簡化的每日收盤重新平衡策略回測：
+    每日收盤重新平衡策略回測：
     - 每天根據前一天收盤計算信號，當天收盤執行（無未來偏差）
     - 做多（+1）: 持有 BTC；做空（-1）: 做空 BTC；觀望（0）: 持有現金
-    - 不含手續費（保守起見後續可加 0.1% 滑點）
+    - 部位發生變化時扣除 0.1% 交易摩擦成本（Taker 手續費 + 滑點）
     """
     df = merged.copy().sort_index()
     df["btc_return"] = df["close"].pct_change()
 
     # 用前一天信號決定今天倉位（避免 look-ahead bias）
     df["pos_shifted"] = df["position"].shift(1).fillna(0)
-    df["strategy_return"] = df["pos_shifted"] * df["btc_return"]
-    df["bh_return"]       = df["btc_return"]  # Buy & Hold 基準
+
+    # 換倉偵測：部位與前一期不同即扣一次摩擦成本
+    df["pos_change"]  = df["pos_shifted"].diff().abs().fillna(0)
+    df["cost"]        = df["pos_change"].clip(upper=1) * transaction_cost
+
+    df["strategy_return"] = df["pos_shifted"] * df["btc_return"] - df["cost"]
+    df["bh_return"]       = df["btc_return"]  # Buy & Hold 基準（含摩擦成本則不公平，故不扣）
 
     df["equity"]    = initial_capital * (1 + df["strategy_return"]).cumprod()
     df["bh_equity"] = initial_capital * (1 + df["bh_return"]).cumprod()
@@ -205,9 +215,11 @@ def run_backtest(
     win_rate   = wins / len(trade_days) * 100 if len(trade_days) > 0 else 0
 
     # 平均持倉比例
-    long_pct  = (df["pos_shifted"] == 1).mean() * 100
-    short_pct = (df["pos_shifted"] == -1).mean() * 100
-    cash_pct  = (df["pos_shifted"] == 0).mean() * 100
+    long_pct   = (df["pos_shifted"] == 1).mean() * 100
+    short_pct  = (df["pos_shifted"] == -1).mean() * 100
+    cash_pct   = (df["pos_shifted"] == 0).mean() * 100
+    n_trades   = int((df["pos_change"] > 0).sum())
+    total_cost = round(df["cost"].sum() * 100, 3)  # 累積摩擦成本（%）
 
     stats = {
         "period_days":          total_days,
@@ -218,6 +230,8 @@ def run_backtest(
         "sharpe_ratio":         round(sharpe, 3),
         "max_drawdown_pct":     round(max_dd, 2),
         "win_rate_pct":         round(win_rate, 2),
+        "n_trades":             n_trades,
+        "total_friction_cost_pct": total_cost,
         "long_pct":             round(long_pct, 1),
         "short_pct":            round(short_pct, 1),
         "cash_pct":             round(cash_pct, 1),
@@ -225,6 +239,83 @@ def run_backtest(
         "bh_final_equity":      round(df["bh_equity"].iloc[-1], 2),
     }
     return df, stats
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 權重最佳化（scipy.optimize — 最大化 Sharpe Ratio）
+# ══════════════════════════════════════════════════════════════════════════
+
+def optimize_weights(
+    merged: pd.DataFrame,
+    initial_capital: float = DEFAULT_CAPITAL,
+    n_trials: int = 2000,
+) -> dict:
+    """
+    用 Monte Carlo 隨機搜尋 + scipy.optimize.minimize 精修，
+    找出令 Sharpe Ratio 最大的四因子權重組合。
+
+    約束條件：所有權重為正且總和為 1（模擬真實配置邏輯）。
+    回傳最佳權重與對應績效。
+    """
+    try:
+        from scipy.optimize import minimize
+    except ImportError:
+        logging.warning("scipy 未安裝，跳過權重最佳化。請執行 pip install scipy。")
+        return {}
+
+    factor_cols = ["sig_dxy", "sig_etf", "sig_risk", "sig_mvrv"]
+    available = [c for c in factor_cols if c in merged.columns]
+    if len(available) < 2:
+        logging.warning("可用因子信號不足 2 個，跳過最佳化。")
+        return {}
+
+    def _sharpe_from_weights(w: np.ndarray) -> float:
+        """給定權重向量，計算對應策略的負 Sharpe（minimize 用）。"""
+        df = merged.copy()
+        composite = sum(df[col] * wi for col, wi in zip(available, w))
+        df["position"] = 0.0
+        df.loc[composite > 0.10, "position"] = 1.0
+        df.loc[composite < -0.10, "position"] = -1.0
+        df["btc_return"]  = df["close"].pct_change()
+        pos_shifted       = df["position"].shift(1).fillna(0)
+        pos_change        = pos_shifted.diff().abs().fillna(0)
+        cost              = pos_change.clip(upper=1) * TRANSACTION_COST
+        strat_ret         = pos_shifted * df["btc_return"] - cost
+        rf_daily          = 0.05 / 365
+        excess            = strat_ret - rf_daily
+        if excess.std() < 1e-8:
+            return 0.0
+        return -(excess.mean() / excess.std() * math.sqrt(365))
+
+    n = len(available)
+    constraints = {"type": "eq", "fun": lambda w: w.sum() - 1.0}
+    bounds = [(0.05, 0.70)] * n  # 每個因子最少 5%，最多 70%
+
+    # Monte Carlo 找全域最優起點
+    best_sharpe = float("inf")
+    best_w0     = np.ones(n) / n
+    rng         = np.random.default_rng(42)
+    for _ in range(n_trials):
+        w0 = rng.dirichlet(np.ones(n))
+        s  = _sharpe_from_weights(w0)
+        if s < best_sharpe:
+            best_sharpe = s
+            best_w0     = w0
+
+    # 精修
+    result = minimize(
+        _sharpe_from_weights,
+        best_w0,
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints,
+        options={"ftol": 1e-9, "maxiter": 500},
+    )
+
+    opt_weights = dict(zip(available, result.x.round(4)))
+    opt_sharpe  = round(-result.fun, 3)
+    logging.info("最佳化完成：Sharpe=%.3f，權重=%s", opt_sharpe, opt_weights)
+    return {"optimal_weights": opt_weights, "optimal_sharpe": opt_sharpe}
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -256,7 +347,12 @@ def factor_analysis(merged: pd.DataFrame) -> dict[str, float]:
 # 報告輸出
 # ══════════════════════════════════════════════════════════════════════════
 
-def print_report(stats: dict, correlations: dict[str, float], output: str = "console") -> None:
+def print_report(
+    stats: dict,
+    correlations: dict[str, float],
+    opt_result: dict | None = None,
+    output: str = "console",
+) -> None:
     lines = [
         "",
         "═══════════════════════════════════════════════════════",
@@ -275,6 +371,10 @@ def print_report(stats: dict, correlations: dict[str, float], output: str = "con
         f"  勝率：{stats['win_rate_pct']:.1f}%",
         f"  期末資產（策略）：${stats['final_equity']:,.2f}",
         f"  期末資產（BH）：  ${stats['bh_final_equity']:,.2f}",
+        "",
+        "── 交易摩擦成本（0.1% / 次換倉）─────────────────",
+        f"  換倉次數：{stats.get('n_trades', 'N/A')} 次",
+        f"  累積摩擦成本：{stats.get('total_friction_cost_pct', 'N/A')}%",
         "",
         "── 持倉分佈 ────────────────────────────────────────",
         f"  多頭（持 BTC）：{stats['long_pct']:.1f}%",
@@ -295,12 +395,24 @@ def print_report(stats: dict, correlations: dict[str, float], output: str = "con
                 direction = "○ 弱信號"
         lines.append(f"  {label:<35}: {corr_str}  {direction}")
 
-    lines += [
+    opt_lines = []
+    if opt_result and opt_result.get("optimal_weights"):
+        opt_lines += [
+            "",
+            "── 最佳權重（scipy 最大化 Sharpe）─────────────────",
+            f"  最佳 Sharpe Ratio：{opt_result['optimal_sharpe']:.3f}",
+        ]
+        for factor, w in opt_result["optimal_weights"].items():
+            opt_lines.append(f"  {factor:<12}: {w:.1%}")
+        opt_lines.append("  ★ 建議將上方權重更新至 backtest.py 的 weights 字典")
+
+    lines += opt_lines + [
         "",
         "── 策略說明 ────────────────────────────────────────",
         "  信號加權：DXY 20% | ETF Flow 25% | Risk Score 25% | MVRV 30%",
         "  複合分數 > 0.10 → 做多；< -0.10 → 做空；其餘觀望",
-        "  無手續費假設，以前一日信號執行次日操作",
+        "  換倉日扣除 0.1% 交易摩擦成本（Taker Fee + Slippage）",
+        "  以前一日信號執行次日操作（無未來偏差）",
         "═══════════════════════════════════════════════════════",
         "",
     ]
@@ -308,7 +420,7 @@ def print_report(stats: dict, correlations: dict[str, float], output: str = "con
     print(report_text)
 
     if output == "json":
-        result = {"stats": stats, "factor_correlations": correlations}
+        result = {"stats": stats, "factor_correlations": correlations, "optimization": opt_result}
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif output == "html":
         html = "<pre style='font-family:monospace'>" + report_text + "</pre>"
@@ -323,9 +435,10 @@ def print_report(stats: dict, correlations: dict[str, float], output: str = "con
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Q-Silicon BTC Quantitative Backtest")
-    parser.add_argument("--days",    type=int,   default=DEFAULT_DAYS,    help="回測天數（預設 90）")
-    parser.add_argument("--capital", type=float, default=DEFAULT_CAPITAL, help="初始資金 USD（預設 10000）")
-    parser.add_argument("--report",  type=str,   default="console",       help="輸出格式：console / json / html")
+    parser.add_argument("--days",     type=int,   default=DEFAULT_DAYS,    help="回測天數（預設 90）")
+    parser.add_argument("--capital",  type=float, default=DEFAULT_CAPITAL, help="初始資金 USD（預設 10000）")
+    parser.add_argument("--report",   type=str,   default="console",       help="輸出格式：console / json / html")
+    parser.add_argument("--optimize", action="store_true",                  help="執行 scipy 權重最佳化（需較長時間）")
     args = parser.parse_args()
 
     # 1. 取 BTC 價格
@@ -339,9 +452,8 @@ def main() -> None:
     if df_ind.empty:
         logging.warning(
             "BigQuery 無歷史指標數據，僅以 BTC Buy & Hold 作為輸出。\n"
-            "請先執行主程式產生至少一份戰報，讓指標寫入 BigQuery。"
+            "請先執行 backfill_data.py 補入歷史數據，或等待戰報寫入後再回測。"
         )
-        # 降級：只跑 Buy & Hold 統計
         df_price["position"] = 1.0
         df_price["dxy"] = float("nan")
         df_price["etf_flow"] = float("nan")
@@ -364,8 +476,14 @@ def main() -> None:
     # 6. 因子相關性
     correlations = factor_analysis(merged)
 
-    # 7. 輸出報告
-    print_report(stats, correlations, output=args.report)
+    # 7. 權重最佳化（可選）
+    opt_result = {}
+    if args.optimize:
+        logging.info("開始權重最佳化（Monte Carlo 2000 次 + SLSQP 精修）...")
+        opt_result = optimize_weights(merged, initial_capital=args.capital)
+
+    # 8. 輸出報告
+    print_report(stats, correlations, opt_result=opt_result, output=args.report)
 
 
 if __name__ == "__main__":
