@@ -1,31 +1,68 @@
-# 機密與環境變數
+# ==========================================
+# 機密與環境變數 (最高優先級防護)
+# ==========================================
 .env
+.env.*
 *.json
 *-credentials.json
 service-account*.json
+gcp-key*.json
+secrets/
 
-# 不需要進 image 的腳本與工具
+# ==========================================
+# 不需要進 image 的本機腳本與工具 (僅限開發或分析用)
+# ==========================================
 inject_test_data.py
 dashboard.py
 dashboard_app.py
 deploy.sh
 upload_secrets.sh
+backtest.py
+backfill_data.py
 
-# Git
-.git/
-.gitignore
+# ==========================================
+# 本機生成的報表、日誌與數據 (防止 Image 異常肥大)
+# ==========================================
+backtest_report.html
+*.log
+logs/
+*.csv
+*.tsv
+*.parquet
+*.sqlite3
 
-# Python 快取
+# ==========================================
+# Python 虛擬環境與快取 (避免跨平台編譯衝突與佔用空間)
+# ==========================================
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
 
-# macOS
+# ==========================================
+# 版本控制與 CI/CD 設定檔
+# ==========================================
+.git/
+.gitignore
+.github/
+
+# ==========================================
+# 開發工具與 IDE 暫存
+# ==========================================
 .DS_Store
-
-# IDE
+__MACOSX/
 .idea/
 .vscode/
+.cursorignore
 
-# README（不需要在容器裡）
+# ==========================================
+# Docker 自身的設定與文件
+# ==========================================
+Dockerfile
+docker-compose.yml
 README.md
