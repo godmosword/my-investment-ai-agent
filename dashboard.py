@@ -91,6 +91,16 @@ st.caption("自動化情報聚合 ｜ 巨鯨資金流向 ｜ AI 算力定價")
 
 PROJECT_ID = "my-investment-ai-agent"
 
+
+@st.cache_resource
+def _get_bq_client() -> bigquery.Client:
+    """BigQuery Client singleton：整個 Streamlit 進程只建立一次。"""
+    return bigquery.Client(project=PROJECT_ID)
+
+
+# ── 預先計算 Plotly 佈局 kwargs（避免每次渲染重複序列化）──────────────
+_LAYOUT_KWARGS: dict = PLOTLY_TEMPLATE["layout"].to_plotly_json()
+
 # ── Sidebar：全域篩選與設定 ──────────────────────────────────────────
 with st.sidebar:
     st.header("篩選設定")
@@ -106,7 +116,7 @@ with st.sidebar:
 def load_daily_metrics() -> dict:
     """從 BigQuery daily_metrics 取最新兩筆紀錄，回傳 dict（含日環比 delta）。"""
     try:
-        client = bigquery.Client(project=PROJECT_ID)
+        client = _get_bq_client()
         query = f"""
             SELECT timestamp, dxy, etf_flow_millions, avg_risk_score,
                    gpu_b200_price, grok_summary, gpt_summary
@@ -150,7 +160,7 @@ def load_daily_metrics() -> dict:
 @st.cache_data(ttl=600)
 def load_whale_data() -> pd.DataFrame:
     try:
-        client = bigquery.Client(project=PROJECT_ID)
+        client = _get_bq_client()
         query = f"""
             SELECT timestamp, amount
             FROM `{PROJECT_ID}.market_data.btc_whale_transactions`
@@ -289,7 +299,7 @@ st.subheader("📈 每日指標趨勢")
 @st.cache_data(ttl=600)
 def load_risk_trend(days: int = 30) -> pd.DataFrame:
     try:
-        client = bigquery.Client(project=PROJECT_ID)
+        client = _get_bq_client()
         cutoff = (date.today() - timedelta(days=days)).isoformat()
         query = f"""
             SELECT timestamp, avg_risk_score, dxy, etf_flow_millions
@@ -319,7 +329,7 @@ else:
             annotation_text="Risk OFF 警戒線 (3.5)",
             annotation_font_color=COLORS["red"],
         )
-        fig_risk.update_layout(**PLOTLY_TEMPLATE["layout"].to_plotly_json())
+        fig_risk.update_layout(**_LAYOUT_KWARGS)
         st.plotly_chart(fig_risk, use_container_width=True)
     with tab_dxy:
         fig_dxy = px.line(
@@ -328,7 +338,7 @@ else:
             labels={"timestamp": "日期", "dxy": "DXY"},
             markers=True, color_discrete_sequence=[COLORS["blue"]],
         )
-        fig_dxy.update_layout(**PLOTLY_TEMPLATE["layout"].to_plotly_json())
+        fig_dxy.update_layout(**_LAYOUT_KWARGS)
         st.plotly_chart(fig_dxy, use_container_width=True)
     with tab_etf:
         fig_etf = px.bar(
@@ -338,7 +348,7 @@ else:
             color="etf_flow_millions",
             color_continuous_scale=[COLORS["red"], COLORS["green"]],
         )
-        fig_etf.update_layout(**PLOTLY_TEMPLATE["layout"].to_plotly_json())
+        fig_etf.update_layout(**_LAYOUT_KWARGS)
         st.plotly_chart(fig_etf, use_container_width=True)
 
 st.divider()
@@ -362,7 +372,7 @@ else:
         color='amount',
         color_continuous_scale=[COLORS["blue"], COLORS["purple"], COLORS["red"]],
     )
-    fig.update_layout(**PLOTLY_TEMPLATE["layout"].to_plotly_json())
+    fig.update_layout(**_LAYOUT_KWARGS)
     st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("查看原始數據"):
