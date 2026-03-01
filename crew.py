@@ -191,6 +191,13 @@ class QSiliconResearchCrew:
                 每則新聞末尾附標籤行（用 <code> 包住）：
                 <code>RISK x/5 | NARRATIVE: xxx | HORIZON: xxx</code>
 
+                ════【終極排版警告】════
+                你必須，且絕對必須：
+                ① 所有【區塊標題】與 Agent 署名，一律用 <b>...</b> 包覆。
+                ② 所有數值數據、RISK 標籤行，一律用 <code>...</code> 包覆。
+                ③ 所有推文原文，一律用 <blockquote>...</blockquote> 包覆。
+                如果漏掉任何一個 HTML 標籤，這份報告將被視為失敗，必須重新生成！
+
                 ════ 報告結構（依序輸出）════
 
                 <b>🛡️ Q-Silicon Institutional Research</b>
