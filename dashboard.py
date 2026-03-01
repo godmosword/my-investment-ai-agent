@@ -6,6 +6,8 @@ import plotly.graph_objects as go
 from datetime import date, timedelta
 from dotenv import load_dotenv
 
+from config import PROJECT_ID
+
 load_dotenv()
 
 st.set_page_config(page_title="Q-Silicon 戰情室", page_icon="🛡️", layout="wide")
@@ -88,8 +90,6 @@ section[data-testid="stSidebar"] .stCaption {
 
 st.title("🛡️ Q-Silicon 終極投資戰情室")
 st.caption("自動化情報聚合 ｜ 巨鯨資金流向 ｜ AI 算力定價")
-
-PROJECT_ID = "my-investment-ai-agent"
 
 
 @st.cache_resource
