@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone, timedelta
 from textwrap import dedent
 from crewai import Agent, Task, Crew, Process, LLM
 
@@ -85,6 +86,7 @@ class QSiliconResearchCrew:
         )
 
     def run(self):
+        today_str = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
         crypto_task = Task(
             async_execution=True,  # ai_task 與本 task 同步並行，節省 40-50% 執行時間
             description=dedent("""
@@ -168,7 +170,7 @@ class QSiliconResearchCrew:
         )
 
         final_report_task = Task(
-            description=dedent("""
+            description=dedent(f"""
                 【強制數據獲取指令】在開始排版前，你必須親自執行以下動作：
                 - 呼叫 `coinglass_data_tool` (參數: 'open_interest') 取得 BTC OI。
                 - 呼叫 `cryptoquant_tool` (參數: 'inflow' 或 'outflow') 取得 BTC 交易所淨流入/流出。
@@ -201,7 +203,7 @@ class QSiliconResearchCrew:
                 ════ 報告結構（依序輸出）════
 
                 <b>🛡️ Q-Silicon Institutional Research</b>
-                <i>Daily Brief · [日期]</i>
+                <i>Daily Brief · {today_str}</i>
                 ────────────
 
                 <b>【今日市場模式】</b>
