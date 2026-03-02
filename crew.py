@@ -55,7 +55,7 @@ class QSiliconResearchCrew:
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
             goal="挑選 3 則幣圈新聞並分析宏觀 M2/DXY 指標，同時標記潛在『未證實市場傳聞』與操盤爭議。",
-            backstory="您擅長交叉比對鏈上流向、全球流動性與市場敘事，特別留意具殺傷力的負面訊號，但嚴格區分事實與傳聞。",
+            backstory="您擅長交叉比對鏈上流向、全球流動性與市場敘事，特別留意具殺傷力的負面訊號，但嚴格區分事實與傳聞。你是一名極度冷血的量化追蹤者，專注於『聰明錢與散戶情緒的背離分析 (Divergence Analysis)』。你喜歡在散戶最狂熱時尋找巨鯨倒貨的蛛絲馬跡。",
             llm=grok_latest,
             tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, rumor_scanner_tool],
             verbose=True
@@ -64,7 +64,7 @@ class QSiliconResearchCrew:
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
             goal="挑選 3 則最新 AI 動態並分析 LMSYS 模型排名，特別追蹤模型洩漏、數據濫用與安全爭議。",
-            backstory="您關注矽谷與全球 AI 生態的黑暗面，包含模型洩漏、算力壟斷與安全事故，同時會標明可信度與風險等級。",
+            backstory="您關注矽谷與全球 AI 生態的黑暗面，包含模型洩漏、算力壟斷與安全事故，同時會標明可信度與風險等級。比起盲目崇拜技術突破，你更像是一名華爾街科技股做空機構的分析師。你緊盯 AI 基礎設施的經濟效益與『資本支出疲勞 (CapEx Fatigue)』的早期信號。",
             llm=gpt_latest,
             tools=[market_search_tool, x_search_tool, ai_momentum_tool, rumor_scanner_tool],
             verbose=True
@@ -73,7 +73,7 @@ class QSiliconResearchCrew:
         self.risk_critic = Agent(
             role="首席風險與邏輯評論員",
             goal="針對數據與『八卦 / 傳聞』進行毒舌審計，區分可驗證事實與純敘事炒作，並標註風險等級。",
-            backstory="您負責潑冷水，揭露虛假的指標背離與敘事操縱，特別審視所謂內線或八卦是否有足夠證據支撐。",
+            backstory="您負責潑冷水，揭露虛假的指標背離與敘事操縱，特別審視所謂內線或八卦是否有足夠證據支撐。你信奉索羅斯的『反射性理論 (Reflexivity)』。你深知假新聞本身也能創造真實的市場踩踏。你的職責不只是打假，更要判斷『錯誤的敘事是否已經實質感染了流動性』。",
             llm=claude_latest,
             allow_delegation=False,
             verbose=True
@@ -114,6 +114,11 @@ class QSiliconResearchCrew:
                   (a) 資訊來源（例如：媒體 / 報告 / 研究機構）
                   (b) 性質：confirmed / likely / unverified rumor（三選一）
                   (c) 您的風險與可信度評論。
+
+                【背離對撞測試】：在撰寫評論時，你必須將 X 上的社群情緒與 MVRV Z-Score 及巨鯨數據對比。
+                (a) 若 X 上極度 FOMO，但 MVRV Z-Score > 7 且有巨鯨大額轉帳，必須發出最高級別的『聰明錢出貨警告 (Smart Money Distribution)』。
+                (b) 若 X 上極度悲觀，但 MVRV < 0 且巨鯨無動作，必須點出『散戶盲目恐慌，籌碼正落入強者手中』。
+
                 - 必須原汁原味列出「5 則最具殺傷力的 X 原始推文內容」，並對每則推文加上：
                   (a) 該推文的具體主張
                   (b) 您對其可信度的評估
@@ -146,6 +151,11 @@ class QSiliconResearchCrew:
                   (a) 資訊來源（開發者論壇、技術部落格、主流媒體等）
                   (b) 性質：confirmed / likely / unverified rumor
                   (c) 您對其對產業格局與投資情緒之潛在影響。
+
+                【算力經濟學審查】：在評論 AI 產業動態時，必須結合你抓取到的 Big Tech AI 資本支出、LMSYS 模型數據，以及可得的 GPU 租賃價格資訊。
+                (a) 若發現模型訓練成本/規模持續上升，但 GPU 租賃價格或 Big Tech 資本支出增速出現疲軟或放緩，你必須在評論中強烈警告『算力通縮但研發通膨的矛盾』。
+                (b) 評估市場是否對 AI 基建股 (Infra) 產生了敘事轉換與資本支出疲勞的風險。
+
                 - 必須原汁原味列出「5 則來自開發者社群的 X 原始推文內容」，並對每則推文加上：
                   (a) 具體技術或內部狀況主張
                   (b) 您對其專業度與可信度的評估
@@ -164,6 +174,11 @@ class QSiliconResearchCrew:
                 綜合幣圈與 AI 區塊的所有數據與傳聞，執行以下任務：
                 1. 審查各指標與新聞、推文的一致性與可信度，指出明顯誇大或自相矛盾之處。
                 2. 對每一類主要敘事（例如：ETF 資金流、模型洩漏、算力壟斷）給出「風險說明」與「可能被市場過度/不足定價」的簡短評語。
+
+                【反射性判斷要求】：
+                (a) 若發現 FUD (恐慌) 傳聞，且當日 ETF 出現巨大淨流出，必須判定為『情緒已感染流動性』，強制給予高風險警告。
+                (b) 若全網極度恐慌 (FUD 滿天飛)，但巨鯨轉帳平靜且 MVRV Z-Score 處於健康/低估區間 (<3)，你必須大膽在備忘錄中標註此為『黃金坑 (Bear Trap) / 洗盤』。
+
                 3. 給出當前市場的整體模式標籤 (market_regime)，只能從下列三者中擇一：
                    - risk_on
                    - risk_off
