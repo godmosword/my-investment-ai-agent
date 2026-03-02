@@ -253,12 +253,72 @@ def _tavily_fallback_oi() -> str:
         return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
 
 
+# CoinGlass API V4 endpoints（針對 BTC）
+_COINGLASS_BASE = "https://open-api-v4.coinglass.com"
+_COINGLASS_ENDPOINTS = {
+    "open_interest": f"{_COINGLASS_BASE}/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d",
+    "funding_rate": f"{_COINGLASS_BASE}/api/futures/funding-rate/history?exchange=Binance&symbol=BTCUSDT&interval=8h&limit=1",
+    "liquidations": f"{_COINGLASS_BASE}/api/futures/liquidation/history?exchange=Binance&symbol=BTCUSDT&interval=1h&limit=24",
+    "long_short_ratio": f"{_COINGLASS_BASE}/api/futures/top-long-short-account-ratio/history?exchange=Binance&symbol=BTCUSDT&interval=1d&limit=1",
+}
+
+
+def _parse_coinglass_funding_rate(data: list) -> str:
+    """將資金費率 API 回傳解析為 Agent 友善文字。"""
+    if not data or not isinstance(data, list):
+        return "CoinGlass：無資金費率數據。"
+    latest = data[-1] if data else {}
+    close_raw = latest.get("close") or latest.get("open")
+    if close_raw is None:
+        return "CoinGlass：無法解析資金費率。"
+    try:
+        rate_pct = float(close_raw) * 100
+    except (TypeError, ValueError):
+        return "CoinGlass：資金費率格式異常。"
+    hint = "（若為正代表多頭付費給空頭，情緒偏熱）" if rate_pct > 0 else "（若為負代表空頭付費給多頭，情緒偏冷）"
+    return f"BTC 最新資金費率為 {rate_pct:.4f}%，{hint}"
+
+
+def _parse_coinglass_liquidations(data: list) -> str:
+    """將清算 API 回傳解析為 Agent 友善文字（過去 24h 彙總）。"""
+    if not data or not isinstance(data, list):
+        return "CoinGlass：無清算數據。"
+    total_long = total_short = 0.0
+    for item in data:
+        try:
+            total_long += float(item.get("long_liquidation_usd") or 0)
+            total_short += float(item.get("short_liquidation_usd") or 0)
+        except (TypeError, ValueError):
+            continue
+    total = total_long + total_short
+    return f"過去 24h 總爆倉 ${total/1e6:.2f}M，其中多頭爆倉 ${total_long/1e6:.2f}M，空頭爆倉 ${total_short/1e6:.2f}M"
+
+
+def _parse_coinglass_long_short_ratio(data: list) -> str:
+    """將大戶多空比 API 回傳解析為 Agent 友善文字。"""
+    if not data or not isinstance(data, list):
+        return "CoinGlass：無多空比數據。"
+    latest = data[-1] if data else {}
+    ratio_raw = latest.get("top_account_long_short_ratio")
+    if ratio_raw is None:
+        ratio_raw = latest.get("topAccountLongShortRatio")
+    if ratio_raw is None:
+        return "CoinGlass：無法解析大戶多空比。"
+    try:
+        ratio = float(ratio_raw)
+    except (TypeError, ValueError):
+        return "CoinGlass：多空比格式異常。"
+    hint = "數值 > 1 代表大戶偏多" if ratio > 1 else "數值 < 1 代表大戶偏空"
+    return f"最新大戶多空比為 {ratio:.2f}，{hint}"
+
+
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
-    """獲取幣圈衍生品數據。metric 請輸入 'open_interest'（BTC 未平倉合約歷史）。"""
+    """獲取幣圈衍生品數據。metric 請輸入 'open_interest'（未平倉）、'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比）。"""
     metric_lower = metric.lower()
-    if metric_lower != "open_interest":
-        return f"CoinGlass Tool Failed：不支援的 metric '{metric}'，目前僅支援 'open_interest'。"
+    supported = {"open_interest", "funding_rate", "liquidations", "long_short_ratio"}
+    if metric_lower not in supported:
+        return f"CoinGlass Tool Failed：不支援的 metric '{metric}'，僅支援 {', '.join(sorted(supported))}。"
 
     cache_key = ("coinglass", metric_lower)
     cached = _get_cache(cache_key)
@@ -266,21 +326,34 @@ def coinglass_data_tool(metric: str) -> str:
         return cached
 
     api_key = os.getenv("COINGLASS_API_KEY")
-    url = "https://open-api-v4.coinglass.com/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d"
+    url = _COINGLASS_ENDPOINTS.get(metric_lower)
 
-    if api_key:
+    if api_key and url:
         try:
             headers = {"accept": "application/json", "CG-API-KEY": api_key}
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
-                result = str(response.json().get("data", []))[:2000]
-                if result and result != "[]":
-                    _set_cache(cache_key, result)
-                    return result
+                body = response.json()
+                if body.get("code") == "0":
+                    data = body.get("data") or []
+                    if metric_lower == "open_interest":
+                        result = str(data)[:2000] if data and str(data) != "[]" else ""
+                    elif metric_lower == "funding_rate":
+                        result = _parse_coinglass_funding_rate(data)
+                    elif metric_lower == "liquidations":
+                        result = _parse_coinglass_liquidations(data)
+                    else:
+                        result = _parse_coinglass_long_short_ratio(data)
+                    if result:
+                        _set_cache(cache_key, result)
+                        return result
         except Exception:
             pass
 
-    result = _tavily_fallback_oi()
+    if metric_lower == "open_interest":
+        result = _tavily_fallback_oi()
+    else:
+        result = f"CoinGlass Tool Failed：{metric} API 暫無回應或 COINGLASS_API_KEY 未設定。"
     _set_cache(cache_key, result)
     return result
 

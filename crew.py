@@ -57,7 +57,7 @@ class QSiliconResearchCrew:
             goal="挑選 3 則幣圈新聞並分析宏觀 M2/DXY 指標，同時標記潛在『未證實市場傳聞』與操盤爭議。",
             backstory="您擅長交叉比對鏈上流向、全球流動性與市場敘事，特別留意具殺傷力的負面訊號，但嚴格區分事實與傳聞。你是一名極度冷血的量化追蹤者，專注於『聰明錢與散戶情緒的背離分析 (Divergence Analysis)』。你喜歡在散戶最狂熱時尋找巨鯨倒貨的蛛絲馬跡。",
             llm=grok_latest,
-            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, rumor_scanner_tool],
+            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, coinglass_data_tool, rumor_scanner_tool],
             verbose=True
         )
 
@@ -101,9 +101,10 @@ class QSiliconResearchCrew:
                 {_excl}
                 1. 必須呼叫 macro_liquidity_tool 兩次，分別獲取「最新 DXY 指標」與「M2 貨幣供應」，並說明其變動方向，僅使用公開數據。
                 2. 必須呼叫 mvrv_tool（參數: 'latest'）取得 BTC MVRV Z-Score，並根據數值解讀市場估值狀態（>7 高估 / <0 低估），嚴禁輸出 N/A。
-                3. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
+                3. 必須呼叫 coinglass_data_tool 三次，分別取得 'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比），不得遺漏。
+                4. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'crypto market maker manipulation OR Jane Street rumor OR BTC ETF flow leak'
-                4. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
+                5. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
                    'crypto rumor OR BTC leak'
 
                 【強制輸出規範（極為嚴格，請逐條遵守）】：
@@ -119,6 +120,10 @@ class QSiliconResearchCrew:
                 (a) 若 X 上極度 FOMO，但 MVRV Z-Score > 7 且有巨鯨大額轉帳，必須發出最高級別的『聰明錢出貨警告 (Smart Money Distribution)』。
                 (b) 若 X 上極度悲觀，但 MVRV < 0 且巨鯨無動作，必須點出『散戶盲目恐慌，籌碼正落入強者手中』。
 
+                【衍生品獵殺分析】：結合資金費率、爆倉金額與多空比。
+                (a) 若資金費率極度為正且散戶瘋狂做多，必須發出『向下插針/多頭清算警告』。
+                (b) 若剛經歷巨大多頭爆倉，請標示『流動性已洗盤，具備左側建倉條件』。
+
                 - 必須原汁原味列出「5 則最具殺傷力的 X 原始推文內容」，並對每則推文加上：
                   (a) 該推文的具體主張
                   (b) 您對其可信度的評估
@@ -128,7 +133,7 @@ class QSiliconResearchCrew:
 
                 嚴禁輸出任何法律建議或保證某傳聞為真。所有內容必須標註為「市場敘事 / 傳聞」，僅供風險研究與情緒監控使用。
             """),
-            expected_output="一份包含：最新 DXY 指標解讀、MVRV Z-Score 估值解讀、3 則具爭議性的幣圈新聞（附來源與可信度標註），以及 5 則最具殺傷力 X 推文與 Grok 的辛辣評論與風險評分的完整初稿。",
+            expected_output="一份包含：最新 DXY 指標解讀、MVRV Z-Score、資金費率/爆倉/多空比衍生品數據、3 則具爭議性的幣圈新聞（附來源與可信度標註），以及 5 則最具殺傷力 X 推文與 Grok 的辛辣評論與衍生品獵殺分析的完整初稿。",
             agent=self.crypto_researcher
         )
 
@@ -179,6 +184,8 @@ class QSiliconResearchCrew:
                 (a) 若發現 FUD (恐慌) 傳聞，且當日 ETF 出現巨大淨流出，必須判定為『情緒已感染流動性』，強制給予高風險警告。
                 (b) 若全網極度恐慌 (FUD 滿天飛)，但巨鯨轉帳平靜且 MVRV Z-Score 處於健康/低估區間 (<3)，你必須大膽在備忘錄中標註此為『黃金坑 (Bear Trap) / 洗盤』。
 
+                【衍生品槓桿共振風險】：必須評估『衍生品槓桿與市場情緒的共振風險』。若散戶過度槓桿做多（高資金費率 + 高 OI），即使沒有 FUD 新聞，也必須將市場模式判定為 risk_off 以防範莊家獵殺流動性。
+
                 3. 給出當前市場的整體模式標籤 (market_regime)，只能從下列三者中擇一：
                    - risk_on
                    - risk_off
@@ -194,6 +201,7 @@ class QSiliconResearchCrew:
             description=dedent(f"""
                 【強制數據獲取指令】在開始排版前，你必須親自執行以下動作：
                 - 呼叫 `coinglass_data_tool` (參數: 'open_interest') 取得 BTC OI；若回傳含 [Tavily 備援]，請從中萃取可用數值或趨勢。
+                - 呼叫 `coinglass_data_tool` 三次，分別取得 'funding_rate'、'liquidations'、'long_short_ratio'。
                 - 呼叫 `cryptoquant_tool` (參數: 'inflow' 或 'outflow') 取得 BTC 交易所淨流入/流出；若回傳含 [Tavily 備援]，請從中萃取可用數值或趨勢。
                 嚴禁在數據儀表板輸出 N/A，若工具與備援均失敗，始可寫「API 暫時無回應」。
 
@@ -242,6 +250,9 @@ class QSiliconResearchCrew:
                 【幣圈】
                 · MVRV Z-Score → <code>x.xx</code>（附估值信號：高估/低估/健康）
                 · BTC OI → <code>$xxB</code>（↑/↓ x%）
+                · BTC 資金費率 → <code>xxx%</code>
+                · 24h 爆倉金額 → <code>$xxx 萬 (多/空分佈)</code>
+                · 大戶多空比 → <code>xxx</code>
                 · BTC 交易所淨流入 → <code>xxx BTC</code>
                 【AI】
                 · LMSYS 模型排名 → （前三名）
