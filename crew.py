@@ -91,13 +91,17 @@ class QSiliconResearchCrew:
             verbose=True
         )
 
-    def run(self):
+    def run(self, exclude_context: str | None = None):
         today_str = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
+        _excl = (
+            f"\n【避免重複】昨日戰報已涵蓋以下內容，請勿選用相同或高度相似的新聞，優先選用過去 24 小時內的新聞：\n{exclude_context}\n\n"
+            if exclude_context else ""
+        )
         crypto_task = Task(
             async_execution=True,  # ai_task 與本 task 同步並行，節省 40-50% 執行時間
-            description=dedent("""
+            description=dedent(f"""
                 【幣圈「八卦與內線」情報網任務——請嚴格依照以下指示行動】
-
+                {_excl}
                 1. 必須呼叫 macro_liquidity_tool 兩次，分別獲取「最新 DXY 指標」與「M2 貨幣供應」，並說明其變動方向，僅使用公開數據。
                 2. 必須呼叫 mvrv_tool（參數: 'latest'）取得 BTC MVRV Z-Score，並根據數值解讀市場估值狀態（>7 高估 / <0 低估），嚴禁輸出 N/A。
                 3. 必須呼叫 BigQuery 工具（BigQuery_Market_Data_Analyzer），以 query_type="crypto_whale_alert" 取得過去 24 小時的巨鯨交易統計。
@@ -129,9 +133,9 @@ class QSiliconResearchCrew:
 
         ai_task = Task(
             async_execution=True,  # 與 crypto_task 同步並行
-            description=dedent("""
+            description=dedent(f"""
                 【AI 圈「黑暗傳聞」情資任務——請嚴格依照以下指示行動】
-
+                {_excl}
                 1. 必須呼叫 ai_momentum_tool 等工具，獲取「最新 H100 與 B200 租賃價格」，以及「LMSYS 模型排名」，兩者都必須取得，不得遺漏或捏造數值。
                 2. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'AI model leak OR OpenAI internal drama OR NVIDIA secret project'

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from google.cloud import bigquery
 
-from config import PROJECT_ID
+from config import PROJECT_ID, METRICS_TABLE
 from crew import QSiliconResearchCrew
 
 # 載入環境變數
@@ -245,6 +245,28 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         logging.error(f"Failed to write metrics to BigQuery: {e}")
 
 
+def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = METRICS_TABLE) -> str | None:
+    """從 BigQuery 讀取前一日的 grok_summary 與 gpt_summary，供研究流程排除重複新聞。"""
+    try:
+        client = bigquery.Client(project=project_id)
+        query = f"""
+            SELECT grok_summary, gpt_summary
+            FROM `{metrics_table}`
+            WHERE grok_summary IS NOT NULL OR gpt_summary IS NOT NULL
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """
+        rows = list(client.query(query).result())
+        if not rows:
+            return None
+        row = rows[0]
+        parts = [p for p in (row.get("grok_summary"), row.get("gpt_summary")) if p]
+        return "\n\n".join(parts) if parts else None
+    except Exception as e:
+        logging.warning(f"Could not fetch exclusion context from BigQuery: {e}")
+        return None
+
+
 if __name__ == "__main__":
     logging.info("Initializing Q-Silicon Ultimate Agent...")
 
@@ -252,10 +274,13 @@ if __name__ == "__main__":
     final_report = ""
     report_valid = False
 
+    exclusion = fetch_exclusion_context()
+    if exclusion:
+        logging.info("Loaded exclusion context from previous report (to avoid duplicate news).")
     for attempt in range(_MAX_REPORT_RETRIES + 1):
         try:
             research_crew = QSiliconResearchCrew()
-            final_report = str(research_crew.run())
+            final_report = str(research_crew.run(exclude_context=exclusion))
 
             result = validate_report(final_report)
             logging.info(
