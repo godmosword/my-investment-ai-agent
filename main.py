@@ -267,7 +267,10 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
             return None
         row = rows[0]
         parts = [p for p in (row.get("grok_summary"), row.get("gpt_summary")) if p]
-        return "\n\n".join(parts) if parts else None
+        s = "\n\n".join(parts) if parts else None
+        if s and len(s) > 1200:
+            s = s[:1200] + "\n…[truncated]"
+        return s
     except Exception as e:
         logging.warning(f"Could not fetch exclusion context from BigQuery: {e}")
         return None

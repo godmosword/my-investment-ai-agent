@@ -1,6 +1,8 @@
 crewai[google-genai]>=0.51.0
 crewai-tools>=0.0.15
 litellm>=1.60.0
+fastapi>=0.115.0
+uvicorn>=0.32.0
 tavily-python>=0.7.0
 requests>=2.32.0
 python-dotenv>=1.0.0

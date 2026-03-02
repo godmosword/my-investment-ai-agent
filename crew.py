@@ -9,6 +9,9 @@ MODEL_GPT    = "openai/gpt-5.2-chat-latest"
 MODEL_CLAUDE = "openrouter/anthropic/claude-sonnet-4.6"
 MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
 
+# 標籤規範（重複使用以省 token）
+_IMPACT_TAG = "【IMPACT】強利空/弱利空/中性/弱利多/強利多（五選一）｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle"
+
 from tools import (
     ai_momentum_tool,
     macro_liquidity_tool,
@@ -17,6 +20,7 @@ from tools import (
     x_search_tool,
     coinglass_data_tool,
     cryptoquant_tool,
+    ml_quant_tool,
     rumor_scanner_tool,
 )
 
@@ -58,7 +62,7 @@ class QSiliconResearchCrew:
             backstory="您擅長交叉比對鏈上流向、全球流動性與市場敘事，特別留意具殺傷力的負面訊號，但嚴格區分事實與傳聞。你是一名極度冷血的量化追蹤者，專注於『聰明錢與散戶情緒的背離分析 (Divergence Analysis)』。你喜歡在散戶最狂熱時尋找巨鯨倒貨的蛛絲馬跡。",
             llm=grok_latest,
             tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, coinglass_data_tool, rumor_scanner_tool],
-            verbose=True
+            verbose=False
         )
 
         self.ai_researcher = Agent(
@@ -67,7 +71,7 @@ class QSiliconResearchCrew:
             backstory="您關注矽谷與全球 AI 生態的黑暗面，包含模型洩漏、算力壟斷與安全事故，同時會標明可信度與風險等級。比起盲目崇拜技術突破，你更像是一名華爾街科技股做空機構的分析師。你緊盯 AI 基礎設施的經濟效益與『資本支出疲勞 (CapEx Fatigue)』的早期信號。",
             llm=gpt_latest,
             tools=[market_search_tool, x_search_tool, ai_momentum_tool, rumor_scanner_tool],
-            verbose=True
+            verbose=False
         )
 
         self.risk_critic = Agent(
@@ -76,7 +80,7 @@ class QSiliconResearchCrew:
             backstory="您負責潑冷水，揭露虛假的指標背離與敘事操縱，特別審視所謂內線或八卦是否有足夠證據支撐。你信奉索羅斯的『反射性理論 (Reflexivity)』。你深知假新聞本身也能創造真實的市場踩踏。你的職責不只是打假，更要判斷『錯誤的敘事是否已經實質感染了流動性』。",
             llm=claude_latest,
             allow_delegation=False,
-            verbose=True
+            verbose=False
         )
 
         self.quant_strategist = Agent(
@@ -84,8 +88,8 @@ class QSiliconResearchCrew:
             goal="整合『精準數據儀表板』與 Agent 短評。Gemini 是您的靈魂。",
             backstory="您負責最後排版，嚴禁廢話。僅列出有實際參與評述的 Agent。",
             llm=gemini_latest,
-            tools=[coinglass_data_tool, cryptoquant_tool],
-            verbose=True
+            tools=[coinglass_data_tool, cryptoquant_tool, ml_quant_tool],
+            verbose=False
         )
 
     def run(self, exclude_context: str | None = None):
@@ -128,8 +132,7 @@ class QSiliconResearchCrew:
                   (a) 該推文的具體主張
                   (b) 您對其可信度的評估
                   (c) 若為純情緒帶風向，請明確指出。
-                - 對於每一則新聞與推文，請額外給出統一格式的標籤行：
-                  【IMPACT】強利空/弱利空/中性/弱利多/強利多（五選一，直觀表達對投資的影響方向與強度）｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle
+                - 對於每一則新聞與推文，請額外給出統一格式的標籤行：{_IMPACT_TAG}
 
                 嚴禁輸出任何法律建議或保證某傳聞為真。所有內容必須標註為「市場敘事 / 傳聞」，僅供風險研究與情緒監控使用。
             """),
@@ -165,8 +168,7 @@ class QSiliconResearchCrew:
                   (a) 具體技術或內部狀況主張
                   (b) 您對其專業度與可信度的評估
                   (c) 是否可能被誇大、帶有個人情緒或商業動機。
-                - 對於每一則新聞與推文，請額外給出統一格式的標籤行：
-                  【IMPACT】強利空/弱利空/中性/弱利多/強利多（五選一，直觀表達對投資的影響方向與強度）｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle
+                - 對於每一則新聞與推文，請額外給出統一格式的標籤行：{_IMPACT_TAG}
 
                 嚴禁聲稱掌握真實內線或未公開機密；所有內容均須標註為「產業傳聞與社群敘事」，僅供風險研究與前瞻情緒分析使用。
             """),
@@ -203,6 +205,7 @@ class QSiliconResearchCrew:
                 - 呼叫 `coinglass_data_tool` (參數: 'open_interest') 取得 BTC OI；若回傳含 [Tavily 備援]，請從中萃取可用數值或趨勢。
                 - 呼叫 `coinglass_data_tool` 三次，分別取得 'funding_rate'、'liquidations'、'long_short_ratio'。
                 - 呼叫 `cryptoquant_tool` (參數: 'inflow' 或 'outflow') 取得 BTC 交易所淨流入/流出；若回傳含 [Tavily 備援]，請從中萃取可用數值或趨勢。
+                - 呼叫 `ml_quant_tool` 獲取系統最新的 ML 最佳化權重與量化交易訊號。
                 嚴禁在數據儀表板輸出 N/A，若工具與備援均失敗，始可寫「API 暫時無回應」。
 
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
@@ -247,6 +250,9 @@ class QSiliconResearchCrew:
                 【宏觀】
                 · M2 → <code>xxx</code>（↑/↓ x%）
                 · ICE DXY → <code>xx.xx</code>（↑/↓ x%）
+                【量化模型】
+                · ML 最佳權重 → <code>DXY: xx%, ETF: xx%, RISK: xx%, MVRV: xx%</code>
+                · 系統建議部位 → <code>做多 / 避險 (動能分數: x.xx)</code>
                 【幣圈】
                 · MVRV Z-Score → <code>x.xx</code>（附估值信號：高估/低估/健康）
                 · BTC OI → <code>$xxB</code>（↑/↓ x%）

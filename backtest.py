@@ -22,11 +22,13 @@ import logging
 import math
 import sys
 from datetime import date, timedelta
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import requests
 from google.cloud import bigquery
+from scipy.optimize import minimize
 
 from config import PROJECT_ID, METRICS_TABLE
 
@@ -409,6 +411,140 @@ def optimize_weights(
     opt_sharpe  = round(-result.fun, 3)
     logging.info("最佳化完成：Sharpe=%.3f，權重=%s", opt_sharpe, opt_weights)
     return {"optimal_weights": opt_weights, "optimal_sharpe": opt_sharpe}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ML 權重最佳化（直接對 dxy / etf_flow / avg_risk_score / mvrv_z_score）
+# ══════════════════════════════════════════════════════════════════════════
+
+# 指標欄位對應（BigQuery 與 backtest 命名）
+_ML_COL_MAP = {
+    "dxy": ["dxy"],
+    "etf_flow": ["etf_flow", "etf_flow_millions"],
+    "avg_risk_score": ["risk_score", "avg_risk_score"],
+    "mvrv_z_score": ["mvrv_z", "mvrv_z_score"],
+}
+
+
+def _get_ml_columns(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
+    """從 df 取出四指標 Series，缺失者以 NaN 填充。"""
+    def _resolve(col_map: list[str]) -> pd.Series:
+        for c in col_map:
+            if c in df.columns:
+                return df[c].copy()
+        return pd.Series(index=df.index, dtype=float)
+
+    dxy = _resolve(_ML_COL_MAP["dxy"])
+    etf = _resolve(_ML_COL_MAP["etf_flow"])
+    risk = _resolve(_ML_COL_MAP["avg_risk_score"])
+    mvrv = _resolve(_ML_COL_MAP["mvrv_z_score"])
+    return dxy, etf, risk, mvrv
+
+
+def _build_momentum_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    將四指標正規化為「數值愈高愈偏多」的特徵。
+    - DXY：愈高愈不利 → 取反
+    - ETF flow：愈高愈利好
+    - Risk score：愈高愈避險 → 取反
+    - MVRV：愈高愈超買 → 取反
+    """
+    dxy, etf, risk, mvrv = _get_ml_columns(df)
+    out = pd.DataFrame(index=df.index)
+
+    def _zscore(s: pd.Series) -> pd.Series:
+        m, std = s.mean(), s.std()
+        if pd.isna(std) or std < 1e-8:
+            return pd.Series(0.0, index=s.index)
+        return (s - m) / std
+
+    out["f_dxy"] = -_zscore(dxy)   # 低 DXY = 利多
+    out["f_etf"] = _zscore(etf)    # 高 ETF 流入 = 利多
+    out["f_risk"] = -_zscore(risk) # 低風險分數 = 利多
+    out["f_mvrv"] = -_zscore(mvrv) # 低 MVRV = 低估 = 利多
+    return out.fillna(0)
+
+
+def optimize_ml_weights(df: pd.DataFrame) -> dict[str, Any]:
+    """
+    尋找 dxy, etf_flow, avg_risk_score, mvrv_z_score 四指標的最佳權重（總和=1，0~1），
+    使歷史策略的 Sharpe Ratio 最大化。
+    需有 close 欄位以計算 BTC 報酬。
+    回傳 {"weights": {dxy, etf, risk, mvrv}, "sharpe": float}。
+    """
+    if "close" not in df.columns:
+        logging.warning("optimize_ml_weights 需要 'close' 欄位，跳過。")
+        return {"weights": {"dxy": 0.25, "etf_flow": 0.25, "risk": 0.25, "mvrv": 0.25}, "sharpe": 0.0}
+
+    features = _build_momentum_features(df)
+    if features.isna().all().all() or len(features) < 30:
+        logging.warning("特徵不足或全為 NaN，使用等權重。")
+        return {"weights": {"dxy": 0.25, "etf_flow": 0.25, "risk": 0.25, "mvrv": 0.25}, "sharpe": 0.0}
+
+    cols = ["f_dxy", "f_etf", "f_risk", "f_mvrv"]
+    X = features[cols].values
+    btc_ret = df["close"].pct_change().values
+
+    def _neg_sharpe(w: np.ndarray) -> float:
+        score = X @ w
+        pos = np.zeros_like(score)
+        pos[score > 0.1] = 1.0
+        pos[score < -0.1] = -1.0
+        pos_shifted = np.roll(pos, 1)
+        pos_shifted[0] = 0
+        strat_ret = pos_shifted * btc_ret
+        strat_ret = np.nan_to_num(strat_ret, nan=0.0)
+        rf = 0.05 / 365
+        excess = strat_ret - rf
+        std = np.std(excess)
+        if std < 1e-8:
+            return 0.0
+        return -(np.mean(excess) / std * math.sqrt(365))
+
+    n = 4
+    constraints = {"type": "eq", "fun": lambda w: w.sum() - 1.0}
+    bounds = [(0.01, 0.8)] * n
+
+    w0 = np.ones(n) / n
+    res = minimize(_neg_sharpe, w0, method="SLSQP", bounds=bounds, constraints=constraints,
+                  options={"ftol": 1e-9, "maxiter": 500})
+
+    w = res.x.round(4)
+    weights = {"dxy": float(w[0]), "etf_flow": float(w[1]), "risk": float(w[2]), "mvrv": float(w[3])}
+    sharpe = round(-res.fun, 3)
+    logging.info("ML 權重最佳化完成：Sharpe=%.3f，權重=%s", sharpe, weights)
+    return {"weights": weights, "sharpe": sharpe}
+
+
+def get_latest_ml_signal(df: pd.DataFrame, best_weights: dict[str, float]) -> dict[str, Any]:
+    """
+    使用最佳權重計算當天最新的綜合動能分數，回傳建議訊號。
+    best_weights: {"dxy": w1, "etf_flow": w2, "risk": w3, "mvrv": w4}
+    回傳: {"signal": "建議做多"|"建議避險", "momentum_score": float, "weights": {...}}
+    """
+    if df.empty:
+        return {"signal": "建議避險", "momentum_score": 0.0, "weights": best_weights}
+
+    features = _build_momentum_features(df)
+    cols = ["f_dxy", "f_etf", "f_risk", "f_mvrv"]
+    w = np.array([
+        best_weights.get("dxy", 0.25),
+        best_weights.get("etf_flow", 0.25),
+        best_weights.get("risk", 0.25),
+        best_weights.get("mvrv", 0.25),
+    ])
+    if features[cols].iloc[-1].isna().any():
+        score = 0.0
+    else:
+        score = float((features[cols].iloc[-1].values @ w))
+
+    if score > 0.1:
+        signal = "建議做多"
+    elif score < -0.1:
+        signal = "建議避險"
+    else:
+        signal = "建議避險"  # 中性區間保守處理
+    return {"signal": signal, "momentum_score": round(score, 4), "weights": best_weights}
 
 
 # ══════════════════════════════════════════════════════════════════════════
