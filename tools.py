@@ -1,12 +1,11 @@
 import os
-import json
 import time
 import requests
 from urllib.parse import quote
-from crewai.tools import tool, BaseTool
+from crewai.tools import tool
 from google.cloud import bigquery
 
-from config import PROJECT_ID, WHALE_TABLE
+from config import PROJECT_ID, METRICS_TABLE, WHALE_TABLE
 
 # ── 模組級 in-memory cache（同一次執行內避免重複打外部 API）────────────
 # key: (tool_name, query_string)  value: (result_str, expire_timestamp)
@@ -52,50 +51,6 @@ def _get_tavily_client():
         from tavily import TavilyClient
         _TAVILY_CLIENT = TavilyClient(api_key=api_key)
     return _TAVILY_CLIENT
-
-
-class BigQueryAnalyticsTool(BaseTool):
-    name: str = "BigQuery_Market_Data_Analyzer"
-    description: str = "A tool to query Bitcoin whale transactions from BigQuery."
-
-    def _run(self, query_type: str) -> str:
-        cache_key = ("bigquery", query_type)
-        cached = _get_cache(cache_key)
-        if cached:
-            return cached
-
-        try:
-            client = _get_bq_client()
-
-            match query_type:
-                case "crypto_whale_alert":
-                    query = f"""
-                        SELECT
-                            COUNT(*) as alert_count,
-                            MAX(amount) as max_transfer
-                        FROM `{WHALE_TABLE}`
-                        WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
-                        AND amount > 100
-                    """
-                    results = client.query(query).result()
-                    for row in results:
-                        result = json.dumps({
-                            "status": "ok",
-                            "type": "crypto_whale_alert",
-                            "alert_count": row.alert_count,
-                            "max_transfer_btc": row.max_transfer,
-                        })
-                        _set_cache(cache_key, result)
-                        return result
-                    result = '{"status": "ok", "message": "No whale alerts in 24h"}'
-                    _set_cache(cache_key, result)
-                    return result
-
-                case _:
-                    return '{"status": "error", "message": "Unknown query type."}'
-
-        except Exception as e:
-            return json.dumps({"status": "error", "message": f"BigQuery Connection Failed: {str(e)}"})
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -222,7 +177,7 @@ def x_search_tool(query: str) -> str:
         return cached
 
     try:
-        url = f"https://api.twitter.com/2/tweets/search/recent?query={quote(query)}&max_results=10"
+        url = f"https://api.twitter.com/2/tweets/search/recent?query={quote(query)}&max_results=6"
         headers = {"Authorization": f"Bearer {bearer_token}"}
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
@@ -480,6 +435,112 @@ def mvrv_tool(window: str = "latest") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# ML Quant Signal Analyzer
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("ML Quant Signal Analyzer")
+def ml_quant_tool() -> str:
+    """
+    從 BigQuery daily_metrics 撈取過去 365 天指標，執行 ML 權重最佳化與動能訊號分析。
+    回傳最佳權重配比與今日建議（做多 / 避險）。
+    """
+    cache_key = ("ml_quant", "v1")
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    try:
+        import pandas as pd
+        from datetime import date, timedelta
+
+        from backtest import optimize_ml_weights, get_latest_ml_signal
+    except ImportError as e:
+        return f"ML Quant Tool Failed：無法匯入 backtest 模組（{e}）。請確認 scipy 已安裝。"
+
+    days = 365
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+
+    # 1. BigQuery daily_metrics
+    query = f"""
+        SELECT
+            DATE(timestamp) AS date,
+            AVG(dxy) AS dxy,
+            AVG(etf_flow_millions) AS etf_flow_millions,
+            AVG(avg_risk_score) AS avg_risk_score,
+            AVG(mvrv_z_score) AS mvrv_z_score
+        FROM `{METRICS_TABLE}`
+        WHERE timestamp >= @cutoff
+        GROUP BY date
+        ORDER BY date ASC
+    """
+    try:
+        client = _get_bq_client()
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("cutoff", "DATE", cutoff)]
+        )
+        df_ind = client.query(query, job_config=job_config).to_dataframe()
+    except Exception as e:
+        return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 backfill_data.py 補入歷史數據。"
+
+    if df_ind.empty or len(df_ind) < 30:
+        return "ML Quant Tool Failed：daily_metrics 數據不足（需至少 30 筆）。請先執行 backfill_data.py。"
+
+    df_ind["date"] = pd.to_datetime(df_ind["date"]).dt.date
+    df_ind = df_ind.set_index("date").sort_index()
+
+    # 2. CoinGecko BTC 價格
+    url = (
+        f"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
+        f"?vs_currency=usd&days={days}&interval=daily"
+    )
+    try:
+        resp = requests.get(url, timeout=20)
+        resp.raise_for_status()
+        prices = resp.json().get("prices", [])
+        df_btc = pd.DataFrame(prices, columns=["ts_ms", "close"])
+        df_btc["date"] = pd.to_datetime(df_btc["ts_ms"], unit="ms").dt.date
+        df_btc = df_btc.drop_duplicates("date").set_index("date")[["close"]].sort_index()
+    except Exception as e:
+        return f"ML Quant Tool Failed：CoinGecko 取得 BTC 價格失敗（{e}）。"
+
+    # 3. 合併
+    merged = df_ind.join(df_btc, how="inner")
+    if merged.empty or len(merged) < 30:
+        return "ML Quant Tool Failed：指標與 BTC 價格無法對齊，數據不足。"
+
+    merged = merged.rename(columns={
+        "etf_flow_millions": "etf_flow",
+        "avg_risk_score": "risk_score",
+        "mvrv_z_score": "mvrv_z",
+    })
+
+    # 4. 最佳化權重
+    opt = optimize_ml_weights(merged)
+    weights = opt.get("weights", {})
+    sharpe = opt.get("sharpe", 0.0)
+
+    # 5. 最新訊號
+    signal_dict = get_latest_ml_signal(merged, weights)
+    momentum = signal_dict.get("momentum_score", 0.0)
+    sig = signal_dict.get("signal", "建議避險")
+
+    w_dxy = weights.get("dxy", 0.25) * 100
+    w_etf = weights.get("etf_flow", 0.25) * 100
+    w_risk = weights.get("risk", 0.25) * 100
+    w_mvrv = weights.get("mvrv", 0.25) * 100
+
+    result = (
+        f"ML 模型已完成過去 365 天回測最佳化。"
+        f"當前最佳權重配比為 DXY: {w_dxy:.1f}%, ETF: {w_etf:.1f}%, RISK: {w_risk:.1f}%, MVRV: {w_mvrv:.1f}%。"
+        f"歷史 Sharpe Ratio：{sharpe}。"
+        f"今日系統綜合動能分數為 {momentum}，"
+        f"量化模型強烈建議：【{sig}】。"
+    )
+    _set_cache(cache_key, result)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Rumor & Controversy Scanner（降低強度：days=7, max_results=5）
 # ═══════════════════════════════════════════════════════════════════
 
@@ -505,7 +566,7 @@ def rumor_scanner_tool(topic: str) -> str:
         client = _get_tavily_client()
         result_data = client.search(
             query=query,
-            search_depth="advanced",
+            search_depth="basic",
             max_results=5,
             topic="news",
             days=7,
