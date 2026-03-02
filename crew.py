@@ -10,7 +10,6 @@ MODEL_CLAUDE = "openrouter/anthropic/claude-sonnet-4.6"
 MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
 
 from tools import (
-    BigQueryAnalyticsTool,
     ai_momentum_tool,
     macro_liquidity_tool,
     market_search_tool,
@@ -53,20 +52,18 @@ class QSiliconResearchCrew:
             timeout=180,
         )
 
-        self.bq_tool = BigQueryAnalyticsTool()
-
         self.crypto_researcher = Agent(
             role="幣圈與宏觀市場研究員",
-            goal="挑選 5 則幣圈新聞並分析宏觀 M2/DXY 指標，同時標記潛在『未證實市場傳聞』與操盤爭議。",
+            goal="挑選 3 則幣圈新聞並分析宏觀 M2/DXY 指標，同時標記潛在『未證實市場傳聞』與操盤爭議。",
             backstory="您擅長交叉比對鏈上流向、全球流動性與市場敘事，特別留意具殺傷力的負面訊號，但嚴格區分事實與傳聞。",
             llm=grok_latest,
-            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, self.bq_tool, rumor_scanner_tool],
+            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, rumor_scanner_tool],
             verbose=True
         )
 
         self.ai_researcher = Agent(
             role="前沿 AI 科技研究員",
-            goal="挑選 5 則最新 AI 動態並分析 GPU 租賃成本與模型性能排名，特別追蹤模型洩漏、數據濫用與安全爭議。",
+            goal="挑選 3 則最新 AI 動態並分析 LMSYS 模型排名，特別追蹤模型洩漏、數據濫用與安全爭議。",
             backstory="您關注矽谷與全球 AI 生態的黑暗面，包含模型洩漏、算力壟斷與安全事故，同時會標明可信度與風險等級。",
             llm=gpt_latest,
             tools=[market_search_tool, x_search_tool, ai_momentum_tool, rumor_scanner_tool],
@@ -104,30 +101,29 @@ class QSiliconResearchCrew:
                 {_excl}
                 1. 必須呼叫 macro_liquidity_tool 兩次，分別獲取「最新 DXY 指標」與「M2 貨幣供應」，並說明其變動方向，僅使用公開數據。
                 2. 必須呼叫 mvrv_tool（參數: 'latest'）取得 BTC MVRV Z-Score，並根據數值解讀市場估值狀態（>7 高估 / <0 低估），嚴禁輸出 N/A。
-                3. 必須呼叫 BigQuery 工具（BigQuery_Market_Data_Analyzer），以 query_type="crypto_whale_alert" 取得過去 24 小時的巨鯨交易統計。
-                4. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
+                3. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'crypto market maker manipulation OR Jane Street rumor OR BTC ETF flow leak'
-                5. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
-                   'crypto rumor OR BTC leak OR whale manipulation'
+                4. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
+                   'crypto rumor OR BTC leak'
 
                 【強制輸出規範（極為嚴格，請逐條遵守）】：
                 - 僅使用可公開取得的新聞與社群內容，不得捏造任何「未出現於來源中的」具體事實或人物指控。
-                - 必須明確列出「5 則具爭議性或前瞻性」的市場新聞，內容需與：
-                  做市商行為、槓桿清算風險、ETF 資金流、巨鯨行為或 Jane Street 類型機構操作「傳聞」相關。
+                - 必須明確列出「3 則具爭議性或前瞻性」的市場新聞，內容需與：
+                  做市商行為、槓桿清算風險、ETF 資金流或 Jane Street 類型機構操作「傳聞」相關。
                 - 對每一則新聞，需標註：
                   (a) 資訊來源（例如：媒體 / 報告 / 研究機構）
                   (b) 性質：confirmed / likely / unverified rumor（三選一）
                   (c) 您的風險與可信度評論。
-                - 必須原汁原味列出「3 則最具殺傷力的 X 原始推文內容」，並對每則推文加上：
+                - 必須原汁原味列出「5 則最具殺傷力的 X 原始推文內容」，並對每則推文加上：
                   (a) 該推文的具體主張
                   (b) 您對其可信度的評估
                   (c) 若為純情緒帶風向，請明確指出。
                 - 對於每一則新聞與推文，請額外給出統一格式的標籤行：
-                  【RISK_SCORE】x/5｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle
+                  【IMPACT】強利空/弱利空/中性/弱利多/強利多（五選一，直觀表達對投資的影響方向與強度）｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle
 
                 嚴禁輸出任何法律建議或保證某傳聞為真。所有內容必須標註為「市場敘事 / 傳聞」，僅供風險研究與情緒監控使用。
             """),
-            expected_output="一份包含：最新 DXY 指標解讀、MVRV Z-Score 估值解讀、BigQuery 巨鯨警報摘要、5 則具爭議性的幣圈新聞（附來源與可信度標註），以及 3 則最具殺傷力 X 推文與 Grok 的辛辣評論與風險評分的完整初稿。",
+            expected_output="一份包含：最新 DXY 指標解讀、MVRV Z-Score 估值解讀、3 則具爭議性的幣圈新聞（附來源與可信度標註），以及 5 則最具殺傷力 X 推文與 Grok 的辛辣評論與風險評分的完整初稿。",
             agent=self.crypto_researcher
         )
 
@@ -136,7 +132,7 @@ class QSiliconResearchCrew:
             description=dedent(f"""
                 【AI 圈「黑暗傳聞」情資任務——請嚴格依照以下指示行動】
                 {_excl}
-                1. 必須呼叫 ai_momentum_tool 等工具，獲取「最新 H100 與 B200 租賃價格」，以及「LMSYS 模型排名」，兩者都必須取得，不得遺漏或捏造數值。
+                1. 必須呼叫 ai_momentum_tool 兩次：(a) 參數 'model_benchmarks' 取得最新 LMSYS 模型排名；(b) 參數 'big_tech_capex' 取得 Amazon、Microsoft、Alphabet、Meta 等 Big Tech 的 AI 資本支出與資料中心投資數據。不得遺漏或捏造數值。
                 2. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'AI model leak OR OpenAI internal drama OR NVIDIA secret project'
                 3. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
@@ -144,22 +140,22 @@ class QSiliconResearchCrew:
 
                 【強制輸出規範（極為嚴格，請逐條遵守）】：
                 - 僅使用可公開取得的新聞、部落格與開發者社群內容，不得捏造「從未出現在來源中的」內線或機密資訊。
-                - 必須明確列出「5 則矽谷暗盤或未正式對外公關包裝的 AI 產業動態」，例如：
+                - 必須明確列出「3 則矽谷暗盤或未正式對外公關包裝的 AI 產業動態」，例如：
                   模型洩漏事件、內部文化與管理爭議、GPU 供應與算力壟斷爭議、開源社群爆料等。
                 - 對每一則動態，需標註：
                   (a) 資訊來源（開發者論壇、技術部落格、主流媒體等）
                   (b) 性質：confirmed / likely / unverified rumor
                   (c) 您對其對產業格局與投資情緒之潛在影響。
-                - 必須原汁原味列出「3 則來自開發者社群的 X 原始推文內容」，並對每則推文加上：
+                - 必須原汁原味列出「5 則來自開發者社群的 X 原始推文內容」，並對每則推文加上：
                   (a) 具體技術或內部狀況主張
                   (b) 您對其專業度與可信度的評估
                   (c) 是否可能被誇大、帶有個人情緒或商業動機。
                 - 對於每一則新聞與推文，請額外給出統一格式的標籤行：
-                  【RISK_SCORE】x/5｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle
+                  【IMPACT】強利空/弱利空/中性/弱利多/強利多（五選一，直觀表達對投資的影響方向與強度）｜【NARRATIVE】FOMO/FUD/Infra/Regulation/Other｜【HORIZON】intraday/swing/cycle
 
                 嚴禁聲稱掌握真實內線或未公開機密；所有內容均須標註為「產業傳聞與社群敘事」，僅供風險研究與前瞻情緒分析使用。
             """),
-            expected_output="一份包含：最新 H100/B200 價格或 LMSYS 排名摘要、5 則具爭議性的 AI 產業傳聞與動態（附來源與可信度標註），以及 3 則來自開發者社群的代表性 X 推文與 GPT 的辛辣評論與產業風險評估的完整初稿。",
+            expected_output="一份包含：最新 LMSYS 模型排名摘要、Big Tech AI 資本支出摘要、3 則具爭議性的 AI 產業傳聞與動態（附來源與可信度標註），以及 5 則來自開發者社群的代表性 X 推文與 GPT 的辛辣評論與產業風險評估的完整初稿。",
             agent=self.ai_researcher
         )
 
@@ -167,7 +163,7 @@ class QSiliconResearchCrew:
             description=dedent("""
                 綜合幣圈與 AI 區塊的所有數據與傳聞，執行以下任務：
                 1. 審查各指標與新聞、推文的一致性與可信度，指出明顯誇大或自相矛盾之處。
-                2. 對每一類主要敘事（例如：ETF 資金流、巨鯨操盤、模型洩漏、算力壟斷）給出「風險說明」與「可能被市場過度/不足定價」的簡短評語。
+                2. 對每一類主要敘事（例如：ETF 資金流、模型洩漏、算力壟斷）給出「風險說明」與「可能被市場過度/不足定價」的簡短評語。
                 3. 給出當前市場的整體模式標籤 (market_regime)，只能從下列三者中擇一：
                    - risk_on
                    - risk_off
@@ -182,9 +178,9 @@ class QSiliconResearchCrew:
         final_report_task = Task(
             description=dedent(f"""
                 【強制數據獲取指令】在開始排版前，你必須親自執行以下動作：
-                - 呼叫 `coinglass_data_tool` (參數: 'open_interest') 取得 BTC OI。
-                - 呼叫 `cryptoquant_tool` (參數: 'inflow' 或 'outflow') 取得 BTC 交易所淨流入/流出。
-                嚴禁在數據儀表板輸出 N/A，如果工具失敗，請寫「API 暫時無回應」。
+                - 呼叫 `coinglass_data_tool` (參數: 'open_interest') 取得 BTC OI；若回傳含 [Tavily 備援]，請從中萃取可用數值或趨勢。
+                - 呼叫 `cryptoquant_tool` (參數: 'inflow' 或 'outflow') 取得 BTC 交易所淨流入/流出；若回傳含 [Tavily 備援]，請從中萃取可用數值或趨勢。
+                嚴禁在數據儀表板輸出 N/A，若工具與備援均失敗，始可寫「API 暫時無回應」。
 
                 撰寫 [Q-Silicon Institutional Research] Daily Brief。
                 輸出格式為 Telegram HTML，Telegram 只支援以下標籤，嚴禁使用其他任何 HTML 標籤：
@@ -201,12 +197,12 @@ class QSiliconResearchCrew:
                 數值變動用「→」與「↑ / ↓」標示。
                 評論署名格式：🛸 <b>Grok</b>｜🛡️ <b>Claude</b>｜💎 <b>主編</b>｜🤖 <b>GPT</b>
                 每則新聞末尾附標籤行（用 <code> 包住）：
-                <code>RISK x/5 | NARRATIVE: xxx | HORIZON: xxx</code>
+                <code>IMPACT: 強利空/弱利空/中性/弱利多/強利多 | NARRATIVE: xxx | HORIZON: xxx</code>
 
                 ════【終極排版警告】════
                 你必須，且絕對必須：
                 ① 所有【區塊標題】與 Agent 署名，一律用 <b>...</b> 包覆。
-                ② 所有數值數據、RISK 標籤行，一律用 <code>...</code> 包覆。
+                ② 所有數值數據、IMPACT 標籤行，一律用 <code>...</code> 包覆。
                 ③ 所有推文原文，一律用 <blockquote>...</blockquote> 包覆。
                 如果漏掉任何一個 HTML 標籤，這份報告將被視為失敗，必須重新生成！
 
@@ -225,43 +221,44 @@ class QSiliconResearchCrew:
                 ────────────
 
                 <b>【數據儀表板】</b>
-                · H100 租賃價 → <code>$x.xx / hr</code>
-                · B200 租賃價 → <code>$x.xx / hr</code>
-                · LMSYS 模型排名 → （前三名）
+                【宏觀】
                 · M2 → <code>xxx</code>（↑/↓ x%）
                 · ICE DXY → <code>xx.xx</code>（↑/↓ x%）
+                【幣圈】
                 · MVRV Z-Score → <code>x.xx</code>（附估值信號：高估/低估/健康）
                 · BTC OI → <code>$xxB</code>（↑/↓ x%）
                 · BTC 交易所淨流入 → <code>xxx BTC</code>
-                · 24h 巨鯨大額轉帳 → <code>xx 筆，最大 xxx BTC</code>
+                【AI】
+                · LMSYS 模型排名 → （前三名）
+                · Big Tech AI 資本支出 → （Amazon / Microsoft / Alphabet / Meta 近期投資規模或趨勢，可用億美元計）
 
                 ────────────
 
                 <b>【幣圈情報】</b>
-                依序列出 Grok 找到的 5 則爭議新聞，每則格式：
+                依序列出 Grok 找到的 3 則爭議新聞，每則格式：
 
                 〔新聞 1〕<b>新聞標題</b>
                 來源：xxx｜性質：<i>confirmed / likely / unverified rumor</i>
                 摘要：（一至兩句）
-                <code>RISK x/5 | NARRATIVE: FUD/FOMO/Infra/Regulation | HORIZON: intraday/swing/cycle</code>
+                <code>IMPACT: 強利空/弱利空/中性/弱利多/強利多 | NARRATIVE: FUD/FOMO/Infra/Regulation | HORIZON: intraday/swing/cycle</code>
                 🛸 <b>Grok</b>：（評論一句）
                 🛡️ <b>Claude</b>：（評論一句）
                 💎 <b>主編</b>：（評論一句）
 
-                接著列出 3 則 X 推文，每則格式：
+                接著列出 5 則 X 推文，每則格式：
                 〔推文 1〕<blockquote>推文原文</blockquote>
                 可信度：（一句話）
-                <code>RISK x/5 | NARRATIVE: xxx | HORIZON: xxx</code>
+                <code>IMPACT: 強利空/弱利空/中性/弱利多/強利多 | NARRATIVE: xxx | HORIZON: xxx</code>
 
                 ────────────
 
                 <b>【AI 產業情報】</b>
-                依序列出 GPT 找到的 5 則暗盤動態，每則格式同幣圈（署名改為 🤖 GPT）。
-                接著列出 3 則 X 推文，格式同上。
+                依序列出 GPT 找到的 3 則暗盤動態，每則格式同幣圈（署名改為 🤖 GPT）。
+                接著列出 5 則 X 推文，格式同上。
 
-                ════ 嚴禁主編私自刪減新聞標題與推文原文！保留原始內容！════
+                ════ 嚴禁主編私自刪減新聞標題與推文原文！每區塊各 3 則新聞、5 則推文，保留原始內容！════
             """),
-            expected_output="一份符合 Telegram HTML 格式、使用 <b>/<i>/<code>/<blockquote> 標籤排版的專業戰報，完整保留 5 則新聞與 3 則推文原文，並附各 Agent 評論與風險標籤。",
+            expected_output="一份符合 Telegram HTML 格式、使用 <b>/<i>/<code>/<blockquote> 標籤排版的專業戰報，完整保留 3 則新聞與 5 則推文原文，並附各 Agent 評論與風險標籤。",
             agent=self.quant_strategist,
             context=[crypto_task, ai_task, review_task]
         )
