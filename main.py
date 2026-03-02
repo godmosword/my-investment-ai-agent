@@ -52,13 +52,13 @@ def validate_report(text: str) -> dict:
     news_count  = len(re.findall(r'〔新聞', text))
     tweet_count = len(re.findall(r'〔推文', text))
     has_regime  = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
-    has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|H100', text, re.IGNORECASE))
+    has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|LMSYS|模型排名', text, re.IGNORECASE))
 
     issues = []
-    if news_count < 5:
-        issues.append(f"新聞數不足（{news_count}/5）")
-    if tweet_count < 6:
-        issues.append(f"推文數不足（{tweet_count}/6）")
+    if news_count < 6:
+        issues.append(f"新聞數不足（{news_count}/6，每區塊各 3 則）")
+    if tweet_count < 10:
+        issues.append(f"推文數不足（{tweet_count}/10，每區塊各 5 則）")
     if not has_regime:
         issues.append("缺少 market_regime 標籤")
     if not has_dashboard:
@@ -167,22 +167,28 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             is_outflow = any(k in direction_raw for k in ('流出', '外流'))
             etf_flow = -value if is_outflow else value
 
-    # ── 3. 萃取所有 "RISK x/5" 並計算平均（含 RISK 4/5、RISK_SCORE 格式）──
+    # ── 3. 萃取 IMPACT 並轉為風險數值（強利空=5 … 強利多=1），與舊 RISK x/5 相容 ──
+    _IMPACT_TO_SCORE = {"強利空": 5.0, "弱利空": 4.0, "中性": 3.0, "弱利多": 2.0, "強利多": 1.0}
     avg_risk = None
-    risk_scores = re.findall(
-        r'RISK(?:_SCORE)?[】\s]*(\d(?:\.\d)?)\s*/\s*5',
-        clean_text, re.IGNORECASE
+    impact_matches = re.findall(
+        r'IMPACT[：:]\s*(強利空|弱利空|中性|弱利多|強利多)',
+        clean_text
     )
-    if risk_scores:
-        try:
-            scores = [float(s) for s in risk_scores]
-            avg_risk = round(sum(scores) / len(scores), 2)
-        except ValueError:
-            pass
+    if impact_matches:
+        scores = [_IMPACT_TO_SCORE.get(m, 3.0) for m in impact_matches]
+        avg_risk = round(sum(scores) / len(scores), 2)
+    else:
+        # 向後相容：若仍出現舊格式 RISK x/5，則沿用
+        legacy = re.findall(r'RISK(?:_SCORE)?[】\s]*(\d(?:\.\d)?)\s*/\s*5', clean_text, re.IGNORECASE)
+        if legacy:
+            try:
+                scores = [float(s) for s in legacy]
+                avg_risk = round(sum(scores) / len(scores), 2)
+            except ValueError:
+                pass
 
-    # ── 4. 萃取 B200 租賃價：匹配 "B200 租賃價 → $3.40 / hr" 格式 ──
-    b200_match = re.search(r'B200\s*租賃價\s*[→\->]+\s*\$?\s*(\d+(?:\.\d+)?)', clean_text, re.IGNORECASE)
-    gpu_b200 = _safe_float(b200_match)
+    # ── 4. B200 租賃價已移除，保留欄位以相容既有 BigQuery schema（寫入 None）──
+    gpu_b200 = None
 
     # ── 5. 萃取 MVRV Z-Score：匹配 "MVRV Z-Score → 2.34" 格式 ───────
     mvrv_match = re.search(r'MVRV\s*Z[-\s]?Score\s*[→\->]+\s*(-?\d+(?:\.\d+)?)', clean_text, re.IGNORECASE)
@@ -194,7 +200,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
 
     logging.info(
         f"Extracted metrics — DXY: {dxy}, ETF Flow: {etf_flow}億, "
-        f"Avg Risk: {avg_risk}, B200: ${gpu_b200}, MVRV Z: {mvrv_z}"
+        f"Avg Risk: {avg_risk}, MVRV Z: {mvrv_z}"
     )
 
     # ── 7. 寫入 BigQuery ──────────────────────────────────────────
@@ -277,11 +283,38 @@ if __name__ == "__main__":
     exclusion = fetch_exclusion_context()
     if exclusion:
         logging.info("Loaded exclusion context from previous report (to avoid duplicate news).")
-    for attempt in range(_MAX_REPORT_RETRIES + 1):
-        try:
-            research_crew = QSiliconResearchCrew()
-            final_report = str(research_crew.run(exclude_context=exclusion))
 
+    _MAX_503_RETRIES = 3
+    _503_BACKOFF_BASE = 30  # 秒
+
+    def _is_503_error(e: Exception) -> bool:
+        """偵測是否為 503 UNAVAILABLE 類型的 API 錯誤。"""
+        msg = str(e).lower()
+        return "503" in msg or "unavailable" in msg or "high demand" in msg
+
+    for attempt in range(_MAX_REPORT_RETRIES + 1):
+        run_ok = False
+        for _503_attempt in range(_MAX_503_RETRIES + 1):
+            try:
+                research_crew = QSiliconResearchCrew()
+                final_report = str(research_crew.run(exclude_context=exclusion))
+                run_ok = True
+                break
+            except Exception as e:
+                if _is_503_error(e) and _503_attempt < _MAX_503_RETRIES:
+                    wait = _503_BACKOFF_BASE * (2 **_503_attempt)
+                    logging.warning(
+                        f"503 UNAVAILABLE，{wait}s 後重試 ({_503_attempt + 1}/{_MAX_503_RETRIES + 1})：{e}"
+                    )
+                    time.sleep(wait)
+                else:
+                    final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息：{str(e)}"
+                    logging.error(f"Execution Failed: {e}")
+                    break
+        if not run_ok:
+            break
+
+        try:
             result = validate_report(final_report)
             logging.info(
                 f"[Attempt {attempt + 1}] Validation — "

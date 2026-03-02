@@ -199,11 +199,9 @@ else:
     regime_delta = "尚無數據"
     regime_color = "off"
 
-b200_val   = metrics.get("gpu_b200_price")
 mvrv_val   = metrics.get("mvrv_z_score")
 
 dxy_display = f"{dxy_val:.2f}" if dxy_val is not None else "N/A"
-b200_display = f"${b200_val:.2f} / hr" if b200_val is not None else "N/A"
 etf_display = (
     f"-${abs(etf_val):.0f}億" if etf_val is not None and etf_val < 0
     else f"+${etf_val:.0f}億" if etf_val is not None
@@ -226,27 +224,24 @@ else:
     mvrv_signal  = None
 
 delta_dxy  = metrics.get("delta_dxy")
-delta_b200 = metrics.get("delta_b200")
 delta_etf  = metrics.get("delta_etf")
 delta_mvrv = metrics.get("delta_mvrv")
 
 dxy_delta_str  = f"{delta_dxy:+.2f}" if delta_dxy is not None else None
-b200_delta_str = f"{delta_b200:+.2f}" if delta_b200 is not None else None
 etf_delta_str  = f"{delta_etf:+.1f}億" if delta_etf is not None else None
 mvrv_delta_str = f"{delta_mvrv:+.2f}" if delta_mvrv is not None else None
 
-st.subheader("市場模式總覽")
-col1, col2, col3, col4, col5 = st.columns(5)
+st.subheader("財經儀表板")
+st.caption("宏觀 → 幣圈 → AI")
+col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric(label="當前市場模式", value=regime_label, delta=regime_delta, delta_color=regime_color)
+    st.metric(label="【宏觀】ICE DXY", value=dxy_display, delta=dxy_delta_str, delta_color="inverse")
 with col2:
-    st.metric(label="ICE DXY（美元指數）", value=dxy_display, delta=dxy_delta_str, delta_color="inverse")
+    st.metric(label="【幣圈】BTC ETF 資金流", value=etf_display, delta=etf_delta_str, delta_color=etf_color)
 with col3:
-    st.metric(label="NVIDIA B200 租賃價", value=b200_display, delta=b200_delta_str, delta_color="inverse")
+    st.metric(label="【幣圈】MVRV Z-Score", value=mvrv_display, delta=mvrv_signal or mvrv_delta_str, delta_color="off")
 with col4:
-    st.metric(label="BTC ETF 資金流", value=etf_display, delta=etf_delta_str, delta_color=etf_color)
-with col5:
-    st.metric(label="MVRV Z-Score", value=mvrv_display, delta=mvrv_signal or mvrv_delta_str, delta_color="off")
+    st.metric(label="當前市場模式", value=regime_label, delta=regime_delta, delta_color=regime_color)
 
 # 最後更新時間
 if metrics.get("timestamp"):
@@ -337,21 +332,7 @@ df_trend = load_risk_trend(days=trend_days)
 if df_trend.empty:
     st.info("尚無歷史指標數據，等待第一次戰報寫入後自動顯示。")
 else:
-    tab_risk, tab_dxy, tab_etf, tab_mvrv = st.tabs(["⚠️ 平均風險分數", "💵 ICE DXY", "💸 ETF 資金流", "🔗 MVRV Z-Score"])
-    with tab_risk:
-        fig_risk = px.line(
-            df_trend, x="timestamp", y="avg_risk_score",
-            title="每日平均風險分數（RISK x/5）",
-            labels={"timestamp": "日期", "avg_risk_score": "平均風險分數"},
-            markers=True, color_discrete_sequence=[COLORS["yellow"]],
-        )
-        fig_risk.add_hline(
-            y=3.5, line_dash="dash", line_color=COLORS["red"],
-            annotation_text="Risk OFF 警戒線 (3.5)",
-            annotation_font_color=COLORS["red"],
-        )
-        fig_risk.update_layout(**_LAYOUT_KWARGS)
-        st.plotly_chart(fig_risk, use_container_width=True)
+    tab_dxy, tab_etf, tab_mvrv, tab_risk = st.tabs(["💵 宏觀 DXY", "💸 幣圈 ETF 資金流", "🔗 幣圈 MVRV", "⚠️ 影響指數"])
     with tab_dxy:
         fig_dxy = px.line(
             df_trend, x="timestamp", y="dxy",
@@ -394,6 +375,20 @@ else:
         fig_mvrv.update_layout(**_LAYOUT_KWARGS)
         st.plotly_chart(fig_mvrv, use_container_width=True)
         st.caption("MVRV Z-Score > 7：歷史頂部區域 ｜ 3~7：看漲但需留意過熱 ｜ 0~3：健康多頭 ｜ < 0：底部積累")
+    with tab_risk:
+        fig_risk = px.line(
+            df_trend, x="timestamp", y="avg_risk_score",
+            title="每日影響指數（強利空=5 … 強利多=1）",
+            labels={"timestamp": "日期", "avg_risk_score": "影響指數"},
+            markers=True, color_discrete_sequence=[COLORS["yellow"]],
+        )
+        fig_risk.add_hline(
+            y=3.5, line_dash="dash", line_color=COLORS["red"],
+            annotation_text="Risk OFF 警戒線 (3.5)",
+            annotation_font_color=COLORS["red"],
+        )
+        fig_risk.update_layout(**_LAYOUT_KWARGS)
+        st.plotly_chart(fig_risk, use_container_width=True)
 
 st.divider()
 

@@ -103,18 +103,18 @@ class BigQueryAnalyticsTool(BaseTool):
 # ═══════════════════════════════════════════════════════════════════
 
 @tool("AI Momentum Analyzer")
-def ai_momentum_tool(metric: str) -> str:
-    """獲取 AI 產業核心數據。metric 請輸入 'gpu_pricing' (H100/B200 租賃價) 或 'model_benchmarks' (排名)。"""
+def ai_momentum_tool(metric: str = "model_benchmarks") -> str:
+    """獲取 AI 產業數據。metric 請輸入 'model_benchmarks'（LMSYS 排名）或 'big_tech_capex'（Big Tech AI 資本支出）。"""
     cache_key = ("ai_momentum", metric.lower())
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
     queries = {
-        "gpu_pricing":      "current hourly rental price for NVIDIA H100 and B200 GPUs today",
-        "model_benchmarks": "latest LMSYS Chatbot Arena ELO rankings for GPT-5, Claude 4, Gemini 3"
+        "model_benchmarks": "latest LMSYS Chatbot Arena ELO rankings for GPT-5, Claude 4, Gemini 3, Llama, Mistral",
+        "big_tech_capex": "Amazon Microsoft Alphabet Google Meta AI capital expenditure 2025 data center spending billions",
     }
-    query = queries.get(metric.lower(), "latest AI compute economy")
+    query = queries.get(metric.lower(), queries["model_benchmarks"])
     try:
         client = _get_tavily_client()
         response = client.search(query=query, search_depth="basic", max_results=3)
@@ -141,30 +141,14 @@ def macro_liquidity_tool(indicator: str) -> str:
     if cached:
         return cached
 
-    if indicator_upper == "DXY":
-        try:
-            client = _get_tavily_client()
-            res = client.search(
-                query="current ICE US Dollar Index (DXY) real-time quote today",
-                search_depth="basic",
-                max_results=2,
-            )
-            result = str(res.get("results", "ICE DXY data not found."))
-            _set_cache(cache_key, result)
-            return result
-        except ValueError as e:
-            return f"Macro Tracker Failed (Tavily)。{e}"
-        except Exception as e:
-            return f"Macro Tracker Failed (Tavily ICE DXY)。詳細錯誤：{str(e)}"
-
     fred_key = os.getenv("FRED_API_KEY")
     if not fred_key:
-        return "Macro Tracker Failed (FRED)。FRED_API_KEY 未設定，無法查詢 M2 / CPI。"
+        return "Macro Tracker Failed (FRED)。FRED_API_KEY 未設定，無法查詢 DXY / M2 / CPI。"
 
-    series_map = {"M2": "M2SL", "CPI": "CPIAUCSL"}
+    series_map = {"DXY": "DTWEXBGS", "M2": "M2SL", "CPI": "CPIAUCSL"}
     series_id = series_map.get(indicator_upper)
     if not series_id:
-        return f"Macro Tracker Failed (FRED)。不支援的指標：{indicator}，僅支援 M2 與 CPI。"
+        return f"Macro Tracker Failed (FRED)。不支援的指標：{indicator}，僅支援 DXY / M2 / CPI。"
 
     url = "https://api.stlouisfed.org/fred/series/observations"
     params = {
@@ -254,61 +238,78 @@ def x_search_tool(query: str) -> str:
 # CoinGlass On-chain Data
 # ═══════════════════════════════════════════════════════════════════
 
+def _tavily_fallback_oi() -> str:
+    """CoinGlass 失敗時以 Tavily 搜尋 BTC OI 作為備援。"""
+    try:
+        client = _get_tavily_client()
+        res = client.search(
+            query="Bitcoin BTC open interest aggregated futures today billions",
+            search_depth="basic",
+            max_results=3,
+            topic="finance",
+        )
+        return f"[Tavily 備援] {str(res.get('results', []))}"
+    except Exception:
+        return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
+
+
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
     """獲取幣圈衍生品數據。metric 請輸入 'open_interest'（BTC 未平倉合約歷史）。"""
-    api_key = os.getenv("COINGLASS_API_KEY")
-    if not api_key:
-        return "CoinGlass Tool Failed：COINGLASS_API_KEY 未設定。"
-
     metric_lower = metric.lower()
+    if metric_lower != "open_interest":
+        return f"CoinGlass Tool Failed：不支援的 metric '{metric}'，目前僅支援 'open_interest'。"
+
     cache_key = ("coinglass", metric_lower)
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
-    endpoint_map = {
-        "open_interest": "https://open-api-v4.coinglass.com/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d",
-    }
-    url = endpoint_map.get(metric_lower)
-    if not url:
-        return f"CoinGlass Tool Failed：不支援的 metric '{metric}'，目前僅支援 'open_interest'。"
+    api_key = os.getenv("COINGLASS_API_KEY")
+    url = "https://open-api-v4.coinglass.com/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d"
 
-    try:
-        headers = {"accept": "application/json", "coinglassSecret": api_key}
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 403:
-            return "CoinGlass Tool Failed（HTTP 403）：API key 無效或權限不足。"
-        if response.status_code == 429:
-            return "CoinGlass Tool Failed（HTTP 429）：API 流量超限，請稍後重試。"
-        response.raise_for_status()
-        result = str(response.json().get("data", []))[:2000]
-        _set_cache(cache_key, result)
-        return result
-    except requests.RequestException:
-        return "CoinGlass Tool Failed：網路或服務異常。"
-    except Exception as e:
-        return f"CoinGlass Tool Failed: {str(e)}"
+    if api_key:
+        try:
+            headers = {"accept": "application/json", "CG-API-KEY": api_key}
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                result = str(response.json().get("data", []))[:2000]
+                if result and result != "[]":
+                    _set_cache(cache_key, result)
+                    return result
+        except Exception:
+            pass
+
+    result = _tavily_fallback_oi()
+    _set_cache(cache_key, result)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
 # CryptoQuant On-chain Data
 # ═══════════════════════════════════════════════════════════════════
 
+def _tavily_fallback_exchange_flow(indicator_lower: str) -> str:
+    """CryptoQuant 失敗時以 Tavily 搜尋 BTC 交易所資金流作為備援。"""
+    try:
+        client = _get_tavily_client()
+        q = "Bitcoin BTC exchange inflow" if indicator_lower == "inflow" else "Bitcoin BTC exchange outflow"
+        res = client.search(
+            query=f"{q} today on-chain",
+            search_depth="basic",
+            max_results=3,
+            topic="finance",
+        )
+        return f"[Tavily 備援] {str(res.get('results', []))}"
+    except Exception:
+        return "API 暫時無回應：CryptoQuant 與 Tavily 備援均失敗。"
+
+
 @tool("CryptoQuant On-chain Data")
 def cryptoquant_tool(indicator: str) -> str:
     """獲取 BTC 交易所資金流數據。indicator 請輸入 'inflow'（流入）或 'outflow'（流出）。"""
-    api_key = os.getenv("CRYPTOQUANT_API_KEY")
-    if not api_key:
-        return "CryptoQuant Tool Failed：CRYPTOQUANT_API_KEY 未設定。"
-
     indicator_lower = indicator.lower()
-    endpoint_map = {
-        "inflow":  "https://api.cryptoquant.com/v1/btc/exchange-flows/inflow?limit=1",
-        "outflow": "https://api.cryptoquant.com/v1/btc/exchange-flows/outflow?limit=1",
-    }
-    url = endpoint_map.get(indicator_lower)
-    if not url:
+    if indicator_lower not in ("inflow", "outflow"):
         return f"CryptoQuant Tool Failed：不支援的 indicator '{indicator}'，僅支援 inflow / outflow。"
 
     cache_key = ("cryptoquant", indicator_lower)
@@ -316,24 +317,26 @@ def cryptoquant_tool(indicator: str) -> str:
     if cached:
         return cached
 
-    try:
-        headers = {"Authorization": f"Bearer {api_key}"}
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 403:
-            return "CryptoQuant Tool Failed（HTTP 403）：API key 無效或權限不足。"
-        if response.status_code == 429:
-            return "CryptoQuant Tool Failed（HTTP 429）：API 流量超限，請稍後重試。"
-        response.raise_for_status()
-        data = response.json().get("result", {}).get("data", [])
-        if data:
-            value = data[0].get(indicator_lower, "N/A")
-            result = f"BTC {indicator_lower.capitalize()}: {value} BTC"
-        else:
-            result = "No data."
-        _set_cache(cache_key, result)
-        return result
-    except Exception as e:
-        return f"CryptoQuant Tool Failed: {str(e)}"
+    api_key = os.getenv("CRYPTOQUANT_API_KEY")
+    url = f"https://api.cryptoquant.com/v1/btc/exchange-flows/{indicator_lower}?limit=1"
+
+    if api_key:
+        try:
+            headers = {"Authorization": f"Bearer {api_key}"}
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json().get("result", {}).get("data", [])
+                if data:
+                    value = data[0].get(indicator_lower, "N/A")
+                    result = f"BTC {indicator_lower.capitalize()}: {value} BTC"
+                    _set_cache(cache_key, result)
+                    return result
+        except Exception:
+            pass
+
+    result = _tavily_fallback_exchange_flow(indicator_lower)
+    _set_cache(cache_key, result)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
