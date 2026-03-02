@@ -31,3 +31,12 @@ Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline tha
 - `pip install -r requirements.txt` installs to `~/.local` on this VM. Ensure `~/.local/bin` is on `PATH` (e.g. `export PATH="$HOME/.local/bin:$PATH"`) before running `streamlit` or `crewai` CLI commands.
 - The project has no `pyproject.toml` or `setup.py` — it's a flat collection of Python scripts at the repo root.
 - `crewai` pulls in many transitive dependencies (chromadb, opentelemetry, lancedb, etc.) which cause warnings about PATH but are non-blocking.
+
+### Runtime observations (from live pipeline execution)
+
+- **`python main.py` takes 15–30+ minutes** — the pipeline runs 4 sequential LLM agents (first 2 in parallel) with multiple tool calls and retries. This is expected.
+- **LiteLLM `fastapi` warning** — LiteLLM logs `ImportError: No module named 'fastapi'` in its cold storage handler. This is a cosmetic warning and does **not** block LLM calls. Do not install `litellm[proxy]` unless you need the proxy server.
+- **CryptoQuant MVRV Z-Score endpoint returns HTTP 404** — the `/v1/btc/market-data/mvrv-z-score` endpoint may have been removed or moved. The tool handles this gracefully and the pipeline continues.
+- **BigQuery tools fail without GCP credentials** — expected when `GOOGLE_APPLICATION_CREDENTIALS` or Application Default Credentials are not configured. The pipeline continues with error messages instead of data.
+- **Gemini model** (`gemini/gemini-3.1-pro-preview` in `crew.py`) — if this model name becomes invalid, the final agent will hang during its LLM call. Check Google AI Studio for current model names and update `MODEL_GEMINI` in `crew.py` accordingly.
+- **Data APIs confirmed working**: Tavily (news search), X/Twitter (tweet search), FRED (M2/DXY macro data), CoinGlass and CryptoQuant (crypto data).
