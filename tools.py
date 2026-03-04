@@ -96,14 +96,32 @@ def macro_liquidity_tool(indicator: str) -> str:
     if cached:
         return cached
 
-    fred_key = os.getenv("FRED_API_KEY")
-    if not fred_key:
-        return "Macro Tracker Failed (FRED)。FRED_API_KEY 未設定，無法查詢 DXY / M2 / CPI。"
+    # DXY：改用 Tavily 搜尋即時 ICE DXY（避免 FRED DTWEXBGS 廣義美元指數數值異常）
+    if indicator_upper == "DXY":
+        try:
+            client = _get_tavily_client()
+            response = client.search(
+                query="current ICE US Dollar Index (DXY) real-time quote today",
+                search_depth="basic",
+                max_results=2,
+            )
+            result = str(response.get("results", []))
+            _set_cache(cache_key, result)
+            return result
+        except ValueError as e:
+            return f"Macro Tracker Failed (Tavily ICE DXY)：{e}"
+        except Exception:
+            return "Macro Tracker Failed (Tavily ICE DXY)：無法取得即時 DXY 報價。"
 
-    series_map = {"DXY": "DTWEXBGS", "M2": "M2SL", "CPI": "CPIAUCSL"}
+    # M2 / CPI：使用 FRED API
+    series_map = {"M2": "M2SL", "CPI": "CPIAUCSL"}
     series_id = series_map.get(indicator_upper)
     if not series_id:
-        return f"Macro Tracker Failed (FRED)。不支援的指標：{indicator}，僅支援 DXY / M2 / CPI。"
+        return f"Macro Tracker Failed。不支援的指標：{indicator}，僅支援 DXY / M2 / CPI。"
+
+    fred_key = os.getenv("FRED_API_KEY")
+    if not fred_key:
+        return "Macro Tracker Failed (FRED)。FRED_API_KEY 未設定，無法查詢 M2 / CPI。"
 
     url = "https://api.stlouisfed.org/fred/series/observations"
     params = {
@@ -199,6 +217,51 @@ def _tavily_fallback_oi() -> str:
         client = _get_tavily_client()
         res = client.search(
             query="Bitcoin BTC open interest aggregated futures today billions",
+            search_depth="basic",
+            max_results=3,
+            topic="finance",
+        )
+        return f"[Tavily 備援] {str(res.get('results', []))}"
+    except Exception:
+        return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
+
+
+def _tavily_fallback_funding_rate() -> str:
+    """CoinGlass 失敗時以 Tavily 搜尋 BTC 資金費率作為備援。"""
+    try:
+        client = _get_tavily_client()
+        res = client.search(
+            query="Bitcoin BTC current funding rate binance today",
+            search_depth="basic",
+            max_results=3,
+            topic="finance",
+        )
+        return f"[Tavily 備援] {str(res.get('results', []))}"
+    except Exception:
+        return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
+
+
+def _tavily_fallback_liquidations() -> str:
+    """CoinGlass 失敗時以 Tavily 搜尋 BTC 爆倉數據作為備援。"""
+    try:
+        client = _get_tavily_client()
+        res = client.search(
+            query="Bitcoin BTC total liquidations past 24 hours crypto market",
+            search_depth="basic",
+            max_results=3,
+            topic="finance",
+        )
+        return f"[Tavily 備援] {str(res.get('results', []))}"
+    except Exception:
+        return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
+
+
+def _tavily_fallback_long_short_ratio() -> str:
+    """CoinGlass 失敗時以 Tavily 搜尋 BTC 大戶多空比作為備援。"""
+    try:
+        client = _get_tavily_client()
+        res = client.search(
+            query="Bitcoin BTC top trader long short ratio binance today",
             search_depth="basic",
             max_results=3,
             topic="finance",
@@ -305,10 +368,14 @@ def coinglass_data_tool(metric: str) -> str:
         except Exception:
             pass
 
-    if metric_lower == "open_interest":
-        result = _tavily_fallback_oi()
-    else:
-        result = f"CoinGlass Tool Failed：{metric} API 暫無回應或 COINGLASS_API_KEY 未設定。"
+    # CoinGlass 失敗或無 API key：依 metric 呼叫對應 Tavily 備援
+    fallbacks = {
+        "open_interest": _tavily_fallback_oi,
+        "funding_rate": _tavily_fallback_funding_rate,
+        "liquidations": _tavily_fallback_liquidations,
+        "long_short_ratio": _tavily_fallback_long_short_ratio,
+    }
+    result = fallbacks[metric_lower]()
     _set_cache(cache_key, result)
     return result
 
@@ -504,40 +571,43 @@ def ml_quant_tool() -> str:
         return f"ML Quant Tool Failed：CoinGecko 取得 BTC 價格失敗（{e}）。"
 
     # 3. 合併
-    merged = df_ind.join(df_btc, how="inner")
-    if merged.empty or len(merged) < 30:
-        return "ML Quant Tool Failed：指標與 BTC 價格無法對齊，數據不足。"
+    try:
+        merged = df_ind.join(df_btc, how="inner")
+        if merged.empty or len(merged) < 30:
+            return "ML Quant Tool Failed：指標與 BTC 價格無法對齊，數據不足。"
 
-    merged = merged.rename(columns={
-        "etf_flow_millions": "etf_flow",
-        "avg_risk_score": "risk_score",
-        "mvrv_z_score": "mvrv_z",
-    })
+        merged = merged.rename(columns={
+            "etf_flow_millions": "etf_flow",
+            "avg_risk_score": "risk_score",
+            "mvrv_z_score": "mvrv_z",
+        })
 
-    # 4. 最佳化權重
-    opt = optimize_ml_weights(merged)
-    weights = opt.get("weights", {})
-    sharpe = opt.get("sharpe", 0.0)
+        # 4. 最佳化權重
+        opt = optimize_ml_weights(merged)
+        weights = opt.get("weights", {})
+        sharpe = opt.get("sharpe", 0.0)
 
-    # 5. 最新訊號
-    signal_dict = get_latest_ml_signal(merged, weights)
-    momentum = signal_dict.get("momentum_score", 0.0)
-    sig = signal_dict.get("signal", "建議避險")
+        # 5. 最新訊號
+        signal_dict = get_latest_ml_signal(merged, weights)
+        momentum = signal_dict.get("momentum_score", 0.0)
+        sig = signal_dict.get("signal", "建議避險")
 
-    w_dxy = weights.get("dxy", 0.25) * 100
-    w_etf = weights.get("etf_flow", 0.25) * 100
-    w_risk = weights.get("risk", 0.25) * 100
-    w_mvrv = weights.get("mvrv", 0.25) * 100
+        w_dxy = weights.get("dxy", 0.25) * 100
+        w_etf = weights.get("etf_flow", 0.25) * 100
+        w_risk = weights.get("risk", 0.25) * 100
+        w_mvrv = weights.get("mvrv", 0.25) * 100
 
-    result = (
-        f"ML 模型已完成過去 365 天回測最佳化。"
-        f"當前最佳權重配比為 DXY: {w_dxy:.1f}%, ETF: {w_etf:.1f}%, RISK: {w_risk:.1f}%, MVRV: {w_mvrv:.1f}%。"
-        f"歷史 Sharpe Ratio：{sharpe}。"
-        f"今日系統綜合動能分數為 {momentum}，"
-        f"量化模型強烈建議：【{sig}】。"
-    )
-    _set_cache(cache_key, result)
-    return result
+        result = (
+            f"ML 模型已完成過去 365 天回測最佳化。"
+            f"當前最佳權重配比為 DXY: {w_dxy:.1f}%, ETF: {w_etf:.1f}%, RISK: {w_risk:.1f}%, MVRV: {w_mvrv:.1f}%。"
+            f"歷史 Sharpe Ratio：{sharpe}。"
+            f"今日系統綜合動能分數為 {momentum}，"
+            f"量化模型強烈建議：【{sig}】。"
+        )
+        _set_cache(cache_key, result)
+        return result
+    except Exception as e:
+        return f"ML 模型執行失敗：{str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════
