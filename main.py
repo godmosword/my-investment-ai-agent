@@ -10,11 +10,26 @@ from google.cloud import bigquery
 from config import PROJECT_ID, METRICS_TABLE
 from crew import QSiliconResearchCrew
 
-# 載入環境變數
 load_dotenv()
 
-# 設定日誌
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# 日誌等級：LOG_LEVEL=DEBUG 或 DEBUG=1 可開啟除錯
+_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+if os.getenv("DEBUG", "").lower() in ("1", "true", "yes"):
+    _log_level = "DEBUG"
+logging.basicConfig(level=getattr(logging, _log_level, logging.INFO), format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+# 除錯與乾跑開關（方便本地測試）
+SKIP_TELEGRAM = os.getenv("SKIP_TELEGRAM", "").lower() in ("1", "true", "yes")
+SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
+
+# 重試常數（集中管理，方便調參）
+MAX_REPORT_RETRIES = int(os.getenv("MAX_REPORT_RETRIES", "2"))
+MAX_503_RETRIES = int(os.getenv("MAX_503_RETRIES", "3"))
+BACKOFF_BASE_SEC = int(os.getenv("BACKOFF_BASE_SEC", "30"))
+ERROR_PREFIX = "🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息："
+
+# 除錯用環境變數：LOG_LEVEL=DEBUG | DEBUG=1 | CREW_VERBOSE=1（Agent 步驟）| SKIP_TELEGRAM=1 | SKIP_BIGQUERY=1
 
 # Telegram HTML 支援的標籤白名單
 _ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "blockquote"}
@@ -52,11 +67,11 @@ def validate_report(text: str) -> dict:
     news_count  = len(re.findall(r'〔新聞', text))
     tweet_count = len(re.findall(r'〔推文', text))
     has_regime  = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
-    has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|LMSYS|模型排名', text, re.IGNORECASE))
+    has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|OpenRouter|模型排名|模型熱度', text, re.IGNORECASE))
 
     issues = []
-    if news_count < 12:
-        issues.append(f"新聞數不足（{news_count}/12，幣圈 3 則 + AI 三部分各 3 則）")
+    if news_count < 6:
+        issues.append(f"新聞數不足（{news_count}/6，每區塊各 3 則）")
     if tweet_count < 10:
         issues.append(f"推文數不足（{tweet_count}/10，每區塊各 5 則）")
     if not has_regime:
@@ -129,14 +144,14 @@ def _send_telegram_report(text: str, token: str, chat_id: str) -> None:
                 bot.send_message(chat_id, chunk, parse_mode="HTML", timeout=60)
                 break
             except Exception as e:
-                logging.warning("Telegram send failed (attempt %d): %s", attempt + 1, e)
+                logger.warning("Telegram send failed (attempt %d): %s", attempt + 1, e)
                 if attempt < 2:
                     time.sleep(5)
                 else:
                     try:
                         bot.send_message(chat_id, strip_html(chunk), timeout=60)
                     except Exception as final_e:
-                        logging.error("Fallback failed: %s", final_e)
+                        logger.error("Fallback failed: %s", final_e)
 
 
 def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> None:
@@ -195,12 +210,12 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     mvrv_z = _safe_float(mvrv_match)
 
     # ── 6. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
-    grok_summary = _extract_section(clean_text, "【幣圈新聞】")
-    gpt_summary  = _extract_section(clean_text, "【AI 基建現況】")
+    grok_summary = _extract_section(clean_text, "【幣圈情報】")
+    gpt_summary  = _extract_section(clean_text, "【AI 產業情報】")
 
-    logging.info(
-        f"Extracted metrics — DXY: {dxy}, ETF Flow: {etf_flow}億, "
-        f"Avg Risk: {avg_risk}, MVRV Z: {mvrv_z}"
+    logger.info(
+        "Extracted metrics — DXY: %s, ETF Flow: %s億, Avg Risk: %s, MVRV Z: %s",
+        dxy, etf_flow, avg_risk, mvrv_z,
     )
 
     # ── 7. 寫入 BigQuery ──────────────────────────────────────────
@@ -227,10 +242,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         if missing_fields:
             table.schema = list(table.schema) + missing_fields
             client.update_table(table, ["schema"])
-            logging.info(
-                "Added missing BigQuery columns: %s",
-                ", ".join(field.name for field in missing_fields),
-            )
+            logger.info("Added missing BigQuery columns: %s", ", ".join(f.name for f in missing_fields))
 
         row = {
             "timestamp":         datetime.now(timezone.utc).isoformat(),
@@ -244,11 +256,11 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         }
         errors = client.insert_rows_json(metrics_table, [row])
         if errors:
-            logging.error(f"BigQuery insert errors: {errors}")
+            logger.error("BigQuery insert errors: %s", errors)
         else:
-            logging.info("Daily metrics written to BigQuery successfully.")
+            logger.info("Daily metrics written to BigQuery successfully.")
     except Exception as e:
-        logging.error(f"Failed to write metrics to BigQuery: {e}")
+        logger.error("Failed to write metrics to BigQuery: %s", e)
 
 
 def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = METRICS_TABLE) -> str | None:
@@ -272,86 +284,92 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
             s = s[:1200] + "\n…[truncated]"
         return s
     except Exception as e:
-        logging.warning(f"Could not fetch exclusion context from BigQuery: {e}")
+        logger.warning("Could not fetch exclusion context from BigQuery: %s", e)
         return None
 
 
-if __name__ == "__main__":
-    logging.info("Initializing Q-Silicon Ultimate Agent...")
+def _is_503(e: Exception) -> bool:
+    """是否為 503 / 暫時不可用類錯誤（可重試）。"""
+    msg = str(e).lower()
+    return "503" in msg or "unavailable" in msg or "high demand" in msg
 
-    _MAX_REPORT_RETRIES = 2
+
+def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | None]:
+    """執行一輪 Crew 產報，回傳 (報告文字, 若失敗則為 Exception)。"""
+    try:
+        crew = QSiliconResearchCrew()
+        report = str(crew.run(exclude_context=exclude_context))
+        return report, None
+    except Exception as e:
+        return "", e
+
+
+def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
+    """
+    帶 503 退避與驗證重試的產報流程。回傳 (final_report, report_valid)。
+    """
     final_report = ""
     report_valid = False
+    for attempt in range(MAX_REPORT_RETRIES + 1):
+        last_err: Exception | None = None
+        for step in range(MAX_503_RETRIES + 1):
+            report, err = _run_pipeline_once(exclude_context)
+            if err is None:
+                final_report = report
+                last_err = None
+                break
+            last_err = err
+            if _is_503(err) and step < MAX_503_RETRIES:
+                wait = BACKOFF_BASE_SEC * (2**step)
+                logger.warning("503/暫時不可用，%ds 後重試 (%d/%d)：%s", wait, step + 1, MAX_503_RETRIES + 1, err)
+                time.sleep(wait)
+            else:
+                logger.error("Execution failed: %s", err)
+                final_report = f"{ERROR_PREFIX}{err}"
+                break
+        if last_err is not None:
+            break
 
+        result = validate_report(final_report)
+        report_valid = result["valid"]
+        logger.info(
+            "[Attempt %d] Validation — news=%d, tweets=%d, valid=%s",
+            attempt + 1, result["news_count"], result["tweet_count"], report_valid,
+        )
+        if report_valid:
+            logger.info("Report generation successful.")
+            return final_report, True
+        logger.warning("Report incomplete: %s", result["issues"])
+        if logger.isEnabledFor(logging.DEBUG) and final_report:
+            logger.debug("Report snippet (first 500 chars): %s", final_report[:500].replace("\n", " "))
+        if attempt < MAX_REPORT_RETRIES:
+            logger.info("Retrying report generation (%d/%d)...", attempt + 2, MAX_REPORT_RETRIES + 1)
+
+    if final_report and not final_report.startswith("🚨"):
+        logger.warning("Sending report despite validation issues (retries exhausted).")
+    return final_report, report_valid
+
+
+if __name__ == "__main__":
+    logger.info("Initializing Q-Silicon Ultimate Agent...")
     exclusion = fetch_exclusion_context()
     if exclusion:
-        logging.info("Loaded exclusion context from previous report (to avoid duplicate news).")
+        logger.info("Loaded exclusion context from previous report (to avoid duplicate news).")
 
-    _MAX_503_RETRIES = 3
-    _503_BACKOFF_BASE = 30  # 秒
+    final_report, report_valid = run_pipeline_with_retries(exclusion)
 
-    def _is_503_error(e: Exception) -> bool:
-        """偵測是否為 503 UNAVAILABLE 類型的 API 錯誤。"""
-        msg = str(e).lower()
-        return "503" in msg or "unavailable" in msg or "high demand" in msg
-
-    for attempt in range(_MAX_REPORT_RETRIES + 1):
-        run_ok = False
-        for _503_attempt in range(_MAX_503_RETRIES + 1):
-            try:
-                research_crew = QSiliconResearchCrew()
-                final_report = str(research_crew.run(exclude_context=exclusion))
-                run_ok = True
-                break
-            except Exception as e:
-                if _is_503_error(e) and _503_attempt < _MAX_503_RETRIES:
-                    wait = _503_BACKOFF_BASE * (2 **_503_attempt)
-                    logging.warning(
-                        f"503 UNAVAILABLE，{wait}s 後重試 ({_503_attempt + 1}/{_MAX_503_RETRIES + 1})：{e}"
-                    )
-                    time.sleep(wait)
-                else:
-                    final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息：{str(e)}"
-                    logging.error(f"Execution Failed: {e}")
-                    break
-        if not run_ok:
-            break
-
-        try:
-            result = validate_report(final_report)
-            logging.info(
-                f"[Attempt {attempt + 1}] Validation — "
-                f"news={result['news_count']}, tweets={result['tweet_count']}, "
-                f"valid={result['valid']}"
-            )
-
-            if result["valid"]:
-                logging.info("Report Generation Successful.")
-                report_valid = True
-                break
-            else:
-                logging.warning(f"Report incomplete: {result['issues']}")
-                if attempt < _MAX_REPORT_RETRIES:
-                    logging.info(f"Retrying report generation (attempt {attempt + 2}/{_MAX_REPORT_RETRIES + 1})...")
-
-        except Exception as e:
-            final_report = f"🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息：{str(e)}"
-            logging.error(f"Execution Failed: {e}")
-            break
-
-    if not report_valid and final_report and not final_report.startswith("🚨"):
-        logging.warning("Sending report despite validation issues (all retries exhausted).")
-
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
-    if token and chat_id:
-        _send_telegram_report(final_report, token, chat_id)
+    if not SKIP_TELEGRAM:
+        token, chat_id = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+        if token and chat_id:
+            _send_telegram_report(final_report, token, chat_id)
+        else:
+            logger.warning("Telegram configuration missing. Skipping push.")
     else:
-        logging.warning("Telegram configuration missing. Skipping push.")
+        logger.info("SKIP_TELEGRAM=1: skipping Telegram push.")
 
-    # 每日戰報指標寫入 BigQuery（僅在戰報正常產出時執行，避免寫入空值污染 delta）
-    if final_report and not final_report.startswith("🚨"):
+    if not SKIP_BIGQUERY and final_report and not final_report.startswith("🚨"):
         extract_and_save_metrics(final_report)
-    else:
-        logging.warning("Skipping BigQuery metrics write — report is an error message.")
+    elif SKIP_BIGQUERY:
+        logger.info("SKIP_BIGQUERY=1: skipping metrics write.")
+    elif not final_report or final_report.startswith("🚨"):
+        logger.warning("Skipping BigQuery metrics write — report is an error or empty.")

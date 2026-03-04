@@ -3,6 +3,9 @@ from datetime import datetime, timezone, timedelta
 from textwrap import dedent
 from crewai import Agent, Task, Crew, Process, LLM
 
+# 除錯：CREW_VERBOSE=1 時 Agent 會輸出 tool 呼叫與步驟，方便排查
+_VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
+
 # LLM 模型常數（便於統一升級版本）
 MODEL_GROK   = "xai/grok-4-1-fast-reasoning"
 MODEL_GPT    = "openai/gpt-5.2-chat-latest"
@@ -66,7 +69,7 @@ class QSiliconResearchCrew:
             llm=grok_latest,
             tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool,
                    coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, yfinance_macro_tool],
-            verbose=False
+            verbose=_VERBOSE
         )
 
         self.ai_researcher = Agent(
@@ -75,7 +78,7 @@ class QSiliconResearchCrew:
             backstory="華爾街科技股做空機構分析師，緊盯 AI 基礎設施的經濟效益與資本支出疲勞的早期信號。對每一波技術熱潮都保持健康的懷疑，但不放過真正的突破性進展。",
             llm=gpt_latest,
             tools=[market_search_tool, x_search_tool, ai_momentum_tool, rumor_scanner_tool],
-            verbose=False
+            verbose=_VERBOSE
         )
 
         self.risk_critic = Agent(
@@ -85,7 +88,7 @@ class QSiliconResearchCrew:
             llm=claude_latest,
             allow_delegation=False,
             tools=[yfinance_tool],
-            verbose=False
+            verbose=_VERBOSE
         )
 
         self.quant_strategist = Agent(
@@ -94,7 +97,7 @@ class QSiliconResearchCrew:
             backstory="負責最終整合與排版的機構主編，確保每一個判斷都有依據，每一個觀點都有對立面的檢驗。",
             llm=gemini_latest,
             tools=[coinglass_data_tool, cryptoquant_tool, ml_quant_tool],
-            verbose=False
+            verbose=_VERBOSE
         )
 
     def run(self, exclude_context: str | None = None):
@@ -163,12 +166,16 @@ class QSiliconResearchCrew:
                 【AI 市場情報收集任務 — GPT 執行】
                 {_excl}
                 === 數據參考 ===
-                1. 呼叫 ai_momentum_tool（'model_benchmarks'）取得最新 LMSYS 模型排名前三名。
-                2. 呼叫 ai_momentum_tool（'big_tech_capex'）取得 Amazon / Microsoft / Alphabet / Meta AI 資本支出規模。
+                1. 呼叫 ai_momentum_tool（'openrouter_rankings'）取得 OpenRouter 平台最新的模型使用量或熱門排名（供報告中 AI 數據參考區塊使用）。
 
                 === 第一部分：AI 基建現況（強制 3 則新聞）===
-                聚焦：資料中心、GPU/TPU 晶片、算力基礎設施、電力與散熱技術。
-                呼叫 market_search_tool 搜尋：'AI data center GPU NVIDIA infrastructure investment 2025'。
+                聚焦：資料中心、GPU/TPU 晶片、算力基礎設施、電力與散熱技術；並強制涵蓋深水區產業：資料中心材料、電力供應（power / nuclear）、散熱技術（cooling）、能源基建。
+                必須執行以下搜尋（至少各呼叫一次）：
+                - market_search_tool：'AI data center GPU NVIDIA infrastructure investment 2025'
+                - market_search_tool：'data center power supply nuclear energy AI 2025'
+                - market_search_tool：'AI data center cooling thermal technology 2025'
+                - market_search_tool 或 rumor_scanner_tool：'data center materials semiconductor supply chain AI infrastructure'
+                從以上搜尋結果中挑選 3 則最具代表性的新聞，需涵蓋 GPU/大廠之外至少一則與電力、散熱或材料/能源基建相關。
                 每則新聞輸出格式：
                 〔新聞 N〕標題
                 來源：xxx｜性質：confirmed / likely / unverified rumor
@@ -204,7 +211,7 @@ class QSiliconResearchCrew:
 
                 嚴禁捏造未出現於來源中的事實。
             """),
-            expected_output="包含 LMSYS 排名與 Big Tech CapEx 數據、三個部分各 3 則 AI 新聞（含 GPT 利多/利空分析）、5 則 AI 推文（含簡述與 GPT 利多/利空觀點）的結構化初稿。",
+            expected_output="包含 OpenRouter 模型熱度排名數據、三個部分各 3 則 AI 新聞（含 GPT 利多/利空分析，第一部分需涵蓋電力/散熱/材料或能源基建至少一則）、5 則 AI 推文（含簡述與 GPT 利多/利空觀點）的結構化初稿。",
             agent=self.ai_researcher
         )
 
@@ -215,6 +222,12 @@ class QSiliconResearchCrew:
             description=dedent("""
                 【跨域辯論與風險審計任務 — Claude 執行】
                 你已收到 Grok 的加密市場分析與 GPT 的 AI 市場分析。
+
+                === 數據即時性與事實查核（Fact-Check，強制執行）===
+                你必須檢視所有宏觀與幣圈儀表板數據（DXY、M2、MVRV、資金費率、爆倉、多空比、VIX、IBIT、ETF flow 等）。
+                - 若判斷某項數據明顯滯後（資料時間戳或可推斷的更新時間超過 12 小時），必須在背景備忘錄中強制標記「數據失真警告：［指標名稱］數據滯後」。
+                - 若出現極端異常值（例如 DXY 數值錯亂、與合理區間嚴重不符），必須在背景備忘錄中強制標記「數據失真警告：［指標名稱］數值異常」。
+                這些標記將交由主編過濾，主編可選擇在最終戰報中註明或省略，但你在審計階段必須如實記錄。
 
                 === 傳統金融 Risk Off 訊號（強制執行）===
                 呼叫 yfinance_tool（symbol='^VIX'）取得 VIX 最新指數與日漲跌幅。
@@ -256,7 +269,7 @@ class QSiliconResearchCrew:
                 【衍生品槓桿共振】
                 散戶過度槓桿做多（高資金費率 + 高 OI）→ 即使無 FUD 也判定 risk_off。
             """),
-            expected_output="包含 VIX/IBIT 數據判定、幣圈 3 新聞與 5 推文的 Claude 辯論觀點、AI 三部分 9 新聞與 5 推文的 Claude 辯論觀點，以及 market_regime 與 3 個驅動因子的完整審計報告。",
+            expected_output="包含數據即時性與事實查核備忘錄（含任何「數據失真警告」標記）、VIX/IBIT 數據判定、幣圈 3 新聞與 5 推文的 Claude 辯論觀點、AI 三部分 9 新聞與 5 推文的 Claude 辯論觀點，以及 market_regime 與 3 個驅動因子的完整審計報告。",
             agent=self.risk_critic,
             context=[crypto_task, ai_task]
         )
@@ -280,9 +293,10 @@ class QSiliconResearchCrew:
                 ② GPT 的 AI 市場分析（三部分各 3 新聞 + 5 推文，含 GPT 利多/利空）
                 ③ Claude 的辯論審計（每則新聞/推文的 Claude 觀點 + VIX/IBIT + market_regime）
 
-                對每則新聞與推文，你必須：
-                1. 呈現各 Agent 的多方討論（Grok/GPT 提供利多利空，Claude 提供辯論觀點）
-                2. 加上 💎 Gemini 共識結論（綜合各方，給出明確判斷）
+                【主編共識原則 — 最高優先級】
+                你必須在背景仔細閱讀 Grok/GPT 的多空分析以及 Claude 的毒舌辯論，然後將這些爭論濃縮提煉成「一句話的絕對共識」填入【主編共識】中。
+                大佬不想看你們吵架的過程，只要結論。因此最終戰報中，每一則新聞與推文下方「只允許保留一行」：💎 <b>主編共識</b>：（你的共識句）。
+                嚴禁在戰報正文中呈現 🛸 Grok、🤖 GPT、🛡️ Claude 的個別觀點欄位；這些僅供你在背景綜合後產出主編共識。
 
                 ════ Telegram HTML 格式規範（最高優先級）════
                 僅允許：<b>、<i>、<u>、<s>、<code>、<blockquote>
@@ -293,11 +307,12 @@ class QSiliconResearchCrew:
                 條列：「· 」開頭；數值變動用「→」與「↑ / ↓」；推文原文用 <blockquote>；數值用 <code>。
 
                 ════【終極排版警告】════
-                ① 所有【區塊標題】與 Agent 署名，一律用 <b>...</b> 包覆。
+                ① 所有【區塊標題】與「主編共識」署名，一律用 <b>...</b> 包覆。
                 ② 所有數值數據與 IMPACT 標籤行，一律用 <code>...</code> 包覆。
                 ③ 所有推文原文，一律用 <blockquote>...</blockquote> 包覆。
-                ④ 嚴禁使用 HORIZON 標籤！
-                如漏掉任何 HTML 標籤，報告視為失敗，必須重新生成！
+                ④ 嚴禁在每則新聞/推文下呈現 🛸 Grok、🤖 GPT、🛡️ Claude 個別觀點；僅允許 💎 <b>主編共識</b>：一行。
+                ⑤ 嚴禁使用 HORIZON 標籤！
+                如漏掉任何 HTML 標籤或違反主編共識唯一呈現原則，報告視為失敗，必須重新生成！
 
                 ════ 戰報結構（嚴格依序輸出）════
 
@@ -334,28 +349,23 @@ class QSiliconResearchCrew:
                 ────────────
 
                 <b>【幣圈新聞】</b>
-                依序列出 3 則幣圈新聞，每則格式：
+                依序列出 3 則幣圈新聞，每則格式（僅主編共識，不呈現個別 Agent 觀點）：
 
                 〔新聞 N〕<b>新聞標題</b>
                 來源：xxx｜性質：<i>confirmed / likely / unverified rumor</i>
                 摘要：（1~2 句）
-                🛸 <b>Grok 利多</b>：（1 句）
-                🛸 <b>Grok 利空</b>：（1 句）
-                🛡️ <b>Claude</b>：（辯論觀點 1~2 句）
-                <code>IMPACT: xxx | NARRATIVE: xxx</code>
-                💎 <b>Gemini 結論</b>：（綜合各方觀點，給出共識判斷 1 句）
+                <code>IMPACT: 強利空/弱利空/中性/弱利多/強利多 | NARRATIVE: xxx</code>
+                💎 <b>主編共識</b>：（將背景多空辯論濃縮為一句話的最終決策判斷）
 
                 ────────────
 
                 <b>【幣圈推文討論】</b>
-                依序列出 5 則推文，每則格式：
+                依序列出 5 則推文，每則格式（僅主編共識，不呈現個別 Agent 觀點）：
 
                 〔推文 N〕<blockquote>推文原文</blockquote>
                 簡述：（一句話說明推文主張）
-                🛸 <b>Grok 利多</b>：（1 句）｜🛸 <b>Grok 利空</b>：（1 句）
-                🛡️ <b>Claude</b>：（1 句）
-                <code>IMPACT: xxx | NARRATIVE: xxx</code>
-                💎 <b>Gemini 結論</b>：（1 句共識）
+                <code>IMPACT: 強利空/弱利空/中性/弱利多/強利多 | NARRATIVE: xxx</code>
+                💎 <b>主編共識</b>：（將背景多空辯論濃縮為一句話的最終決策判斷）
 
                 ────────────
 
@@ -363,40 +373,36 @@ class QSiliconResearchCrew:
                 ────────────
 
                 <b>【AI 數據參考】</b>
-                · LMSYS 模型排名 → （前三名）
-                · Big Tech AI 資本支出 → （Amazon / Microsoft / Alphabet / Meta 近期趨勢）
+                · OpenRouter 模型熱度排名 → （前三名或前五名，依 ai_momentum_tool 回傳整理）
                 ────────────
 
                 <b>【AI 基建現況】</b>
-                依序列出 3 則新聞，每則格式：
+                依序列出 3 則新聞，每則格式（僅主編共識，不呈現個別 Agent 觀點）：
 
                 〔新聞 N〕<b>新聞標題</b>
                 來源：xxx｜性質：<i>confirmed / likely / unverified rumor</i>
                 摘要：（1~2 句）
-                🤖 <b>GPT 利多</b>：（1 句）
-                🤖 <b>GPT 利空</b>：（1 句）
-                🛡️ <b>Claude</b>：（辯論觀點 1~2 句）
-                <code>IMPACT: xxx | NARRATIVE: xxx</code>
-                💎 <b>Gemini 結論</b>：（1 句共識）
+                <code>IMPACT: 強利空/弱利空/中性/弱利多/強利多 | NARRATIVE: xxx</code>
+                💎 <b>主編共識</b>：（將背景多空辯論濃縮為一句話的最終決策判斷）
 
                 ────────────
 
                 <b>【AI 投資案】</b>
-                （格式與 AI 基建現況相同，列出 3 則新聞）
+                （格式與 AI 基建現況相同：標題、來源、性質、摘要、IMPACT 標籤、💎 主編共識；列出 3 則新聞）
                 ────────────
 
                 <b>【最新 AI 模型】</b>
-                （格式與 AI 基建現況相同，列出 3 則新聞；摘要必須包含模型核心特色與技術突破點）
+                （格式與 AI 基建現況相同；摘要必須包含模型核心特色與技術突破點；列出 3 則新聞）
                 ────────────
 
                 <b>【AI 推文討論】</b>
-                （聚焦：新 AI 應用落地、MCP 發展、Agent 框架進展；格式與幣圈推文相同，5 則）
+                （聚焦：新 AI 應用落地、MCP 發展、Agent 框架進展；格式與幣圈推文相同：<blockquote>推文原文</blockquote>、簡述、IMPACT 標籤、💎 主編共識；5 則）
 
                 ────────────
                 ════ 嚴禁刪減！加密市場 3 則新聞 + 5 則推文、AI 市場各部分 3 則新聞 + 5 則推文，必須完整保留！════
                 ════ 嚴禁使用 HORIZON 標籤！嚴禁使用任何 Markdown 符號！════
             """),
-            expected_output="一份完整的 Q-Silicon 戰報：加密市場區塊（數據儀表板 + 3 幣圈新聞 + 5 推文，每則含多 Agent 討論與 Gemini 共識）+ AI 市場區塊（基建/投資/模型各 3 新聞 + 5 推文，每則含多 Agent 討論與 Gemini 共識），符合 Telegram HTML 格式。",
+            expected_output="一份完整的 Q-Silicon 戰報：加密市場區塊（數據儀表板 + 3 幣圈新聞 + 5 推文，每則僅含 IMPACT 標籤與 💎 主編共識）+ AI 市場區塊（OpenRouter 模型熱度排名 + 基建/投資/模型各 3 新聞 + 5 推文，每則僅含 IMPACT 標籤與 💎 主編共識），符合 Telegram HTML 格式，不呈現個別 Agent 觀點。",
             agent=self.quant_strategist,
             context=[crypto_task, ai_task, review_task]
         )
