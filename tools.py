@@ -1,7 +1,9 @@
 import os
 import time
-import requests
 from urllib.parse import quote
+
+import requests
+import yfinance as yf
 from crewai.tools import tool
 from google.cloud import bigquery
 
@@ -83,7 +85,7 @@ def ai_momentum_tool(metric: str = "model_benchmarks") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Macro Liquidity Tracker
+# Macro Liquidity Tracker（FRED）
 # ═══════════════════════════════════════════════════════════════════
 
 @tool("Macro Liquidity Tracker")
@@ -152,6 +154,76 @@ def macro_liquidity_tool(indicator: str) -> str:
         return "Macro Tracker Failed (FRED)。網路或服務異常。"
     except Exception:
         return "Macro Tracker Failed (FRED)。發生未預期錯誤。"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# YFinance Macro & ETF Data（VIX / 美股 ETF 成交額 proxy）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("YFinance Macro & ETF Data")
+def yfinance_macro_tool(metric: str = "vix") -> str:
+    """
+    使用 yfinance 取得 VIX 與美股 ETF 成交額 proxy：
+    - metric='vix'      → 回傳最新 VIX 指數與日變化。
+    - metric='etf_flow' → 使用 SPY / QQQ 的「成交額 vs 5 日均值」作為資金流向近似指標。
+    """
+    key = metric.lower()
+    cache_key = ("yfinance", key)
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    try:
+        if key == "vix":
+            df = yf.download("^VIX", period="5d", interval="1d", progress=False)
+            if df.empty:
+                return "YFinance：無法取得 VIX 資料。"
+            latest = df["Close"].iloc[-1]
+            prev = df["Close"].iloc[-2] if len(df) > 1 else latest
+            change = latest - prev
+            pct = (change / prev * 100) if prev else 0.0
+            result = f"VIX 最新指數為 {latest:.2f}，日變化 {change:+.2f}（{pct:+.2f}%）。數值愈高代表市場恐慌與避險需求升溫。"
+        elif key == "etf_flow":
+            tickers = ["SPY", "QQQ"]
+            df = yf.download(" ".join(tickers), period="6d", interval="1d", progress=False, group_by="ticker")
+            if df.empty:
+                return "YFinance：無法取得 SPY / QQQ 資料。"
+
+            lines: list[str] = []
+            for t in tickers:
+                try:
+                    sub = df[t].dropna()
+                    if sub.empty or len(sub) < 3:
+                        continue
+                    latest = sub.iloc[-1]
+                    prev5 = sub.iloc[:-1].tail(5)
+                    dollar_vol_today = float(latest["Close"]) * float(latest["Volume"])
+                    dollar_vol_avg5 = float((prev5["Close"] * prev5["Volume"]).mean())
+                    if dollar_vol_avg5 <= 0:
+                        continue
+                    ratio = dollar_vol_today / dollar_vol_avg5
+                    if ratio > 1.2:
+                        direction = "明顯放量（資金關注度升高）"
+                    elif ratio < 0.8:
+                        direction = "低於近 5 日均值（資金關注度降溫）"
+                    else:
+                        direction = "接近近 5 日均值（資金流向中性）"
+                    lines.append(
+                        f"{t} 今日預估成交額約為 {dollar_vol_today/1e9:.2f}B，約為近 5 日均額的 {ratio:.2f} 倍，{direction}。"
+                    )
+                except Exception:
+                    continue
+
+            if not lines:
+                return "YFinance：ETF 成交額 proxy 計算失敗或資料不足。"
+            result = "；".join(lines)
+        else:
+            return "YFinance Tool Failed：metric 僅支援 'vix' 或 'etf_flow'。"
+
+        _set_cache(cache_key, result)
+        return result
+    except Exception as e:
+        return f"YFinance Tool Failed: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -227,7 +299,7 @@ def _tavily_fallback_oi() -> str:
 
 
 def _tavily_fallback_funding_rate() -> str:
-    """CoinGlass 失敗時以 Tavily 搜尋 BTC 資金費率作為備援。"""
+    """CoinGlass 資金費率失敗時，以 Tavily 搜尋最新 BTC 資金費率作為備援。"""
     try:
         client = _get_tavily_client()
         res = client.search(
@@ -238,11 +310,11 @@ def _tavily_fallback_funding_rate() -> str:
         )
         return f"[Tavily 備援] {str(res.get('results', []))}"
     except Exception:
-        return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
+        return "API 暫時無回應：CoinGlass（funding_rate）與 Tavily 備援均失敗。"
 
 
 def _tavily_fallback_liquidations() -> str:
-    """CoinGlass 失敗時以 Tavily 搜尋 BTC 爆倉數據作為備援。"""
+    """CoinGlass 清算數據失敗時，以 Tavily 搜尋過去 24 小時 BTC 爆倉金額作為備援。"""
     try:
         client = _get_tavily_client()
         res = client.search(
@@ -253,11 +325,11 @@ def _tavily_fallback_liquidations() -> str:
         )
         return f"[Tavily 備援] {str(res.get('results', []))}"
     except Exception:
-        return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
+        return "API 暫時無回應：CoinGlass（liquidations）與 Tavily 備援均失敗。"
 
 
 def _tavily_fallback_long_short_ratio() -> str:
-    """CoinGlass 失敗時以 Tavily 搜尋 BTC 大戶多空比作為備援。"""
+    """CoinGlass 大戶多空比失敗時，以 Tavily 搜尋今日頂級交易員多空比作為備援。"""
     try:
         client = _get_tavily_client()
         res = client.search(
@@ -268,7 +340,7 @@ def _tavily_fallback_long_short_ratio() -> str:
         )
         return f"[Tavily 備援] {str(res.get('results', []))}"
     except Exception:
-        return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
+        return "API 暫時無回應：CoinGlass（long_short_ratio）與 Tavily 備援均失敗。"
 
 
 # CoinGlass API V4 endpoints（針對 BTC）
@@ -366,6 +438,7 @@ def coinglass_data_tool(metric: str) -> str:
                         _set_cache(cache_key, result)
                         return result
         except Exception:
+            # 若 CoinGlass API 本身失敗，改走 Tavily 備援路徑。
             pass
 
     # CoinGlass 失敗或無 API key：依 metric 呼叫對應 Tavily 備援
@@ -375,7 +448,7 @@ def coinglass_data_tool(metric: str) -> str:
         "liquidations": _tavily_fallback_liquidations,
         "long_short_ratio": _tavily_fallback_long_short_ratio,
     }
-    result = fallbacks[metric_lower]()
+    result = fallbacks.get(metric_lower, lambda: f"CoinGlass Tool Failed：{metric} API 暫無回應或 COINGLASS_API_KEY 未設定。")()
     _set_cache(cache_key, result)
     return result
 
@@ -502,6 +575,61 @@ def mvrv_tool(window: str = "latest") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# CryptoPanic News Aggregator（幣圈原生新聞）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("CryptoPanic News Aggregator")
+def cryptopanic_tool(topic: str = "bitcoin") -> str:
+    """
+    從 CryptoPanic 取得最新幣圈新聞（偏向原生加密媒體），強化日報新聞來源。
+    topic 可輸入 'bitcoin'、'ethereum' 或任意關鍵字。
+    若 CRYPTOPANIC_API_KEY 未設定，將回傳簡短錯誤訊息。
+    """
+    api_key = os.getenv("CRYPTOPANIC_API_KEY")
+    if not api_key:
+        return "CryptoPanic Tool Failed：CRYPTOPANIC_API_KEY 未設定。"
+
+    cache_key = ("cryptopanic", topic.lower())
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    params = {
+        "auth_token": api_key,
+        "currencies": "BTC",
+        "kind": "news",
+        "filter": "important",
+    }
+    if topic and topic.lower() not in ("bitcoin", "btc"):
+        params["q"] = topic
+
+    try:
+        resp = requests.get("https://cryptopanic.com/api/v1/posts/", params=params, timeout=10)
+        resp.raise_for_status()
+        posts = resp.json().get("results", [])[:5]
+        if not posts:
+            return "CryptoPanic：目前沒有符合條件的重點新聞。"
+
+        lines: list[str] = []
+        for p in posts:
+            title = p.get("title") or ""
+            url = p.get("url") or ""
+            source = (p.get("source") or {}).get("title") or "unknown"
+            vote = (p.get("votes") or {}).get("important") or 0
+            sentiment = p.get("vote") or "neutral"
+            lines.append(
+                f"〔來源：{source}｜票數：{vote}｜情緒：{sentiment}〕\n"
+                f"{title}\nURL: {url}"
+            )
+
+        result = "\n\n".join(lines)
+        _set_cache(cache_key, result)
+        return result
+    except Exception as e:
+        return f"CryptoPanic Tool Failed: {str(e)}"
+
+
+# ═══════════════════════════════════════════════════════════════════
 # ML Quant Signal Analyzer
 # ═══════════════════════════════════════════════════════════════════
 
@@ -524,28 +652,88 @@ def ml_quant_tool() -> str:
     except ImportError as e:
         return f"ML Quant Tool Failed：無法匯入 backtest 模組（{e}）。請確認 scipy 已安裝。"
 
-    days = 365
-    cutoff = (date.today() - timedelta(days=days)).isoformat()
-
-    # 1. BigQuery daily_metrics
-    query = f"""
-        SELECT
-            DATE(timestamp) AS date,
-            AVG(dxy) AS dxy,
-            AVG(etf_flow_millions) AS etf_flow_millions,
-            AVG(avg_risk_score) AS avg_risk_score,
-            AVG(mvrv_z_score) AS mvrv_z_score
-        FROM `{METRICS_TABLE}`
-        WHERE timestamp >= @cutoff
-        GROUP BY date
-        ORDER BY date ASC
-    """
     try:
-        client = _get_bq_client()
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("cutoff", "DATE", cutoff)]
+        days = 365
+        cutoff = (date.today() - timedelta(days=days)).isoformat()
+
+        # 1. BigQuery daily_metrics
+        query = f"""
+            SELECT
+                DATE(timestamp) AS date,
+                AVG(dxy) AS dxy,
+                AVG(etf_flow_millions) AS etf_flow_millions,
+                AVG(avg_risk_score) AS avg_risk_score,
+                AVG(mvrv_z_score) AS mvrv_z_score
+            FROM `{METRICS_TABLE}`
+            WHERE timestamp >= @cutoff
+            GROUP BY date
+            ORDER BY date ASC
+        """
+        try:
+            client = _get_bq_client()
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[bigquery.ScalarQueryParameter("cutoff", "DATE", cutoff)]
+            )
+            df_ind = client.query(query, job_config=job_config).to_dataframe()
+        except Exception as e:
+            return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 backfill_data.py 補入歷史數據。"
+
+        if df_ind.empty or len(df_ind) < 30:
+            return "ML Quant Tool Failed：daily_metrics 數據不足（需至少 30 筆）。請先執行 backfill_data.py。"
+
+        df_ind["date"] = pd.to_datetime(df_ind["date"]).dt.date
+        df_ind = df_ind.set_index("date").sort_index()
+
+        # 2. CoinGecko BTC 價格
+        url = (
+            f"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
+            f"?vs_currency=usd&days={days}&interval=daily"
         )
-        df_ind = client.query(query, job_config=job_config).to_dataframe()
+        try:
+            resp = requests.get(url, timeout=20)
+            resp.raise_for_status()
+            prices = resp.json().get("prices", [])
+            df_btc = pd.DataFrame(prices, columns=["ts_ms", "close"])
+            df_btc["date"] = pd.to_datetime(df_btc["ts_ms"], unit="ms").dt.date
+            df_btc = df_btc.drop_duplicates("date").set_index("date")[["close"]].sort_index()
+        except Exception as e:
+            return f"ML Quant Tool Failed：CoinGecko 取得 BTC 價格失敗（{e}）。"
+
+        # 3. 合併
+        merged = df_ind.join(df_btc, how="inner")
+        if merged.empty or len(merged) < 30:
+            return "ML Quant Tool Failed：指標與 BTC 價格無法對齊，數據不足。"
+
+        merged = merged.rename(columns={
+            "etf_flow_millions": "etf_flow",
+            "avg_risk_score": "risk_score",
+            "mvrv_z_score": "mvrv_z",
+        })
+
+        # 4. 最佳化權重
+        opt = optimize_ml_weights(merged)
+        weights = opt.get("weights", {})
+        sharpe = opt.get("sharpe", 0.0)
+
+        # 5. 最新訊號
+        signal_dict = get_latest_ml_signal(merged, weights)
+        momentum = signal_dict.get("momentum_score", 0.0)
+        sig = signal_dict.get("signal", "建議避險")
+
+        w_dxy = weights.get("dxy", 0.25) * 100
+        w_etf = weights.get("etf_flow", 0.25) * 100
+        w_risk = weights.get("risk", 0.25) * 100
+        w_mvrv = weights.get("mvrv", 0.25) * 100
+
+        result = (
+            f"ML 模型已完成過去 365 天回測最佳化。"
+            f"當前最佳權重配比為 DXY: {w_dxy:.1f}%, ETF: {w_etf:.1f}%, RISK: {w_risk:.1f}%, MVRV: {w_mvrv:.1f}%。"
+            f"歷史 Sharpe Ratio：{sharpe}。"
+            f"今日系統綜合動能分數為 {momentum}，"
+            f"量化模型強烈建議：【{sig}】。"
+        )
+        _set_cache(cache_key, result)
+        return result
     except Exception as e:
         return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 backfill_data.py 補入歷史數據。"
 
@@ -637,7 +825,7 @@ def rumor_scanner_tool(topic: str) -> str:
         result_data = client.search(
             query=query,
             search_depth="basic",
-            max_results=5,
+            max_results=3,
             topic="news",
             days=7,
         )

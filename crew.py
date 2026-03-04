@@ -22,6 +22,8 @@ from tools import (
     cryptoquant_tool,
     ml_quant_tool,
     rumor_scanner_tool,
+    cryptopanic_tool,
+    yfinance_macro_tool,
 )
 
 
@@ -61,7 +63,7 @@ class QSiliconResearchCrew:
             goal="挑選 3 則幣圈新聞並分析宏觀 M2/DXY 指標，同時標記潛在『未證實市場傳聞』與操盤爭議。",
             backstory="您擅長交叉比對鏈上流向、全球流動性與市場敘事，特別留意具殺傷力的負面訊號，但嚴格區分事實與傳聞。你是一名極度冷血的量化追蹤者，專注於『聰明錢與散戶情緒的背離分析 (Divergence Analysis)』。你喜歡在散戶最狂熱時尋找巨鯨倒貨的蛛絲馬跡。",
             llm=grok_latest,
-            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, coinglass_data_tool, rumor_scanner_tool],
+            tools=[market_search_tool, x_search_tool, macro_liquidity_tool, mvrv_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, yfinance_macro_tool],
             verbose=False
         )
 
@@ -106,9 +108,11 @@ class QSiliconResearchCrew:
                 1. 必須呼叫 macro_liquidity_tool 兩次，分別獲取「最新 DXY 指標」與「M2 貨幣供應」，並說明其變動方向，僅使用公開數據。
                 2. 必須呼叫 mvrv_tool（參數: 'latest'）取得 BTC MVRV Z-Score，並根據數值解讀市場估值狀態（>7 高估 / <0 低估），嚴禁輸出 N/A。
                 3. 必須呼叫 coinglass_data_tool 三次，分別取得 'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比），不得遺漏。
-                4. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
+                4. 必須呼叫 yfinance_macro_tool 兩次：(a) metric='vix' 取得 VIX 恐慌指數；(b) metric='etf_flow' 取得 SPY/QQQ ETF 成交額與 5 日均值的對比，作為美股 ETF 資金流向 proxy。
+                5. 必須呼叫 cryptopanic_tool（topic: 'bitcoin'），取得 3~5 則來自幣圈原生媒體的重點新聞標的，並特別標記與 ETF、槓桿、流動性風險相關者。
+                6. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'crypto market maker manipulation OR Jane Street rumor OR BTC ETF flow leak'
-                5. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
+                7. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
                    'crypto rumor OR BTC leak'
 
                 【強制輸出規範（極為嚴格，請逐條遵守）】：
