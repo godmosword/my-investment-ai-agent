@@ -227,6 +227,39 @@ def yfinance_macro_tool(metric: str = "vix") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# YFinance Quote Fetcher（單一標的報價）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("YFinance Quote Fetcher")
+def yfinance_tool(symbol: str) -> str:
+    """
+    使用 yfinance 取得單一標的的最新收盤價與日內漲跌幅。
+    例如 symbol='^VIX'（恐慌指數）、'IBIT'（比特幣現貨 ETF）、'SPY' 等。
+    """
+    if not symbol:
+        return "YFinance Tool Failed：symbol 不可為空。"
+
+    cache_key = ("yfinance_quote", symbol.upper())
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    try:
+        df = yf.download(symbol, period="5d", interval="1d", progress=False)
+        if df.empty:
+            return f"YFinance：無法取得 {symbol} 資料。"
+        latest = df["Close"].iloc[-1]
+        prev = df["Close"].iloc[-2] if len(df) > 1 else latest
+        change = latest - prev
+        pct = (change / prev * 100) if prev else 0.0
+        result = f"{symbol} 最新價格為 {latest:.2f}，日變化 {change:+.2f}（{pct:+.2f}%）。"
+        _set_cache(cache_key, result)
+        return result
+    except Exception as e:
+        return f"YFinance Tool Failed：取得 {symbol} 報價時發生錯誤（{e}）。"
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Tavily Market Search（帶 cache，basic depth 節省費用）
 # ═══════════════════════════════════════════════════════════════════
 

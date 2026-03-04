@@ -24,6 +24,7 @@ from tools import (
     rumor_scanner_tool,
     cryptopanic_tool,
     yfinance_macro_tool,
+    yfinance_tool,
 )
 
 
@@ -82,6 +83,7 @@ class QSiliconResearchCrew:
             backstory="您負責潑冷水，揭露虛假的指標背離與敘事操縱，特別審視所謂內線或八卦是否有足夠證據支撐。你信奉索羅斯的『反射性理論 (Reflexivity)』。你深知假新聞本身也能創造真實的市場踩踏。你的職責不只是打假，更要判斷『錯誤的敘事是否已經實質感染了流動性』。",
             llm=claude_latest,
             allow_delegation=False,
+            tools=[yfinance_tool],
             verbose=False
         )
 
@@ -109,7 +111,7 @@ class QSiliconResearchCrew:
                 2. 必須呼叫 mvrv_tool（參數: 'latest'）取得 BTC MVRV Z-Score，並根據數值解讀市場估值狀態（>7 高估 / <0 低估），嚴禁輸出 N/A。
                 3. 必須呼叫 coinglass_data_tool 三次，分別取得 'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比），不得遺漏。
                 4. 必須呼叫 yfinance_macro_tool 兩次：(a) metric='vix' 取得 VIX 恐慌指數；(b) metric='etf_flow' 取得 SPY/QQQ ETF 成交額與 5 日均值的對比，作為美股 ETF 資金流向 proxy。
-                5. 必須呼叫 cryptopanic_tool（topic: 'bitcoin'），取得 3~5 則來自幣圈原生媒體的重點新聞標的，並特別標記與 ETF、槓桿、流動性風險相關者。
+                5. 必須呼叫 cryptopanic_tool（topic: 'bitcoin'），取得 3~5 則來自幣圈原生媒體的即時熱門新聞與情緒（相當於 CryptoPanic 的 hot/important 快訊），並特別標記與 ETF、槓桿、流動性風險相關者。
                 6. 必須呼叫 rumor_scanner_tool 與 market_search_tool，搜尋以下關鍵字（僅限公開新聞 / 報導來源）：
                    'crypto market maker manipulation OR Jane Street rumor OR BTC ETF flow leak'
                 7. 必須呼叫 x_search_tool，搜尋 X 上的關鍵字：
@@ -137,6 +139,7 @@ class QSiliconResearchCrew:
                   (b) 您對其可信度的評估
                   (c) 若為純情緒帶風向，請明確指出。
                 - 對於每一則新聞與推文，請額外給出統一格式的標籤行：{_IMPACT_TAG}
+                - 在【幣圈情報】區塊中，至少有一則新聞必須明確標示來源為 CryptoPanic 的原生快訊，並據此說明其對 ETF / 槓桿 / 流動性風險的啟示。
 
                 嚴禁輸出任何法律建議或保證某傳聞為真。所有內容必須標註為「市場敘事 / 傳聞」，僅供風險研究與情緒監控使用。
             """),
@@ -191,6 +194,10 @@ class QSiliconResearchCrew:
                 (b) 若全網極度恐慌 (FUD 滿天飛)，但巨鯨轉帳平靜且 MVRV Z-Score 處於健康/低估區間 (<3)，你必須大膽在備忘錄中標註此為『黃金坑 (Bear Trap) / 洗盤』。
 
                 【衍生品槓桿共振風險】：必須評估『衍生品槓桿與市場情緒的共振風險』。若散戶過度槓桿做多（高資金費率 + 高 OI），即使沒有 FUD 新聞，也必須將市場模式判定為 risk_off 以防範莊家獵殺流動性。
+
+                【傳統金融 Risk Off 訊號】：你必須呼叫 yfinance_tool 兩次，分別以 symbol='^VIX' 取得 VIX 恐慌指數，及 symbol='IBIT' 取得比特幣現貨 ETF IBIT 的最新價格與漲跌幅。
+                (a) 若 VIX 出現明顯暴漲（單日大幅上升）且 IBIT 價格下跌，你必須將此情境判定為『傳統金融資金撤退的 Risk Off 信號』，並在 market_regime 評估中給予足夠權重。
+                (b) 若 VIX 溫和或下跌且 IBIT 上漲，需說明這代表傳統金融風險偏好尚未完全退潮。
 
                 3. 給出當前市場的整體模式標籤 (market_regime)，只能從下列三者中擇一：
                    - risk_on
@@ -254,12 +261,14 @@ class QSiliconResearchCrew:
                 【宏觀】
                 · M2 → <code>xxx</code>（↑/↓ x%）
                 · ICE DXY → <code>xx.xx</code>（↑/↓ x%）
+                · VIX 恐慌指數 → <code>xx.xx (↑/↓ x%)</code>
                 【量化模型】
                 · ML 最佳權重 → <code>DXY: xx%, ETF: xx%, RISK: xx%, MVRV: xx%</code>
                 · 系統建議部位 → <code>做多 / 避險 (動能分數: x.xx)</code>
                 【幣圈】
                 · MVRV Z-Score → <code>x.xx</code>（附估值信號：高估/低估/健康）
                 · BTC OI → <code>$xxB</code>（↑/↓ x%）
+                · IBIT 現貨 ETF → <code>$xx.xx (↑/↓ x%)</code>
                 · BTC 資金費率 → <code>xxx%</code>
                 · 24h 爆倉金額 → <code>$xxx 萬 (多/空分佈)</code>
                 · 大戶多空比 → <code>xxx</code>
