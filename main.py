@@ -55,8 +55,8 @@ def validate_report(text: str) -> dict:
     has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|LMSYS|模型排名', text, re.IGNORECASE))
 
     issues = []
-    if news_count < 6:
-        issues.append(f"新聞數不足（{news_count}/6，每區塊各 3 則）")
+    if news_count < 12:
+        issues.append(f"新聞數不足（{news_count}/12，幣圈 3 則 + AI 三部分各 3 則）")
     if tweet_count < 10:
         issues.append(f"推文數不足（{tweet_count}/10，每區塊各 5 則）")
     if not has_regime:
@@ -195,8 +195,8 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     mvrv_z = _safe_float(mvrv_match)
 
     # ── 6. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
-    grok_summary = _extract_section(clean_text, "【幣圈情報】")
-    gpt_summary  = _extract_section(clean_text, "【AI 產業情報】")
+    grok_summary = _extract_section(clean_text, "【幣圈新聞】")
+    gpt_summary  = _extract_section(clean_text, "【AI 基建現況】")
 
     logging.info(
         f"Extracted metrics — DXY: {dxy}, ETF Flow: {etf_flow}億, "
