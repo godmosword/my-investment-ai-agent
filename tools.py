@@ -56,25 +56,21 @@ def _get_tavily_client():
 
 
 # ═══════════════════════════════════════════════════════════════════
-# AI Momentum Analyzer
+# AI Momentum Analyzer（OpenRouter 模型熱度排名）
 # ═══════════════════════════════════════════════════════════════════
 
 @tool("AI Momentum Analyzer")
-def ai_momentum_tool(metric: str = "model_benchmarks") -> str:
-    """獲取 AI 產業數據。metric 請輸入 'model_benchmarks'（LMSYS 排名）或 'big_tech_capex'（Big Tech AI 資本支出）。"""
-    cache_key = ("ai_momentum", metric.lower())
+def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
+    """獲取 OpenRouter 平台最新的模型使用量或熱門排名。metric 可省略或輸入 'openrouter_rankings'。"""
+    cache_key = ("ai_momentum", "openrouter_rankings")
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
-    queries = {
-        "model_benchmarks": "latest LMSYS Chatbot Arena ELO rankings for GPT-5, Claude 4, Gemini 3, Llama, Mistral",
-        "big_tech_capex": "Amazon Microsoft Alphabet Google Meta AI capital expenditure 2025 data center spending billions",
-    }
-    query = queries.get(metric.lower(), queries["model_benchmarks"])
+    query = "OpenRouter model usage rankings top AI models"
     try:
         client = _get_tavily_client()
-        response = client.search(query=query, search_depth="basic", max_results=3)
+        response = client.search(query=query, search_depth="basic", max_results=5)
         result = str(response.get("results", "No data found."))
         _set_cache(cache_key, result)
         return result
