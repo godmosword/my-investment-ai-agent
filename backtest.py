@@ -161,7 +161,9 @@ def compute_signals(
 
     # ── 複合信號（加權求和，正規化到 [-1, +1]）─────────────────
     w = weights or {"sig_dxy": 0.20, "sig_etf": 0.25, "sig_risk": 0.25, "sig_mvrv": 0.30}
-    df["composite"] = sum(df[col] * w.get(col, 0) for col in ["sig_dxy", "sig_etf", "sig_risk", "sig_mvrv"])
+    sig_cols = ["sig_dxy", "sig_etf", "sig_risk", "sig_mvrv"]
+    weights_series = pd.Series({col: w.get(col, 0.0) for col in sig_cols})
+    df["composite"] = df[sig_cols].mul(weights_series).sum(axis=1)
 
     # 最終方向：composite > 0.1 → 多；< -0.1 → 空；否則觀望
     df["position"] = 0.0
@@ -298,15 +300,9 @@ def run_walk_forward_backtest(
         last_weights = weights
 
         test_df = compute_signals(test_slice, weights=weights)
-        _, test_stats = run_backtest(test_df, initial_capital=initial_capital)
-        # 重建 test 期間的日報酬用於串接
-        test_df = test_df.copy()
-        test_df["btc_return"] = test_df["close"].pct_change()
-        test_df["pos_shifted"] = test_df["position"].shift(1).fillna(0)
-        test_df["pos_change"]  = test_df["pos_shifted"].diff().abs().fillna(0)
-        test_df["cost"]        = test_df["pos_change"].clip(upper=1) * TRANSACTION_COST
-        test_ret = test_df["pos_shifted"] * test_df["btc_return"] - test_df["cost"]
-        wf_returns.append(test_ret.dropna())
+        result_df, test_stats = run_backtest(test_df, initial_capital=initial_capital)
+        test_ret = result_df["strategy_return"].dropna()
+        wf_returns.append(test_ret)
 
         i += step
 
@@ -364,23 +360,26 @@ def optimize_weights(
         logging.warning("可用因子信號不足 2 個，跳過最佳化。")
         return {}
 
+    # Pre-extract arrays once so the hot loop avoids repeated DataFrame copies.
+    signals_matrix = merged[available].values          # shape (n_days, n_factors)
+    btc_ret_arr    = merged["close"].pct_change().values
+    rf_daily       = 0.05 / 365
+
     def _sharpe_from_weights(w: np.ndarray) -> float:
         """給定權重向量，計算對應策略的負 Sharpe（minimize 用）。"""
-        df = merged.copy()
-        composite = sum(df[col] * wi for col, wi in zip(available, w))
-        df["position"] = 0.0
-        df.loc[composite > 0.10, "position"] = 1.0
-        df.loc[composite < -0.10, "position"] = -1.0
-        df["btc_return"]  = df["close"].pct_change()
-        pos_shifted       = df["position"].shift(1).fillna(0)
-        pos_change        = pos_shifted.diff().abs().fillna(0)
-        cost              = pos_change.clip(upper=1) * TRANSACTION_COST
-        strat_ret         = pos_shifted * df["btc_return"] - cost
-        rf_daily          = 0.05 / 365
-        excess            = strat_ret - rf_daily
-        if excess.std() < 1e-8:
+        composite   = signals_matrix @ w
+        pos         = np.where(composite > 0.10, 1.0, np.where(composite < -0.10, -1.0, 0.0))
+        pos_shifted = np.empty_like(pos)
+        pos_shifted[0]  = 0.0
+        pos_shifted[1:] = pos[:-1]
+        pos_diff    = np.abs(np.concatenate([[0.0], np.diff(pos_shifted)]))
+        cost        = np.minimum(pos_diff, 1.0) * TRANSACTION_COST
+        strat_ret   = pos_shifted * btc_ret_arr - cost
+        excess      = strat_ret - rf_daily
+        std         = np.nanstd(excess, ddof=1)
+        if std < 1e-8:
             return 0.0
-        return -(excess.mean() / excess.std() * math.sqrt(365))
+        return -(np.nanmean(excess) / std * math.sqrt(365))
 
     n = len(available)
     constraints = {"type": "eq", "fun": lambda w: w.sum() - 1.0}
@@ -573,7 +572,6 @@ def performance_attribution(
     計算各因子若單獨使用時的策略總報酬（%），
     用於評估哪個因子對報酬貢獻最大。
     """
-    w = weights or {"sig_dxy": 0.20, "sig_etf": 0.25, "sig_risk": 0.25, "sig_mvrv": 0.30}
     df = merged.copy()
     df["btc_return"] = df["close"].pct_change()
     rf_daily = 0.05 / 365
