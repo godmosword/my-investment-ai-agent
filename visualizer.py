@@ -3,7 +3,6 @@ import logging
 
 import yfinance as yf
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 logger = logging.getLogger(__name__)
 
