@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from google.cloud import bigquery
 
 from config import PROJECT_ID, METRICS_TABLE
-from crew import QSiliconResearchCrew
+from crew import CryptoResearchCrew, AIResearchCrew
 
 load_dotenv()
 
@@ -70,8 +70,8 @@ def validate_report(text: str) -> dict:
     has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|OpenRouter|模型排名|模型熱度', text, re.IGNORECASE))
 
     issues = []
-    if news_count < 6:
-        issues.append(f"新聞數不足（{news_count}/6，每區塊各 3 則）")
+    if news_count < 12:
+        issues.append(f"新聞數不足（{news_count}/12）")
     if tweet_count < 10:
         issues.append(f"推文數不足（{tweet_count}/10，每區塊各 5 則）")
     if not has_regime:
@@ -210,8 +210,8 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     mvrv_z = _safe_float(mvrv_match)
 
     # ── 6. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
-    grok_summary = _extract_section(clean_text, "【幣圈情報】")
-    gpt_summary  = _extract_section(clean_text, "【AI 產業情報】")
+    grok_summary = _extract_section(clean_text, "【幣圈新聞】")
+    gpt_summary  = _extract_section(clean_text, "【AI 基建現況】")
 
     logger.info(
         "Extracted metrics — DXY: %s, ETF Flow: %s億, Avg Risk: %s, MVRV Z: %s",
@@ -295,11 +295,18 @@ def _is_503(e: Exception) -> bool:
 
 
 def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | None]:
-    """執行一輪 Crew 產報，回傳 (報告文字, 若失敗則為 Exception)。"""
+    """使用 ThreadPoolExecutor 讓兩個 Crew 同時執行，回傳合併戰報。"""
     try:
-        crew = QSiliconResearchCrew()
-        report = str(crew.run(exclude_context=exclude_context))
-        return report, None
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_crypto = executor.submit(lambda: str(CryptoResearchCrew().run(exclude_context=exclude_context)))
+            future_ai = executor.submit(lambda: str(AIResearchCrew().run(exclude_context=exclude_context)))
+
+            crypto_report = future_crypto.result()
+            ai_report = future_ai.result()
+
+        combined_report = f"{crypto_report}\n\n{ai_report}"
+        return combined_report, None
     except Exception as e:
         return "", e
 
