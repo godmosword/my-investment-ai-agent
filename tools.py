@@ -7,7 +7,7 @@ import yfinance as yf
 from crewai.tools import tool
 from google.cloud import bigquery
 
-from config import PROJECT_ID, METRICS_TABLE, WHALE_TABLE
+from config import PROJECT_ID, METRICS_TABLE
 
 # ── 模組級 in-memory cache（同一次執行內避免重複打外部 API）────────────
 # key: (tool_name, query_string)  value: (result_str, expire_timestamp)
