@@ -11,7 +11,7 @@
 | Agent（`crew.py` role） | 模型識別碼 | 職責 | 工具 |
 |------------------------|-----------|------|------|
 | 🛸 加密市場情報研究員 | `xai/grok-4-1-fast-reasoning` | 幣圈新聞（3 則）、X 推文（5 則）、宏觀 M2/DXY、鏈上 MVRV、衍生品（資金費率／清算／多空比）、CryptoPanic 快訊、傳聞掃描、VIX/ETF 代理 | `market_search_tool`, `x_search_tool`, `macro_liquidity_tool`, `mvrv_tool`, `coinglass_data_tool`, `rumor_scanner_tool`, `cryptopanic_tool`, `yfinance_macro_tool` |
-| 🤖 前沿 AI 市場研究員 | `openai/gpt-5.2-chat-latest` | AI 基建現況／投資案／最新模型各 3 則新聞、MCP/Agent 推文（5 則）、OpenRouter 熱度排名 | `market_search_tool`, `x_search_tool`, `ai_momentum_tool`, `rumor_scanner_tool` |
+| 🤖 前沿 AI 市場研究員 | `openai/gpt-5.3-chat-latest` | AI 基建現況／投資案／最新模型各 3 則新聞、MCP/Agent 推文（5 則）、OpenRouter 熱度排名 | `market_search_tool`, `x_search_tool`, `ai_momentum_tool`, `rumor_scanner_tool` |
 | 🛡️ 首席跨域辯論員 | `openrouter/anthropic/claude-sonnet-4.6` | 每則新聞與推文的反向辯論、VIX/IBIT 傳統金融風險審計、market_regime 判定 | `yfinance_tool` |
 | 💎 機構策略主編 | `gemini/gemini-3.1-pro-preview` | 整合所有 Agent 研究成果、輸出主編共識、排版雙市場戰報、Telegram HTML 定稿 | `coinglass_data_tool`, `cryptoquant_tool`, `ml_quant_tool` |
 
