@@ -8,7 +8,7 @@ _VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
 
 # LLM 模型常數（便於統一升級版本）
 MODEL_GROK   = "xai/grok-4-1-fast-reasoning"
-MODEL_GPT    = "openai/gpt-5.2-chat-latest"
+MODEL_GPT    = "openai/gpt-5.3-chat-latest"
 MODEL_CLAUDE = "openrouter/anthropic/claude-sonnet-4.6"
 MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
 
