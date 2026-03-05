@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime
 from urllib.parse import quote
 
 import requests
@@ -270,7 +271,9 @@ def market_search_tool(query: str) -> str:
     try:
         client = _get_tavily_client()
         response = client.search(query=query, search_depth="basic", max_results=5, topic="news", days=1)
-        result = str(response.get("results", []))
+        raw = str(response.get("results", []))
+        prefix = f"(當前系統時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，請過濾掉超過 48 小時的舊資訊)\n"
+        result = prefix + raw
         _set_cache(cache_key, result)
         return result
     except ValueError as e:
@@ -643,11 +646,11 @@ def cryptopanic_tool(topic: str = "bitcoin") -> str:
         for p in posts:
             title = p.get("title") or ""
             url = p.get("url") or ""
+            created_at = p.get("created_at") or ""
             source = (p.get("source") or {}).get("title") or "unknown"
-            vote = (p.get("votes") or {}).get("important") or 0
             sentiment = p.get("vote") or "neutral"
             lines.append(
-                f"〔來源：{source}｜票數：{vote}｜情緒：{sentiment}〕\n"
+                f"〔時間：{created_at}｜來源：{source}｜情緒：{sentiment}〕\n"
                 f"{title}\nURL: {url}"
             )
 
@@ -798,7 +801,9 @@ def rumor_scanner_tool(topic: str) -> str:
             topic="news",
             days=7,
         )
-        result = str(result_data.get("results", []))
+        raw = str(result_data.get("results", []))
+        prefix = f"(當前系統時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，請過濾掉超過 48 小時的舊資訊)\n"
+        result = prefix + raw
         _set_cache(cache_key, result)
         return result
     except ValueError as e:

@@ -91,7 +91,7 @@ class CryptoResearchCrew:
             goal="整合加密市場研究成果，為每則幣圈新聞與推文下達 Gemini 共識結論，排版輸出戰報上半部。",
             backstory="負責最終整合與排版的機構主編，確保每一個判斷都有依據，每一個觀點都有對立面的檢驗。",
             llm=gemini_latest,
-            tools=[coinglass_data_tool, cryptoquant_tool, ml_quant_tool],
+            tools=[coinglass_data_tool, cryptoquant_tool, ml_quant_tool, yfinance_tool],
             verbose=_VERBOSE
         )
 
@@ -122,8 +122,8 @@ class CryptoResearchCrew:
                 === 幣圈新聞（強制輸出 3 則）===
                 優先選取：ETF 資金流、槓桿清算風險、鏈上流向、做市商操作相關題材。
                 至少一則來源必須標示為 CryptoPanic 原生快訊。
-                每則新聞輸出格式：
-                〔新聞 N〕標題
+                每則新聞輸出格式（強制從搜尋結果中萃取發布時間，若無精確時間則標註 [近24h] 或 [近72h]）：
+                〔新聞 N〕[MM/DD HH:MM] 新聞標題
                 來源：xxx｜性質：confirmed / likely / unverified rumor
                 摘要：（1~2 句）
                 🛸 Grok 利多：（從看多角度解讀，1~2 句）
@@ -222,6 +222,7 @@ class CryptoResearchCrew:
                 【投資標的萃取】
                 你必須根據今日的幣圈新聞與推文敘事，在戰報【資金流向與精準操作 (Crypto)】區塊中：提供 1 個單邊趨勢標的（非 BTC 加密貨幣，如 SOL, ETH, SUI 等）與 1 組配對交易。
                 單邊標的與配對交易均須給出信心水準（⭐️ 1~5）、資金佔比、進場區間、目標價、防守停損、敘事邏輯；若無明確數值請由主編合理推估。
+                【實盤價格強制查核】：在給出標的的「進場、目標、停損」前，**你必須呼叫 yfinance_tool 查詢其最新報價**（加密貨幣請加 '-USD'，例如 'SOL-USD'）。絕對禁止憑空捏造價格！
 
                 ════ Telegram HTML 格式規範（最高優先級）════
                 僅允許：<b>、<i>、<u>、<s>、<code>、<blockquote>
@@ -274,9 +275,9 @@ class CryptoResearchCrew:
                 ────────────
 
                 <b>【幣圈新聞】</b>
-                依序列出 3 則幣圈新聞，每則格式（僅主編共識，不呈現個別 Agent 觀點）：
+                依序列出 3 則幣圈新聞，每則格式（僅主編共識，不呈現個別 Agent 觀點；標題前保留研究員提供的 [MM/DD HH:MM] 或 [近24h]/[近72h]）：
 
-                〔新聞 N〕<b>新聞標題</b>
+                〔新聞 N〕[MM/DD HH:MM] <b>新聞標題</b>
                 來源：xxx｜性質：<i>confirmed / likely / unverified rumor</i>
                 摘要：（1~2 句）
                 <code>IMPACT: 強利空/弱利空/中性/弱利多/強利多 | NARRATIVE: xxx</code>
@@ -294,9 +295,9 @@ class CryptoResearchCrew:
 
                 ────────────
                 <b>【資金流向與精準操作 (Crypto)】</b>
-                (必須提供 1 個單邊趨勢標的，與 1 組配對交易。嚴格使用以下格式，若無明確數值請由主編合理推估：)
-                · <b>$代幣 (操作方向)</b>｜信心水準：⭐️⭐️⭐️⭐️
-                <code>資金佔比：x%｜進場區間：$x-$y｜目標價：$z｜防守停損：$w</code>
+                (必須提供 1 個單邊趨勢標的，與 1 組配對交易；進場/目標/停損須以 yfinance_tool 查得之現價為準。)
+                · <b>$代幣 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
+                <code>資金佔比：x%｜進場：$x-$y｜目標：$z｜停損：$w (註明距離現價的 % 數)</code>
                 敘事邏輯：（一句話說明）
 
                 · <b>配對交易 (Pair Trade)</b>：做多 $代幣A / 做空 $代幣B
@@ -348,7 +349,7 @@ class AIResearchCrew:
             goal="整合 AI 市場研究成果，為每則 AI 新聞與推文下達 Gemini 共識結論，排版輸出戰報下半部。",
             backstory="負責最終整合與排版的機構主編，確保每一個判斷都有依據，每一個觀點都有對立面的檢驗。",
             llm=gemini_latest,
-            tools=[],
+            tools=[yfinance_tool],
             verbose=_VERBOSE
         )
 
@@ -376,8 +377,8 @@ class AIResearchCrew:
                 - market_search_tool：'AI data center cooling thermal technology 2025'
                 - market_search_tool 或 rumor_scanner_tool：'data center materials semiconductor supply chain AI infrastructure'
                 從以上搜尋結果中挑選 3 則最具代表性的新聞，需涵蓋 GPU/大廠之外至少一則與電力、散熱或材料/能源基建相關。
-                每則新聞輸出格式：
-                〔新聞 N〕標題
+                每則新聞輸出格式（強制從搜尋結果中萃取發布時間，若無精確時間則標註 [近24h] 或 [近72h]）：
+                〔新聞 N〕[MM/DD HH:MM] 新聞標題
                 來源：xxx｜性質：confirmed / likely / unverified rumor
                 摘要：（1~2 句）
                 🤖 GPT 利多：（1~2 句）
@@ -388,12 +389,12 @@ class AIResearchCrew:
                 聚焦：AI 新創融資輪、科技巨頭收購、風投動向、AI 公司 IPO 或估值事件。
                 呼叫 market_search_tool 搜尋：'AI startup funding round investment acquisition 2025'。
                 呼叫 rumor_scanner_tool 搜尋：'AI unicorn OR OpenAI funding OR Anthropic deal OR AI IPO'。
-                格式同上（3 則，各含 GPT 利多/利空）。
+                每則新聞格式同上（〔新聞 N〕[MM/DD HH:MM] 新聞標題；3 則，各含 GPT 利多/利空）。
 
                 === 第三部分：最新 AI 模型（強制 3 則新聞）===
                 聚焦：最新發布的 LLM / 多模態 / Agent 框架，必須說明模型核心特色與技術突破點。
                 呼叫 market_search_tool 搜尋：'new AI model release LLM multimodal agent 2025'。
-                格式同上，摘要需含模型特色說明（3 則，各含 GPT 利多/利空）。
+                每則新聞格式同上（〔新聞 N〕[MM/DD HH:MM] 新聞標題）；摘要需含模型特色說明（3 則，各含 GPT 利多/利空）。
 
                 === AI 推文（強制 5 則）===
                 呼叫 x_search_tool 搜尋：'MCP Model Context Protocol OR AI agent app OR AI application 2025'。
@@ -462,6 +463,7 @@ class AIResearchCrew:
 
                 【投資標的萃取】
                 你必須根據今日的 AI 基建/能源/核能/軟體情報，在戰報【AI 產業鏈精準操作 (US Equities)】區塊中提供 2 個美股標的；嚴格使用規定格式，若無明確數值請由主編合理推估。
+                【實盤價格強制查核】：在給出標的的「進場、目標、停損」前，**你必須呼叫 yfinance_tool 查詢其最新真實收盤/盤前報價**。絕對禁止憑空捏造價格！
 
                 ════ Telegram HTML 格式規範（最高優先級）════
                 僅允許：<b>、<i>、<u>、<s>、<code>、<blockquote>
@@ -481,9 +483,9 @@ class AIResearchCrew:
                 ────────────
 
                 <b>【AI 基建現況】</b>
-                依序列出 3 則新聞，每則格式（僅主編共識，不呈現個別 Agent 觀點）：
+                依序列出 3 則新聞，每則格式（僅主編共識，不呈現個別 Agent 觀點；標題前保留 [MM/DD HH:MM] 或 [近24h]/[近72h]）：
 
-                〔新聞 N〕<b>新聞標題</b>
+                〔新聞 N〕[MM/DD HH:MM] <b>新聞標題</b>
                 來源：xxx｜性質：<i>confirmed / likely / unverified rumor</i>
                 摘要：（1~2 句）
                 <code>IMPACT: 強利空/弱利空/中性/弱利多/強利多 | NARRATIVE: xxx</code>
@@ -504,13 +506,13 @@ class AIResearchCrew:
 
                 ────────────
                 <b>【AI 產業鏈精準操作 (US Equities)】</b>
-                (必須基於今日 AI 基建/能源/核能/軟體情報，提供 2 個美股標的。嚴格使用以下格式：)
-                · <b>$股票代號 (操作方向)</b>｜信心水準：⭐️⭐️⭐️⭐️
-                <code>資金佔比：x%｜進場區間：$x-$y｜目標價：$z｜防守停損：$w</code>
+                (必須基於今日 AI 基建/能源/核能/軟體情報，提供 2 個美股標的；進場/目標/停損須以 yfinance_tool 查得之現價為準。)
+                · <b>$股票代號 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
+                <code>資金佔比：x%｜進場：$x-$y｜目標：$z｜停損：$w (註明距離現價的 % 數)</code>
                 敘事邏輯：（一句話說明受惠或受害原因）
 
-                · <b>$股票代號 (操作方向)</b>｜信心水準：⭐️⭐️⭐️⭐️
-                <code>資金佔比：x%｜進場區間：$x-$y｜目標價：$z｜防守停損：$w</code>
+                · <b>$股票代號 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
+                <code>資金佔比：x%｜進場：$x-$y｜目標：$z｜停損：$w (註明距離現價的 % 數)</code>
                 敘事邏輯：（一句話說明受惠或受害原因）
 
                 ════ 嚴禁刪減！AI 市場各部分 3 則新聞 + 5 則推文必須完整保留！【AI 產業鏈精準操作】2 支必須輸出！════
