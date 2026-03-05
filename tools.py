@@ -766,66 +766,6 @@ def ml_quant_tool() -> str:
     except Exception as e:
         return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 backfill_data.py 補入歷史數據。"
 
-    if df_ind.empty or len(df_ind) < 30:
-        return "ML Quant Tool Failed：daily_metrics 數據不足（需至少 30 筆）。請先執行 backfill_data.py。"
-
-    df_ind["date"] = pd.to_datetime(df_ind["date"]).dt.date
-    df_ind = df_ind.set_index("date").sort_index()
-
-    # 2. CoinGecko BTC 價格
-    url = (
-        f"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
-        f"?vs_currency=usd&days={days}&interval=daily"
-    )
-    try:
-        resp = requests.get(url, timeout=20)
-        resp.raise_for_status()
-        prices = resp.json().get("prices", [])
-        df_btc = pd.DataFrame(prices, columns=["ts_ms", "close"])
-        df_btc["date"] = pd.to_datetime(df_btc["ts_ms"], unit="ms").dt.date
-        df_btc = df_btc.drop_duplicates("date").set_index("date")[["close"]].sort_index()
-    except Exception as e:
-        return f"ML Quant Tool Failed：CoinGecko 取得 BTC 價格失敗（{e}）。"
-
-    # 3. 合併
-    try:
-        merged = df_ind.join(df_btc, how="inner")
-        if merged.empty or len(merged) < 30:
-            return "ML Quant Tool Failed：指標與 BTC 價格無法對齊，數據不足。"
-
-        merged = merged.rename(columns={
-            "etf_flow_millions": "etf_flow",
-            "avg_risk_score": "risk_score",
-            "mvrv_z_score": "mvrv_z",
-        })
-
-        # 4. 最佳化權重
-        opt = optimize_ml_weights(merged)
-        weights = opt.get("weights", {})
-        sharpe = opt.get("sharpe", 0.0)
-
-        # 5. 最新訊號
-        signal_dict = get_latest_ml_signal(merged, weights)
-        momentum = signal_dict.get("momentum_score", 0.0)
-        sig = signal_dict.get("signal", "建議避險")
-
-        w_dxy = weights.get("dxy", 0.25) * 100
-        w_etf = weights.get("etf_flow", 0.25) * 100
-        w_risk = weights.get("risk", 0.25) * 100
-        w_mvrv = weights.get("mvrv", 0.25) * 100
-
-        result = (
-            f"ML 模型已完成過去 365 天回測最佳化。"
-            f"當前最佳權重配比為 DXY: {w_dxy:.1f}%, ETF: {w_etf:.1f}%, RISK: {w_risk:.1f}%, MVRV: {w_mvrv:.1f}%。"
-            f"歷史 Sharpe Ratio：{sharpe}。"
-            f"今日系統綜合動能分數為 {momentum}，"
-            f"量化模型強烈建議：【{sig}】。"
-        )
-        _set_cache(cache_key, result)
-        return result
-    except Exception as e:
-        return f"ML 模型執行失敗：{str(e)}"
-
 
 # ═══════════════════════════════════════════════════════════════════
 # Rumor & Controversy Scanner（降低強度：days=7, max_results=5）
