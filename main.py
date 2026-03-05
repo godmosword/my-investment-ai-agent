@@ -9,6 +9,7 @@ from google.cloud import bigquery
 
 from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
+from visualizer import generate_quant_chart
 
 load_dotenv()
 
@@ -131,12 +132,18 @@ def _safe_chunks(text: str, max_len: int = 4000) -> list[str]:
     return chunks
 
 
-def _send_telegram_report(text: str, token: str, chat_id: str) -> None:
-    """發送戰報至 Telegram，含重試與 fallback。"""
+def _send_telegram_report(text: str, token: str, chat_id: str, image_path: str = "daily_chart.png") -> None:
+    """發送戰報至 Telegram：若有圖表則先發圖，再分段發送文字；含重試與 fallback。"""
     from telebot import apihelper
 
     apihelper.SESSION_TIME_TO_LIVE = 5 * 60
     bot = telebot.TeleBot(token)
+    if os.path.exists(image_path):
+        try:
+            with open(image_path, "rb") as f:
+                bot.send_photo(chat_id, photo=f, timeout=60)
+        except Exception as e:
+            logger.warning("Telegram send_photo failed: %s", e)
     cleaned = sanitize_telegram_html(text)
     for chunk in _safe_chunks(cleaned):
         for attempt in range(3):
@@ -359,6 +366,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
 
 if __name__ == "__main__":
     logger.info("Initializing Q-Silicon Ultimate Agent...")
+    generate_quant_chart("daily_chart.png")
     exclusion = fetch_exclusion_context()
     if exclusion:
         logger.info("Loaded exclusion context from previous report (to avoid duplicate news).")
@@ -368,7 +376,7 @@ if __name__ == "__main__":
     if not SKIP_TELEGRAM:
         token, chat_id = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
         if token and chat_id:
-            _send_telegram_report(final_report, token, chat_id)
+            _send_telegram_report(final_report, token, chat_id, image_path="daily_chart.png")
         else:
             logger.warning("Telegram configuration missing. Skipping push.")
     else:
