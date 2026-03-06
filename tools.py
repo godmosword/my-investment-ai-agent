@@ -71,7 +71,7 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
     query = "OpenRouter model usage rankings top AI models"
     try:
         client = _get_tavily_client()
-        response = client.search(query=query, search_depth="basic", max_results=5)
+        response = client.search(query=query, search_depth="basic", max_results=3)
         result = str(response.get("results", "No data found."))
         _set_cache(cache_key, result)
         return result
@@ -227,33 +227,46 @@ def yfinance_macro_tool(metric: str = "vix") -> str:
 # YFinance Quote Fetcher（單一標的報價）
 # ═══════════════════════════════════════════════════════════════════
 
+def _yf_quote(symbol: str) -> str:
+    """內部共用：取得單一標的報價，帶 cache。"""
+    sym = (symbol or "").strip()
+    if not sym:
+        return "YFinance Tool Failed：symbol 不可為空。"
+    cache_key = ("yfinance_quote", sym.upper())
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+    try:
+        df = yf.download(sym, period="5d", interval="1d", progress=False)
+        if df.empty:
+            return f"YFinance：無法取得 {sym} 資料。"
+        latest = df["Close"].iloc[-1]
+        prev = df["Close"].iloc[-2] if len(df) > 1 else latest
+        change = latest - prev
+        pct = (change / prev * 100) if prev else 0.0
+        result = f"{sym} 最新價格為 {latest:.2f}，日變化 {change:+.2f}（{pct:+.2f}%）。"
+        _set_cache(cache_key, result)
+        return result
+    except Exception as e:
+        return f"YFinance Tool Failed：取得 {sym} 報價時發生錯誤（{e}）。"
+
+
 @tool("YFinance Quote Fetcher")
 def yfinance_tool(symbol: str) -> str:
     """
     使用 yfinance 取得單一標的的最新收盤價與日內漲跌幅。
     例如 symbol='^VIX'（恐慌指數）、'IBIT'（比特幣現貨 ETF）、'SPY' 等。
     """
-    if not symbol:
-        return "YFinance Tool Failed：symbol 不可為空。"
+    return _yf_quote(symbol)
 
-    cache_key = ("yfinance_quote", symbol.upper())
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
 
-    try:
-        df = yf.download(symbol, period="5d", interval="1d", progress=False)
-        if df.empty:
-            return f"YFinance：無法取得 {symbol} 資料。"
-        latest = df["Close"].iloc[-1]
-        prev = df["Close"].iloc[-2] if len(df) > 1 else latest
-        change = latest - prev
-        pct = (change / prev * 100) if prev else 0.0
-        result = f"{symbol} 最新價格為 {latest:.2f}，日變化 {change:+.2f}（{pct:+.2f}%）。"
-        _set_cache(cache_key, result)
-        return result
-    except Exception as e:
-        return f"YFinance Tool Failed：取得 {symbol} 報價時發生錯誤（{e}）。"
+@tool("YFinance Multi-Quote")
+def yfinance_multi_tool(symbols: str) -> str:
+    """批量取得多標的報價，symbols 以逗號分隔（如 '^VIX,IBIT'）。"""
+    symbol_list = [s.strip() for s in (symbols or "").split(",") if s.strip()]
+    if not symbol_list:
+        return "YFinance Multi Tool Failed：symbols 不可為空。"
+    return "\n".join(_yf_quote(s) for s in symbol_list)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -270,7 +283,7 @@ def market_search_tool(query: str) -> str:
 
     try:
         client = _get_tavily_client()
-        response = client.search(query=query, search_depth="basic", max_results=5, topic="news", days=1)
+        response = client.search(query=query, search_depth="basic", max_results=3, topic="news", days=1)
         raw = str(response.get("results", []))
         prefix = f"(當前系統時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，請過濾掉超過 48 小時的舊資訊)\n"
         result = prefix + raw
@@ -315,65 +328,22 @@ def x_search_tool(query: str) -> str:
 # CoinGlass On-chain Data
 # ═══════════════════════════════════════════════════════════════════
 
-def _tavily_fallback_oi() -> str:
-    """CoinGlass 失敗時以 Tavily 搜尋 BTC OI 作為備援。"""
+def _tavily_fallback(query: str, label: str) -> str:
+    """通用 Tavily 備援搜尋。"""
     try:
         client = _get_tavily_client()
-        res = client.search(
-            query="Bitcoin BTC open interest aggregated futures today billions",
-            search_depth="basic",
-            max_results=3,
-            topic="finance",
-        )
+        res = client.search(query=query, search_depth="basic", max_results=3, topic="finance")
         return f"[Tavily 備援] {str(res.get('results', []))}"
     except Exception:
-        return "API 暫時無回應：CoinGlass 與 Tavily 備援均失敗。"
+        return f"API 暫時無回應：CoinGlass（{label}）與 Tavily 備援均失敗。"
 
 
-def _tavily_fallback_funding_rate() -> str:
-    """CoinGlass 資金費率失敗時，以 Tavily 搜尋最新 BTC 資金費率作為備援。"""
-    try:
-        client = _get_tavily_client()
-        res = client.search(
-            query="Bitcoin BTC current funding rate binance today",
-            search_depth="basic",
-            max_results=3,
-            topic="finance",
-        )
-        return f"[Tavily 備援] {str(res.get('results', []))}"
-    except Exception:
-        return "API 暫時無回應：CoinGlass（funding_rate）與 Tavily 備援均失敗。"
-
-
-def _tavily_fallback_liquidations() -> str:
-    """CoinGlass 清算數據失敗時，以 Tavily 搜尋過去 24 小時 BTC 爆倉金額作為備援。"""
-    try:
-        client = _get_tavily_client()
-        res = client.search(
-            query="Bitcoin BTC total liquidations past 24 hours crypto market",
-            search_depth="basic",
-            max_results=3,
-            topic="finance",
-        )
-        return f"[Tavily 備援] {str(res.get('results', []))}"
-    except Exception:
-        return "API 暫時無回應：CoinGlass（liquidations）與 Tavily 備援均失敗。"
-
-
-def _tavily_fallback_long_short_ratio() -> str:
-    """CoinGlass 大戶多空比失敗時，以 Tavily 搜尋今日頂級交易員多空比作為備援。"""
-    try:
-        client = _get_tavily_client()
-        res = client.search(
-            query="Bitcoin BTC top trader long short ratio binance today",
-            search_depth="basic",
-            max_results=3,
-            topic="finance",
-        )
-        return f"[Tavily 備援] {str(res.get('results', []))}"
-    except Exception:
-        return "API 暫時無回應：CoinGlass（long_short_ratio）與 Tavily 備援均失敗。"
-
+_TAVILY_FALLBACK_QUERIES = {
+    "open_interest": "Bitcoin BTC open interest aggregated futures today billions",
+    "funding_rate": "Bitcoin BTC current funding rate binance today",
+    "liquidations": "Bitcoin BTC total liquidations past 24 hours crypto market",
+    "long_short_ratio": "Bitcoin BTC top trader long short ratio binance today",
+}
 
 # CoinGlass API V4 endpoints（針對 BTC）
 _COINGLASS_BASE = "https://open-api-v4.coinglass.com"
@@ -474,13 +444,10 @@ def coinglass_data_tool(metric: str) -> str:
             pass
 
     # CoinGlass 失敗或無 API key：依 metric 呼叫對應 Tavily 備援
-    fallbacks = {
-        "open_interest": _tavily_fallback_oi,
-        "funding_rate": _tavily_fallback_funding_rate,
-        "liquidations": _tavily_fallback_liquidations,
-        "long_short_ratio": _tavily_fallback_long_short_ratio,
-    }
-    result = fallbacks.get(metric_lower, lambda: f"CoinGlass Tool Failed：{metric} API 暫無回應或 COINGLASS_API_KEY 未設定。")()
+    if metric_lower in _TAVILY_FALLBACK_QUERIES:
+        result = _tavily_fallback(_TAVILY_FALLBACK_QUERIES[metric_lower], metric_lower)
+    else:
+        result = f"CoinGlass Tool Failed：{metric} API 暫無回應或 COINGLASS_API_KEY 未設定。"
     _set_cache(cache_key, result)
     return result
 
@@ -488,22 +455,6 @@ def coinglass_data_tool(metric: str) -> str:
 # ═══════════════════════════════════════════════════════════════════
 # CryptoQuant On-chain Data
 # ═══════════════════════════════════════════════════════════════════
-
-def _tavily_fallback_exchange_flow(indicator_lower: str) -> str:
-    """CryptoQuant 失敗時以 Tavily 搜尋 BTC 交易所資金流作為備援。"""
-    try:
-        client = _get_tavily_client()
-        q = "Bitcoin BTC exchange inflow" if indicator_lower == "inflow" else "Bitcoin BTC exchange outflow"
-        res = client.search(
-            query=f"{q} today on-chain",
-            search_depth="basic",
-            max_results=3,
-            topic="finance",
-        )
-        return f"[Tavily 備援] {str(res.get('results', []))}"
-    except Exception:
-        return "API 暫時無回應：CryptoQuant 與 Tavily 備援均失敗。"
-
 
 @tool("CryptoQuant On-chain Data")
 def cryptoquant_tool(indicator: str) -> str:
@@ -534,7 +485,10 @@ def cryptoquant_tool(indicator: str) -> str:
         except Exception:
             pass
 
-    result = _tavily_fallback_exchange_flow(indicator_lower)
+    result = _tavily_fallback(
+        f"Bitcoin BTC exchange {indicator_lower} today on-chain",
+        f"CryptoQuant-{indicator_lower}",
+    )
     _set_cache(cache_key, result)
     return result
 
