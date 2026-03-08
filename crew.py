@@ -70,9 +70,9 @@ _DASH_FALLBACK = dedent("""\
 
 _TRADE_PRICE_RULE = dedent("""\
     【交易價格規則（嚴格執行）】
-    ① 必須先呼叫 yfinance_tool('SYMBOL') 取得現價
-    ② 回傳含 "Failed" → yfinance_multi_tool 重試；仍失敗則換可取價標的
-    ③ 禁止 "N/A"/"API 取價異常"/"當前價位"/"市場價" 等模糊字樣
+    ① 使用任務開頭【Python 強制市場快照】中已提供的現價，Python 預先抓取，絕對準確
+    ② 禁止自行推測、估算或捏造任何價格數字；禁止 "N/A"/"API 取價異常"/"當前價位"/"市場價" 等模糊字樣
+    ③ 若快照中無需要的標的，才可呼叫 yfinance_tool('SYMBOL') 作為最後手段，並在報告中標注「即時補查」
     ④ 進場 = 現價 ± ≤0.5% 滑點，目標 = 現價×(1+Y%)，停損 = 現價×(1-Z%)
     ⑤ 格式：現價 <code>$XXX.XX</code>，進場 <code>$XXX.XX</code>，目標 <code>$XXX.XX (+Y%)</code>，停損 <code>$XXX.XX (-Z%)</code>""")
 
@@ -123,12 +123,13 @@ class CryptoResearchCrew:
             verbose=_VERBOSE
         )
 
-    def run(self, exclude_context: str | None = None):
+    def run(self, exclude_context: str | None = None, market_snapshot: str | None = None):
         today_str = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
         _excl = (
             f"\n【避免重複】昨日戰報已涵蓋以下內容，請勿選用相同或高度相似的新聞，優先選取過去 24 小時內的最新資訊：\n{exclude_context}\n\n"
             if exclude_context else ""
         )
+        _snapshot = market_snapshot or "（市場快照未提供 — 請呼叫 yfinance_tool 取得報價）"
 
         # ══════════════════════════════════════════════════════════════
         # Task 1：加密市場情報（Grok）
@@ -136,6 +137,8 @@ class CryptoResearchCrew:
         crypto_task = Task(
             description=dedent(f"""
                 【加密市場情報收集 — Grok】
+                {_snapshot}
+
                 {_DATA_RULES}
                 {_excl}
                 === 數據收集（全部必須執行）===
@@ -180,6 +183,8 @@ class CryptoResearchCrew:
         review_task = Task(
             description=dedent(f"""
                 【幣圈辯論與風險審計 — Claude】
+                {_snapshot}
+
                 {_DATA_RULES}
 
                 === Fact-Check ===
@@ -187,7 +192,7 @@ class CryptoResearchCrew:
                 數據滯後 >12h 或極端異常 → 標記「數據失真警告：[指標]」。
 
                 === Risk Off 訊號 ===
-                呼叫 yfinance_multi_tool('^VIX,IBIT') 一次取得 VIX 與 IBIT。
+                直接使用上方【Python 強制市場快照】中的 VIX 與 IBIT 數值，無須再呼叫 yfinance_multi_tool。
                 VIX 暴漲 + IBIT 下跌 → 「Risk Off 信號」；反之 → 風險偏好未退潮。
 
                 === 幣圈新聞辯論（3 則）===
@@ -218,11 +223,13 @@ class CryptoResearchCrew:
         final_report_task = Task(
             description=dedent(f"""
                 【加密市場戰報排版 — Gemini 主編】
+                {_snapshot}
+
                 {_DATA_RULES}
                 {_DASH_FALLBACK}
 
                 排版前數據獲取：coinglass_data_tool('open_interest')、cryptoquant_tool('inflow'/'outflow')、ml_quant_tool。
-                若 VIX/IBIT 失效 → yfinance_tool('^VIX')/yfinance_tool('IBIT') 重試。
+                VIX 與 IBIT 現價請直接使用上方【Python 強制市場快照】，無需重新呼叫 yfinance_tool。
                 含 [Tavily 備援] 直接萃取數值。
 
                 {_EDITOR_RULE}
@@ -302,11 +309,12 @@ class AIResearchCrew:
             verbose=_VERBOSE
         )
 
-    def run(self, exclude_context: str | None = None):
+    def run(self, exclude_context: str | None = None, market_snapshot: str | None = None):
         _excl = (
             f"\n【避免重複】昨日戰報已涵蓋以下內容，請勿選用相同或高度相似的新聞，優先選取過去 24 小時內的最新資訊：\n{exclude_context}\n\n"
             if exclude_context else ""
         )
+        _snapshot = market_snapshot or "（市場快照未提供 — 請呼叫 yfinance_tool 取得報價）"
         _YEAR_ = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m")
 
         # ══════════════════════════════════════════════════════════════
@@ -315,6 +323,8 @@ class AIResearchCrew:
         ai_task = Task(
             description=dedent(f"""
                 【AI 市場情報收集 — GPT】
+                {_snapshot}
+
                 {_DATA_RULES}
                 {_excl}
                 === 數據 ===
@@ -386,6 +396,8 @@ class AIResearchCrew:
         final_report_task = Task(
             description=dedent(f"""
                 【AI 市場戰報排版 — Gemini 主編】
+                {_snapshot}
+
                 {_DATA_RULES}
 
                 {_EDITOR_RULE}

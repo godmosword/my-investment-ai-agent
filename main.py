@@ -400,6 +400,71 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
         return None
 
 
+def prefetch_market_data() -> dict:
+    """Python 強制預抓即時報價，在 Crew 啟動前執行，確保數據純淨，根除報價幻覺。"""
+    import yfinance as yf
+    import pandas as pd
+
+    symbols = {
+        "VIX":  "^VIX",
+        "IBIT": "IBIT",
+        "BTC":  "BTC-USD",
+        "ETH":  "ETH-USD",
+        "SOL":  "SOL-USD",
+        "SPY":  "SPY",
+        "QQQ":  "QQQ",
+    }
+    prices: dict = {}
+    for name, ticker in symbols.items():
+        try:
+            df = yf.download(ticker, period="5d", interval="1d", progress=False, auto_adjust=True)
+            col = df["Close"]
+            if isinstance(col, pd.DataFrame):
+                col = col.iloc[:, 0]
+            col = col.dropna()
+            if col.empty:
+                prices[name] = None
+                continue
+            latest = float(col.iloc[-1])
+            prev   = float(col.iloc[-2]) if len(col) >= 2 else latest
+            prices[name] = {
+                "price":      latest,
+                "change_pct": (latest - prev) / prev * 100 if prev else 0.0,
+                "symbol":     ticker,
+            }
+        except Exception as e:
+            logger.warning("prefetch_market_data failed for %s: %s", ticker, e)
+            prices[name] = None
+
+    prices["_fetched_at"] = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        "Market snapshot prefetched: %s",
+        {k: (f"${v['price']:.2f}" if v else "FAILED") for k, v in prices.items() if not k.startswith("_")},
+    )
+    return prices
+
+
+def format_market_snapshot(prices: dict) -> str:
+    """格式化 Python 預抓報價為不可更改的市場快照字串，注入至 Crew 任務描述開頭。"""
+    ts = prices.get("_fetched_at", "unknown")
+    lines = [
+        "╔══════════════════════════════════════════════╗",
+        "║  【Python 強制市場快照 · 禁止 AI 篡改數值】  ║",
+        f"║  資料時間戳記：{ts[:19]} UTC              ║",
+        "╚══════════════════════════════════════════════╝",
+    ]
+    for name, d in prices.items():
+        if name.startswith("_"):
+            continue
+        if d is None:
+            lines.append(f"  {name:<6}: [取得失敗 — 禁止猜測，標記 DATA_MISSING]")
+        else:
+            sign = "+" if d["change_pct"] >= 0 else ""
+            lines.append(f"  {name:<6}: ${d['price']:>10,.2f}  ({sign}{d['change_pct']:.2f}%)")
+    lines.append("（以上為 Python 程式直接從 yfinance 抓取，時效為本次執行開始時，禁止 AI 修改或猜測任何數值）")
+    return "\n".join(lines)
+
+
 def _is_503(e: Exception) -> bool:
     """是否為 503 / 暫時不可用類錯誤（可重試）。"""
     msg = str(e).lower()
@@ -410,9 +475,17 @@ def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | No
     """使用 ThreadPoolExecutor 讓兩個 Crew 同時執行，回傳合併戰報。"""
     try:
         from concurrent.futures import ThreadPoolExecutor
+
+        market_snapshot = format_market_snapshot(prefetch_market_data())
+        logger.info("Market snapshot injected into crew tasks.")
+
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_crypto = executor.submit(lambda: str(CryptoResearchCrew().run(exclude_context=exclude_context)))
-            future_ai = executor.submit(lambda: str(AIResearchCrew().run(exclude_context=exclude_context)))
+            future_crypto = executor.submit(
+                lambda: str(CryptoResearchCrew().run(exclude_context=exclude_context, market_snapshot=market_snapshot))
+            )
+            future_ai = executor.submit(
+                lambda: str(AIResearchCrew().run(exclude_context=exclude_context, market_snapshot=market_snapshot))
+            )
 
             crypto_report = future_crypto.result()
             ai_report = future_ai.result()

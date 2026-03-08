@@ -1,6 +1,7 @@
+import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 
 import requests
@@ -335,7 +336,7 @@ def yfinance_multi_tool(symbols: str) -> str:
 
 @tool("Tavily Market Search")
 def market_search_tool(query: str) -> str:
-    """搜尋全球即時新聞。"""
+    """搜尋全球即時新聞，強制過濾 48 小時以上舊聞並輸出明確時間戳記。"""
     cache_key = ("market_search", query)
     cached = _get_cache(cache_key)
     if cached:
@@ -343,10 +344,34 @@ def market_search_tool(query: str) -> str:
 
     try:
         client = _get_tavily_client()
-        response = client.search(query=query, search_depth="basic", max_results=3, topic="news", days=1)
-        raw = str(response.get("results", []))
-        prefix = f"(當前系統時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，請過濾掉超過 48 小時的舊資訊)\n"
-        result = prefix + raw
+        response = client.search(query=query, search_depth="basic", max_results=5, topic="news", days=2)
+        results = response.get("results", [])
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=48)
+
+        lines = [f"(系統時間：{now.strftime('%Y-%m-%d %H:%M UTC')} | 僅顯示 48 小時內新聞)"]
+        kept = 0
+        for r in results:
+            published = r.get("published_date") or ""
+            title = r.get("title") or "(無標題)"
+            url = r.get("url") or ""
+            snippet = (r.get("content") or "")[:300]
+
+            try:
+                pub_dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
+                if pub_dt < cutoff:
+                    continue  # Python-level filter — AI cannot override this
+                age_h = int((now - pub_dt).total_seconds() / 3600)
+                age_str = f"{age_h}小時前" if age_h < 24 else f"{int(age_h / 24)}天前"
+            except Exception:
+                age_str = published or "時間不明"
+
+            lines.append(f"\n【{age_str} | {published[:10]}】{title}\n{url}\n{snippet}")
+            kept += 1
+
+        if kept == 0:
+            return f"[NO_RECENT_NEWS: 過去 48 小時內無符合條件的新聞 | query={query}]"
+        result = "\n".join(lines)
         _set_cache(cache_key, result)
         return result
     except ValueError as e:
@@ -359,29 +384,78 @@ def market_search_tool(query: str) -> str:
 # X Real-time Trend Search
 # ═══════════════════════════════════════════════════════════════════
 
+def _x_rapidapi_search(query: str) -> str:
+    """RapidAPI Twitter 備援搜尋 (twitter154 endpoint)。"""
+    key = os.getenv("RAPIDAPI_KEY", "")
+    if not key:
+        return "[TWEETS_UNAVAILABLE: 官方 API 失敗且 RAPIDAPI_KEY 未設定]"
+    try:
+        resp = requests.get(
+            "https://twitter154.p.rapidapi.com/search/search",
+            headers={"X-RapidAPI-Key": key, "X-RapidAPI-Host": "twitter154.p.rapidapi.com"},
+            params={"query": query, "section": "latest", "limit": 10, "language": "en"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        if not results:
+            return "[NO_TWEETS_FOUND via RapidAPI]"
+        return "\n".join(
+            f"[{t.get('creation_date', '')[:16]}] {t.get('text', '').replace(chr(10), ' ')}"
+            for t in results
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning("RapidAPI Twitter fallback failed: %s", e)
+        return "[TWEETS_UNAVAILABLE: 官方 API + RapidAPI 均失敗]"
+
+
 @tool("X Real-time Trend Search")
 def x_search_tool(query: str) -> str:
-    """搜尋 X 情緒。"""
-    bearer_token = os.getenv("X_BEARER_TOKEN")
-    if not bearer_token:
-        return "[DATA_MISSING:x_tweets] X Search Failed：X_BEARER_TOKEN 未設定。"
+    """搜尋 X/Twitter 即時推文情緒，官方 API + RapidAPI 雙重備援，並附帶時間戳記。"""
+    bearer = os.getenv("X_BEARER_TOKEN", "")
+    if not bearer:
+        return "[TWEETS_UNAVAILABLE: X_BEARER_TOKEN 未設定]"
 
     cache_key = ("x_search", query)
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
+    _logger = logging.getLogger(__name__)
     try:
-        url = f"https://api.twitter.com/2/tweets/search/recent?query={quote(query)}&max_results=6"
-        headers = {"Authorization": f"Bearer {bearer_token}"}
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        tweets = response.json().get("data", [])
-        result = "\n".join([f"- {t['text']}" for t in tweets]) if tweets else "No tweets found."
+        url = "https://api.twitter.com/2/tweets/search/recent"
+        params = {
+            "query": f"{query} lang:en -is:retweet",
+            "max_results": 10,
+            "tweet.fields": "created_at,public_metrics",
+        }
+        resp = requests.get(
+            url, headers={"Authorization": f"Bearer {bearer}"}, params=params, timeout=15
+        )
+        if resp.status_code == 403:
+            _logger.warning("X official API: 403 (plan not authorized) — falling back to RapidAPI")
+            result = _x_rapidapi_search(query)
+        elif resp.status_code == 401:
+            result = "[TWEETS_UNAVAILABLE: X Bearer Token 無效或已過期]"
+        elif resp.status_code == 429:
+            result = "[TWEETS_UNAVAILABLE: X API 速率限制，請稍後再試]"
+        else:
+            resp.raise_for_status()
+            tweets = resp.json().get("data", [])
+            if not tweets:
+                result = "[NO_TWEETS_FOUND]"
+            else:
+                result = "\n".join(
+                    f"[{t.get('created_at', '')[:16]}] {t['text'].replace(chr(10), ' ')}"
+                    for t in tweets
+                )
         _set_cache(cache_key, result)
         return result
     except Exception as e:
-        return f"[DATA_MISSING:x_tweets] X Search Failed: {str(e)}"
+        _logger.warning("x_search_tool official API failed: %s — falling back to RapidAPI", e)
+        result = _x_rapidapi_search(query)
+        _set_cache(cache_key, result)
+        return result
 
 
 # ═══════════════════════════════════════════════════════════════════
