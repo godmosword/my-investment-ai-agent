@@ -12,8 +12,6 @@ MODEL_GPT    = "openai/gpt-5.3-chat-latest"
 MODEL_CLAUDE = "openrouter/anthropic/claude-sonnet-4.6"
 MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
 
-_IMPACT_TAG = "IMPACT：強利空/弱利空/中性/弱利多/強利多（五選一）｜NARRATIVE：FOMO/FUD/Infra/Regulation/Other"
-
 from tools import (
     ai_momentum_tool,
     macro_liquidity_tool,
@@ -30,24 +28,53 @@ from tools import (
     yfinance_multi_tool,
 )
 
-# ── Shared prompt fragments（減少 token 重複）────────────────────────────────
-_TELEGRAM_FORMAT_RULES = dedent("""\
-    ════ Telegram HTML 格式 ════
-    僅允許：<b>、<i>、<u>、<s>、<code>、<blockquote>
-    禁止：Markdown（#、**、*、_、`）、<h1~h2>、<div>、<p>、<br>、<hr>、<span>、<table>
-    分隔線用 ────────────，標題用 <b>【標題】</b>，條列用「· 」，數值用 <code>，推文用 <blockquote>""")
+# ── Shared prompt fragments ────────────────────────────────
+_TELEGRAM_FMT = dedent("""\
+    ════ Telegram HTML ════
+    允許：<b> <i> <u> <s> <code> <blockquote> <a href>｜禁止：Markdown、<h1~h2> <div> <p> <br> <hr> <span> <table>
+    分隔線 ────────────（每大區塊前加）｜標題 <b>【】</b>｜數值 <code>｜推文 <blockquote>
+    每則新聞完整輸出（標題/來源/摘要/投資解讀/💎 在一起），禁止中間插分隔線""")
 
-_EDITOR_CONSENSUS_RULE = dedent("""\
-    【主編共識原則】
-    將 Grok/GPT 與 Claude 的辯論濃縮為一句話共識填入 💎 <b>主編共識</b>。
-    戰報正文中每則新聞/推文僅保留 💎 主編共識一行，禁止呈現個別 Agent 觀點。""")
+_EDITOR_RULE = dedent("""\
+    【主編共識】Grok/GPT 與 Claude 辯論濃縮為 💎 <b>主編共識</b>（1句操作判斷，必須點名具體標的）。
+    正文僅保留 💎 主編共識，禁止呈現個別 Agent 觀點。""")
 
-_NEWS_FORMAT = dedent("""\
-    〔新聞 N〕[MM/DD HH:MM] 新聞標題
+_NEWS_FMT = dedent("""\
+    〔新聞 N〕[MM/DD HH:MM UTC+8] 新聞標題（時間不明確標 [近24h] 或 [近48h]）
     來源：xxx｜性質：confirmed / likely / unverified rumor
-    摘要：（1~2 句）""")
+    摘要：（1 句，聚焦事件本身）""")
 
-_PRICE_CHECK_RULE = "進場/目標/停損前必須呼叫 yfinance_tool 查詢最新報價，禁止憑空捏造價格。"
+_IMPACT_TAG = dedent("""\
+    📍 受影響資產：[具體 Ticker，如 BTC/ETH/AMD/NVDA/IBIT，可多個]
+    📈 做多機會：[標的] — [1句受益原因與觸發條件]
+    📉 做空風險：[標的] — [1句受害原因與風險情境]
+    ⏱️ 時效：短期(1-7天) / 中期(2-4週) / 長期(1季+)
+    🎯 IMPACT：強利空/弱利空/中性/弱利多/強利多（五選一）""")
+
+_TWEET_TAG = dedent("""\
+    📍 受影響資產：[具體 Ticker]
+    🎯 IMPACT：強利空/弱利空/中性/弱利多/強利多
+    ⏱️ 時效：短期 / 中期 / 長期""")
+
+_DATA_RULES = dedent("""\
+    ⚠️ [DATA_MISSING:xxx] → 報告寫「⚠️ [xxx] 數據暫缺」，禁止 N/A 或省略。
+    【新鮮度】新聞限 48h 內，超時跳過重搜，禁用 3 天前舊聞。""")
+
+_DASH_FALLBACK = dedent("""\
+    【儀表板缺失處理】
+    · "Tool Failed"/"失效" → 寫「[指標] 暫缺」，禁複製錯誤訊息
+    · VIX/IBIT 失效 → yfinance_tool('^VIX')/yfinance_tool('IBIT') 重試
+    · "[Tavily備援-MVRV]" → 從文字解讀 Z-Score 數值
+    · ML "建置中" → 寫 ML 建置中（XX/30天）｜部位建議 暫不適用
+    · 禁止出現 "無數據"/"N/A"/"Failed" 字樣""")
+
+_TRADE_PRICE_RULE = dedent("""\
+    【交易價格規則（嚴格執行）】
+    ① 必須先呼叫 yfinance_tool('SYMBOL') 取得現價
+    ② 回傳含 "Failed" → yfinance_multi_tool 重試；仍失敗則換可取價標的
+    ③ 禁止 "N/A"/"API 取價異常"/"當前價位"/"市場價" 等模糊字樣
+    ④ 進場 = 現價 ± ≤0.5% 滑點，目標 = 現價×(1+Y%)，停損 = 現價×(1-Z%)
+    ⑤ 格式：現價 <code>$XXX.XX</code>，進場 <code>$XXX.XX</code>，目標 <code>$XXX.XX (+Y%)</code>，停損 <code>$XXX.XX (-Z%)</code>""")
 
 
 def _make_llms(*names: str):
@@ -109,6 +136,7 @@ class CryptoResearchCrew:
         crypto_task = Task(
             description=dedent(f"""
                 【加密市場情報收集 — Grok】
+                {_DATA_RULES}
                 {_excl}
                 === 數據收集（全部必須執行）===
                 ① macro_liquidity_tool×2：DXY 與 M2
@@ -122,19 +150,23 @@ class CryptoResearchCrew:
 
                 === 幣圈新聞（3 則）===
                 優先：ETF 資金流、槓桿清算、鏈上流向、做市商操作。至少一則來自 CryptoPanic。
-                每則格式（標註發布時間，無精確時間則 [近24h]/[近72h]）：
-                {_NEWS_FORMAT}
-                🛸 Grok 利多 / 🛸 Grok 利空（各 1~2 句）
+                每則格式：
+                {_NEWS_FMT}
+                🛸 Grok 研判：2~3 句，必須明確說明「哪個標的」受影響及「為何」
                 {_IMPACT_TAG}
 
                 === 背離與衍生品 ===
-                · FOMO + MVRV>7 + 巨鯨轉帳 → 標示「聰明錢出貨警告」
-                · 全網悲觀 + MVRV<0 + 巨鯨平靜 → 標示「散戶盲目恐慌」
-                · 資金費率極正 + 多頭過熱 → 標示「多頭清算風險」
-                · 剛發生巨額多頭爆倉 → 標示「流動性洗盤，左側建倉條件」
+                · FOMO + MVRV>7 + 巨鯨轉帳 →「聰明錢出貨警告」
+                · 全網悲觀 + MVRV<0 + 巨鯨平靜 →「散戶盲目恐慌」
+                · 資金費率極正 + 多頭過熱 →「多頭清算風險」
+                · 巨額多頭爆倉 →「流動性洗盤，左側建倉條件」
 
                 === 幣圈推文（5 則）===
-                每則：〔推文 N〕推文原文 / 簡述 / 🛸 Grok 利多+利空 / {_IMPACT_TAG}
+                每則：
+                〔推文 N〕[MM/DD] <blockquote>推文原文</blockquote>
+                簡述：（1句）
+                🛸 Grok 研判：指出具體受益/受害幣種 + 1句理由
+                {_TWEET_TAG}
 
                 禁止捏造來源或未出現於搜尋結果中的事實。
             """),
@@ -146,8 +178,9 @@ class CryptoResearchCrew:
         # Task 2：幣圈辯論與宏觀 Risk Off 審計（Claude）
         # ══════════════════════════════════════════════════════════════
         review_task = Task(
-            description=dedent("""
+            description=dedent(f"""
                 【幣圈辯論與風險審計 — Claude】
+                {_DATA_RULES}
 
                 === Fact-Check ===
                 檢視所有數據（DXY/M2/MVRV/資金費率/爆倉/多空比/VIX/IBIT/ETF flow）。
@@ -164,7 +197,12 @@ class CryptoResearchCrew:
                 每則：🛡️ Claude（幣圈推文 N）：1 句反向/補充觀點。
 
                 === market_regime（risk_on / risk_off / neutral 三選一）===
-                提供 3 個驅動因子（各一句話）。
+                必須量化判定：列出 VIX 數值、IBIT 日漲跌、BTC 資金費率、MVRV Z-Score 各自的信號方向。
+                綜合 4 項信號給出最終判定，並說明主要驅動因子（各一句話）：
+                · 因子 1：[VIX 信號]
+                · 因子 2：[IBIT/ETF 信號]
+                · 因子 3：[鏈上/衍生品信號（MVRV/資金費率/爆倉）]
+                判定規則：3/4 信號 risk_off → risk_off；3/4 risk_on → risk_on；其餘 → neutral
                 · FUD + ETF 巨大淨流出 → 「情緒感染流動性」高風險
                 · 全網恐慌 + 巨鯨平靜 + MVRV<3 → 「黃金坑/洗盤」
                 · 散戶過度槓桿做多 → 即使無 FUD 也判定 risk_off
@@ -180,17 +218,20 @@ class CryptoResearchCrew:
         final_report_task = Task(
             description=dedent(f"""
                 【加密市場戰報排版 — Gemini 主編】
+                {_DATA_RULES}
+                {_DASH_FALLBACK}
 
-                排版前數據獲取：coinglass_data_tool('open_interest')（Task 1 已含 funding_rate/liquidations/long_short_ratio，請沿用）、cryptoquant_tool('inflow' 或 'outflow')、ml_quant_tool。若回傳含 [Tavily 備援] 直接萃取數值，嚴禁 N/A。
+                排版前數據獲取：coinglass_data_tool('open_interest')、cryptoquant_tool('inflow'/'outflow')、ml_quant_tool。
+                若 VIX/IBIT 失效 → yfinance_tool('^VIX')/yfinance_tool('IBIT') 重試。
+                含 [Tavily 備援] 直接萃取數值。
 
-                {_EDITOR_CONSENSUS_RULE}
-
-                {_TELEGRAM_FORMAT_RULES}
+                {_EDITOR_RULE}
+                {_TELEGRAM_FMT}
 
                 === 投資標的 ===
                 在【資金流向與精準操作 (Crypto)】提供 1 單邊標的（非 BTC）+ 1 配對交易。
-                {_PRICE_CHECK_RULE}
-                加密貨幣請用 yfinance_tool 查詢時加 '-USD'（如 SOL-USD）。每標的含：信心水準⭐️1~5、資金佔比、進場/目標/停損、敘事邏輯。
+                {_TRADE_PRICE_RULE}
+                加密貨幣 symbol 必須加 '-USD'（如 SOL-USD, ETH-USD）。
 
                 === 排版結構（嚴格依序）===
                 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
@@ -198,11 +239,21 @@ class CryptoResearchCrew:
                 【今日市場模式】risk_on/risk_off/neutral + 3 驅動因子
                 ══════ <b>📊 加密市場</b> ══════
                 【加密市場數據儀表板】宏觀(M2/DXY/VIX) + 量化模型(ML權重/部位建議) + 幣圈指標(MVRV/OI/IBIT/資金費率/爆倉/多空比/交易所淨流入)
-                【幣圈新聞】3 則：標題/來源/摘要/IMPACT/💎主編共識
-                【幣圈推文討論】5 則：<blockquote>原文</blockquote>/簡述/IMPACT/💎主編共識
-                【資金流向與精準操作 (Crypto)】1 單邊 + 1 配對（格式：現價/信心/資金佔比/進場/目標/停損 %/敘事）
+                【幣圈新聞】3 則，每則嚴格按格式：
+                  標題/來源/摘要
+                  📍 受影響資產：[具體幣種 Ticker]
+                  📈 做多機會：[幣種] — [原因]
+                  📉 做空風險：[幣種] — [原因]
+                  ⏱️ 時效：短期/中期/長期
+                  🎯 IMPACT：[五選一]
+                  💎 <b>主編共識</b>：[1句最終操作判斷，必須點名具體標的]
+                【幣圈推文討論】5 則，每則：
+                  <blockquote>原文</blockquote>
+                  簡述（1句）｜📍 受影響資產：[Ticker]｜⏱️ 時效｜🎯 IMPACT
+                  💎 <b>主編共識</b>：[1句操作判斷]
+                【資金流向與精準操作 (Crypto)】1 單邊 + 1 配對（現價/信心/資金佔比/進場/目標/停損 %/敘事）
 
-                所有標題用 <b>，數值用 <code>，推文用 <blockquote>。禁止 Markdown 與 HORIZON 標籤。
+                禁止 Markdown 與 HORIZON 標籤。
             """),
             expected_output="戰報上半部 Telegram HTML 格式完整輸出。",
             agent=self.quant_strategist,
@@ -256,6 +307,7 @@ class AIResearchCrew:
             f"\n【避免重複】昨日戰報已涵蓋以下內容，請勿選用相同或高度相似的新聞，優先選取過去 24 小時內的最新資訊：\n{exclude_context}\n\n"
             if exclude_context else ""
         )
+        _YEAR_ = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m")
 
         # ══════════════════════════════════════════════════════════════
         # Task 1：AI 市場情報（GPT）
@@ -263,31 +315,38 @@ class AIResearchCrew:
         ai_task = Task(
             description=dedent(f"""
                 【AI 市場情報收集 — GPT】
+                {_DATA_RULES}
                 {_excl}
                 === 數據 ===
                 呼叫 ai_momentum_tool('openrouter_rankings') 取得模型熱度排名。
 
                 === 第一部分：AI 基建現況（3 則）===
                 聚焦：資料中心/GPU/TPU/算力/電力/散熱/能源基建。
-                必須搜尋（各至少一次）：
-                · market_search_tool: 'AI data center GPU NVIDIA infrastructure 2025'
-                · market_search_tool: 'data center power supply nuclear energy AI 2025'
-                · market_search_tool: 'AI data center cooling thermal technology 2025'
+                搜尋（各至少一次）：
+                · market_search_tool: 'AI data center GPU NVIDIA infrastructure {_YEAR_}'
+                · market_search_tool: 'data center power supply nuclear energy AI {_YEAR_}'
+                · market_search_tool: 'AI data center cooling thermal technology {_YEAR_}'
                 · rumor_scanner_tool: 'data center materials semiconductor supply chain'
                 3 則中至少一則涵蓋電力/散熱/材料/能源基建。
-                每則：{_NEWS_FORMAT} + 🤖 GPT 利多/利空 + {_IMPACT_TAG}
+                每則格式：
+                {_NEWS_FMT}
+                🤖 GPT 研判：2~3 句，必須明確說明「哪個美股標的或 ETF」受影響及投資含義
+                {_IMPACT_TAG}
 
                 === 第二部分：AI 投資案（3 則）===
-                聚焦：AI 新創融資、科技收購、風投、IPO。
-                搜尋：market_search_tool + rumor_scanner_tool。格式同上。
+                聚焦：AI 新創融資、科技收購、風投、IPO。格式同上。
 
                 === 第三部分：最新 AI 模型（3 則）===
                 聚焦：LLM/多模態/Agent 框架新發布，摘要含模型特色。格式同上。
 
                 === AI 推文（5 則）===
-                x_search_tool: 'MCP Model Context Protocol OR AI agent app 2025'
+                x_search_tool: 'MCP Model Context Protocol OR AI agent app {_YEAR_}'
                 聚焦：AI 應用落地、MCP 發展、Agent 框架。
-                每則：〔推文 N〕原文/簡述/🤖 GPT 利多+利空/{_IMPACT_TAG}
+                每則：
+                〔推文 N〕[MM/DD] <blockquote>推文原文</blockquote>
+                簡述：（1句）
+                🤖 GPT 研判：指出具體受益美股（如 MSFT/PLTR/AI/SMCI）+ 1句理由
+                {_TWEET_TAG}
 
                 · 訓練成本攀升但 Big Tech capex 增速放緩 → 標示「算力通縮研發通膨矛盾」
                 禁止捏造事實。
@@ -300,8 +359,9 @@ class AIResearchCrew:
         # Task 2：AI 市場辯論審計（Claude）
         # ══════════════════════════════════════════════════════════════
         review_task = Task(
-            description=dedent("""
+            description=dedent(f"""
                 【AI 市場辯論審計 — Claude】
+                {_DATA_RULES}
 
                 === AI 基建辯論（3 則）===
                 每則：🛡️ Claude（AI基建 N）：2~3 句辯論。
@@ -326,25 +386,35 @@ class AIResearchCrew:
         final_report_task = Task(
             description=dedent(f"""
                 【AI 市場戰報排版 — Gemini 主編】
+                {_DATA_RULES}
 
-                {_EDITOR_CONSENSUS_RULE}
-                {_TELEGRAM_FORMAT_RULES}
+                {_EDITOR_RULE}
+                {_TELEGRAM_FMT}
 
                 === 投資標的 ===
                 在【AI 產業鏈精準操作 (US Equities)】提供 2 個美股標的。
-                {_PRICE_CHECK_RULE}
-                每標的含：信心水準⭐️1~5、資金佔比、進場/目標/停損、敘事邏輯。
+                {_TRADE_PRICE_RULE}
 
                 === 排版結構 ===
                 ══════ <b>🤖 AI 市場</b> ══════
                 【AI 數據參考】OpenRouter 模型熱度排名
-                【AI 基建現況】3 則：標題/來源/摘要/IMPACT/💎主編共識
+                【AI 基建現況】3 則，每則嚴格按格式：
+                  標題/來源/摘要
+                  📍 受影響資產：[具體美股如 NVDA/AMD/VST/CEG/GEV]
+                  📈 做多機會：[標的] — [原因]
+                  📉 做空風險：[標的] — [原因]
+                  ⏱️ 時效：短期/中期/長期
+                  🎯 IMPACT：[五選一]
+                  💎 <b>主編共識</b>：[1句最終判斷，點名可操作標的]
                 【AI 投資案】3 則（同上格式）
-                【最新 AI 模型】3 則（摘要含模型特色）
-                【AI 推文討論】5 則：<blockquote>原文</blockquote>/簡述/IMPACT/💎主編共識
-                【AI 產業鏈精準操作 (US Equities)】2 支（格式：現價/信心/資金佔比/進場/目標/停損 %/敘事）
+                【最新 AI 模型】3 則（同上格式，摘要含模型特色與對算力/應用的影響）
+                【AI 推文討論】5 則，每則：
+                  <blockquote>原文</blockquote>
+                  簡述（1句）｜📍 受影響資產：[Ticker]｜⏱️ 時效｜🎯 IMPACT
+                  💎 <b>主編共識</b>：[1句操作判斷]
+                【AI 產業鏈精準操作 (US Equities)】2 支（現價/信心/資金佔比/進場/目標/停損 %/敘事）
 
-                所有標題用 <b>，數值用 <code>，推文用 <blockquote>。禁止 Markdown 與 HORIZON 標籤。
+                禁止 Markdown 與 HORIZON 標籤。
             """),
             expected_output="戰報下半部 Telegram HTML 格式完整輸出。",
             agent=self.quant_strategist,
