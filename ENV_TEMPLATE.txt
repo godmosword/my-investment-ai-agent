@@ -1,0 +1,32 @@
+# ============================================================
+# Q-Silicon 日報 Pipeline — 環境變數範本
+# 將此檔內容複製到專案根目錄的 .env，填入實際金鑰後存檔
+# ============================================================
+
+# ---------- 必要：LLM API（缺一則啟動時報錯）----------
+XAI_API_KEY=
+OPENROUTER_API_KEY=
+GEMINI_API_KEY=
+OPENAI_API_KEY=
+
+# ---------- 資料/搜尋 API（工具會用到，缺則該工具回傳 DATA_MISSING）----------
+COINGLASS_API_KEY=
+CRYPTOPANIC_API_KEY=
+APIFY_API_TOKEN=
+
+# ---------- Telegram 推送（選填，不填則不發送）----------
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+
+# ---------- GCP / BigQuery（選填，預設專案名見下）----------
+GCP_PROJECT_ID=my-investment-ai-agent
+
+# ---------- 選填：除錯與行為 ----------
+# LOG_LEVEL=INFO
+# DEBUG=0
+# CREW_VERBOSE=0
+# SKIP_TELEGRAM=0
+# SKIP_BIGQUERY=0
+# MAX_REPORT_RETRIES=2
+# MAX_503_RETRIES=3
+# BACKOFF_BASE_SEC=30
