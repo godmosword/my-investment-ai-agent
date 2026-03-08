@@ -400,10 +400,18 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
         return None
 
 
-def _is_503(e: Exception) -> bool:
-    """是否為 503 / 暫時不可用類錯誤（可重試）。"""
+def _is_retriable(e: Exception) -> bool:
+    """是否為可重試的暫時性錯誤（503/429/服務不可用/XAI 異常）。"""
     msg = str(e).lower()
-    return "503" in msg or "unavailable" in msg or "high demand" in msg
+    return (
+        "503" in msg
+        or "429" in msg
+        or "rate limit" in msg
+        or "rate_limit" in msg
+        or "unavailable" in msg
+        or "high demand" in msg
+        or "xai" in msg
+    )
 
 
 def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | None]:
@@ -438,9 +446,9 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
                 last_err = None
                 break
             last_err = err
-            if _is_503(err) and step < MAX_503_RETRIES:
+            if _is_retriable(err) and step < MAX_503_RETRIES:
                 wait = BACKOFF_BASE_SEC * (2**step)
-                logger.warning("503/暫時不可用，%ds 後重試 (%d/%d)：%s", wait, step + 1, MAX_503_RETRIES + 1, err)
+                logger.warning("暫時性錯誤（可重試），%ds 後重試 (%d/%d)：%s", wait, step + 1, MAX_503_RETRIES + 1, err)
                 time.sleep(wait)
             else:
                 logger.error("Execution failed: %s", err)
@@ -469,8 +477,27 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
     return final_report, report_valid
 
 
+def _validate_required_keys() -> None:
+    """啟動前檢查必要 API 金鑰，提早回報缺失。"""
+    required = {
+        "XAI_API_KEY": "Grok（加密市場情報員）",
+        "OPENROUTER_API_KEY": "Claude（幣圈/AI 辯論員）",
+        "GEMINI_API_KEY": "Gemini（戰報主編）",
+        "OPENAI_API_KEY": "GPT（AI 情報員）",
+    }
+    missing = [k for k in required if not (os.getenv(k) or "").strip()]
+    if missing:
+        names = ", ".join(f"{k}（{required[k]}）" for k in missing)
+        raise RuntimeError(
+            f"缺少必要 API 金鑰：{names}。"
+            "請在 .env 或環境變數中設定。"
+            "若出現 XaiException，請確認 XAI_API_KEY 有效且未過期。"
+        )
+
+
 if __name__ == "__main__":
     logger.info("Initializing Q-Silicon Ultimate Agent...")
+    _validate_required_keys()
     generate_quant_chart("daily_chart.png")
     exclusion = fetch_exclusion_context()
     if exclusion:
