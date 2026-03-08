@@ -28,7 +28,6 @@ import numpy as np
 import pandas as pd
 import requests
 from google.cloud import bigquery
-from scipy.optimize import minimize
 
 from config import PROJECT_ID, METRICS_TABLE
 
@@ -566,7 +565,6 @@ def add_lag_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def performance_attribution(
     merged: pd.DataFrame,
-    weights: dict[str, float] | None = None,
 ) -> dict[str, float]:
     """
     計算各因子若單獨使用時的策略總報酬（%），
@@ -817,8 +815,7 @@ def main() -> None:
     correlations = factor_analysis(merged)
 
     # 6b. 績效歸因（單因子策略報酬）
-    weights_for_attr = opt_weights if opt_weights else {"sig_dxy": 0.20, "sig_etf": 0.25, "sig_risk": 0.25, "sig_mvrv": 0.30}
-    attribution = performance_attribution(merged, weights=weights_for_attr)
+    attribution = performance_attribution(merged)
 
     # 7. 權重最佳化（可選，非 WF 模式時）
     opt_result = opt_weights if opt_weights else {}

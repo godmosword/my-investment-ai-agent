@@ -109,7 +109,6 @@ class CryptoResearchCrew:
 
                 {_DATA_RULES}
                 {_QUOTE_RULE}
-                {ctx}
                 {excl}
                 === 數據來源 ===
                 · coinglass_data_tool：funding_rate / liquidations / long_short_ratio
@@ -231,7 +230,6 @@ class AIResearchCrew:
 
                 {_DATA_RULES}
                 {_QUOTE_RULE}
-                {ctx}
                 {excl}
                 呼叫 ai_momentum_tool('openrouter_rankings')。
                 搜尋：

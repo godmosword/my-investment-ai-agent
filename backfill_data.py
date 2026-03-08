@@ -187,14 +187,33 @@ def write_to_bigquery(df: pd.DataFrame, dry_run: bool = False) -> None:
         client.update_table(table, ["schema"])
         logging.info("已補充缺失欄位：%s", [f.name for f in missing])
 
-    # 查詢已存在的 timestamp，避免重複寫入
-    existing_ts_query = f"SELECT CAST(timestamp AS STRING) FROM `{METRICS_TABLE}`"
-    try:
-        existing = {str(row[0])[:10] for row in client.query(existing_ts_query).result()}
-    except Exception:
-        existing = set()
+    # 只查本次回補區間內既有日期，避免全表掃描造成高成本。
+    df_dates = pd.to_datetime(df["timestamp"], errors="coerce").dt.date
+    start_date = df_dates.min()
+    end_date = df_dates.max()
+    existing: set[str] = set()
+    if start_date is not None and end_date is not None:
+        existing_ts_query = f"""
+            SELECT DISTINCT DATE(timestamp) AS d
+            FROM `{METRICS_TABLE}`
+            WHERE DATE(timestamp) BETWEEN @start_date AND @end_date
+        """
+        try:
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("start_date", "DATE", start_date.isoformat()),
+                    bigquery.ScalarQueryParameter("end_date", "DATE", end_date.isoformat()),
+                ]
+            )
+            existing = {
+                str(row["d"])
+                for row in client.query(existing_ts_query, job_config=job_config).result()
+                if row["d"] is not None
+            }
+        except Exception:
+            existing = set()
 
-    df["_date"] = df["timestamp"].str[:10]
+    df["_date"] = pd.to_datetime(df["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d")
     new_rows = df[~df["_date"].isin(existing)].drop(columns=["_date"])
 
     print(f"      現有紀錄日期數：{len(existing)}，本次將新增：{len(new_rows)} 筆")
