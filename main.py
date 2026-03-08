@@ -6,6 +6,7 @@ import telebot
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from google.cloud import bigquery
+import yfinance as yf
 
 from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
@@ -71,25 +72,22 @@ def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
 
 
 def validate_report(text: str) -> dict:
-    """驗證戰報是否包含足夠的新聞、推文與所有必要區塊。"""
+    """驗證戰報是否包含足夠新聞與必要區塊。"""
     news_count  = len(re.findall(r'〔新聞', text))
-    tweet_count = len(re.findall(r'〔推文', text))
 
     has_regime    = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
-    has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|MVRV|資金費率|模型排名|ML.*權重', text, re.IGNORECASE))
+    has_dashboard = bool(re.search(r'DXY|BTC\s*OI|資金費率|模型排名|ML.*權重', text, re.IGNORECASE))
     has_crypto_trade = bool(re.search(r'資金流向與精準操作\s*\(Crypto\)|精準操作.*Crypto', text, re.IGNORECASE))
     has_ai_trade  = bool(re.search(r'AI\s*產業鏈精準操作|精準操作.*Equit', text, re.IGNORECASE))
     has_ai_section = bool(re.search(r'AI\s*市場|AI\s*基建現況|AI\s*投資案', text, re.IGNORECASE))
-    has_crypto_section = bool(re.search(r'加密市場|幣圈新聞|幣圈推文', text, re.IGNORECASE))
+    has_crypto_section = bool(re.search(r'加密市場|幣圈新聞', text, re.IGNORECASE))
     has_data_missing = bool(re.search(r'\[DATA_MISSING:', text))
 
     issues = []
     if len(text) < 3000:
         issues.append(f"報告過短（{len(text)} chars，預期 >3000）")
-    if news_count < 12:
-        issues.append(f"新聞數不足（{news_count}/12）")
-    if tweet_count < 10:
-        issues.append(f"推文數不足（{tweet_count}/10）")
+    if news_count < 6:
+        issues.append(f"新聞數不足（{news_count}/6）")
     if not has_regime:
         issues.append("缺少 market_regime 標籤（risk_on/risk_off/neutral）")
     if not has_dashboard:
@@ -110,7 +108,6 @@ def validate_report(text: str) -> dict:
         "valid": len([i for i in issues if "資料缺失" not in i]) == 0,
         "issues": issues,
         "news_count": news_count,
-        "tweet_count": tweet_count,
         "has_data_missing": has_data_missing,
     }
 
@@ -134,7 +131,7 @@ def _extract_section(text: str, header: str, max_chars: int = 500) -> str | None
 
 
 def _extract_news_titles(text: str, max_titles: int = 20) -> list[str]:
-    """從戰報中萃取所有新聞與推文標題，供次日排除重複使用。"""
+    """從戰報中萃取所有新聞標題，供次日排除重複使用。"""
     clean = strip_html(text)
     titles: list[str] = []
     for m in re.finditer(r'〔新聞\s*\d+〕[^\n]*\n([^\n]{10,120})', clean):
@@ -143,8 +140,6 @@ def _extract_news_titles(text: str, max_titles: int = 20) -> list[str]:
         candidate = m.group(1).strip()
         if candidate not in titles:
             titles.append(candidate)
-    for m in re.finditer(r'〔推文\s*\d+〕\s*([^\n]{10,100})', clean):
-        titles.append("推文：" + m.group(1).strip())
     return titles[:max_titles]
 
 
@@ -304,7 +299,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     # ── 6b. 萃取新聞標題供次日去重 ──────────────────
     all_titles = _extract_news_titles(report_text, max_titles=25)
     news_titles_str = "\n".join(f"· {t}" for t in all_titles) if all_titles else None
-    logger.info("Extracted %d news/tweet titles for deduplication.", len(all_titles))
+    logger.info("Extracted %d news titles for deduplication.", len(all_titles))
 
     logger.info(
         "Extracted metrics — DXY: %s, ETF Flow: %s億, Avg Risk: %s, MVRV Z: %s",
@@ -481,9 +476,51 @@ def _is_503(e: Exception) -> bool:
     )
 
 
+def _quote_of(symbol: str) -> float | None:
+    """取單一標的最新收盤價（含 MultiIndex 防護）。"""
+    try:
+        df = yf.download(symbol, period="7d", interval="1d", progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return None
+        close_col = df["Close"]
+        if hasattr(close_col, "iloc") and hasattr(close_col, "ndim") and close_col.ndim > 1:
+            close_col = close_col.iloc[:, 0]
+        close_col = close_col.dropna()
+        if close_col.empty:
+            return None
+        return float(close_col.iloc[-1])
+    except Exception:
+        return None
+
+
+def get_realtime_quotes() -> str:
+    """取得系統強制即時報價 context，供所有 Agent 直接引用。"""
+    symbols = {
+        "BTC": "BTC-USD",
+        "VIX": "^VIX",
+        "IBIT": "IBIT",
+        "NVDA": "NVDA",
+        "MSFT": "MSFT",
+        "SPY": "SPY",
+        "SOL": "SOL-USD",
+        "DXY": "DX-Y.NYB",
+    }
+    parts: list[str] = []
+    for name, sym in symbols.items():
+        v = _quote_of(sym)
+        if v is None:
+            parts.append(f"{name}: N/A")
+        elif name in ("VIX", "DXY"):
+            parts.append(f"{name}: {v:.2f}")
+        else:
+            parts.append(f"{name}: ${v:.2f}")
+    return "【系統強制即時報價】" + " | ".join(parts)
+
+
 def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | None]:
     """使用 ThreadPoolExecutor 讓兩個 Crew 同時執行，回傳合併戰報。"""
     try:
+        price_context = get_realtime_quotes()
         from concurrent.futures import ThreadPoolExecutor
 
         market_snapshot = format_market_snapshot(prefetch_market_data())
@@ -491,10 +528,10 @@ def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | No
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_crypto = executor.submit(
-                lambda: str(CryptoResearchCrew().run(exclude_context=exclude_context, market_snapshot=market_snapshot))
+                lambda: str(CryptoResearchCrew().run(exclude_context=exclude_context, price_context=price_context))
             )
             future_ai = executor.submit(
-                lambda: str(AIResearchCrew().run(exclude_context=exclude_context, market_snapshot=market_snapshot))
+                lambda: str(AIResearchCrew().run(exclude_context=exclude_context, price_context=price_context))
             )
 
             crypto_report = future_crypto.result()
@@ -535,8 +572,8 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
         result = validate_report(final_report)
         report_valid = result["valid"]
         logger.info(
-            "[Attempt %d] Validation — news=%d, tweets=%d, valid=%s",
-            attempt + 1, result["news_count"], result["tweet_count"], report_valid,
+            "[Attempt %d] Validation — news=%d, valid=%s",
+            attempt + 1, result["news_count"], report_valid,
         )
         if report_valid:
             logger.info("Report generation successful.")
@@ -559,6 +596,7 @@ def _validate_required_keys() -> None:
         "OPENROUTER_API_KEY": "Claude（幣圈/AI 辯論員）",
         "GEMINI_API_KEY": "Gemini（戰報主編）",
         "OPENAI_API_KEY": "GPT（AI 情報員）",
+        "APIFY_API_TOKEN": "Apify 搜尋引擎",
     }
     missing = [k for k in required if not (os.getenv(k) or "").strip()]
     if missing:

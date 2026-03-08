@@ -1,11 +1,10 @@
 import logging
 import os
 import time
-from datetime import datetime, timezone, timedelta
-from urllib.parse import quote
+from datetime import datetime
 
 import requests
-import yfinance as yf
+from apify_client import ApifyClient
 from crewai.tools import tool
 from google.cloud import bigquery
 
@@ -35,7 +34,7 @@ def _set_cache(key: tuple, value: str) -> None:
 # ═══════════════════════════════════════════════════════════════════
 
 _BQ_CLIENT: bigquery.Client | None = None
-_TAVILY_CLIENT = None
+_APIFY_CLIENT: ApifyClient | None = None
 
 
 def _get_bq_client() -> bigquery.Client:
@@ -45,16 +44,52 @@ def _get_bq_client() -> bigquery.Client:
     return _BQ_CLIENT
 
 
-def _get_tavily_client():
-    """TavilyClient singleton：同一次執行只初始化一次，統一驗證 API key。"""
-    global _TAVILY_CLIENT
-    if _TAVILY_CLIENT is None:
-        api_key = os.getenv("TAVILY_API_KEY")
-        if not api_key:
-            raise ValueError("TAVILY_API_KEY 未設定。")
-        from tavily import TavilyClient
-        _TAVILY_CLIENT = TavilyClient(api_key=api_key)
-    return _TAVILY_CLIENT
+def _get_apify_client() -> ApifyClient:
+    """ApifyClient singleton：同一次執行只初始化一次。"""
+    global _APIFY_CLIENT
+    if _APIFY_CLIENT is None:
+        token = os.getenv("APIFY_API_TOKEN")
+        if not token:
+            raise ValueError("APIFY_API_TOKEN 未設定。")
+        _APIFY_CLIENT = ApifyClient(token)
+    return _APIFY_CLIENT
+
+
+def _search_with_apify(query: str, max_items: int = 8) -> str:
+    """以 Apify Google Search Scraper 回傳結構化搜尋結果。"""
+    client = _get_apify_client()
+    actor_id = os.getenv("APIFY_SEARCH_ACTOR", "apify/google-search-scraper")
+    run = client.actor(actor_id).call(run_input={
+        "queries": query,
+        "maxPagesPerQuery": 1,
+        "resultsPerPage": max_items,
+        "languageCode": "zh-TW",
+    })
+    dataset = client.dataset(run["defaultDatasetId"])
+    items = list(dataset.iterate_items())[:max_items]
+    prefix = f"(當前時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，請嚴格過濾超過 48 小時的舊資訊)\n"
+    if not items:
+        return prefix + "[DATA_MISSING:apify_search] Apify 無搜尋結果。"
+
+    lines: list[str] = []
+    for i, item in enumerate(items, 1):
+        title = str(item.get("title") or item.get("headline") or item.get("name") or "(無標題)")
+        source = str(item.get("source") or item.get("siteName") or item.get("domain") or "unknown")
+        url = str(item.get("url") or item.get("link") or "")
+        published_at = str(
+            item.get("publishedAt")
+            or item.get("published_at")
+            or item.get("publishedTime")
+            or item.get("date")
+            or item.get("time")
+            or "未知"
+        )
+        lines.append(
+            f"〔{i}〕{title}\n"
+            f"來源：{source}｜發布：{published_at}\n"
+            f"URL: {url}"
+        )
+    return prefix + "\n\n".join(lines)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -63,7 +98,7 @@ def _get_tavily_client():
 
 @tool("AI Momentum Analyzer")
 def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
-    """獲取 OpenRouter 平台最新的模型使用量或熱門排名。metric 可省略或輸入 'openrouter_rankings'。"""
+    """使用 Apify 搜尋 OpenRouter 模型熱度排名。"""
     cache_key = ("ai_momentum", "openrouter_rankings")
     cached = _get_cache(cache_key)
     if cached:
@@ -71,413 +106,40 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
 
     query = f"OpenRouter model usage rankings top AI models {datetime.now().strftime('%Y-%m')}"
     try:
-        client = _get_tavily_client()
-        response = client.search(query=query, search_depth="basic", max_results=3, days=3)
-        result = str(response.get("results", "No data found."))
+        result = _search_with_apify(query, max_items=5)
         _set_cache(cache_key, result)
         return result
     except ValueError as e:
         return f"[DATA_MISSING:openrouter_rankings] AI Momentum Tool Failed：{e}"
-    except Exception as e:
-        return f"[DATA_MISSING:openrouter_rankings] AI Tool Failed: {str(e)}"
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Macro Liquidity Tracker（FRED）
-# ═══════════════════════════════════════════════════════════════════
-
-@tool("Macro Liquidity Tracker")
-def macro_liquidity_tool(indicator: str) -> str:
-    """獲取全球宏觀指標。indicator 請輸入 'M2' (貨幣供應), 'CPI' (通膨) 或 'DXY' (ICE 美指)。"""
-    indicator_upper = indicator.upper()
-
-    cache_key = ("macro", indicator_upper)
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
-
-    # DXY：改用 Tavily 搜尋即時 ICE DXY（避免 FRED DTWEXBGS 廣義美元指數數值異常）
-    if indicator_upper == "DXY":
-        try:
-            client = _get_tavily_client()
-            response = client.search(
-                query="current ICE US Dollar Index (DXY) real-time quote today",
-                search_depth="basic",
-                max_results=2,
-            )
-            result = str(response.get("results", []))
-            _set_cache(cache_key, result)
-            return result
-        except ValueError as e:
-            return f"[DATA_MISSING:macro_DXY] Macro Tracker Failed (Tavily ICE DXY)：{e}"
-        except Exception:
-            return "[DATA_MISSING:macro_DXY] Macro Tracker Failed (Tavily ICE DXY)：無法取得即時 DXY 報價。"
-
-    # M2 / CPI：使用 FRED API
-    series_map = {"M2": "M2SL", "CPI": "CPIAUCSL"}
-    series_id = series_map.get(indicator_upper)
-    if not series_id:
-        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed。不支援的指標：{indicator}，僅支援 DXY / M2 / CPI。"
-
-    fred_key = os.getenv("FRED_API_KEY")
-    if not fred_key:
-        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。FRED_API_KEY 未設定，無法查詢 M2 / CPI。"
-
-    url = "https://api.stlouisfed.org/fred/series/observations"
-    params = {
-        "series_id": series_id,
-        "api_key": fred_key,
-        "file_type": "json",
-        "sort_order": "desc",
-        "limit": 1,
-    }
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        if response.status_code == 403:
-            return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED 403)。FRED_API_KEY 無效或權限不足。"
-        if response.status_code == 429:
-            return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED 429)。FRED API 流量超限，請稍後再試。"
-        response.raise_for_status()
-        obs = response.json().get("observations", [])
-        if not obs:
-            return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。{indicator_upper} 無歷史資料。"
-        latest = obs[0]
-        result = f"{indicator_upper}: {latest.get('value')} (Date: {latest.get('date')})"
-        _set_cache(cache_key, result)
-        return result
-    except requests.Timeout:
-        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。連線逾時，請稍後重試。"
-    except requests.RequestException:
-        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。網路或服務異常。"
     except Exception:
-        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。發生未預期錯誤。"
+        return "[DATA_MISSING:openrouter_rankings] AI Momentum Tool Failed：Apify API 暫無回應。"
 
 
 # ═══════════════════════════════════════════════════════════════════
-# YFinance Macro & ETF Data（VIX / 美股 ETF 成交額 proxy）
+# 搜尋工具（Apify）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("YFinance Macro & ETF Data")
-def yfinance_macro_tool(metric: str = "vix") -> str:
-    """
-    使用 yfinance 取得 VIX 與美股 ETF 成交額 proxy：
-    - metric='vix'      → 回傳最新 VIX 指數與日變化。
-    - metric='etf_flow' → 使用 SPY / QQQ 的「成交額 vs 5 日均值」作為資金流向近似指標。
-    """
-    key = metric.lower()
-    cache_key = ("yfinance", key)
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
-
-    try:
-        import pandas as pd
-
-        if key == "vix":
-            df = yf.download("^VIX", period="5d", interval="1d", progress=False, auto_adjust=True)
-            if df.empty:
-                return "[DATA_MISSING:vix] YFinance：無法取得 VIX 資料。"
-            close_col = df["Close"]
-            if isinstance(close_col, pd.DataFrame):
-                close_col = close_col.iloc[:, 0]
-            close_col = close_col.dropna()
-            if close_col.empty:
-                return "[DATA_MISSING:vix] YFinance：VIX 資料欄位為空。"
-            latest = float(close_col.iloc[-1])
-            prev = float(close_col.iloc[-2]) if len(close_col) > 1 else latest
-            change = latest - prev
-            pct = (change / prev * 100) if prev else 0.0
-            vix_level = "🔴 恐慌" if latest >= 30 else ("🟡 警戒" if latest >= 20 else "🟢 平靜")
-            result = f"VIX {latest:.2f} {vix_level}，日變化 {change:+.2f}（{pct:+.2f}%）"
-        elif key == "etf_flow":
-            tickers = ["SPY", "QQQ"]
-            df = yf.download(
-                " ".join(tickers), period="6d", interval="1d",
-                progress=False, auto_adjust=True, group_by="ticker"
-            )
-            if df.empty:
-                return "[DATA_MISSING:etf_flow] YFinance：無法取得 SPY / QQQ 資料。"
-
-            lines: list[str] = []
-            for t in tickers:
-                try:
-                    if isinstance(df.columns, pd.MultiIndex):
-                        sub = df[t].dropna(how="all")
-                    else:
-                        sub = df.dropna(how="all")
-                    if sub.empty or len(sub) < 3:
-                        continue
-                    latest_close = float(sub["Close"].squeeze().iloc[-1])
-                    latest_vol   = float(sub["Volume"].squeeze().iloc[-1])
-                    prev5_close  = sub["Close"].squeeze().iloc[:-1].tail(5).astype(float)
-                    prev5_vol    = sub["Volume"].squeeze().iloc[:-1].tail(5).astype(float)
-                    dollar_vol_today = latest_close * latest_vol
-                    dollar_vol_avg5  = float((prev5_close * prev5_vol).mean())
-                    if dollar_vol_avg5 <= 0:
-                        continue
-                    ratio = dollar_vol_today / dollar_vol_avg5
-                    if ratio > 1.2:
-                        direction = "放量（資金關注升高）"
-                    elif ratio < 0.8:
-                        direction = "縮量（資金關注降溫）"
-                    else:
-                        direction = "量能中性"
-                    lines.append(
-                        f"{t} 成交額 ${dollar_vol_today/1e9:.2f}B，約 5日均額 {ratio:.2f}x，{direction}"
-                    )
-                except Exception:
-                    continue
-
-            if not lines:
-                return "[DATA_MISSING:etf_flow] YFinance：ETF 成交額 proxy 計算失敗或資料不足。"
-            result = "；".join(lines)
-        else:
-            return "YFinance Tool Failed：metric 僅支援 'vix' 或 'etf_flow'。"
-
-        _set_cache(cache_key, result)
-        return result
-    except Exception as e:
-        return f"[DATA_MISSING:{key}] YFinance Tool Failed: {str(e)}"
-
-
-# ═══════════════════════════════════════════════════════════════════
-# YFinance Quote Fetcher（單一標的報價）
-# ═══════════════════════════════════════════════════════════════════
-
-def _yf_close(ticker: str, period: str = "5d") -> float | None:
-    """安全取得最新收盤價，處理 yfinance >= 0.2.38 MultiIndex。"""
-    import pandas as pd
-    try:
-        df = yf.download(ticker, period=period, interval="1d",
-                         progress=False, auto_adjust=True)
-        if df is None or df.empty:
-            return None
-        close_col = df["Close"]
-        if isinstance(close_col, pd.DataFrame):
-            close_col = close_col.iloc[:, 0]
-        close_col = close_col.dropna()
-        return float(close_col.iloc[-1]) if not close_col.empty else None
-    except Exception:
-        return None
-
-
-def _yf_prev(ticker: str, period: str = "5d") -> float | None:
-    """安全取得前一日收盤價。"""
-    import pandas as pd
-    try:
-        df = yf.download(ticker, period=period, interval="1d",
-                         progress=False, auto_adjust=True)
-        if df is None or df.empty:
-            return None
-        close_col = df["Close"]
-        if isinstance(close_col, pd.DataFrame):
-            close_col = close_col.iloc[:, 0]
-        close_col = close_col.dropna()
-        return float(close_col.iloc[-2]) if len(close_col) >= 2 else None
-    except Exception:
-        return None
-
-
-def _yf_quote(symbol: str) -> str:
-    """取得單一標的最新報價，帶 cache、MultiIndex 防護與重試。"""
-    sym = (symbol or "").strip()
-    if not sym:
-        return "YFinance Tool Failed：symbol 不可為空。"
-    cache_key = ("yfinance_quote", sym.upper())
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
-
-    latest = _yf_close(sym)
-
-    if latest is None and "-" not in sym and sym.upper() not in (
-        "SPY", "QQQ", "IBIT", "AMD", "NVDA", "TSLA", "MSFT", "GOOGL", "META",
-        "SMCI", "PLTR", "VST", "CEG", "GEV", "BE",
-    ):
-        latest = _yf_close(f"{sym}-USD")
-        if latest is not None:
-            sym = f"{sym}-USD"
-
-    if latest is None:
-        latest = _yf_close(sym, period="10d")
-
-    if latest is None:
-        return f"YFinance Tool Failed：{sym} 無法取得報價（市場可能休市或代碼錯誤）。"
-
-    prev = _yf_prev(sym) or latest
-    change = latest - prev
-    pct = (change / prev * 100) if prev else 0.0
-    result = f"{sym} 現價 {latest:.2f} USD，日變化 {change:+.2f}（{pct:+.2f}%）"
-    _set_cache(cache_key, result)
-    return result
-
-
-@tool("YFinance Quote Fetcher")
-def yfinance_tool(symbol: str) -> str:
-    """
-    使用 yfinance 取得單一標的的最新收盤價與日內漲跌幅。
-    例如 symbol='^VIX'（恐慌指數）、'IBIT'（比特幣現貨 ETF）、'SPY' 等。
-    """
-    return _yf_quote(symbol)
-
-
-@tool("YFinance Multi-Quote")
-def yfinance_multi_tool(symbols: str) -> str:
-    """批量取得多標的報價，symbols 以逗號分隔（如 '^VIX,IBIT'）。"""
-    symbol_list = [s.strip() for s in (symbols or "").split(",") if s.strip()]
-    if not symbol_list:
-        return "YFinance Multi Tool Failed：symbols 不可為空。"
-    return "\n".join(_yf_quote(s) for s in symbol_list)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Tavily Market Search（帶 cache，basic depth 節省費用）
-# ═══════════════════════════════════════════════════════════════════
-
-@tool("Tavily Market Search")
+@tool("Apify Market Search")
 def market_search_tool(query: str) -> str:
-    """搜尋全球即時新聞，強制過濾 48 小時以上舊聞並輸出明確時間戳記。"""
+    """以 Apify 搜尋全球即時新聞。"""
     cache_key = ("market_search", query)
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
     try:
-        client = _get_tavily_client()
-        response = client.search(query=query, search_depth="basic", max_results=5, topic="news", days=2)
-        results = response.get("results", [])
-        now = datetime.now(timezone.utc)
-        cutoff = now - timedelta(hours=48)
-
-        lines = [f"(系統時間：{now.strftime('%Y-%m-%d %H:%M UTC')} | 僅顯示 48 小時內新聞)"]
-        kept = 0
-        for r in results:
-            published = r.get("published_date") or ""
-            title = r.get("title") or "(無標題)"
-            url = r.get("url") or ""
-            snippet = (r.get("content") or "")[:300]
-
-            try:
-                pub_dt = datetime.fromisoformat(published.replace("Z", "+00:00"))
-                if pub_dt < cutoff:
-                    continue  # Python-level filter — AI cannot override this
-                age_h = int((now - pub_dt).total_seconds() / 3600)
-                age_str = f"{age_h}小時前" if age_h < 24 else f"{int(age_h / 24)}天前"
-            except Exception:
-                age_str = published or "時間不明"
-
-            lines.append(f"\n【{age_str} | {published[:10]}】{title}\n{url}\n{snippet}")
-            kept += 1
-
-        if kept == 0:
-            return f"[NO_RECENT_NEWS: 過去 48 小時內無符合條件的新聞 | query={query}]"
-        result = "\n".join(lines)
+        result = _search_with_apify(query, max_items=6)
         _set_cache(cache_key, result)
         return result
     except ValueError as e:
-        return f"Market Search Failed：{e}"
-    except Exception as e:
-        return f"Market Search Failed: {str(e)}"
-
-
-# ═══════════════════════════════════════════════════════════════════
-# X Real-time Trend Search
-# ═══════════════════════════════════════════════════════════════════
-
-def _x_rapidapi_search(query: str) -> str:
-    """RapidAPI Twitter 備援搜尋 (twitter154 endpoint)。"""
-    key = os.getenv("RAPIDAPI_KEY", "")
-    if not key:
-        return "[TWEETS_UNAVAILABLE: 官方 API 失敗且 RAPIDAPI_KEY 未設定]"
-    try:
-        resp = requests.get(
-            "https://twitter154.p.rapidapi.com/search/search",
-            headers={"X-RapidAPI-Key": key, "X-RapidAPI-Host": "twitter154.p.rapidapi.com"},
-            params={"query": query, "section": "latest", "limit": 10, "language": "en"},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-        if not results:
-            return "[NO_TWEETS_FOUND via RapidAPI]"
-        return "\n".join(
-            f"[{t.get('creation_date', '')[:16]}] {t.get('text', '').replace(chr(10), ' ')}"
-            for t in results
-        )
-    except Exception as e:
-        logging.getLogger(__name__).warning("RapidAPI Twitter fallback failed: %s", e)
-        return "[TWEETS_UNAVAILABLE: 官方 API + RapidAPI 均失敗]"
-
-
-@tool("X Real-time Trend Search")
-def x_search_tool(query: str) -> str:
-    """搜尋 X/Twitter 即時推文情緒，官方 API + RapidAPI 雙重備援，並附帶時間戳記。"""
-    bearer = os.getenv("X_BEARER_TOKEN", "")
-    if not bearer:
-        return "[TWEETS_UNAVAILABLE: X_BEARER_TOKEN 未設定]"
-
-    cache_key = ("x_search", query)
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
-
-    _logger = logging.getLogger(__name__)
-    try:
-        url = "https://api.twitter.com/2/tweets/search/recent"
-        params = {
-            "query": f"{query} lang:en -is:retweet",
-            "max_results": 10,
-            "tweet.fields": "created_at,public_metrics",
-        }
-        resp = requests.get(
-            url, headers={"Authorization": f"Bearer {bearer}"}, params=params, timeout=15
-        )
-        if resp.status_code == 403:
-            _logger.warning("X official API: 403 (plan not authorized) — falling back to RapidAPI")
-            result = _x_rapidapi_search(query)
-        elif resp.status_code == 401:
-            result = "[TWEETS_UNAVAILABLE: X Bearer Token 無效或已過期]"
-        elif resp.status_code == 429:
-            result = "[TWEETS_UNAVAILABLE: X API 速率限制，請稍後再試]"
-        else:
-            resp.raise_for_status()
-            tweets = resp.json().get("data", [])
-            if not tweets:
-                result = "[NO_TWEETS_FOUND]"
-            else:
-                result = "\n".join(
-                    f"[{t.get('created_at', '')[:16]}] {t['text'].replace(chr(10), ' ')}"
-                    for t in tweets
-                )
-        _set_cache(cache_key, result)
-        return result
-    except Exception as e:
-        _logger.warning("x_search_tool official API failed: %s — falling back to RapidAPI", e)
-        result = _x_rapidapi_search(query)
-        _set_cache(cache_key, result)
-        return result
+        return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
+    except Exception:
+        return "[DATA_MISSING:market_search] Market Search Failed：Apify API 暫無回應。"
 
 
 # ═══════════════════════════════════════════════════════════════════
 # CoinGlass On-chain Data
 # ═══════════════════════════════════════════════════════════════════
-
-def _tavily_fallback(query: str, label: str) -> str:
-    """通用 Tavily 備援搜尋。"""
-    try:
-        client = _get_tavily_client()
-        res = client.search(query=query, search_depth="basic", max_results=3, topic="finance")
-        return f"[Tavily 備援] {str(res.get('results', []))}"
-    except Exception:
-        return f"[DATA_MISSING:coinglass_{label}] API 暫時無回應：CoinGlass（{label}）與 Tavily 備援均失敗。"
-
-
-_TAVILY_FALLBACK_QUERIES = {
-    "open_interest": "Bitcoin BTC open interest aggregated futures today billions",
-    "funding_rate": "Bitcoin BTC current funding rate binance today",
-    "liquidations": "Bitcoin BTC total liquidations past 24 hours crypto market",
-    "long_short_ratio": "Bitcoin BTC top trader long short ratio binance today",
-}
 
 # CoinGlass API V4 endpoints（針對 BTC）
 _COINGLASS_BASE = "https://open-api-v4.coinglass.com"
@@ -582,141 +244,12 @@ def coinglass_data_tool(metric: str) -> str:
                         _set_cache(cache_key, result)
                         return result
         except Exception:
-            # 若 CoinGlass API 本身失敗，改走 Tavily 備援路徑。
+            # CoinGlass API 失敗，直接回傳暫無回應標記。
             pass
 
-    # CoinGlass 失敗或無 API key：依 metric 呼叫對應 Tavily 備援
-    if metric_lower in _TAVILY_FALLBACK_QUERIES:
-        result = _tavily_fallback(_TAVILY_FALLBACK_QUERIES[metric_lower], metric_lower)
-    else:
-        result = f"[DATA_MISSING:coinglass_{metric}] CoinGlass API 暫無回應，請在報告中標記此數據缺失。"
+    result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應。"
     _set_cache(cache_key, result)
     return result
-
-
-# ═══════════════════════════════════════════════════════════════════
-# CryptoQuant On-chain Data
-# ═══════════════════════════════════════════════════════════════════
-
-@tool("CryptoQuant On-chain Data")
-def cryptoquant_tool(indicator: str) -> str:
-    """獲取 BTC 交易所資金流數據。indicator 請輸入 'inflow'（流入）或 'outflow'（流出）。"""
-    indicator_lower = indicator.lower()
-    if indicator_lower not in ("inflow", "outflow"):
-        return f"CryptoQuant Tool Failed：不支援的 indicator '{indicator}'，僅支援 inflow / outflow。"
-
-    cache_key = ("cryptoquant", indicator_lower)
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
-
-    api_key = os.getenv("CRYPTOQUANT_API_KEY")
-    url = f"https://api.cryptoquant.com/v1/btc/exchange-flows/{indicator_lower}?limit=1"
-
-    if api_key:
-        try:
-            headers = {"Authorization": f"Bearer {api_key}"}
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                data = response.json().get("result", {}).get("data", [])
-                if data:
-                    value = data[0].get(indicator_lower, None)
-                    if value is not None:
-                        result = f"BTC {indicator_lower.capitalize()}: {value} BTC"
-                        _set_cache(cache_key, result)
-                        return result
-        except Exception:
-            pass
-
-    result = _tavily_fallback(
-        f"Bitcoin BTC exchange {indicator_lower} today on-chain",
-        f"CryptoQuant-{indicator_lower}",
-    )
-    _set_cache(cache_key, result)
-    return result
-
-
-# ═══════════════════════════════════════════════════════════════════
-# MVRV Z-Score（CryptoQuant On-chain Valuation）
-# ═══════════════════════════════════════════════════════════════════
-
-@tool("MVRV Z-Score Fetcher")
-def mvrv_tool(window: str = "latest") -> str:
-    """
-    獲取 BTC MVRV Z-Score 鏈上估值指標。
-    window 目前只支援 'latest'（最新一筆）。
-    MVRV Z-Score 解讀：
-      > 7   → 市場嚴重高估，歷史頂部區域
-      3~7   → 看漲但需留意過熱風險
-      0~3   → 健康多頭區間
-      < 0   → 市場低估，歷史底部積累區
-    """
-    api_key = os.getenv("CRYPTOQUANT_API_KEY")
-    if not api_key:
-        return "[DATA_MISSING:mvrv_z_score] MVRV Tool Failed：CRYPTOQUANT_API_KEY 未設定。"
-
-    cache_key = ("mvrv", window)
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
-
-    url = "https://api.cryptoquant.com/v1/btc/market-data/mvrv-z-score?limit=1&window=day"
-    try:
-        headers = {"Authorization": f"Bearer {api_key}"}
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json().get("result", {}).get("data", [])
-        if not data:
-            return "[DATA_MISSING:mvrv_z_score] MVRV Tool：API 回應無資料。"
-        row = data[0]
-        mvrv_z = row.get("mvrv_z_score", "N/A")
-        date_str = row.get("date", "")
-        if mvrv_z != "N/A":
-            try:
-                z = float(mvrv_z)
-                if z > 7:
-                    signal = "🔴 嚴重高估（歷史頂部區域）"
-                elif z > 3:
-                    signal = "🟡 看漲但注意過熱"
-                elif z >= 0:
-                    signal = "🟢 健康多頭區間"
-                else:
-                    signal = "🔵 低估積累區（歷史底部）"
-            except ValueError:
-                signal = "N/A"
-            result = f"BTC MVRV Z-Score: {mvrv_z} ({date_str}) — {signal}"
-        else:
-            result = f"[DATA_MISSING:mvrv_z_score] BTC MVRV Z-Score 數據暫缺 ({date_str})"
-        _set_cache(cache_key, result)
-        return result
-    except requests.HTTPError as e:
-        status = e.response.status_code
-        if status == 403:
-            try:
-                client = _get_tavily_client()
-                res = client.search(
-                    query="Bitcoin BTC MVRV Z-Score latest value today",
-                    search_depth="basic",
-                    max_results=3,
-                    topic="finance",
-                    days=2,
-                )
-                results = res.get("results", [])
-                if results:
-                    raw = " | ".join(
-                        r.get("content", "")[:200] for r in results[:3]
-                    )
-                    result = f"[Tavily備援-MVRV] {raw[:600]}"
-                    _set_cache(cache_key, result)
-                    return result
-            except Exception:
-                pass
-            return "MVRV：暫缺（CryptoQuant 403，需 Advanced 方案）"
-        if status == 429:
-            return "[DATA_MISSING:mvrv_z_score] MVRV Tool Failed（HTTP 429）：CryptoQuant API 流量超限，請稍後重試。"
-        return f"[DATA_MISSING:mvrv_z_score] MVRV Tool Failed（HTTP {status}）：{e}"
-    except Exception as e:
-        return f"[DATA_MISSING:mvrv_z_score] MVRV Tool Failed: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -896,37 +429,22 @@ def ml_quant_tool() -> str:
 
 @tool("Rumor & Controversy Scanner")
 def rumor_scanner_tool(topic: str) -> str:
-    """
-    掃描圍繞指定主題的爭議、調查報導與未證實傳聞，只使用公開資訊來源。
-    嚴格標註「傳聞性質 / 可信度」，僅供風險研究與情緒監控使用，不構成投資建議或事實認定。
-    """
+    """掃描爭議與傳聞（Apify 版）。"""
     cache_key = ("rumor_scanner", topic)
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
     query = (
-        f"recent controversies, investigations, lawsuits, market manipulation accusations, "
-        f"security incidents, model leaks, whistleblower reports related to {topic}. "
-        "Return only publicly reported information from credible sources. "
-        "For each item, clearly state if it is: confirmed, likely, or unverified rumor."
+        f"recent controversies investigations lawsuits market manipulation accusations related to {topic} "
+        "site:reuters.com OR site:bloomberg.com OR site:coindesk.com OR site:theblock.co"
     )
 
     try:
-        client = _get_tavily_client()
-        result_data = client.search(
-            query=query,
-            search_depth="basic",
-            max_results=3,
-            topic="news",
-            days=7,
-        )
-        raw = str(result_data.get("results", []))
-        prefix = f"(當前系統時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，請過濾掉超過 48 小時的舊資訊)\n"
-        result = prefix + raw
+        result = _search_with_apify(query, max_items=6)
         _set_cache(cache_key, result)
         return result
     except ValueError as e:
-        return f"Rumor Scanner Failed：{e}"
-    except Exception as e:
-        return f"Rumor Scanner Failed: {str(e)}"
+        return f"[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：{e}"
+    except Exception:
+        return "[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：Apify API 暫無回應。"
