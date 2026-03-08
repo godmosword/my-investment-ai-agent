@@ -1,7 +1,7 @@
 crewai[google-genai]>=0.51.0
 crewai-tools>=0.0.15
 litellm>=1.60.0
-tavily-python>=0.7.0
+apify-client>=1.7.1
 requests>=2.32.0
 python-dotenv>=1.0.0
 pydantic>=2.7.0
