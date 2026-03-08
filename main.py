@@ -33,16 +33,23 @@ ERROR_PREFIX = "🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n�
 # 除錯用環境變數：LOG_LEVEL=DEBUG | DEBUG=1 | CREW_VERBOSE=1（Agent 步驟）| SKIP_TELEGRAM=1 | SKIP_BIGQUERY=1
 
 # Telegram HTML 支援的標籤白名單
-_ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "blockquote"}
+_ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "blockquote", "a"}
 
 
 def sanitize_telegram_html(text: str) -> str:
-    """清洗 LLM 輸出的 HTML，確保只保留 Telegram 支援的標籤。"""
+    """清洗 LLM 輸出的 HTML，保留 Telegram 支援的標籤。"""
     text = re.sub(r'&(?!(?:amp|lt|gt|quot|apos);)', '&amp;', text)
 
     def _fix_tag(m: re.Match) -> str:
         inner = m.group(1)
         tag_name = inner.lstrip('/').split()[0].lower()
+        if tag_name == 'a':
+            if inner.startswith('/'):
+                return '</a>'
+            href_m = re.search(r'href=["\']([^"\']+)["\']', inner)
+            if href_m:
+                return f'<a href="{href_m.group(1)}">'
+            return ''
         return m.group(0) if tag_name in _ALLOWED_TAGS else ''
 
     return re.sub(r'<(/?\w+(?:\s[^>]*)?)>', _fix_tag, text)
@@ -64,27 +71,47 @@ def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
 
 
 def validate_report(text: str) -> dict:
-    """驗證戰報是否包含足夠的新聞與推文，回傳驗證結果與詳細計數。"""
+    """驗證戰報是否包含足夠的新聞、推文與所有必要區塊。"""
     news_count  = len(re.findall(r'〔新聞', text))
     tweet_count = len(re.findall(r'〔推文', text))
-    has_regime  = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
-    has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|OpenRouter|模型排名|模型熱度', text, re.IGNORECASE))
+
+    has_regime    = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
+    has_dashboard = bool(re.search(r'ICE\s*DXY|BTC\s*OI|MVRV|資金費率|模型排名|ML.*權重', text, re.IGNORECASE))
+    has_crypto_trade = bool(re.search(r'資金流向與精準操作\s*\(Crypto\)|精準操作.*Crypto', text, re.IGNORECASE))
+    has_ai_trade  = bool(re.search(r'AI\s*產業鏈精準操作|精準操作.*Equit', text, re.IGNORECASE))
+    has_ai_section = bool(re.search(r'AI\s*市場|AI\s*基建現況|AI\s*投資案', text, re.IGNORECASE))
+    has_crypto_section = bool(re.search(r'加密市場|幣圈新聞|幣圈推文', text, re.IGNORECASE))
+    has_data_missing = bool(re.search(r'\[DATA_MISSING:', text))
 
     issues = []
+    if len(text) < 3000:
+        issues.append(f"報告過短（{len(text)} chars，預期 >3000）")
     if news_count < 12:
         issues.append(f"新聞數不足（{news_count}/12）")
     if tweet_count < 10:
-        issues.append(f"推文數不足（{tweet_count}/10，每區塊各 5 則）")
+        issues.append(f"推文數不足（{tweet_count}/10）")
     if not has_regime:
-        issues.append("缺少 market_regime 標籤")
+        issues.append("缺少 market_regime 標籤（risk_on/risk_off/neutral）")
     if not has_dashboard:
-        issues.append("缺少數據儀表板內容")
+        issues.append("缺少數據儀表板（DXY/MVRV/資金費率）")
+    if not has_crypto_trade:
+        issues.append("缺少加密市場操作建議（精準操作 Crypto）")
+    if not has_ai_trade:
+        issues.append("缺少 AI 美股操作建議（精準操作 US Equities）")
+    if not has_ai_section:
+        issues.append("缺少 AI 市場段落")
+    if not has_crypto_section:
+        issues.append("缺少加密市場段落")
+    if has_data_missing:
+        missing_fields = re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)
+        issues.append(f"資料缺失欄位：{', '.join(set(missing_fields))}")
 
     return {
-        "valid":       not issues,
-        "issues":      issues,
-        "news_count":  news_count,
+        "valid": len([i for i in issues if "資料缺失" not in i]) == 0,
+        "issues": issues,
+        "news_count": news_count,
         "tweet_count": tweet_count,
+        "has_data_missing": has_data_missing,
     }
 
 
@@ -106,27 +133,51 @@ def _extract_section(text: str, header: str, max_chars: int = 500) -> str | None
     return body or None
 
 
+def _extract_news_titles(text: str, max_titles: int = 20) -> list[str]:
+    """從戰報中萃取所有新聞與推文標題，供次日排除重複使用。"""
+    clean = strip_html(text)
+    titles: list[str] = []
+    for m in re.finditer(r'〔新聞\s*\d+〕[^\n]*\n([^\n]{10,120})', clean):
+        titles.append(m.group(1).strip())
+    for m in re.finditer(r'〔新聞\s*\d+〕\s*([^\n]{10,120})', clean):
+        candidate = m.group(1).strip()
+        if candidate not in titles:
+            titles.append(candidate)
+    for m in re.finditer(r'〔推文\s*\d+〕\s*([^\n]{10,100})', clean):
+        titles.append("推文：" + m.group(1).strip())
+    return titles[:max_titles]
+
+
 def _safe_chunks(text: str, max_len: int = 4000) -> list[str]:
-    """切分訊息且保證每塊不超過 max_len，盡量避免切斷 HTML 標籤。"""
+    """切分訊息，優先在區段分隔線處切割，避免切斷新聞/推文條目。"""
     if not text:
         return [""]
     chunks: list[str] = []
     remaining = text
     while len(remaining) > max_len:
-        cut = remaining.rfind("\n", 0, max_len + 1)
-        if cut == -1:
-            cut = remaining.rfind(" ", 0, max_len + 1)
-        if cut == -1:
-            cut = max_len
+        cut = remaining.rfind("────────────", 0, max_len + 1)
+        if cut > max_len // 2:
+            cut += len("────────────")
+        else:
+            section_matches = list(re.finditer(r'\n【', remaining[:max_len + 1]))
+            if section_matches:
+                cut = section_matches[-1].start()
+            else:
+                cut = remaining.rfind("\n", 0, max_len + 1)
+                if cut == -1:
+                    cut = max_len
+
         candidate = remaining[:cut]
         if candidate.count("<") > candidate.count(">"):
             last_open = candidate.rfind("<")
             if last_open > 0:
                 cut = last_open
+
         if cut <= 0:
             cut = max_len
         chunks.append(remaining[:cut])
-        remaining = remaining[cut:]
+        remaining = remaining[cut:].lstrip("\n")
+
     if remaining:
         chunks.append(remaining)
     return chunks
@@ -138,27 +189,38 @@ def _send_telegram_report(text: str, token: str, chat_id: str, image_path: str =
 
     apihelper.SESSION_TIME_TO_LIVE = 5 * 60
     bot = telebot.TeleBot(token)
+
     if os.path.exists(image_path):
-        try:
-            with open(image_path, "rb") as f:
-                bot.send_photo(chat_id, photo=f, timeout=60)
-        except Exception as e:
-            logger.warning("Telegram send_photo failed: %s", e)
-    cleaned = sanitize_telegram_html(text)
-    for chunk in _safe_chunks(cleaned):
         for attempt in range(3):
             try:
-                bot.send_message(chat_id, chunk, parse_mode="HTML", timeout=60)
+                with open(image_path, "rb") as f:
+                    bot.send_photo(chat_id, photo=f, timeout=60)
                 break
             except Exception as e:
-                logger.warning("Telegram send failed (attempt %d): %s", attempt + 1, e)
+                logger.warning("send_photo attempt %d failed: %s", attempt + 1, e)
                 if attempt < 2:
-                    time.sleep(5)
-                else:
-                    try:
-                        bot.send_message(chat_id, strip_html(chunk), timeout=60)
-                    except Exception as final_e:
-                        logger.error("Fallback failed: %s", final_e)
+                    time.sleep(5 * (attempt + 1))
+
+    cleaned = sanitize_telegram_html(text)
+    for i, chunk in enumerate(_safe_chunks(cleaned)):
+        sent = False
+        for attempt in range(4):
+            try:
+                bot.send_message(chat_id, chunk, parse_mode="HTML", timeout=60)
+                sent = True
+                time.sleep(0.5)
+                break
+            except Exception as e:
+                err_str = str(e).lower()
+                wait = 5 if "429" not in err_str else 30 * (attempt + 1)
+                logger.warning("Chunk %d send attempt %d failed (wait=%ds): %s", i, attempt + 1, wait, e)
+                if attempt < 3:
+                    time.sleep(wait)
+        if not sent:
+            try:
+                bot.send_message(chat_id, strip_html(chunk), timeout=60)
+            except Exception as final_e:
+                logger.error("Chunk %d all retries failed: %s", i, final_e)
 
 
 def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> None:
@@ -167,9 +229,19 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     # 先剝除 HTML 標籤，避免 <code>97.65</code> 等結構干擾 regex 萃取
     clean_text = strip_html(report_text)
 
-    # ── 1. 萃取 DXY：匹配 "ICE DXY → 97.65" 格式 ──────────────────
-    dxy_match = re.search(r'ICE\s+DXY\s*[→\->\s→]+\s*(\d{2,3}\.\d{1,4})', clean_text, re.IGNORECASE)
-    dxy = _safe_float(dxy_match)
+    # ── 1. 萃取 DXY：多模式匹配 ──────────────────
+    dxy_patterns = [
+        r'ICE\s+DXY\s*[→\->:：]+\s*(\d{2,3}\.\d{1,4})',
+        r'DXY\s*[→\->:：]+\s*(\d{2,3}\.\d{1,4})',
+        r'美元指數[（(]DXY[）)]?\s*[→\->:：]+\s*(\d{2,3}\.\d{1,4})',
+        r'DXY[^<]*?(\d{2,3}\.\d{1,4})',
+    ]
+    dxy = None
+    for pattern in dxy_patterns:
+        m = re.search(pattern, clean_text, re.IGNORECASE)
+        dxy = _safe_float(m)
+        if dxy is not None:
+            break
 
     # ── 2. 萃取 ETF 資金流：匹配中文語境的流出/流入 + 億 ────────────
     etf_flow = None
@@ -212,13 +284,27 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     # ── 4. B200 租賃價已移除，保留欄位以相容既有 BigQuery schema（寫入 None）──
     gpu_b200 = None
 
-    # ── 5. 萃取 MVRV Z-Score：匹配 "MVRV Z-Score → 2.34" 格式 ───────
-    mvrv_match = re.search(r'MVRV\s*Z[-\s]?Score\s*[→\->]+\s*(-?\d+(?:\.\d+)?)', clean_text, re.IGNORECASE)
-    mvrv_z = _safe_float(mvrv_match)
+    # ── 5. 萃取 MVRV Z-Score：多模式匹配 ───────
+    mvrv_patterns = [
+        r'MVRV\s*Z[-\s]?Score\s*[→\->:：]+\s*(-?\d+(?:\.\d+)?)',
+        r'MVRV[：:]\s*(-?\d+(?:\.\d+)?)',
+        r'MVRV[^<]*?(-?\d+(?:\.\d+)?)',
+    ]
+    mvrv_z = None
+    for pattern in mvrv_patterns:
+        m = re.search(pattern, clean_text, re.IGNORECASE)
+        mvrv_z = _safe_float(m)
+        if mvrv_z is not None:
+            break
 
     # ── 6. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
     grok_summary = _extract_section(clean_text, "【幣圈新聞】")
     gpt_summary  = _extract_section(clean_text, "【AI 基建現況】")
+
+    # ── 6b. 萃取新聞標題供次日去重 ──────────────────
+    all_titles = _extract_news_titles(report_text, max_titles=25)
+    news_titles_str = "\n".join(f"· {t}" for t in all_titles) if all_titles else None
+    logger.info("Extracted %d news/tweet titles for deduplication.", len(all_titles))
 
     logger.info(
         "Extracted metrics — DXY: %s, ETF Flow: %s億, Avg Risk: %s, MVRV Z: %s",
@@ -238,6 +324,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             bigquery.SchemaField("grok_summary",       "STRING"),
             bigquery.SchemaField("gpt_summary",        "STRING"),
             bigquery.SchemaField("mvrv_z_score",       "FLOAT"),
+            bigquery.SchemaField("news_titles",        "STRING"),
         ]
         table_ref = bigquery.Table(metrics_table, schema=schema)
         client.create_table(table_ref, exists_ok=True)
@@ -260,7 +347,14 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             "grok_summary":      grok_summary,
             "gpt_summary":       gpt_summary,
             "mvrv_z_score":      mvrv_z,
+            "news_titles":       news_titles_str,
         }
+        non_null_count = sum(1 for v in [dxy, etf_flow, avg_risk, mvrv_z] if v is not None)
+        if non_null_count == 0:
+            logger.warning("All key metrics are None — skipping BigQuery write to avoid empty row.")
+            return
+        logger.info("Writing %d/4 key metrics to BigQuery.", non_null_count)
+
         errors = client.insert_rows_json(metrics_table, [row])
         if errors:
             logger.error("BigQuery insert errors: %s", errors)
@@ -271,13 +365,13 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
 
 
 def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = METRICS_TABLE) -> str | None:
-    """從 BigQuery 讀取前一日的 grok_summary 與 gpt_summary，供研究流程排除重複新聞。"""
+    """從 BigQuery 讀取前一日的新聞標題列表，供研究流程排除重複新聞。"""
     try:
         client = bigquery.Client(project=project_id)
         query = f"""
-            SELECT grok_summary, gpt_summary
+            SELECT grok_summary, gpt_summary, news_titles
             FROM `{metrics_table}`
-            WHERE grok_summary IS NOT NULL OR gpt_summary IS NOT NULL
+            WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 36 HOUR)
             ORDER BY timestamp DESC
             LIMIT 1
         """
@@ -285,10 +379,21 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
         if not rows:
             return None
         row = rows[0]
-        parts = [p for p in (row.get("grok_summary"), row.get("gpt_summary")) if p]
+
+        parts: list[str] = []
+
+        news_titles_raw = row.get("news_titles") if hasattr(row, "get") else None
+        if news_titles_raw:
+            parts.append("昨日已報導的新聞標題（禁止重複選用）：\n" + news_titles_raw)
+        else:
+            for field in ("grok_summary", "gpt_summary"):
+                val = row.get(field) if hasattr(row, "get") else None
+                if val:
+                    parts.append(val)
+
         s = "\n\n".join(parts) if parts else None
-        if s and len(s) > 1200:
-            s = s[:1200] + "\n…[truncated]"
+        if s and len(s) > 2000:
+            s = s[:2000] + "\n…[truncated]"
         return s
     except Exception as e:
         logger.warning("Could not fetch exclusion context from BigQuery: %s", e)
