@@ -68,17 +68,17 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
     if cached:
         return cached
 
-    query = "OpenRouter model usage rankings top AI models"
+    query = f"OpenRouter model usage rankings top AI models {datetime.now().strftime('%Y-%m')}"
     try:
         client = _get_tavily_client()
-        response = client.search(query=query, search_depth="basic", max_results=3)
+        response = client.search(query=query, search_depth="basic", max_results=3, days=3)
         result = str(response.get("results", "No data found."))
         _set_cache(cache_key, result)
         return result
     except ValueError as e:
-        return f"AI Momentum Tool Failed：{e}"
+        return f"[DATA_MISSING:openrouter_rankings] AI Momentum Tool Failed：{e}"
     except Exception as e:
-        return f"AI Tool Failed: {str(e)}"
+        return f"[DATA_MISSING:openrouter_rankings] AI Tool Failed: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -108,19 +108,19 @@ def macro_liquidity_tool(indicator: str) -> str:
             _set_cache(cache_key, result)
             return result
         except ValueError as e:
-            return f"Macro Tracker Failed (Tavily ICE DXY)：{e}"
+            return f"[DATA_MISSING:macro_DXY] Macro Tracker Failed (Tavily ICE DXY)：{e}"
         except Exception:
-            return "Macro Tracker Failed (Tavily ICE DXY)：無法取得即時 DXY 報價。"
+            return "[DATA_MISSING:macro_DXY] Macro Tracker Failed (Tavily ICE DXY)：無法取得即時 DXY 報價。"
 
     # M2 / CPI：使用 FRED API
     series_map = {"M2": "M2SL", "CPI": "CPIAUCSL"}
     series_id = series_map.get(indicator_upper)
     if not series_id:
-        return f"Macro Tracker Failed。不支援的指標：{indicator}，僅支援 DXY / M2 / CPI。"
+        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed。不支援的指標：{indicator}，僅支援 DXY / M2 / CPI。"
 
     fred_key = os.getenv("FRED_API_KEY")
     if not fred_key:
-        return "Macro Tracker Failed (FRED)。FRED_API_KEY 未設定，無法查詢 M2 / CPI。"
+        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。FRED_API_KEY 未設定，無法查詢 M2 / CPI。"
 
     url = "https://api.stlouisfed.org/fred/series/observations"
     params = {
@@ -133,24 +133,23 @@ def macro_liquidity_tool(indicator: str) -> str:
     try:
         response = requests.get(url, params=params, timeout=10)
         if response.status_code == 403:
-            return "Macro Tracker Failed (FRED 403)。FRED_API_KEY 無效或權限不足。"
+            return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED 403)。FRED_API_KEY 無效或權限不足。"
         if response.status_code == 429:
-            return "Macro Tracker Failed (FRED 429)。FRED API 流量超限，請稍後再試。"
+            return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED 429)。FRED API 流量超限，請稍後再試。"
         response.raise_for_status()
         obs = response.json().get("observations", [])
         if not obs:
-            return f"Macro Tracker Failed (FRED)。{indicator_upper} 無歷史資料。"
+            return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。{indicator_upper} 無歷史資料。"
         latest = obs[0]
         result = f"{indicator_upper}: {latest.get('value')} (Date: {latest.get('date')})"
         _set_cache(cache_key, result)
         return result
     except requests.Timeout:
-        return "Macro Tracker Failed (FRED)。連線逾時，請稍後重試。"
+        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。連線逾時，請稍後重試。"
     except requests.RequestException:
-        # 避免把可能包含 query string 的例外原文（含金鑰）回傳到上游 Agent。
-        return "Macro Tracker Failed (FRED)。網路或服務異常。"
+        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。網路或服務異常。"
     except Exception:
-        return "Macro Tracker Failed (FRED)。發生未預期錯誤。"
+        return f"[DATA_MISSING:macro_{indicator_upper}] Macro Tracker Failed (FRED)。發生未預期錯誤。"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -171,48 +170,65 @@ def yfinance_macro_tool(metric: str = "vix") -> str:
         return cached
 
     try:
+        import pandas as pd
+
         if key == "vix":
-            df = yf.download("^VIX", period="5d", interval="1d", progress=False)
+            df = yf.download("^VIX", period="5d", interval="1d", progress=False, auto_adjust=True)
             if df.empty:
-                return "YFinance：無法取得 VIX 資料。"
-            latest = df["Close"].iloc[-1]
-            prev = df["Close"].iloc[-2] if len(df) > 1 else latest
+                return "[DATA_MISSING:vix] YFinance：無法取得 VIX 資料。"
+            close_col = df["Close"]
+            if isinstance(close_col, pd.DataFrame):
+                close_col = close_col.iloc[:, 0]
+            close_col = close_col.dropna()
+            if close_col.empty:
+                return "[DATA_MISSING:vix] YFinance：VIX 資料欄位為空。"
+            latest = float(close_col.iloc[-1])
+            prev = float(close_col.iloc[-2]) if len(close_col) > 1 else latest
             change = latest - prev
             pct = (change / prev * 100) if prev else 0.0
-            result = f"VIX 最新指數為 {latest:.2f}，日變化 {change:+.2f}（{pct:+.2f}%）。數值愈高代表市場恐慌與避險需求升溫。"
+            vix_level = "🔴 恐慌" if latest >= 30 else ("🟡 警戒" if latest >= 20 else "🟢 平靜")
+            result = f"VIX {latest:.2f} {vix_level}，日變化 {change:+.2f}（{pct:+.2f}%）"
         elif key == "etf_flow":
             tickers = ["SPY", "QQQ"]
-            df = yf.download(" ".join(tickers), period="6d", interval="1d", progress=False, group_by="ticker")
+            df = yf.download(
+                " ".join(tickers), period="6d", interval="1d",
+                progress=False, auto_adjust=True, group_by="ticker"
+            )
             if df.empty:
-                return "YFinance：無法取得 SPY / QQQ 資料。"
+                return "[DATA_MISSING:etf_flow] YFinance：無法取得 SPY / QQQ 資料。"
 
             lines: list[str] = []
             for t in tickers:
                 try:
-                    sub = df[t].dropna()
+                    if isinstance(df.columns, pd.MultiIndex):
+                        sub = df[t].dropna(how="all")
+                    else:
+                        sub = df.dropna(how="all")
                     if sub.empty or len(sub) < 3:
                         continue
-                    latest = sub.iloc[-1]
-                    prev5 = sub.iloc[:-1].tail(5)
-                    dollar_vol_today = float(latest["Close"]) * float(latest["Volume"])
-                    dollar_vol_avg5 = float((prev5["Close"] * prev5["Volume"]).mean())
+                    latest_close = float(sub["Close"].squeeze().iloc[-1])
+                    latest_vol   = float(sub["Volume"].squeeze().iloc[-1])
+                    prev5_close  = sub["Close"].squeeze().iloc[:-1].tail(5).astype(float)
+                    prev5_vol    = sub["Volume"].squeeze().iloc[:-1].tail(5).astype(float)
+                    dollar_vol_today = latest_close * latest_vol
+                    dollar_vol_avg5  = float((prev5_close * prev5_vol).mean())
                     if dollar_vol_avg5 <= 0:
                         continue
                     ratio = dollar_vol_today / dollar_vol_avg5
                     if ratio > 1.2:
-                        direction = "明顯放量（資金關注度升高）"
+                        direction = "放量（資金關注升高）"
                     elif ratio < 0.8:
-                        direction = "低於近 5 日均值（資金關注度降溫）"
+                        direction = "縮量（資金關注降溫）"
                     else:
-                        direction = "接近近 5 日均值（資金流向中性）"
+                        direction = "量能中性"
                     lines.append(
-                        f"{t} 今日預估成交額約為 {dollar_vol_today/1e9:.2f}B，約為近 5 日均額的 {ratio:.2f} 倍，{direction}。"
+                        f"{t} 成交額 ${dollar_vol_today/1e9:.2f}B，約 5日均額 {ratio:.2f}x，{direction}"
                     )
                 except Exception:
                     continue
 
             if not lines:
-                return "YFinance：ETF 成交額 proxy 計算失敗或資料不足。"
+                return "[DATA_MISSING:etf_flow] YFinance：ETF 成交額 proxy 計算失敗或資料不足。"
             result = "；".join(lines)
         else:
             return "YFinance Tool Failed：metric 僅支援 'vix' 或 'etf_flow'。"
@@ -220,15 +236,49 @@ def yfinance_macro_tool(metric: str = "vix") -> str:
         _set_cache(cache_key, result)
         return result
     except Exception as e:
-        return f"YFinance Tool Failed: {str(e)}"
+        return f"[DATA_MISSING:{key}] YFinance Tool Failed: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════
 # YFinance Quote Fetcher（單一標的報價）
 # ═══════════════════════════════════════════════════════════════════
 
+def _yf_close(ticker: str, period: str = "5d") -> float | None:
+    """安全取得最新收盤價，處理 yfinance >= 0.2.38 MultiIndex。"""
+    import pandas as pd
+    try:
+        df = yf.download(ticker, period=period, interval="1d",
+                         progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return None
+        close_col = df["Close"]
+        if isinstance(close_col, pd.DataFrame):
+            close_col = close_col.iloc[:, 0]
+        close_col = close_col.dropna()
+        return float(close_col.iloc[-1]) if not close_col.empty else None
+    except Exception:
+        return None
+
+
+def _yf_prev(ticker: str, period: str = "5d") -> float | None:
+    """安全取得前一日收盤價。"""
+    import pandas as pd
+    try:
+        df = yf.download(ticker, period=period, interval="1d",
+                         progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return None
+        close_col = df["Close"]
+        if isinstance(close_col, pd.DataFrame):
+            close_col = close_col.iloc[:, 0]
+        close_col = close_col.dropna()
+        return float(close_col.iloc[-2]) if len(close_col) >= 2 else None
+    except Exception:
+        return None
+
+
 def _yf_quote(symbol: str) -> str:
-    """內部共用：取得單一標的報價，帶 cache。"""
+    """取得單一標的最新報價，帶 cache、MultiIndex 防護與重試。"""
     sym = (symbol or "").strip()
     if not sym:
         return "YFinance Tool Failed：symbol 不可為空。"
@@ -236,19 +286,29 @@ def _yf_quote(symbol: str) -> str:
     cached = _get_cache(cache_key)
     if cached:
         return cached
-    try:
-        df = yf.download(sym, period="5d", interval="1d", progress=False)
-        if df.empty:
-            return f"YFinance：無法取得 {sym} 資料。"
-        latest = df["Close"].iloc[-1]
-        prev = df["Close"].iloc[-2] if len(df) > 1 else latest
-        change = latest - prev
-        pct = (change / prev * 100) if prev else 0.0
-        result = f"{sym} 最新價格為 {latest:.2f}，日變化 {change:+.2f}（{pct:+.2f}%）。"
-        _set_cache(cache_key, result)
-        return result
-    except Exception as e:
-        return f"YFinance Tool Failed：取得 {sym} 報價時發生錯誤（{e}）。"
+
+    latest = _yf_close(sym)
+
+    if latest is None and "-" not in sym and sym.upper() not in (
+        "SPY", "QQQ", "IBIT", "AMD", "NVDA", "TSLA", "MSFT", "GOOGL", "META",
+        "SMCI", "PLTR", "VST", "CEG", "GEV", "BE",
+    ):
+        latest = _yf_close(f"{sym}-USD")
+        if latest is not None:
+            sym = f"{sym}-USD"
+
+    if latest is None:
+        latest = _yf_close(sym, period="10d")
+
+    if latest is None:
+        return f"YFinance Tool Failed：{sym} 無法取得報價（市場可能休市或代碼錯誤）。"
+
+    prev = _yf_prev(sym) or latest
+    change = latest - prev
+    pct = (change / prev * 100) if prev else 0.0
+    result = f"{sym} 現價 {latest:.2f} USD，日變化 {change:+.2f}（{pct:+.2f}%）"
+    _set_cache(cache_key, result)
+    return result
 
 
 @tool("YFinance Quote Fetcher")
@@ -304,7 +364,7 @@ def x_search_tool(query: str) -> str:
     """搜尋 X 情緒。"""
     bearer_token = os.getenv("X_BEARER_TOKEN")
     if not bearer_token:
-        return "X Search Failed：X_BEARER_TOKEN 未設定。"
+        return "[DATA_MISSING:x_tweets] X Search Failed：X_BEARER_TOKEN 未設定。"
 
     cache_key = ("x_search", query)
     cached = _get_cache(cache_key)
@@ -321,7 +381,7 @@ def x_search_tool(query: str) -> str:
         _set_cache(cache_key, result)
         return result
     except Exception as e:
-        return f"X Search Failed: {str(e)}"
+        return f"[DATA_MISSING:x_tweets] X Search Failed: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -335,7 +395,7 @@ def _tavily_fallback(query: str, label: str) -> str:
         res = client.search(query=query, search_depth="basic", max_results=3, topic="finance")
         return f"[Tavily 備援] {str(res.get('results', []))}"
     except Exception:
-        return f"API 暫時無回應：CoinGlass（{label}）與 Tavily 備援均失敗。"
+        return f"[DATA_MISSING:coinglass_{label}] API 暫時無回應：CoinGlass（{label}）與 Tavily 備援均失敗。"
 
 
 _TAVILY_FALLBACK_QUERIES = {
@@ -358,23 +418,28 @@ _COINGLASS_ENDPOINTS = {
 def _parse_coinglass_funding_rate(data: list) -> str:
     """將資金費率 API 回傳解析為 Agent 友善文字。"""
     if not data or not isinstance(data, list):
-        return "CoinGlass：無資金費率數據。"
+        return "[DATA_MISSING:funding_rate] CoinGlass 無資金費率數據。"
     latest = data[-1] if data else {}
-    close_raw = latest.get("close") or latest.get("open")
+    close_raw = (
+        latest.get("close") or latest.get("open") or
+        latest.get("fundingRate") or latest.get("funding_rate") or
+        latest.get("value")
+    )
     if close_raw is None:
-        return "CoinGlass：無法解析資金費率。"
+        return "[DATA_MISSING:funding_rate] CoinGlass 無法解析資金費率（欄位不存在）。"
     try:
         rate_pct = float(close_raw) * 100
     except (TypeError, ValueError):
-        return "CoinGlass：資金費率格式異常。"
-    hint = "（若為正代表多頭付費給空頭，情緒偏熱）" if rate_pct > 0 else "（若為負代表空頭付費給多頭，情緒偏冷）"
-    return f"BTC 最新資金費率為 {rate_pct:.4f}%，{hint}"
+        return "[DATA_MISSING:funding_rate] CoinGlass 資金費率格式異常。"
+    hint = "多頭付費給空頭，情緒偏熱" if rate_pct > 0 else "空頭付費給多頭，情緒偏冷"
+    level = "🔴 極度過熱" if rate_pct > 0.05 else ("🟡 偏熱" if rate_pct > 0.01 else ("🟢 中性" if rate_pct >= -0.01 else "🔵 偏冷"))
+    return f"BTC 資金費率 {rate_pct:.4f}% {level}，{hint}"
 
 
 def _parse_coinglass_liquidations(data: list) -> str:
     """將清算 API 回傳解析為 Agent 友善文字（過去 24h 彙總）。"""
     if not data or not isinstance(data, list):
-        return "CoinGlass：無清算數據。"
+        return "[DATA_MISSING:liquidations] CoinGlass 無清算數據。"
     total_long = total_short = 0.0
     for item in data:
         try:
@@ -389,17 +454,20 @@ def _parse_coinglass_liquidations(data: list) -> str:
 def _parse_coinglass_long_short_ratio(data: list) -> str:
     """將大戶多空比 API 回傳解析為 Agent 友善文字。"""
     if not data or not isinstance(data, list):
-        return "CoinGlass：無多空比數據。"
+        return "[DATA_MISSING:long_short_ratio] CoinGlass 無多空比數據。"
     latest = data[-1] if data else {}
-    ratio_raw = latest.get("top_account_long_short_ratio")
+    ratio_raw = (
+        latest.get("top_account_long_short_ratio") or
+        latest.get("topAccountLongShortRatio") or
+        latest.get("longShortRatio") or
+        latest.get("ratio")
+    )
     if ratio_raw is None:
-        ratio_raw = latest.get("topAccountLongShortRatio")
-    if ratio_raw is None:
-        return "CoinGlass：無法解析大戶多空比。"
+        return "[DATA_MISSING:long_short_ratio] CoinGlass 無法解析大戶多空比（欄位不存在）。"
     try:
         ratio = float(ratio_raw)
     except (TypeError, ValueError):
-        return "CoinGlass：多空比格式異常。"
+        return "[DATA_MISSING:long_short_ratio] CoinGlass 多空比格式異常。"
     hint = "數值 > 1 代表大戶偏多" if ratio > 1 else "數值 < 1 代表大戶偏空"
     return f"最新大戶多空比為 {ratio:.2f}，{hint}"
 
@@ -447,7 +515,7 @@ def coinglass_data_tool(metric: str) -> str:
     if metric_lower in _TAVILY_FALLBACK_QUERIES:
         result = _tavily_fallback(_TAVILY_FALLBACK_QUERIES[metric_lower], metric_lower)
     else:
-        result = f"CoinGlass Tool Failed：{metric} API 暫無回應或 COINGLASS_API_KEY 未設定。"
+        result = f"[DATA_MISSING:coinglass_{metric}] CoinGlass API 暫無回應，請在報告中標記此數據缺失。"
     _set_cache(cache_key, result)
     return result
 
@@ -478,10 +546,11 @@ def cryptoquant_tool(indicator: str) -> str:
             if response.status_code == 200:
                 data = response.json().get("result", {}).get("data", [])
                 if data:
-                    value = data[0].get(indicator_lower, "N/A")
-                    result = f"BTC {indicator_lower.capitalize()}: {value} BTC"
-                    _set_cache(cache_key, result)
-                    return result
+                    value = data[0].get(indicator_lower, None)
+                    if value is not None:
+                        result = f"BTC {indicator_lower.capitalize()}: {value} BTC"
+                        _set_cache(cache_key, result)
+                        return result
         except Exception:
             pass
 
@@ -510,7 +579,7 @@ def mvrv_tool(window: str = "latest") -> str:
     """
     api_key = os.getenv("CRYPTOQUANT_API_KEY")
     if not api_key:
-        return "MVRV Tool Failed：CRYPTOQUANT_API_KEY 未設定。"
+        return "[DATA_MISSING:mvrv_z_score] MVRV Tool Failed：CRYPTOQUANT_API_KEY 未設定。"
 
     cache_key = ("mvrv", window)
     cached = _get_cache(cache_key)
@@ -524,7 +593,7 @@ def mvrv_tool(window: str = "latest") -> str:
         response.raise_for_status()
         data = response.json().get("result", {}).get("data", [])
         if not data:
-            return "MVRV Tool：API 回應無資料。"
+            return "[DATA_MISSING:mvrv_z_score] MVRV Tool：API 回應無資料。"
         row = data[0]
         mvrv_z = row.get("mvrv_z_score", "N/A")
         date_str = row.get("date", "")
@@ -543,21 +612,37 @@ def mvrv_tool(window: str = "latest") -> str:
                 signal = "N/A"
             result = f"BTC MVRV Z-Score: {mvrv_z} ({date_str}) — {signal}"
         else:
-            result = f"BTC MVRV Z-Score: N/A ({date_str})"
+            result = f"[DATA_MISSING:mvrv_z_score] BTC MVRV Z-Score 數據暫缺 ({date_str})"
         _set_cache(cache_key, result)
         return result
     except requests.HTTPError as e:
         status = e.response.status_code
         if status == 403:
-            return (
-                "MVRV Tool Failed（HTTP 403 Forbidden）：CryptoQuant MVRV Z-Score 端點需要 "
-                "Advanced 或 Professional 方案。請至 https://cryptoquant.com/pricing 確認訂閱等級。"
-            )
+            try:
+                client = _get_tavily_client()
+                res = client.search(
+                    query="Bitcoin BTC MVRV Z-Score latest value today",
+                    search_depth="basic",
+                    max_results=3,
+                    topic="finance",
+                    days=2,
+                )
+                results = res.get("results", [])
+                if results:
+                    raw = " | ".join(
+                        r.get("content", "")[:200] for r in results[:3]
+                    )
+                    result = f"[Tavily備援-MVRV] {raw[:600]}"
+                    _set_cache(cache_key, result)
+                    return result
+            except Exception:
+                pass
+            return "MVRV：暫缺（CryptoQuant 403，需 Advanced 方案）"
         if status == 429:
-            return "MVRV Tool Failed（HTTP 429）：CryptoQuant API 流量超限，請稍後重試。"
-        return f"MVRV Tool Failed（HTTP {status}）：{e}"
+            return "[DATA_MISSING:mvrv_z_score] MVRV Tool Failed（HTTP 429）：CryptoQuant API 流量超限，請稍後重試。"
+        return f"[DATA_MISSING:mvrv_z_score] MVRV Tool Failed（HTTP {status}）：{e}"
     except Exception as e:
-        return f"MVRV Tool Failed: {str(e)}"
+        return f"[DATA_MISSING:mvrv_z_score] MVRV Tool Failed: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -573,7 +658,7 @@ def cryptopanic_tool(topic: str = "bitcoin") -> str:
     """
     api_key = os.getenv("CRYPTOPANIC_API_KEY")
     if not api_key:
-        return "CryptoPanic Tool Failed：CRYPTOPANIC_API_KEY 未設定。"
+        return "[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed：CRYPTOPANIC_API_KEY 未設定。"
 
     cache_key = ("cryptopanic", topic.lower())
     cached = _get_cache(cache_key)
@@ -612,7 +697,7 @@ def cryptopanic_tool(topic: str = "bitcoin") -> str:
         _set_cache(cache_key, result)
         return result
     except Exception as e:
-        return f"CryptoPanic Tool Failed: {str(e)}"
+        return f"[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: {str(e)}"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -662,10 +747,17 @@ def ml_quant_tool() -> str:
             )
             df_ind = client.query(query, job_config=job_config).to_dataframe()
         except Exception as e:
-            return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 backfill_data.py 補入歷史數據。"
+            return (
+                "ML 模型建置中（BigQuery 無歷史數據，請先執行 backfill_data.py）。"
+                "請在儀表板中寫：ML 模型建置中（需積累歷史數據）｜部位建議：暫不適用"
+            )
 
         if df_ind.empty or len(df_ind) < 30:
-            return "ML Quant Tool Failed：daily_metrics 數據不足（需至少 30 筆）。請先執行 backfill_data.py。"
+            available = len(df_ind)
+            return (
+                f"ML 模型建置中（已累積 {available}/30 天數據）。"
+                f"請在儀表板中寫：ML 模型建置中（{available}/30天）｜部位建議：暫不適用"
+            )
 
         df_ind["date"] = pd.to_datetime(df_ind["date"]).dt.date
         df_ind = df_ind.set_index("date").sort_index()
