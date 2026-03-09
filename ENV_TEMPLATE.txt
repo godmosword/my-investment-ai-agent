@@ -12,6 +12,7 @@ OPENAI_API_KEY=
 # ---------- 資料/搜尋 API（工具會用到，缺則該工具回傳 DATA_MISSING）----------
 COINGLASS_API_KEY=
 CRYPTOPANIC_API_KEY=
+# APIFY_API_TOKEN：Apify 搜尋引擎（新聞/傳聞/OpenRouter 熱度），必填
 APIFY_API_TOKEN=
 
 # ---------- Telegram 推送（選填，不填則不發送）----------
