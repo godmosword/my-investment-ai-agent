@@ -1,0 +1,17 @@
+# Q-Silicon Cursor AI Rules
+
+## 1. 系統核心架構 (V2.0+ 終極無菌資料管線)
+- **嚴禁數據幻覺**：廢棄 X/Twitter API。所有實盤價格、技術指標 (RSI, MA20/50, VIX) 與宏觀數據 (FMP API, Alternative.me) 必須由 Python 底層抓取並作為 Context 強制注入。
+- **Agent 開發鐵則**：嚴禁讓 LLM 自行推導、計算或捏造任何客觀報價與日期。
+
+## 2. 戰報排版與 Telegram HTML 輸出
+- **四大區塊順序**：①數據儀表板 ②核心新聞 ③市場呢喃 ④精準操作。
+- **標籤白名單**：僅允許 `<b>` `<i>` `<u>` `<s>` `<code>` `<blockquote>` `<a>`。禁止 Markdown 或其他 HTML 標籤。
+- **排版細節**：
+  - 儀表板數據必須用 `<code>` 等寬對齊，每項獨立一行。
+  - 新聞摘要必須用 `<blockquote>` 包覆。
+  - 缺漏數據必須統一回傳 `[DATA_MISSING:xxx]` 或 `<code>N/A</code>`。
+
+## 3. 程式碼修改規範
+- 任何新增的 Tool (如 `tools.py`) 都必須實作 `_get_cache` / `_set_cache` 機制。
+- 確保 `main.py` 中 `ThreadPoolExecutor` (Crypto 與 AI 雙線程) 的執行緒安全。
