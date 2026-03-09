@@ -24,15 +24,9 @@ MODEL_CLAUDE = "openrouter/anthropic/claude-sonnet-4.6"
 MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
 
 _TELEGRAM_FMT = dedent("""\
-    ════ Telegram HTML ════
-    允許：<b> <i> <u> <s> <code> <blockquote> <a href>
-    禁止：Markdown、<h1~h2> <div> <p> <br> <hr> <span> <table>
-    分隔線 ────────────（每大區塊前加）
-    ── 排版強制規則 ──
-    · 儀表板數值：用 <code> 標籤包覆（等寬對齊），每項獨立一行，禁止同行塞多個數值
-    · 新聞摘要：用 <blockquote> 包覆，限 1 句核心事實
-    · 重點標的 / Ticker：用 <b> 標示
-    · 資料缺失時寫 <code>N/A</code>，禁止自行估算或留空""")
+    Telegram HTML：只允許 <b> <i> <u> <s> <code> <blockquote> <a href>
+    禁止 Markdown 與其他 HTML；大區塊前加分隔線 ────────────
+    儀表板每項獨立一行且數值包 <code>；摘要用 <blockquote>；缺資料寫 <code>N/A</code>""")
 
 _EDITOR_RULE = "【主編共識】每則新聞給 1 句最終操作判斷，必須點名具體標的。"
 _DATA_RULES = "【新鮮度】新聞必須在 48h 內；超時跳過重搜。"
@@ -42,22 +36,19 @@ _NEWS_FMT = dedent("""\
     <blockquote>摘要：（1 句核心事實，禁止加入主觀評論）</blockquote>""")
 
 _DASHBOARD_FMT = dedent("""\
-    ── 儀表板格式規則 ──
-    每項數值獨立一行，格式：· <b>指標名</b> <code>數值 ▲/▼幅度%</code>
-    資料缺失時寫 <code>N/A</code>；禁止同行塞多個指標（避免手機折行）""")
+    儀表板格式：每項獨立一行
+    · <b>指標名</b> <code>數值 ▲/▼幅度%</code>
+    缺資料寫 <code>N/A</code>，禁止同一行塞多個指標""")
 
 _CHATTER_FMT = dedent("""\
-    ── 呢喃 / 傳聞格式規則 ──
-    · 僅收錄社群推測或未確認消息，排除任何有官方聲明的事件（那屬於新聞板塊）
-    · 每條限 1 句話，結尾必須標注（未確認）
-    · 需標明來源性質，例：（來源：CT / Telegram 群 / 鏈上數據推測）
-    · 輸出 2~3 條，條列式""")
+    呢喃/傳聞：僅未確認訊息，排除官方已證實事件
+    每條 1 句、結尾標註（未確認）、附來源性質，輸出 2~3 條""")
 
 _IMPACT_TAG = dedent("""\
-    📍 受影響資產：[具體 Ticker]
-    📈 做多機會：[標的] — [原因]
-    📉 做空風險：[標的] — [原因]
-    ⏱️ 時效：短期(1-7天) / 中期(2-4週) / 長期(1季+)
+    📍 受影響資產：[Ticker]
+    📈 做多機會：[標的]—[原因]
+    📉 做空風險：[標的]—[原因]
+    ⏱️ 時效：短期/中期/長期
     🎯 IMPACT：強利空/弱利空/中性/弱利多/強利多""")
 
 _QUOTE_RULE = dedent("""\
@@ -156,7 +147,6 @@ class CryptoResearchCrew:
 
                 {_DATA_RULES}
                 {_QUOTE_RULE}
-                {ctx}
 
                 === Fact-Check ===
                 以【系統強制即時報價】核對 DXY/VIX/IBIT/BTC。
@@ -187,44 +177,16 @@ class CryptoResearchCrew:
                 {_TRADE_RULE}
 
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
-
                 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
                 ────────────
                 【今日市場模式】risk_on / risk_off / neutral
                 ══════ <b>📊 加密市場</b> ══════
-
-                ── 區塊①【數據儀表板】──
-                嚴格套用 _DASHBOARD_FMT，每項獨立一行，分三組輸出：
-                宏觀數據（來自【系統強制即時報價】+ econ_calendar_tool）：
-                  · <b>DXY</b> <code>...數值 ▲/▼...%</code>
-                  · <b>VIX</b> <code>...數值 ▲/▼...%</code>
-                  · <b>VIX 期限結構</b> <code>Contango / Backwardation</code>
-                  · <b>IBIT</b> <code>...數值 ▲/▼...%</code>
-                  · <b>近期宏觀事件</b> <code>[由 econ_calendar_tool 提供的下一個重大事件及日期]</code>
-                技術面（來自【技術指標與結構】）：
-                  · <b>BTC RSI(14)</b> <code>...數值（超買/中性/超賣）</code>
-                  · <b>BTC MA20/MA50</b> <code>多頭排列 / 空頭排列 / 盤整</code>
-                  · <b>Fear & Greed</b> <code>...數值/100（情緒標籤）</code>
-                籌碼數據（來自 coinglass_data_tool + etf_flow_tool）：
-                  · <b>資金費率(BTC)</b> <code>...數值</code>
-                  · <b>大戶多空比</b> <code>...數值</code>
-                  · <b>未平倉量(OI)</b> <code>...數值 ▲/▼...%</code>
-                  · <b>24h 爆倉</b> <code>...金額</code>
-                  · <b>BTC 選擇權 P/C Ratio</b> <code>...數值</code>
-                  · <b>BTC Max Pain</b> <code>$...價位</code>
-                  · <b>ETF 淨流入</b> <code>[由 etf_flow_tool 提供的總金額，含 IBIT/GBTC 明細]</code>
-                ────────────
-
-                ── 區塊②【核心新聞】──
-                共 3 則，嚴格套用更新後的 _NEWS_FMT + _IMPACT_TAG，每則結尾加 💎 主編共識（1 句操作判斷，必須點名具體標的）。
-                ────────────
-
-                ── 區塊③【市場呢喃與傳聞】──
-                嚴格套用 _CHATTER_FMT，輸出 2~3 條；本區塊禁止重複新聞板塊已報導的事件。
-                ────────────
-
-                ── 區塊④【資金流向與精準操作 (Crypto)】──
-                套用 _TRADE_RULE，輸出 1 單邊 + 1 配對交易建議。
+                區塊①【數據儀表板】：
+                - 三組：宏觀（DXY/VIX/VIX期限結構/IBIT/近期宏觀事件）、技術（BTC RSI/MA20MA50/Fear&Greed）、籌碼（資金費率/多空比/OI/爆倉/P-C/MaxPain/ETF流向）
+                - 嚴格套用 {_DASHBOARD_FMT}
+                區塊②【核心新聞】：3 則，套用 {_NEWS_FMT} + {_IMPACT_TAG}，每則附 1 句💎主編共識
+                區塊③【市場呢喃與傳聞】：2~3 條，套用 {_CHATTER_FMT}，不可重複新聞事件
+                區塊④【資金流向與精準操作 (Crypto)】：1 單邊 + 1 配對，套用 {_TRADE_RULE}
             """),
             expected_output="戰報上半部 Telegram HTML，依序包含：①數據儀表板 ②核心新聞×3 ③市場呢喃×2~3 ④精準操作×2。",
             agent=self.quant_strategist,
@@ -332,26 +294,10 @@ class AIResearchCrew:
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
 
                 ══════ <b>🤖 AI 市場</b> ══════
-
-                ── 區塊①【AI 數據儀表板】──
-                嚴格套用 _DASHBOARD_FMT，每項獨立一行；
-                從 ai_momentum_tool 取得的 OpenRouter 模型熱度，列出 Top 5：
-                  · <b>#1 [模型名]</b> <code>[熱度指標 / 週排名變化]</code>
-                  · <b>#2 [模型名]</b> <code>[熱度指標 / 週排名變化]</code>
-                  · ...（最多 5 條）
-                資料缺失時寫 <code>N/A</code>，禁止自行捏造排名。
-                ────────────
-
-                ── 區塊②【AI 產業新聞】──
-                共 3 則（AI 基建 / AI 投資案 / 最新模型各 1），嚴格套用更新後的 _NEWS_FMT + _IMPACT_TAG，每則結尾加 💎 主編共識（1 句，必須點名受影響美股或 ETF）。
-                ────────────
-
-                ── 區塊③【產業鏈呢喃】──
-                嚴格套用 _CHATTER_FMT，輸出 2~3 條供應鏈傳聞或非官方消息（GPU 缺貨、代工廠產能、未公開合約等）；本區塊禁止重複新聞板塊已報導的事件。
-                ────────────
-
-                ── 區塊④【AI 產業鏈精準操作 (US Equities)】──
-                套用 _TRADE_RULE，輸出 2 支美股操作建議。
+                區塊①【AI 數據儀表板】：列 OpenRouter Top5 熱度（缺資料寫 <code>N/A</code>），嚴格套用 {_DASHBOARD_FMT}
+                區塊②【AI 產業新聞】：3 則（基建/投資案/最新模型各1），套用 {_NEWS_FMT} + {_IMPACT_TAG}，每則附 1 句💎主編共識
+                區塊③【產業鏈呢喃】：2~3 條，套用 {_CHATTER_FMT}，不可重複新聞事件
+                區塊④【AI 產業鏈精準操作 (US Equities)】：2 支，套用 {_TRADE_RULE}
             """),
             expected_output="戰報下半部 Telegram HTML，依序包含：①AI 數據儀表板 ②AI 產業新聞×3 ③產業鏈呢喃×2~3 ④精準操作×2。",
             agent=self.quant_strategist,
