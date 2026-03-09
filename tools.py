@@ -148,6 +148,7 @@ _COINGLASS_ENDPOINTS = {
     "funding_rate": f"{_COINGLASS_BASE}/api/futures/funding-rate/history?exchange=Binance&symbol=BTCUSDT&interval=8h&limit=1",
     "liquidations": f"{_COINGLASS_BASE}/api/futures/liquidation/history?exchange=Binance&symbol=BTCUSDT&interval=1h&limit=24",
     "long_short_ratio": f"{_COINGLASS_BASE}/api/futures/top-long-short-account-ratio/history?exchange=Binance&symbol=BTCUSDT&interval=1d&limit=1",
+    "options_info": f"{_COINGLASS_BASE}/api/option/info?symbol=BTC",
 }
 
 
@@ -208,11 +209,37 @@ def _parse_coinglass_long_short_ratio(data: list) -> str:
     return f"最新大戶多空比為 {ratio:.2f}，{hint}"
 
 
+def _parse_coinglass_options_info(data) -> str:
+    """將 BTC 選擇權概覽 API 回傳解析為 Agent 友善文字。"""
+    if not data or not isinstance(data, dict):
+        return "[DATA_MISSING:options_info] CoinGlass 無 BTC 選擇權數據。"
+    try:
+        put_call_ratio = data.get("putCallRatio")
+        max_pain = data.get("maxPain")
+        total_oi = data.get("openInterest") or data.get("totalOpenInterest")
+        notional = data.get("notionalValue") or data.get("totalNotionalValue")
+
+        parts: list[str] = []
+        if put_call_ratio is not None:
+            pcr = float(put_call_ratio)
+            hint = "偏空避險" if pcr > 1.0 else ("中性" if pcr > 0.7 else "偏多投機")
+            parts.append(f"Put/Call Ratio: {pcr:.2f}（{hint}）")
+        if max_pain is not None:
+            parts.append(f"Max Pain: ${float(max_pain):,.0f}")
+        if total_oi is not None:
+            parts.append(f"選擇權 OI: {float(total_oi):,.0f} 張")
+        if notional is not None:
+            parts.append(f"名目價值: ${float(notional)/1e9:.2f}B")
+        return " ｜ ".join(parts) if parts else "[DATA_MISSING:options_info] CoinGlass 選擇權欄位不存在。"
+    except (TypeError, ValueError):
+        return "[DATA_MISSING:options_info] CoinGlass 選擇權格式異常。"
+
+
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
-    """獲取幣圈衍生品數據。metric 請輸入 'open_interest'（未平倉）、'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比）。"""
+    """獲取幣圈衍生品數據。metric 請輸入 'open_interest'（未平倉）、'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比）、'options_info'（BTC 選擇權 Put/Call Ratio + Max Pain）。"""
     metric_lower = metric.lower()
-    supported = {"open_interest", "funding_rate", "liquidations", "long_short_ratio"}
+    supported = {"open_interest", "funding_rate", "liquidations", "long_short_ratio", "options_info"}
     if metric_lower not in supported:
         return f"CoinGlass Tool Failed：不支援的 metric '{metric}'，僅支援 {', '.join(sorted(supported))}。"
 
@@ -238,6 +265,8 @@ def coinglass_data_tool(metric: str) -> str:
                         result = _parse_coinglass_funding_rate(data)
                     elif metric_lower == "liquidations":
                         result = _parse_coinglass_liquidations(data)
+                    elif metric_lower == "options_info":
+                        result = _parse_coinglass_options_info(data)
                     else:
                         result = _parse_coinglass_long_short_ratio(data)
                     if result:
@@ -421,6 +450,54 @@ def ml_quant_tool() -> str:
         return result
     except Exception as e:
         return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 backfill_data.py 補入歷史數據。"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Fear & Greed Index（Alternative.me 免費 API）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("Crypto Fear & Greed Index")
+def fear_greed_tool() -> str:
+    """取得加密市場恐懼與貪婪指數（0-100），含今日與昨日數值及變化方向。"""
+    cache_key = ("fear_greed", "latest")
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    try:
+        resp = requests.get(
+            "https://api.alternative.me/fng/?limit=2&format=json",
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+        if not data:
+            return "[DATA_MISSING:fear_greed] Alternative.me 無數據。"
+
+        today = data[0]
+        today_val = int(today.get("value", 0))
+        today_label = today.get("value_classification", "")
+
+        result_parts = [f"Fear & Greed Index: {today_val}/100（{today_label}）"]
+
+        if len(data) > 1:
+            yesterday = data[1]
+            yest_val = int(yesterday.get("value", 0))
+            delta = today_val - yest_val
+            arrow = "▲" if delta > 0 else ("▼" if delta < 0 else "→")
+            result_parts.append(f"昨日 {yest_val}，變化 {arrow}{abs(delta)}")
+
+        # 情緒判讀
+        if today_val <= 25:
+            result_parts.append("💡 極度恐懼區間，歷史上常為中期反彈買點")
+        elif today_val >= 75:
+            result_parts.append("⚠️ 極度貪婪區間，歷史上常為過熱訊號")
+
+        result = " ｜ ".join(result_parts)
+        _set_cache(cache_key, result)
+        return result
+    except Exception as e:
+        return f"[DATA_MISSING:fear_greed] Fear & Greed Tool Failed: {e}"
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -8,6 +8,7 @@ from tools import (
     ai_momentum_tool,
     coinglass_data_tool,
     cryptopanic_tool,
+    fear_greed_tool,
     market_search_tool,
     ml_quant_tool,
     rumor_scanner_tool,
@@ -59,7 +60,8 @@ _IMPACT_TAG = dedent("""\
 
 _QUOTE_RULE = dedent("""\
     【實盤價格強制查核】關於 DXY、VIX、IBIT、SPY、BTC、SOL、NVDA、MSFT 等數值，
-    必須直接使用上方【系統強制即時報價】Context；不得自行捏造或改寫。""")
+    以及 RSI(14)、MA20/MA50、VIX 期限結構等技術指標，
+    必須直接使用上方【系統強制即時報價】+【技術指標與結構】Context；不得自行捏造或改寫。""")
 
 _TRADE_RULE = dedent("""\
     · <b>$代幣/股票 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
@@ -87,7 +89,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool],
+            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool],
             verbose=_VERBOSE,
         )
 
@@ -127,7 +129,8 @@ class CryptoResearchCrew:
                 {_QUOTE_RULE}
                 {excl}
                 === 數據來源 ===
-                · coinglass_data_tool：funding_rate / liquidations / long_short_ratio
+                · coinglass_data_tool：funding_rate / liquidations / long_short_ratio / options_info
+                · fear_greed_tool()（恐懼與貪婪指數）
                 · cryptopanic_tool('bitcoin')
                 · rumor_scanner_tool('BTC ETF flow OR crypto manipulation OR whale alert')
                 · market_search_tool('Bitcoin market liquidity derivatives risk')
@@ -155,7 +158,7 @@ class CryptoResearchCrew:
                 以【系統強制即時報價】核對 DXY/VIX/IBIT/BTC。
 
                 === market_regime（risk_on/risk_off/neutral）===
-                列出 4 項信號：VIX、IBIT、資金費率、爆倉，並給最終判定。
+                列出 6 項信號：VIX（含期限結構）、IBIT、資金費率、爆倉、Fear & Greed、BTC RSI(14)，並給最終判定。
 
                 === 新聞辯論（3 則）===
                 每則 2~3 句反向觀點。
@@ -187,16 +190,23 @@ class CryptoResearchCrew:
                 ══════ <b>📊 加密市場</b> ══════
 
                 ── 區塊①【數據儀表板】──
-                嚴格套用 _DASHBOARD_FMT，每項獨立一行，分兩組輸出：
+                嚴格套用 _DASHBOARD_FMT，每項獨立一行，分三組輸出：
                 宏觀數據（來自【系統強制即時報價】）：
                   · <b>DXY</b> <code>...數值 ▲/▼...%</code>
                   · <b>VIX</b> <code>...數值 ▲/▼...%</code>
+                  · <b>VIX 期限結構</b> <code>Contango / Backwardation</code>
                   · <b>IBIT</b> <code>...數值 ▲/▼...%</code>
+                技術面（來自【技術指標與結構】）：
+                  · <b>BTC RSI(14)</b> <code>...數值（超買/中性/超賣）</code>
+                  · <b>BTC MA20/MA50</b> <code>多頭排列 / 空頭排列 / 盤整</code>
+                  · <b>Fear & Greed</b> <code>...數值/100（情緒標籤）</code>
                 籌碼數據（來自 coinglass_data_tool）：
                   · <b>資金費率(BTC)</b> <code>...數值</code>
                   · <b>大戶多空比</b> <code>...數值</code>
                   · <b>未平倉量(OI)</b> <code>...數值 ▲/▼...%</code>
                   · <b>24h 爆倉</b> <code>...金額</code>
+                  · <b>BTC 選擇權 P/C Ratio</b> <code>...數值</code>
+                  · <b>BTC Max Pain</b> <code>$...價位</code>
                 ────────────
 
                 ── 區塊②【核心新聞】──
