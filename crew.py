@@ -8,6 +8,8 @@ from tools import (
     ai_momentum_tool,
     coinglass_data_tool,
     cryptopanic_tool,
+    econ_calendar_tool,
+    etf_flow_tool,
     fear_greed_tool,
     market_search_tool,
     ml_quant_tool,
@@ -89,7 +91,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool],
+            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool],
             verbose=_VERBOSE,
         )
 
@@ -128,9 +130,11 @@ class CryptoResearchCrew:
                 {_DATA_RULES}
                 {_QUOTE_RULE}
                 {excl}
-                === 數據來源 ===
+                === 數據來源（必須全部呼叫）===
                 · coinglass_data_tool：funding_rate / liquidations / long_short_ratio / options_info
                 · fear_greed_tool()（恐懼與貪婪指數）
+                · etf_flow_tool()（BTC Spot ETF 每日資金流，禁止自行猜測 ETF 數據）
+                · econ_calendar_tool()（本週宏觀經濟日曆，禁止自行猜測 FOMC/CPI 日期）
                 · cryptopanic_tool('bitcoin')
                 · rumor_scanner_tool('BTC ETF flow OR crypto manipulation OR whale alert')
                 · market_search_tool('Bitcoin market liquidity derivatives risk')
@@ -191,22 +195,24 @@ class CryptoResearchCrew:
 
                 ── 區塊①【數據儀表板】──
                 嚴格套用 _DASHBOARD_FMT，每項獨立一行，分三組輸出：
-                宏觀數據（來自【系統強制即時報價】）：
+                宏觀數據（來自【系統強制即時報價】+ econ_calendar_tool）：
                   · <b>DXY</b> <code>...數值 ▲/▼...%</code>
                   · <b>VIX</b> <code>...數值 ▲/▼...%</code>
                   · <b>VIX 期限結構</b> <code>Contango / Backwardation</code>
                   · <b>IBIT</b> <code>...數值 ▲/▼...%</code>
+                  · <b>近期宏觀事件</b> <code>[由 econ_calendar_tool 提供的下一個重大事件及日期]</code>
                 技術面（來自【技術指標與結構】）：
                   · <b>BTC RSI(14)</b> <code>...數值（超買/中性/超賣）</code>
                   · <b>BTC MA20/MA50</b> <code>多頭排列 / 空頭排列 / 盤整</code>
                   · <b>Fear & Greed</b> <code>...數值/100（情緒標籤）</code>
-                籌碼數據（來自 coinglass_data_tool）：
+                籌碼數據（來自 coinglass_data_tool + etf_flow_tool）：
                   · <b>資金費率(BTC)</b> <code>...數值</code>
                   · <b>大戶多空比</b> <code>...數值</code>
                   · <b>未平倉量(OI)</b> <code>...數值 ▲/▼...%</code>
                   · <b>24h 爆倉</b> <code>...金額</code>
                   · <b>BTC 選擇權 P/C Ratio</b> <code>...數值</code>
                   · <b>BTC Max Pain</b> <code>$...價位</code>
+                  · <b>ETF 淨流入</b> <code>[由 etf_flow_tool 提供的總金額，含 IBIT/GBTC 明細]</code>
                 ────────────
 
                 ── 區塊②【核心新聞】──
