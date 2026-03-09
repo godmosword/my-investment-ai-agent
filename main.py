@@ -72,15 +72,16 @@ def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
 
 
 def validate_report(text: str) -> dict:
-    """驗證戰報是否包含足夠新聞與必要區塊。"""
+    """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
     news_count  = len(re.findall(r'〔新聞', text))
 
     has_regime    = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
-    has_dashboard = bool(re.search(r'DXY|BTC\s*OI|資金費率|模型排名|ML.*權重', text, re.IGNORECASE))
+    has_dashboard = bool(re.search(r'DXY|BTC\s*OI|資金費率|模型排名|ML.*權重|RSI|Fear.*Greed|儀表板', text, re.IGNORECASE))
     has_crypto_trade = bool(re.search(r'資金流向與精準操作\s*\(Crypto\)|精準操作.*Crypto', text, re.IGNORECASE))
     has_ai_trade  = bool(re.search(r'AI\s*產業鏈精準操作|精準操作.*Equit', text, re.IGNORECASE))
-    has_ai_section = bool(re.search(r'AI\s*市場|AI\s*基建現況|AI\s*投資案', text, re.IGNORECASE))
-    has_crypto_section = bool(re.search(r'加密市場|幣圈新聞', text, re.IGNORECASE))
+    has_ai_section = bool(re.search(r'AI\s*市場|AI\s*產業新聞|AI\s*數據儀表板', text, re.IGNORECASE))
+    has_crypto_section = bool(re.search(r'加密市場|核心新聞|數據儀表板', text, re.IGNORECASE))
+    has_chatter = bool(re.search(r'呢喃|傳聞', text))
     has_data_missing = bool(re.search(r'\[DATA_MISSING:', text))
 
     issues = []
@@ -91,7 +92,7 @@ def validate_report(text: str) -> dict:
     if not has_regime:
         issues.append("缺少 market_regime 標籤（risk_on/risk_off/neutral）")
     if not has_dashboard:
-        issues.append("缺少數據儀表板（DXY/MVRV/資金費率）")
+        issues.append("缺少數據儀表板（DXY/RSI/資金費率/Fear&Greed）")
     if not has_crypto_trade:
         issues.append("缺少加密市場操作建議（精準操作 Crypto）")
     if not has_ai_trade:
@@ -100,12 +101,14 @@ def validate_report(text: str) -> dict:
         issues.append("缺少 AI 市場段落")
     if not has_crypto_section:
         issues.append("缺少加密市場段落")
+    if not has_chatter:
+        issues.append("缺少呢喃/傳聞區塊")
     if has_data_missing:
         missing_fields = re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)
         issues.append(f"資料缺失欄位：{', '.join(set(missing_fields))}")
 
     return {
-        "valid": len([i for i in issues if "資料缺失" not in i]) == 0,
+        "valid": len([i for i in issues if "資料缺失" not in i and "呢喃" not in i]) == 0,
         "issues": issues,
         "news_count": news_count,
         "has_data_missing": has_data_missing,
@@ -426,8 +429,52 @@ def _quote_of(symbol: str) -> float | None:
         return None
 
 
+def _compute_rsi(closes, period: int = 14) -> float | None:
+    """計算 RSI(period)，需要至少 period+1 筆收盤價。"""
+    import pandas as pd  # noqa: F811 — 模組頂層已有，此處為防呼叫端缺失
+    if closes is None or len(closes) < period + 1:
+        return None
+    try:
+        delta = closes.diff().dropna()
+        gain = delta.where(delta > 0, 0.0)
+        loss = (-delta.where(delta < 0, 0.0))
+        avg_gain = gain.rolling(window=period, min_periods=period).mean().iloc[-1]
+        avg_loss = loss.rolling(window=period, min_periods=period).mean().iloc[-1]
+        if avg_loss == 0:
+            return 100.0
+        rs = avg_gain / avg_loss
+        return round(100 - (100 / (1 + rs)), 1)
+    except Exception:
+        return None
+
+
+def _get_extended_price_data(symbol: str, period: str = "60d") -> dict:
+    """取得延伸價格數據：最新收盤、RSI(14)、MA20、MA50。"""
+    result: dict = {"close": None, "rsi14": None, "ma20": None, "ma50": None}
+    try:
+        df = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return result
+        close_col = df["Close"]
+        if hasattr(close_col, "ndim") and close_col.ndim > 1:
+            close_col = close_col.iloc[:, 0]
+        close_col = close_col.dropna()
+        if close_col.empty:
+            return result
+
+        result["close"] = float(close_col.iloc[-1])
+        result["rsi14"] = _compute_rsi(close_col)
+        if len(close_col) >= 20:
+            result["ma20"] = round(float(close_col.iloc[-20:].mean()), 2)
+        if len(close_col) >= 50:
+            result["ma50"] = round(float(close_col.iloc[-50:].mean()), 2)
+    except Exception:
+        pass
+    return result
+
+
 def get_realtime_quotes() -> str:
-    """取得系統強制即時報價 context，供所有 Agent 直接引用。"""
+    """取得系統強制即時報價 context，含技術指標與 VIX 期限結構。"""
     symbols = {
         "BTC": "BTC-USD",
         "VIX": "^VIX",
@@ -447,7 +494,40 @@ def get_realtime_quotes() -> str:
             parts.append(f"{name}: {v:.2f}")
         else:
             parts.append(f"{name}: ${v:.2f}")
-    return "【系統強制即時報價】" + " | ".join(parts)
+
+    # ── BTC 技術指標（RSI + MA）──
+    btc_ext = _get_extended_price_data("BTC-USD", period="60d")
+    tech_parts: list[str] = []
+    if btc_ext["rsi14"] is not None:
+        rsi = btc_ext["rsi14"]
+        zone = "超買" if rsi > 70 else ("超賣" if rsi < 30 else "中性")
+        tech_parts.append(f"BTC RSI(14): {rsi}（{zone}）")
+    if btc_ext["ma20"] is not None:
+        tech_parts.append(f"BTC MA20: ${btc_ext['ma20']:,.2f}")
+    if btc_ext["ma50"] is not None:
+        tech_parts.append(f"BTC MA50: ${btc_ext['ma50']:,.2f}")
+    if btc_ext["ma20"] is not None and btc_ext["ma50"] is not None and btc_ext["close"] is not None:
+        if btc_ext["close"] > btc_ext["ma20"] > btc_ext["ma50"]:
+            tech_parts.append("趨勢：多頭排列（價>MA20>MA50）")
+        elif btc_ext["close"] < btc_ext["ma20"] < btc_ext["ma50"]:
+            tech_parts.append("趨勢：空頭排列（價<MA20<MA50）")
+        else:
+            tech_parts.append("趨勢：盤整/交叉")
+
+    # ── VIX 期限結構 ──
+    vix_spot = _quote_of("^VIX")
+    vix3m = _quote_of("^VIX3M")
+    if vix_spot is not None and vix3m is not None:
+        if vix_spot > vix3m:
+            structure = "Backwardation（短期恐慌 > 長期，市場定價急性風險）"
+        else:
+            structure = "Contango（正常，短期 < 長期）"
+        tech_parts.append(f"VIX 期限結構: VIX {vix_spot:.2f} vs VIX3M {vix3m:.2f} → {structure}")
+
+    header = "【系統強制即時報價】" + " | ".join(parts)
+    if tech_parts:
+        header += "\n【技術指標與結構】" + " | ".join(tech_parts)
+    return header
 
 
 def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | None]:
