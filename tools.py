@@ -501,6 +501,122 @@ def fear_greed_tool() -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# BTC ETF Flow Analyzer（Farside / SoSoValue via Apify）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("BTC ETF Flow Analyzer")
+def etf_flow_tool() -> str:
+    """取得最新交易日 BTC Spot ETF 淨流入/流出數據（百萬美元），含各基金明細。"""
+    cache_key = ("etf_flow", "latest")
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    # 策略：用 Apify 搜尋 Farside / SoSoValue / TheBlock 最新 ETF flow 結構化報導
+    query = (
+        "Bitcoin spot ETF daily flow IBIT GBTC net inflow outflow millions "
+        "site:farside.co.uk OR site:sosovalue.com OR site:theblock.co OR site:coinglass.com"
+    )
+    try:
+        result = _search_with_apify(query, max_items=5)
+        if "[DATA_MISSING" in result:
+            return "[DATA_MISSING:etf_flow] 無法取得 BTC ETF 資金流數據。"
+        prefix = (
+            "【BTC Spot ETF 資金流（以下為搜尋結果，請從中萃取最新一日的淨流入數據）】\n"
+            "必須輸出：總淨流入金額、IBIT / FBTC / GBTC 等主要基金明細。\n"
+            "若無法確認具體數字，標注（數據待確認）。\n"
+        )
+        result = prefix + result
+        _set_cache(cache_key, result)
+        return result
+    except ValueError as e:
+        return f"[DATA_MISSING:etf_flow] ETF Flow Tool Failed：{e}"
+    except Exception:
+        return "[DATA_MISSING:etf_flow] ETF Flow Tool Failed：Apify API 暫無回應。"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Macro Economic Calendar（FMP API + Apify fallback）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("Macro Economic Calendar")
+def econ_calendar_tool() -> str:
+    """取得未來 7 天內高重要性的美國宏觀數據公布時間（FOMC、CPI、NFP、PPI 等）。"""
+    cache_key = ("econ_calendar", "weekly")
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    # ── 策略 A：Financial Modeling Prep 免費 API ──
+    fmp_key = os.getenv("FMP_API_KEY")
+    if fmp_key:
+        try:
+            from datetime import timedelta
+            today = datetime.now()
+            from_date = today.strftime("%Y-%m-%d")
+            to_date = (today + timedelta(days=7)).strftime("%Y-%m-%d")
+            url = (
+                f"https://financialmodelingprep.com/api/v3/economic_calendar"
+                f"?from={from_date}&to={to_date}&apikey={fmp_key}"
+            )
+            resp = requests.get(url, timeout=15)
+            resp.raise_for_status()
+            events = resp.json()
+
+            # 篩選高重要性 + 美國
+            high_impact = [
+                e for e in events
+                if (e.get("impact") or "").lower() == "high"
+                and (e.get("country") or "").upper() in ("US", "USA", "UNITED STATES")
+            ]
+
+            if not high_impact:
+                result = "本週無高風險美國宏觀數據公布。"
+                _set_cache(cache_key, result)
+                return result
+
+            lines: list[str] = []
+            for i, e in enumerate(high_impact[:8], 1):
+                event_name = e.get("event") or "未知事件"
+                event_date = e.get("date") or "未知日期"
+                estimate = e.get("estimate")
+                previous = e.get("previous")
+                detail = f"預期 {estimate}" if estimate else ""
+                if previous:
+                    detail += f"，前值 {previous}" if detail else f"前值 {previous}"
+                lines.append(f"{i}. {event_date} <b>{event_name}</b>（{detail}）" if detail else f"{i}. {event_date} <b>{event_name}</b>")
+
+            result = "本週重大美國宏觀事件：\n" + "\n".join(lines)
+            _set_cache(cache_key, result)
+            return result
+        except Exception as e:
+            logging.getLogger(__name__).warning("FMP economic calendar failed, falling back to Apify: %s", e)
+
+    # ── 策略 B：Apify fallback ──
+    try:
+        query = (
+            f"US economic calendar this week high impact FOMC CPI NFP PPI "
+            f"{datetime.now().strftime('%Y-%m')}"
+        )
+        result = _search_with_apify(query, max_items=5)
+        if "[DATA_MISSING" in result:
+            result = "本週宏觀日曆暫無法取得，請手動查閱 Trading Economics 或 Investing.com。"
+        else:
+            prefix = (
+                "【本週美國宏觀經濟日曆（以下為搜尋結果，請萃取高重要性事件）】\n"
+                "必須輸出：事件名稱、公布日期時間（台灣時間）、市場預期值。\n"
+                "若本週無重大事件，明確寫出「本週無高風險宏觀數據公布」。\n"
+            )
+            result = prefix + result
+        _set_cache(cache_key, result)
+        return result
+    except Exception:
+        result = "[DATA_MISSING:econ_calendar] 宏觀日曆工具失敗。"
+        _set_cache(cache_key, result)
+        return result
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Rumor & Controversy Scanner（降低強度：days=7, max_results=5）
 # ═══════════════════════════════════════════════════════════════════
 
