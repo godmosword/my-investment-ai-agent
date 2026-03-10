@@ -46,8 +46,14 @@ def parse_trade_signals(report_text: str) -> list[dict]:
             r'[｜|]\s*停損[：:]\s*<code>\$?(?P<stop>[\d,]+(?:\.\d+)?)(?:\s*\([^)]*\))?</code>',
         )
 
+        # ── 第三行：敘事邏輯 ──
+        narrative_pattern = re.compile(
+            r'·\s*敘事邏輯[：:]\s*(?P<narrative>[^\n]+)',
+        )
+
         headers = list(header_pattern.finditer(report_text))
         details = list(detail_pattern.finditer(report_text))
+        narratives = list(narrative_pattern.finditer(report_text))
 
         for header in headers:
             symbol = header.group("symbol").strip()
@@ -59,6 +65,13 @@ def parse_trade_signals(report_text: str) -> list[dict]:
             for detail in details:
                 if detail.start() > header.start():
                     matched_detail = detail
+                    break
+
+            # 找到最近的 narrative 行（出現在 header 之後）
+            matched_narrative = None
+            for narrative in narratives:
+                if narrative.start() > header.start():
+                    matched_narrative = narrative
                     break
 
             if matched_detail is None:
@@ -80,6 +93,7 @@ def parse_trade_signals(report_text: str) -> list[dict]:
                 "target_price": target_price,
                 "stop_loss": stop_loss,
                 "confidence_level": confidence_level,
+                "narrative": matched_narrative.group("narrative").strip() if matched_narrative else "",
             })
 
     except Exception:
@@ -110,6 +124,7 @@ def log_signals_to_bigquery(
             bigquery.SchemaField("stop_loss", "FLOAT"),
             bigquery.SchemaField("confidence_level", "INTEGER"),
             bigquery.SchemaField("status", "STRING"),
+            bigquery.SchemaField("narrative", "STRING"),
         ]
         table_ref = bigquery.Table(table_id, schema=schema)
         client.create_table(table_ref, exists_ok=True)
@@ -126,6 +141,7 @@ def log_signals_to_bigquery(
                 "stop_loss": s["stop_loss"],
                 "confidence_level": s["confidence_level"],
                 "status": "OPEN",
+                "narrative": s.get("narrative", ""),
             }
             for s in signals
         ]
