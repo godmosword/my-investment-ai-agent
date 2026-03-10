@@ -81,7 +81,10 @@ def fetch_btc_price(days: int) -> pd.DataFrame:
 
 
 def fetch_indicators(days: int) -> pd.DataFrame:
-    """從 BigQuery daily_metrics 取指標數據。"""
+    """
+    從 BigQuery daily_metrics 取指標數據。
+    P2：加入 sentiment_score、sopr、exchange_netflow（欄位不存在時 IF() 安全降級）。
+    """
     cutoff = (date.today() - timedelta(days=days)).isoformat()
     job_config = bigquery.QueryJobConfig(
         query_parameters=[bigquery.ScalarQueryParameter("cutoff", "DATE", cutoff)]
@@ -92,7 +95,10 @@ def fetch_indicators(days: int) -> pd.DataFrame:
             AVG(dxy)               AS dxy,
             AVG(etf_flow_millions) AS etf_flow,
             AVG(avg_risk_score)    AS risk_score,
-            AVG(mvrv_z_score)      AS mvrv_z
+            AVG(mvrv_z_score)      AS mvrv_z,
+            AVG(IF(sentiment_score  IS NOT NULL, sentiment_score,  NULL)) AS sentiment_score,
+            AVG(IF(sopr             IS NOT NULL, sopr,             NULL)) AS sopr,
+            AVG(IF(exchange_netflow IS NOT NULL, exchange_netflow, NULL)) AS exchange_netflow
         FROM `{METRICS_TABLE}`
         WHERE timestamp >= @cutoff
         GROUP BY date
@@ -416,24 +422,39 @@ def optimize_weights(
 # ══════════════════════════════════════════════════════════════════════════
 
 # 指標欄位對應（BigQuery 與 backtest 命名）
+# P2：新增 sentiment_score、sopr、exchange_netflow
 _ML_COL_MAP = {
-    "dxy": ["dxy"],
-    "etf_flow": ["etf_flow", "etf_flow_millions"],
-    "avg_risk_score": ["risk_score", "avg_risk_score"],
-    "mvrv_z_score": ["mvrv_z", "mvrv_z_score"],
+    "dxy":             ["dxy"],
+    "etf_flow":        ["etf_flow", "etf_flow_millions"],
+    "avg_risk_score":  ["risk_score", "avg_risk_score"],
+    "mvrv_z_score":    ["mvrv_z", "mvrv_z_score"],
+    "sentiment_score": ["sentiment_score"],
+    "sopr":            ["sopr"],
+    "exchange_netflow":["exchange_netflow"],
+}
+
+# 因子方向說明（+1 = 愈高愈偏多，-1 = 愈高愈偏空）
+_ML_FACTOR_DIRECTION = {
+    "dxy":              -1,  # 高 DXY = 美元強勢 = 偏空
+    "etf_flow":         +1,  # 高 ETF 流入 = 偏多
+    "avg_risk_score":   -1,  # 高風險分數 = 偏空
+    "mvrv_z_score":     -1,  # 高 MVRV = 超買 = 偏空
+    "sentiment_score":  +1,  # 高情緒分數 = 偏多（但極值為反向）
+    "sopr":             -1,  # 高 SOPR = 獲利出貨 = 偏空
+    "exchange_netflow": -1,  # 高交易所流入 = 賣壓 = 偏空
 }
 
 
 def _get_ml_columns(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
-    """從 df 取出四指標 Series，缺失者以 NaN 填充。"""
+    """從 df 取出四核心指標 Series（向後相容介面）。"""
     def _resolve(col_map: list[str]) -> pd.Series:
         for c in col_map:
             if c in df.columns:
                 return df[c].copy()
         return pd.Series(index=df.index, dtype=float)
 
-    dxy = _resolve(_ML_COL_MAP["dxy"])
-    etf = _resolve(_ML_COL_MAP["etf_flow"])
+    dxy  = _resolve(_ML_COL_MAP["dxy"])
+    etf  = _resolve(_ML_COL_MAP["etf_flow"])
     risk = _resolve(_ML_COL_MAP["avg_risk_score"])
     mvrv = _resolve(_ML_COL_MAP["mvrv_z_score"])
     return dxy, etf, risk, mvrv
@@ -441,14 +462,16 @@ def _get_ml_columns(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series, 
 
 def _build_momentum_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    將四指標正規化為「數值愈高愈偏多」的特徵。
-    - DXY：愈高愈不利 → 取反
-    - ETF flow：愈高愈利好
-    - Risk score：愈高愈避險 → 取反
-    - MVRV：愈高愈超買 → 取反
+    將各指標正規化為「數值愈高愈偏多」的特徵（z-score + 方向調整）。
+    P2：動態發現 df 中可用的 P2 新增因子，自動納入。
     """
-    dxy, etf, risk, mvrv = _get_ml_columns(df)
-    out = pd.DataFrame(index=df.index)
+    def _resolve(col_map: list[str]) -> pd.Series | None:
+        for c in col_map:
+            if c in df.columns:
+                s = df[c].copy()
+                if s.notna().sum() >= 10:  # 至少 10 天有效值才納入
+                    return s
+        return None
 
     def _zscore(s: pd.Series) -> pd.Series:
         m, std = s.mean(), s.std()
@@ -456,30 +479,56 @@ def _build_momentum_features(df: pd.DataFrame) -> pd.DataFrame:
             return pd.Series(0.0, index=s.index)
         return (s - m) / std
 
-    out["f_dxy"] = -_zscore(dxy)   # 低 DXY = 利多
-    out["f_etf"] = _zscore(etf)    # 高 ETF 流入 = 利多
-    out["f_risk"] = -_zscore(risk) # 低風險分數 = 利多
-    out["f_mvrv"] = -_zscore(mvrv) # 低 MVRV = 低估 = 利多
+    out = pd.DataFrame(index=df.index)
+
+    # 核心四因子（永遠計算，缺失時填 0）
+    dxy, etf, risk, mvrv = _get_ml_columns(df)
+    out["f_dxy"]  = -_zscore(dxy)    # 低 DXY = 利多
+    out["f_etf"]  =  _zscore(etf)    # 高 ETF 流入 = 利多
+    out["f_risk"] = -_zscore(risk)   # 低風險分數 = 利多
+    out["f_mvrv"] = -_zscore(mvrv)   # 低 MVRV = 低估 = 利多
+
+    # P2 可選因子（有足夠數據才加入）
+    _p2_factors = [
+        ("sentiment_score", "f_sentiment", +1),  # 高情緒 = 利多（但極值反向，由模型學習）
+        ("sopr",            "f_sopr",      -1),  # 高 SOPR = 獲利出貨 = 空頭壓力
+        ("exchange_netflow","f_netflow",   -1),  # 高交易所流入 = 賣壓
+    ]
+    for col_key, feat_name, direction in _p2_factors:
+        s = _resolve(_ML_COL_MAP[col_key])
+        if s is not None:
+            out[feat_name] = direction * _zscore(s)
+
     return out.fillna(0)
 
 
 def optimize_ml_weights(df: pd.DataFrame) -> dict[str, Any]:
     """
-    尋找 dxy, etf_flow, avg_risk_score, mvrv_z_score 四指標的最佳權重（總和=1，0~1），
+    動態發現 df 中所有可用的特徵欄位（f_* 前綴），最佳化各指標權重（總和=1，0~1），
     使歷史策略的 Sharpe Ratio 最大化。
-    需有 close 欄位以計算 BTC 報酬。
-    回傳 {"weights": {dxy, etf, risk, mvrv}, "sharpe": float}。
+    P2：自動納入 sentiment、sopr、exchange_netflow 等新因子（有足夠數據時）。
+    回傳 {"weights": {dxy, etf_flow, risk, mvrv, [sentiment, sopr, exchange_netflow]}, "sharpe": float}。
     """
+    _DEFAULT_WEIGHTS = {"dxy": 0.25, "etf_flow": 0.25, "risk": 0.25, "mvrv": 0.25}
+
     if "close" not in df.columns:
         logging.warning("optimize_ml_weights 需要 'close' 欄位，跳過。")
-        return {"weights": {"dxy": 0.25, "etf_flow": 0.25, "risk": 0.25, "mvrv": 0.25}, "sharpe": 0.0}
+        return {"weights": _DEFAULT_WEIGHTS, "sharpe": 0.0}
 
     features = _build_momentum_features(df)
     if features.isna().all().all() or len(features) < 30:
         logging.warning("特徵不足或全為 NaN，使用等權重。")
-        return {"weights": {"dxy": 0.25, "etf_flow": 0.25, "risk": 0.25, "mvrv": 0.25}, "sharpe": 0.0}
+        return {"weights": _DEFAULT_WEIGHTS, "sharpe": 0.0}
 
-    cols = ["f_dxy", "f_etf", "f_risk", "f_mvrv"]
+    # 動態發現可用特徵欄位（按固定順序保持一致性）
+    _FEAT_ORDER = ["f_dxy", "f_etf", "f_risk", "f_mvrv", "f_sentiment", "f_sopr", "f_netflow"]
+    cols = [c for c in _FEAT_ORDER if c in features.columns]
+    # 欄位 → 權重 key 對應
+    _FEAT_KEY_MAP = {
+        "f_dxy": "dxy", "f_etf": "etf_flow", "f_risk": "risk", "f_mvrv": "mvrv",
+        "f_sentiment": "sentiment", "f_sopr": "sopr", "f_netflow": "exchange_netflow",
+    }
+
     X = features[cols].values
     btc_ret = df["close"].pct_change().values
 
@@ -499,38 +548,43 @@ def optimize_ml_weights(df: pd.DataFrame) -> dict[str, Any]:
             return 0.0
         return -(np.mean(excess) / std * math.sqrt(365))
 
-    n = 4
+    n = len(cols)
     constraints = {"type": "eq", "fun": lambda w: w.sum() - 1.0}
     bounds = [(0.01, 0.8)] * n
 
     w0 = np.ones(n) / n
     res = minimize(_neg_sharpe, w0, method="SLSQP", bounds=bounds, constraints=constraints,
-                  options={"ftol": 1e-9, "maxiter": 500})
+                   options={"ftol": 1e-9, "maxiter": 500})
 
     w = res.x.round(4)
-    weights = {"dxy": float(w[0]), "etf_flow": float(w[1]), "risk": float(w[2]), "mvrv": float(w[3])}
+    weights = {_FEAT_KEY_MAP[c]: float(wi) for c, wi in zip(cols, w)}
     sharpe = round(-res.fun, 3)
-    logging.info("ML 權重最佳化完成：Sharpe=%.3f，權重=%s", sharpe, weights)
+    logging.info("ML 權重最佳化完成（%d 因子）：Sharpe=%.3f，權重=%s", n, sharpe, weights)
     return {"weights": weights, "sharpe": sharpe}
 
 
 def get_latest_ml_signal(df: pd.DataFrame, best_weights: dict[str, float]) -> dict[str, Any]:
     """
     使用最佳權重計算當天最新的綜合動能分數，回傳建議訊號。
-    best_weights: {"dxy": w1, "etf_flow": w2, "risk": w3, "mvrv": w4}
+    P2：動態對齊 best_weights 與 features 中實際存在的欄位，向後相容。
+    best_weights: {"dxy": w1, "etf_flow": w2, "risk": w3, "mvrv": w4, [可選 P2 因子]}
     回傳: {"signal": "建議做多"|"建議避險", "momentum_score": float, "weights": {...}}
     """
     if df.empty:
         return {"signal": "建議避險", "momentum_score": 0.0, "weights": best_weights}
 
     features = _build_momentum_features(df)
-    cols = ["f_dxy", "f_etf", "f_risk", "f_mvrv"]
-    w = np.array([
-        best_weights.get("dxy", 0.25),
-        best_weights.get("etf_flow", 0.25),
-        best_weights.get("risk", 0.25),
-        best_weights.get("mvrv", 0.25),
-    ])
+    _FEAT_ORDER = ["f_dxy", "f_etf", "f_risk", "f_mvrv", "f_sentiment", "f_sopr", "f_netflow"]
+    _KEY_FEAT_MAP = {v: k for k, v in {
+        "f_dxy": "dxy", "f_etf": "etf_flow", "f_risk": "risk", "f_mvrv": "mvrv",
+        "f_sentiment": "sentiment", "f_sopr": "sopr", "f_netflow": "exchange_netflow",
+    }.items()}
+    cols = [c for c in _FEAT_ORDER if c in features.columns]
+    w = np.array([best_weights.get(_KEY_FEAT_MAP.get(c, c), 1.0 / len(cols)) for c in cols])
+    # Renormalize in case weights don't sum to 1 after dynamic subset
+    if w.sum() > 0:
+        w = w / w.sum()
+
     if features[cols].iloc[-1].isna().any():
         score = 0.0
     else:

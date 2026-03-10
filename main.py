@@ -284,6 +284,19 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     # ── 4. B200 租賃價已移除，保留欄位以相容既有 BigQuery schema（寫入 None）──
     gpu_b200 = None
 
+    # ── 4b. 萃取 P2 新增指標 ──────────────────────────────────────────────────
+    # sentiment_score（來自 sentiment_score_tool 輸出，範圍 -1 到 +1）
+    sent_m = re.search(r'情緒分數[：:]\s*([+-]?\d+\.\d+)', clean_text)
+    sentiment_score = _safe_float(sent_m)
+
+    # SOPR（來自 onchain_metrics_tool）
+    sopr_m = re.search(r'SOPR[^：:（\n]*[：:]\s*([+-]?\d+\.\d+)', clean_text, re.IGNORECASE)
+    sopr = _safe_float(sopr_m)
+
+    # 交易所 BTC 淨流向（以千 BTC 為單位）
+    netflow_m = re.search(r'交易所\s*BTC\s*淨流[向入出][^：:（\n]*[：:]\s*([+-]?\d+\.?\d*)', clean_text)
+    exchange_netflow = _safe_float(netflow_m)
+
     # ── 5. 萃取 MVRV Z-Score：多模式匹配 ───────
     mvrv_patterns = [
         r'MVRV\s*Z[-\s]?Score\s*[→\->:：]+\s*(-?\d+(?:\.\d+)?)',
@@ -307,8 +320,9 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     logger.info("Extracted %d news titles for deduplication.", len(all_titles))
 
     logger.info(
-        "Extracted metrics — DXY: %s, ETF Flow: %s億, Avg Risk: %s, MVRV Z: %s",
-        dxy, etf_flow, avg_risk, mvrv_z,
+        "Extracted metrics — DXY: %s, ETF Flow: %s億, Avg Risk: %s, MVRV Z: %s, "
+        "Sentiment: %s, SOPR: %s, Netflow: %s",
+        dxy, etf_flow, avg_risk, mvrv_z, sentiment_score, sopr, exchange_netflow,
     )
 
     # ── 7. 寫入 BigQuery ──────────────────────────────────────────
@@ -325,6 +339,10 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             bigquery.SchemaField("gpt_summary",        "STRING"),
             bigquery.SchemaField("mvrv_z_score",       "FLOAT"),
             bigquery.SchemaField("news_titles",        "STRING"),
+            # P2 新增欄位
+            bigquery.SchemaField("sentiment_score",    "FLOAT"),
+            bigquery.SchemaField("sopr",               "FLOAT"),
+            bigquery.SchemaField("exchange_netflow",   "FLOAT"),
         ]
         table_ref = bigquery.Table(metrics_table, schema=schema)
         client.create_table(table_ref, exists_ok=True)
@@ -348,6 +366,10 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             "gpt_summary":       gpt_summary,
             "mvrv_z_score":      mvrv_z,
             "news_titles":       news_titles_str,
+            # P2 新增欄位
+            "sentiment_score":   sentiment_score,
+            "sopr":              sopr,
+            "exchange_netflow":  exchange_netflow,
         }
         non_null_count = sum(1 for v in [dxy, etf_flow, avg_risk, mvrv_z] if v is not None)
         if non_null_count == 0:
