@@ -35,7 +35,7 @@ def parse_trade_signals(report_text: str) -> list[dict]:
         # ── 第一行：標的 / 方向 / 現價 / 信心 ──
         header_pattern = re.compile(
             r'·\s*<b>\$?(?P<symbol>[A-Za-z0-9./-]+)\s*\((?P<direction>做多|做空)\)</b>'
-            r'[｜|]\s*現價[：:]\s*\$?(?P<price>[\d,]+(?:\.\d+)?)'
+            r'[｜|]\s*現價[：:]\s*\$?[\d,]+(?:\.\d+)?'
             r'[｜|]\s*信心水準[：:]?\s*(?P<stars>(?:⭐️)+)',
         )
 
