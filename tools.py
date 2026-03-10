@@ -953,6 +953,92 @@ def econ_calendar_tool() -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Multi-Timeframe Signal（D/4H/1H）
+# ═══════════════════════════════════════════════════════════════════
+
+_CRYPTO_YF = {
+    "BTC", "ETH", "SOL", "BNB", "XRP", "AVAX", "LINK", "DOT", "MATIC", "DOGE", "ADA",
+}
+
+
+def _trend_by_ma(close_val: float, ma20: float | None, ma50: float | None) -> str:
+    if ma20 is None or ma50 is None:
+        return "neutral"
+    if close_val > ma20 > ma50:
+        return "bullish"
+    if close_val < ma20 < ma50:
+        return "bearish"
+    return "neutral"
+
+
+@tool("Multi-Timeframe Signal")
+def multi_timeframe_tool(symbol: str) -> str:
+    """
+    多時框信號整合：
+    - D（日線）：趨勢方向
+    - 4H：進場時機（以 1H 近 60d 聚合代理）
+    - 1H：短線微結構
+    """
+    raw = (symbol or "").upper().strip().strip("$")
+    if not raw:
+        return "[DATA_MISSING:multi_timeframe] symbol 不可為空。"
+
+    yf_symbol = f"{raw}-USD" if raw in _CRYPTO_YF else raw
+    cache_key = ("multi_timeframe", yf_symbol)
+    if cached := _get_cache(cache_key):
+        return cached
+
+    try:
+        import yfinance as yf
+    except Exception as e:
+        return f"[DATA_MISSING:multi_timeframe] yfinance 載入失敗：{e}"
+
+    def _fetch(interval: str, period: str) -> str:
+        try:
+            df = yf.download(yf_symbol, period=period, interval=interval, progress=False, auto_adjust=True)
+            if df is None or df.empty:
+                return "N/A"
+            close = df["Close"]
+            if hasattr(close, "ndim") and close.ndim > 1:
+                close = close.iloc[:, 0]
+            close = close.dropna()
+            if close.empty:
+                return "N/A"
+            c = float(close.iloc[-1])
+            ma20 = float(close.iloc[-20:].mean()) if len(close) >= 20 else None
+            ma50 = float(close.iloc[-50:].mean()) if len(close) >= 50 else None
+            return _trend_by_ma(c, ma20, ma50)
+        except Exception:
+            return "N/A"
+
+    trend_d = _fetch("1d", "6mo")
+    trend_4h = _fetch("1h", "60d")  # yfinance 無穩定 4h，使用 1h 長窗作 4h 代理
+    trend_1h = _fetch("1h", "14d")
+
+    known = [t for t in (trend_d, trend_4h, trend_1h) if t in ("bullish", "bearish", "neutral")]
+    bull = sum(1 for t in known if t == "bullish")
+    bear = sum(1 for t in known if t == "bearish")
+
+    if len(known) == 3 and bull == 3:
+        consensus = "三時框同向多頭（高信心）"
+    elif len(known) == 3 and bear == 3:
+        consensus = "三時框同向空頭（高信心）"
+    elif bull >= 2:
+        consensus = "偏多但分歧（中信心）"
+    elif bear >= 2:
+        consensus = "偏空但分歧（中信心）"
+    else:
+        consensus = "方向分歧（低信心）"
+
+    result = (
+        f"【多時框信號 {raw}】"
+        f"D={trend_d} | 4H={trend_4h} | 1H={trend_1h} | 結論：{consensus}"
+    )
+    _set_cache(cache_key, result)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Rumor & Controversy Scanner（降低強度：days=7, max_results=5）
 # ═══════════════════════════════════════════════════════════════════
 
