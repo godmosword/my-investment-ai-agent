@@ -10,7 +10,6 @@ import yfinance as yf
 
 from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
-from tracker import parse_trade_signals, log_signals_to_bigquery, settle_open_trades
 from visualizer import generate_quant_chart
 import tracker
 
@@ -650,8 +649,8 @@ if __name__ == "__main__":
     if exclusion:
         logger.info("Loaded exclusion context from previous report (to avoid duplicate news).")
 
-    if not SKIP_BIGQUERY:
-        settle_open_trades(PROJECT_ID)
+    final_report, report_valid = run_pipeline_with_retries(exclusion)
+    logger.info("Pipeline finished (valid=%s, chars=%d).", report_valid, len(final_report or ""))
 
     # ── Tracker：儲存建議 & 每日回查未平倉部位 ───────────────────────────────
     _report_ok = bool(final_report and not final_report.startswith("🚨"))
@@ -692,11 +691,6 @@ if __name__ == "__main__":
 
     if not SKIP_BIGQUERY and _report_ok:
         extract_and_save_metrics(final_report)
-
-        trade_signals = parse_trade_signals(final_report)
-        if trade_signals:
-            log_signals_to_bigquery(trade_signals)
-            logger.info("Logged %d trade signal(s) to BigQuery.", len(trade_signals))
     elif SKIP_BIGQUERY:
         logger.info("SKIP_BIGQUERY=1: skipping metrics write.")
     elif not _report_ok:

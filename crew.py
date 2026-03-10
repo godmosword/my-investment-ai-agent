@@ -13,6 +13,7 @@ from tools import (
     fear_greed_tool,
     market_search_tool,
     ml_quant_tool,
+    multi_timeframe_tool,
     onchain_metrics_tool,
     rumor_scanner_tool,
     sentiment_score_tool,
@@ -120,7 +121,7 @@ class CryptoResearchCrew:
             goal="整合研究成果，輸出戰報上半部。",
             backstory="最終排版與風控守門員。",
             llm=gemini,
-            tools=[coinglass_data_tool, ml_quant_tool],
+            tools=[coinglass_data_tool, ml_quant_tool, multi_timeframe_tool],
             verbose=_VERBOSE,
         )
 
@@ -196,6 +197,10 @@ class CryptoResearchCrew:
 
                 === 交易建議（Crypto）===
                 【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
+                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，輸出 D/4H/1H：
+                - 三時框同向 → 信心 ⭐️⭐️⭐️⭐️
+                - 兩時框同向且一個中性 → 信心 ⭐️⭐️⭐️
+                - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
                 {_TRADE_RULE}
 
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
@@ -256,7 +261,7 @@ class AIResearchCrew:
             goal="整合 AI 研究成果輸出戰報下半部。",
             backstory="最終格式與可操作性守門。",
             llm=gemini,
-            tools=[],
+            tools=[multi_timeframe_tool],
             verbose=_VERBOSE,
         )
 
@@ -317,6 +322,10 @@ class AIResearchCrew:
 
                 === 交易建議（US Equities）===
                 【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
+                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，輸出 D/4H/1H：
+                - 三時框同向 → 信心 ⭐️⭐️⭐️⭐️
+                - 兩時框同向且一個中性 → 信心 ⭐️⭐️⭐️
+                - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
                 {_TRADE_RULE}
 
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
