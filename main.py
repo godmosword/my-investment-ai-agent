@@ -10,7 +10,7 @@ import yfinance as yf
 
 from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
-from tracker import parse_trade_signals, log_signals_to_bigquery
+from tracker import parse_trade_signals, log_signals_to_bigquery, settle_open_trades
 from visualizer import generate_quant_chart
 
 load_dotenv()
@@ -627,8 +627,10 @@ if __name__ == "__main__":
     if exclusion:
         logger.info("Loaded exclusion context from previous report (to avoid duplicate news).")
 
-    final_report, report_valid = run_pipeline_with_retries(exclusion)
+    if not SKIP_BIGQUERY:
+        settle_open_trades(PROJECT_ID)
 
+    final_report, report_valid = run_pipeline_with_retries(exclusion)
     if not SKIP_TELEGRAM:
         token, chat_id = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
         if token and chat_id:
