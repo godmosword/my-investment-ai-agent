@@ -99,7 +99,7 @@ def _search_with_apify(query: str, max_items: int = 8) -> str:
 # AI Momentum Analyzer（OpenRouter 模型熱度排名）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("AI Momentum Analyzer")
+@tool
 def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
     """取得 OpenRouter 模型熱度排名（直接呼叫 OpenRouter API，備援 Apify 搜尋）。"""
     cache_key = ("ai_momentum", "openrouter_rankings")
@@ -154,7 +154,7 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
 # 搜尋工具（Apify）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("Apify Market Search")
+@tool
 def market_search_tool(query: str) -> str:
     """以 Apify 搜尋全球即時新聞。"""
     cache_key = ("market_search", query)
@@ -339,7 +339,7 @@ def _binance_long_short_ratio() -> str:
     return "[DATA_MISSING:long_short_ratio] 多空比暫無法取得（CoinGlass + Binance 均失敗）。"
 
 
-@tool("CoinGlass On-chain Data")
+@tool
 def coinglass_data_tool(metric: str) -> str:
     """獲取幣圈衍生品數據。metric 請輸入 'open_interest'（未平倉）、'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比）、'options_info'（BTC 選擇權 Put/Call Ratio + Max Pain）。"""
     metric_lower = metric.lower()
@@ -397,7 +397,7 @@ def coinglass_data_tool(metric: str) -> str:
 # CryptoPanic News Aggregator（幣圈原生新聞）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("CryptoPanic News Aggregator")
+@tool
 def cryptopanic_tool(topic: str = "bitcoin") -> str:
     """
     從 CryptoPanic 取得最新幣圈新聞（偏向原生加密媒體），強化日報新聞來源。
@@ -452,7 +452,7 @@ def cryptopanic_tool(topic: str = "bitcoin") -> str:
 # X/Twitter Trending Posts（Twitter API v2 + RapidAPI 備援）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("X/Twitter Trending Posts")
+@tool
 def x_search_tool(query: str) -> str:
     """搜尋 X/Twitter 最新 24h 高互動推文。
     需設定 TWITTER_BEARER_TOKEN（Twitter API v2 官方）或 RAPIDAPI_KEY（twitter154 備援）。
@@ -550,7 +550,7 @@ def x_search_tool(query: str) -> str:
 # ML Quant Signal Analyzer
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("ML Quant Signal Analyzer")
+@tool
 def ml_quant_tool() -> str:
     """
     從 BigQuery daily_metrics 撈取過去 365 天指標，執行 ML 權重最佳化與動能訊號分析。
@@ -679,7 +679,7 @@ def ml_quant_tool() -> str:
 # Fear & Greed Index（Alternative.me 免費 API）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("Crypto Fear & Greed Index")
+@tool
 def fear_greed_tool() -> str:
     """取得加密市場恐懼與貪婪指數（0-100），含今日與昨日數值及變化方向。"""
     cache_key = ("fear_greed", "latest")
@@ -826,7 +826,7 @@ def _sosovalue_etf_flow() -> str | None:
     return None
 
 
-@tool("BTC ETF Flow Analyzer")
+@tool
 def etf_flow_tool() -> str:
     """
     取得最新交易日 BTC Spot ETF 淨流入/流出數據（百萬美元），含各基金明細。
@@ -875,7 +875,7 @@ def etf_flow_tool() -> str:
 # Macro Economic Calendar（FMP API + Apify fallback）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("Macro Economic Calendar")
+@tool
 def econ_calendar_tool() -> str:
     """取得未來 7 天內高重要性的美國宏觀數據公布時間（FOMC、CPI、NFP、PPI 等）。"""
     cache_key = ("econ_calendar", "weekly")
@@ -971,7 +971,7 @@ def _trend_by_ma(close_val: float, ma20: float | None, ma50: float | None) -> st
     return "neutral"
 
 
-@tool("Multi-Timeframe Signal")
+@tool
 def multi_timeframe_tool(symbol: str) -> str:
     """
     多時框信號整合：
@@ -1042,7 +1042,7 @@ def multi_timeframe_tool(symbol: str) -> str:
 # Rumor & Controversy Scanner（降低強度：days=7, max_results=5）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("Rumor & Controversy Scanner")
+@tool
 def rumor_scanner_tool(topic: str) -> str:
     """掃描爭議與傳聞（Apify 版）。"""
     cache_key = ("rumor_scanner", topic)
@@ -1192,7 +1192,7 @@ def _glassnode_nupl() -> str | None:
         return None
 
 
-@tool("BTC 鏈上數據深化分析")
+@tool
 def onchain_metrics_tool() -> str:
     """
     取得 BTC 鏈上核心指標：SOPR（持有者損益比）、交易所淨流向、活躍地址數、NUPL（未實現損益比）。
@@ -1225,7 +1225,7 @@ def onchain_metrics_tool() -> str:
 # 社群情緒量化引擎（LLM NLP 評分 -1 到 +1）
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("社群情緒量化引擎")
+@tool
 def sentiment_score_tool(news_and_tweets: str) -> str:
     """
     對 CryptoPanic 新聞標題 + X 推文做 LLM 情緒評分。
