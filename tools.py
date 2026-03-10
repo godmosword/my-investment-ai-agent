@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import time
 from datetime import datetime
 
@@ -572,14 +573,17 @@ def ml_quant_tool() -> str:
         days = 365
         cutoff = (date.today() - timedelta(days=days)).isoformat()
 
-        # 1. BigQuery daily_metrics
+        # 1. BigQuery daily_metrics（P2 新增欄位以 SAFE 方式查詢，向後相容）
         query = f"""
             SELECT
                 DATE(timestamp) AS date,
-                AVG(dxy) AS dxy,
-                AVG(etf_flow_millions) AS etf_flow_millions,
-                AVG(avg_risk_score) AS avg_risk_score,
-                AVG(mvrv_z_score) AS mvrv_z_score
+                AVG(dxy)                AS dxy,
+                AVG(etf_flow_millions)  AS etf_flow_millions,
+                AVG(avg_risk_score)     AS avg_risk_score,
+                AVG(mvrv_z_score)       AS mvrv_z_score,
+                AVG(IF(sentiment_score IS NOT NULL, sentiment_score, NULL)) AS sentiment_score,
+                AVG(IF(sopr            IS NOT NULL, sopr,             NULL)) AS sopr,
+                AVG(IF(exchange_netflow IS NOT NULL, exchange_netflow, NULL)) AS exchange_netflow
             FROM `{METRICS_TABLE}`
             WHERE timestamp >= @cutoff
             GROUP BY date
@@ -633,7 +637,7 @@ def ml_quant_tool() -> str:
             "mvrv_z_score": "mvrv_z",
         })
 
-        # 4. 最佳化權重
+        # 4. 最佳化權重（P2：動態因子，含 sentiment / sopr / exchange_netflow）
         opt = optimize_ml_weights(merged)
         weights = opt.get("weights", {})
         sharpe = opt.get("sharpe", 0.0)
@@ -643,14 +647,24 @@ def ml_quant_tool() -> str:
         momentum = signal_dict.get("momentum_score", 0.0)
         sig = signal_dict.get("signal", "建議避險")
 
-        w_dxy = weights.get("dxy", 0.25) * 100
-        w_etf = weights.get("etf_flow", 0.25) * 100
-        w_risk = weights.get("risk", 0.25) * 100
-        w_mvrv = weights.get("mvrv", 0.25) * 100
+        # 格式化基礎四因子
+        w_dxy  = weights.get("dxy",      0.25) * 100
+        w_etf  = weights.get("etf_flow", 0.25) * 100
+        w_risk = weights.get("risk",     0.25) * 100
+        w_mvrv = weights.get("mvrv",     0.25) * 100
+        base_weights = (
+            f"DXY: {w_dxy:.1f}%, ETF: {w_etf:.1f}%, RISK: {w_risk:.1f}%, MVRV: {w_mvrv:.1f}%"
+        )
+        # P2 新增因子（若有）
+        extra_parts: list[str] = []
+        for key, label in [("sentiment", "情緒"), ("sopr", "SOPR"), ("exchange_netflow", "交易所流向")]:
+            if key in weights:
+                extra_parts.append(f"{label}: {weights[key] * 100:.1f}%")
+        extra_weights = ("，" + "，".join(extra_parts)) if extra_parts else ""
 
         result = (
-            f"ML 模型已完成過去 365 天回測最佳化。"
-            f"當前最佳權重配比為 DXY: {w_dxy:.1f}%, ETF: {w_etf:.1f}%, RISK: {w_risk:.1f}%, MVRV: {w_mvrv:.1f}%。"
+            f"ML 模型已完成過去 365 天回測最佳化（{len(weights)} 因子）。"
+            f"當前最佳權重：{base_weights}{extra_weights}。"
             f"歷史 Sharpe Ratio：{sharpe}。"
             f"今日系統綜合動能分數為 {momentum}，"
             f"量化模型強烈建議：【{sig}】。"
@@ -710,18 +724,131 @@ def fear_greed_tool() -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# BTC ETF Flow Analyzer（Farside / SoSoValue via Apify）
+# BTC ETF Flow Analyzer（結構化 API：CoinGlass → SoSoValue → Apify 備援）
 # ═══════════════════════════════════════════════════════════════════
+
+# 主要基金代號對照表
+_ETF_FUND_NAMES: dict[str, str] = {
+    "IBIT": "BlackRock IBIT", "FBTC": "Fidelity FBTC", "GBTC": "Grayscale GBTC",
+    "ARKB": "ARK/21Shares ARKB", "BITB": "Bitwise BITB", "BTCO": "Invesco BTCO",
+    "HODL": "VanEck HODL", "BRRR": "Valkyrie BRRR", "EZBC": "Franklin EZBC",
+    "BTCW": "WisdomTree BTCW",
+}
+
+
+def _coinglass_etf_flow() -> str | None:
+    """CoinGlass v4 ETF list API → 分基金淨流入摘要（需 COINGLASS_API_KEY）。"""
+    api_key = os.getenv("COINGLASS_API_KEY", "")
+    if not api_key:
+        return None
+    for endpoint in [
+        "https://open-api-v4.coinglass.com/api/bitcoin/etf/list",
+        "https://open-api-v4.coinglass.com/api/etf/bitcoin/fund-list",
+    ]:
+        try:
+            resp = requests.get(endpoint, headers={"CG-API-KEY": api_key}, timeout=10)
+            if resp.status_code != 200:
+                continue
+            payload = resp.json()
+            data = payload.get("data") if isinstance(payload, dict) else payload
+            if not isinstance(data, list) or len(data) < 2:
+                continue
+            lines: list[str] = []
+            total = 0.0
+            for fund in data:
+                ticker = str(
+                    fund.get("ticker") or fund.get("code") or fund.get("symbol") or ""
+                ).upper()
+                raw = (fund.get("netInflow") or fund.get("net_inflow")
+                       or fund.get("dailyNetFlow") or fund.get("daily_flow") or 0)
+                try:
+                    net_m = float(raw)
+                    if abs(net_m) > 1_000_000:  # raw in USD → convert to millions
+                        net_m /= 1_000_000
+                except (TypeError, ValueError):
+                    continue
+                total += net_m
+                name = _ETF_FUND_NAMES.get(ticker, ticker or "Unknown")
+                arrow = "↑" if net_m >= 0 else "↓"
+                lines.append(f"  · {name}: {arrow}{abs(net_m):.1f}M USD")
+            if lines:
+                header = (
+                    f"【BTC Spot ETF 資金流（CoinGlass 結構化）】\n"
+                    f"· 總淨流入：{total:+.1f}M USD"
+                )
+                return header + "\n" + "\n".join(lines)
+        except Exception as e:
+            logger.warning("CoinGlass ETF endpoint %s failed: %s", endpoint, e)
+    return None
+
+
+def _sosovalue_etf_flow() -> str | None:
+    """SoSoValue 公開 API（免費，無需 API key）。"""
+    for url in [
+        "https://sosovalue.xyz/api/etf/us-btc-spot",
+        "https://sosovalue.com/api/etf/us-btc-spot",
+    ]:
+        try:
+            resp = requests.get(url, timeout=10)
+            if resp.status_code != 200:
+                continue
+            raw_data = resp.json()
+            items = raw_data if isinstance(raw_data, list) else raw_data.get("data", [])
+            if not items:
+                continue
+            lines: list[str] = []
+            total = 0.0
+            for fund in items[:12]:
+                ticker = str(
+                    fund.get("ticker") or fund.get("symbol") or fund.get("etfTicker") or ""
+                ).upper()
+                raw = (fund.get("dailyNetInflow") or fund.get("daily_net_inflow")
+                       or fund.get("netInflow") or fund.get("flowUsd") or 0)
+                try:
+                    net_m = float(raw)
+                    if abs(net_m) > 1_000_000:
+                        net_m /= 1_000_000
+                except (TypeError, ValueError):
+                    continue
+                if not ticker:
+                    continue
+                total += net_m
+                arrow = "↑" if net_m >= 0 else "↓"
+                lines.append(f"  · {ticker}: {arrow}{abs(net_m):.1f}M USD")
+            if lines:
+                header = (
+                    f"【BTC Spot ETF 資金流（SoSoValue 公開數據）】\n"
+                    f"· 總淨流入：{total:+.1f}M USD"
+                )
+                return header + "\n" + "\n".join(lines)
+        except Exception as e:
+            logger.warning("SoSoValue ETF endpoint %s failed: %s", url, e)
+    return None
+
 
 @tool("BTC ETF Flow Analyzer")
 def etf_flow_tool() -> str:
-    """取得最新交易日 BTC Spot ETF 淨流入/流出數據（百萬美元），含各基金明細。"""
+    """
+    取得最新交易日 BTC Spot ETF 淨流入/流出數據（百萬美元），含各基金明細。
+    優先 CoinGlass 結構化 API → SoSoValue 公開 API → Apify 搜尋備援。
+    """
     cache_key = ("etf_flow", "latest")
-    cached = _get_cache(cache_key)
-    if cached:
+    if cached := _get_cache(cache_key):
         return cached
 
-    # 策略：用 Apify 搜尋 Farside / SoSoValue / TheBlock 最新 ETF flow 結構化報導
+    # 優先：CoinGlass 結構化 API
+    result = _coinglass_etf_flow()
+    if result:
+        _set_cache(cache_key, result)
+        return result
+
+    # 備援 1：SoSoValue 公開 API
+    result = _sosovalue_etf_flow()
+    if result:
+        _set_cache(cache_key, result)
+        return result
+
+    # 備援 2：Apify 搜尋（原始方案）
     query = (
         "Bitcoin spot ETF daily flow IBIT GBTC net inflow outflow millions "
         "site:farside.co.uk OR site:sosovalue.com OR site:theblock.co OR site:coinglass.com"
@@ -731,7 +858,7 @@ def etf_flow_tool() -> str:
         if "[DATA_MISSING" in result:
             return "[DATA_MISSING:etf_flow] 無法取得 BTC ETF 資金流數據。"
         prefix = (
-            "【BTC Spot ETF 資金流（以下為搜尋結果，請從中萃取最新一日的淨流入數據）】\n"
+            "【BTC Spot ETF 資金流（Apify 搜尋備援，請從中萃取最新一日淨流入）】\n"
             "必須輸出：總淨流入金額、IBIT / FBTC / GBTC 等主要基金明細。\n"
             "若無法確認具體數字，標注（數據待確認）。\n"
         )
@@ -741,7 +868,7 @@ def etf_flow_tool() -> str:
     except ValueError as e:
         return f"[DATA_MISSING:etf_flow] ETF Flow Tool Failed：{e}"
     except Exception:
-        return "[DATA_MISSING:etf_flow] ETF Flow Tool Failed：Apify API 暫無回應。"
+        return "[DATA_MISSING:etf_flow] ETF Flow Tool Failed：所有數據源均無回應。"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -850,3 +977,245 @@ def rumor_scanner_tool(topic: str) -> str:
         return f"[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：{e}"
     except Exception:
         return "[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：Apify API 暫無回應。"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# BTC 鏈上數據深化（CryptoQuant → Glassnode → Blockchain.info 備援）
+# ═══════════════════════════════════════════════════════════════════
+
+def _cryptoquant_fetch(path: str) -> dict | None:
+    """CryptoQuant API 通用請求（需 CRYPTOQUANT_API_KEY）。"""
+    api_key = os.getenv("CRYPTOQUANT_API_KEY", "")
+    if not api_key:
+        return None
+    try:
+        resp = requests.get(
+            f"https://api.cryptoquant.com/v1{path}",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10,
+        )
+        return resp.json() if resp.status_code == 200 else None
+    except Exception as e:
+        logger.warning("CryptoQuant %s failed: %s", path, e)
+        return None
+
+
+def _cq_sopr() -> str | None:
+    """SOPR：持有者是在獲利還是虧損出貨（>1 獲利，<1 虧損）。"""
+    data = _cryptoquant_fetch("/btc/market-data/sopr?window=day&limit=2")
+    if not data:
+        return None
+    items = data.get("data", {}).get("result", [])
+    if not items:
+        return None
+    val = items[-1].get("sopr") or items[-1].get("v")
+    if val is None:
+        return None
+    try:
+        v = float(val)
+        if v > 1.05:
+            interp = "獲利者在出貨（賣壓偏強）"
+        elif v < 0.97:
+            interp = "虧損者在拋售（投降式清倉，潛在底部）"
+        else:
+            interp = "持有者成本接近持平（中性）"
+        return f"· SOPR：{v:.4f} → {interp}"
+    except (TypeError, ValueError):
+        return None
+
+
+def _cq_exchange_netflow() -> str | None:
+    """交易所 BTC 淨流入/流出：正值 = 流入（潛在賣壓），負值 = 流出（囤幣）。"""
+    data = _cryptoquant_fetch("/btc/exchange-flows/netflow?window=day&limit=2")
+    if not data:
+        return None
+    items = data.get("data", {}).get("result", [])
+    if not items:
+        return None
+    val = items[-1].get("netflow_total") or items[-1].get("v")
+    if val is None:
+        return None
+    try:
+        v = float(val)
+        direction = "流入交易所（潛在賣壓）" if v > 0 else "流出交易所（聰明錢囤幣）"
+        return f"· 交易所 BTC 淨流向：{v / 1000:+.2f}K BTC → {direction}"
+    except (TypeError, ValueError):
+        return None
+
+
+def _blockchain_info_active_addresses() -> str | None:
+    """Blockchain.info 免費 API：活躍地址數近 7 日趨勢。"""
+    try:
+        resp = requests.get(
+            "https://api.blockchain.info/charts/n-unique-addresses"
+            "?timespan=14days&format=json&cors=true",
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        values = resp.json().get("values", [])
+        if len(values) < 7:
+            return None
+        recent = [v["y"] for v in values[-7:]]
+        latest, prev_wk = recent[-1], recent[0]
+        chg_pct = (latest - prev_wk) / prev_wk * 100 if prev_wk else 0.0
+        trend = (
+            "↑ 網路使用量增加" if chg_pct > 5 else
+            "↓ 網路使用量萎縮" if chg_pct < -5 else
+            "→ 活躍度持平"
+        )
+        return f"· 活躍地址數（7日均）：{int(latest):,}（週變化 {chg_pct:+.1f}%）{trend}"
+    except Exception as e:
+        logger.warning("Blockchain.info active addresses failed: %s", e)
+        return None
+
+
+def _glassnode_nupl() -> str | None:
+    """Glassnode NUPL（未實現損益比，需 GLASSNODE_API_KEY）。"""
+    api_key = os.getenv("GLASSNODE_API_KEY", "")
+    if not api_key:
+        return None
+    try:
+        resp = requests.get(
+            "https://api.glassnode.com/v1/metrics/indicators/net_unrealized_profit_loss",
+            params={"a": "BTC", "i": "24h", "limit": 2, "api_key": api_key},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        val = data[-1].get("v") if data else None
+        if val is None:
+            return None
+        v = float(val)
+        if v > 0.75:
+            zone = "Euphoria（極度高估，歷史性頂部風險）"
+        elif v > 0.5:
+            zone = "Greed（貪婪區間）"
+        elif v > 0.25:
+            zone = "Optimism（樂觀，健康多頭）"
+        elif v > 0.0:
+            zone = "Hope（中性偏多）"
+        elif v > -0.25:
+            zone = "Anxiety（焦慮，謹慎）"
+        else:
+            zone = "Capitulation（恐慌清倉，潛在底部）"
+        return f"· NUPL（未實現損益比）：{v:.4f} → {zone}"
+    except Exception as e:
+        logger.warning("Glassnode NUPL failed: %s", e)
+        return None
+
+
+@tool("BTC 鏈上數據深化分析")
+def onchain_metrics_tool() -> str:
+    """
+    取得 BTC 鏈上核心指標：SOPR（持有者損益比）、交易所淨流向、活躍地址數、NUPL（未實現損益比）。
+    來源優先：CryptoQuant API（需 CRYPTOQUANT_API_KEY）→ Glassnode（需 GLASSNODE_API_KEY）
+             → Blockchain.info（免費備援）。
+    """
+    cache_key = ("onchain_metrics", "btc")
+    if cached := _get_cache(cache_key):
+        return cached
+
+    parts: list[str] = []
+    for fn in (_cq_sopr, _cq_exchange_netflow, _blockchain_info_active_addresses, _glassnode_nupl):
+        val = fn()
+        if val:
+            parts.append(val)
+
+    if not parts:
+        result = (
+            "[DATA_MISSING:onchain_metrics] 鏈上數據均無回應。"
+            "請確認 CRYPTOQUANT_API_KEY 和 GLASSNODE_API_KEY 是否已設定。"
+        )
+    else:
+        result = "【BTC 鏈上深度指標】\n" + "\n".join(parts)
+
+    _set_cache(cache_key, result)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 社群情緒量化引擎（LLM NLP 評分 -1 到 +1）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("社群情緒量化引擎")
+def sentiment_score_tool(news_and_tweets: str) -> str:
+    """
+    對 CryptoPanic 新聞標題 + X 推文做 LLM 情緒評分。
+    輸入：換行分隔的新聞標題或推文文字。
+    輸出：量化情緒分數 -1（極度恐慌）到 +1（極度貪婪），含逐條分析與極端值警示。
+    極端分數可作反向指標（-0.7 以下 = 潛在底部，+0.7 以上 = 潛在頂部）。
+    """
+    text = (news_and_tweets or "").strip()
+    if not text:
+        return "[DATA_MISSING:sentiment_score] 未提供文本進行情緒分析。"
+
+    cache_key = ("sentiment_score", text[:120])
+    if cached := _get_cache(cache_key):
+        return cached
+
+    # 選用最快/最便宜的可用模型
+    model: str | None = None
+    if os.getenv("GEMINI_API_KEY"):
+        model = "gemini/gemini-2.0-flash-lite"
+    elif os.getenv("OPENAI_API_KEY"):
+        model = "openai/gpt-4o-mini"
+    elif os.getenv("OPENROUTER_API_KEY"):
+        model = "openrouter/anthropic/claude-haiku-4-5-20251001"
+
+    if not model:
+        return "[DATA_MISSING:sentiment_score] 無可用 LLM 金鑰進行情緒評分。"
+
+    prompt = f"""你是加密貨幣市場情緒分析師。對以下新聞/推文評分：
+
+{text[:2000]}
+
+輸出純 JSON（禁止其他文字）：
+{{"aggregate_score": 從-1.0到+1.0的數字, "label": "極度恐慌/恐慌/中性/貪婪/極度貪婪", "bullish_count": 正面條數, "bearish_count": 負面條數, "rationale": "2句中文總結"}}
+
+評分基準：+1.0=所有消息極度看漲, 0.0=中性混合, -1.0=所有消息極度看跌"""
+
+    try:
+        from litellm import completion as _llm_completion
+
+        resp = _llm_completion(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.1,
+        )
+        raw = resp.choices[0].message.content.strip()
+
+        import json as _json
+
+        json_m = re.search(r"\{[^{}]+\}", raw, re.DOTALL)
+        if json_m:
+            parsed = _json.loads(json_m.group())
+            score = max(-1.0, min(1.0, float(parsed.get("aggregate_score", 0.0))))
+            label = parsed.get("label", "中性")
+            bullish = int(parsed.get("bullish_count", 0))
+            bearish = int(parsed.get("bearish_count", 0))
+            rationale = parsed.get("rationale", "")
+            emoji = "🚀" if score > 0.5 else ("😰" if score < -0.5 else "😐")
+            if score < -0.7:
+                extreme_warn = "⚠️ 極端恐慌 → 歷史反向底部信號"
+            elif score > 0.7:
+                extreme_warn = "⚠️ 極端貪婪 → 歷史反向頂部風險"
+            else:
+                extreme_warn = "正常範圍"
+            result = (
+                f"【社群情緒量化】{emoji}\n"
+                f"· 情緒分數：{score:+.2f}（{label}）\n"
+                f"· 看漲 {bullish} 條 / 看跌 {bearish} 條\n"
+                f"· 解讀：{rationale}\n"
+                f"· 極端值警示：{extreme_warn}"
+            )
+        else:
+            result = f"【社群情緒量化】\n· LLM 回傳：{raw[:300]}"
+
+        _set_cache(cache_key, result)
+        return result
+    except Exception as e:
+        logger.warning("Sentiment score tool failed: %s", e)
+        return f"[DATA_MISSING:sentiment_score] 情緒評分失敗：{e}"
