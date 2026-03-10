@@ -34,7 +34,8 @@ class TestParseTradeSignals(unittest.TestCase):
 
     def test_btc_long(self):
         signals = parse_trade_signals(SAMPLE_REPORT)
-        btc = next(s for s in signals if s["symbol"] == "BTC")
+        btc = next((s for s in signals if s["symbol"] == "BTC"), None)
+        self.assertIsNotNone(btc, "BTC signal not found")
         self.assertEqual(btc["direction"], "LONG")
         self.assertAlmostEqual(btc["entry_price"], 94500.0)
         self.assertAlmostEqual(btc["target_price"], 100000.0)
@@ -43,7 +44,8 @@ class TestParseTradeSignals(unittest.TestCase):
 
     def test_sol_short(self):
         signals = parse_trade_signals(SAMPLE_REPORT)
-        sol = next(s for s in signals if s["symbol"] == "SOL")
+        sol = next((s for s in signals if s["symbol"] == "SOL"), None)
+        self.assertIsNotNone(sol, "SOL signal not found")
         self.assertEqual(sol["direction"], "SHORT")
         self.assertAlmostEqual(sol["entry_price"], 146.0)
         self.assertAlmostEqual(sol["target_price"], 130.0)
@@ -52,7 +54,8 @@ class TestParseTradeSignals(unittest.TestCase):
 
     def test_nvda_five_stars(self):
         signals = parse_trade_signals(SAMPLE_REPORT)
-        nvda = next(s for s in signals if s["symbol"] == "NVDA")
+        nvda = next((s for s in signals if s["symbol"] == "NVDA"), None)
+        self.assertIsNotNone(nvda, "NVDA signal not found")
         self.assertEqual(nvda["direction"], "LONG")
         self.assertEqual(nvda["confidence_level"], 5)
         self.assertAlmostEqual(nvda["entry_price"], 885.0)
