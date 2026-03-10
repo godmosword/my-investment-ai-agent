@@ -13,7 +13,9 @@ from tools import (
     fear_greed_tool,
     market_search_tool,
     ml_quant_tool,
+    onchain_metrics_tool,
     rumor_scanner_tool,
+    sentiment_score_tool,
     x_search_tool,
 )
 
@@ -99,7 +101,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool],
+            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool],
             verbose=_VERBOSE,
         )
 
@@ -147,6 +149,8 @@ class CryptoResearchCrew:
                 · rumor_scanner_tool('BTC ETF flow OR crypto manipulation OR whale alert')
                 · market_search_tool('Bitcoin market liquidity derivatives risk')
                 · x_search_tool('bitcoin BTC crypto market ETF liquidation')（取得 X/Twitter 即時情緒推文，供 X 推文精選區塊使用）
+                · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
+                · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（P2 社群情緒量化：-1 到 +1）
 
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
