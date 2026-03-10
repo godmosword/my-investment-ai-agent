@@ -41,6 +41,7 @@ class TestParseTradeSignals(unittest.TestCase):
         self.assertAlmostEqual(btc["target_price"], 100000.0)
         self.assertAlmostEqual(btc["stop_loss"], 91000.0)
         self.assertEqual(btc["confidence_level"], 4)
+        self.assertIn("ETF 持續流入", btc["narrative"])
 
     def test_sol_short(self):
         signals = parse_trade_signals(SAMPLE_REPORT)
@@ -51,6 +52,7 @@ class TestParseTradeSignals(unittest.TestCase):
         self.assertAlmostEqual(sol["target_price"], 130.0)
         self.assertAlmostEqual(sol["stop_loss"], 152.0)
         self.assertEqual(sol["confidence_level"], 3)
+        self.assertIn("DeFi TVL 下滑", sol["narrative"])
 
     def test_nvda_five_stars(self):
         signals = parse_trade_signals(SAMPLE_REPORT)
@@ -59,6 +61,7 @@ class TestParseTradeSignals(unittest.TestCase):
         self.assertEqual(nvda["direction"], "LONG")
         self.assertEqual(nvda["confidence_level"], 5)
         self.assertAlmostEqual(nvda["entry_price"], 885.0)
+        self.assertIn("B200 需求強勁", nvda["narrative"])
 
     def test_empty_report(self):
         self.assertEqual(parse_trade_signals(""), [])
@@ -74,7 +77,7 @@ class TestParseTradeSignals(unittest.TestCase):
 
     def test_signal_fields_present(self):
         signals = parse_trade_signals(SAMPLE_REPORT)
-        required = {"symbol", "direction", "entry_price", "target_price", "stop_loss", "confidence_level"}
+        required = {"symbol", "direction", "entry_price", "target_price", "stop_loss", "confidence_level", "narrative"}
         for s in signals:
             self.assertTrue(required.issubset(s.keys()), f"Missing fields in {s}")
 
