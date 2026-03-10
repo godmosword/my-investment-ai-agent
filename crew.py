@@ -14,6 +14,7 @@ from tools import (
     market_search_tool,
     ml_quant_tool,
     rumor_scanner_tool,
+    x_search_tool,
 )
 
 _VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
@@ -43,6 +44,11 @@ _DASHBOARD_FMT = dedent("""\
 _CHATTER_FMT = dedent("""\
     呢喃/傳聞：僅未確認訊息，排除官方已證實事件
     每條 1 句、結尾標註（未確認）、附來源性質，輸出 2~3 條""")
+
+_TWEET_FMT = dedent("""\
+    X 推文精選：僅摘錄 x_search_tool 回傳的真實推文，嚴禁捏造任何用戶名或推文內容
+    每條格式：· 🐦 @用戶名 [時間] 推文核心內容（❤️互動數）
+    若 x_search_tool 回傳 [DATA_MISSING:x_search]，直接跳過此區塊，不輸出任何佔位文字""")
 
 _IMPACT_TAG = dedent("""\
     📍 受影響資產：[Ticker]
@@ -82,7 +88,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool],
+            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool],
             verbose=_VERBOSE,
         )
 
@@ -129,6 +135,7 @@ class CryptoResearchCrew:
                 · cryptopanic_tool('bitcoin')
                 · rumor_scanner_tool('BTC ETF flow OR crypto manipulation OR whale alert')
                 · market_search_tool('Bitcoin market liquidity derivatives risk')
+                · x_search_tool('bitcoin BTC crypto market ETF liquidation')（取得 X/Twitter 即時情緒推文，供 X 推文精選區塊使用）
 
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
@@ -185,10 +192,13 @@ class CryptoResearchCrew:
                 - 三組：宏觀（DXY/VIX/VIX期限結構/IBIT/近期宏觀事件）、技術（BTC RSI/MA20MA50/Fear&Greed）、籌碼（資金費率/多空比/OI/爆倉/P-C/MaxPain/ETF流向）
                 - 嚴格套用 {_DASHBOARD_FMT}
                 區塊②【核心新聞】：3 則，套用 {_NEWS_FMT} + {_IMPACT_TAG}，每則附 1 句💎主編共識
+                ════ 🐦 X 即時情緒推文 ════
+                區塊②b【X 推文精選】：套用 {_TWEET_FMT}；若無推文數據則跳過此區塊
+                ────────────
                 區塊③【市場呢喃與傳聞】：2~3 條，套用 {_CHATTER_FMT}，不可重複新聞事件
                 區塊④【資金流向與精準操作 (Crypto)】：1 單邊 + 1 配對，套用 {_TRADE_RULE}
             """),
-            expected_output="戰報上半部 Telegram HTML，依序包含：①數據儀表板 ②核心新聞×3 ③市場呢喃×2~3 ④精準操作×2。",
+            expected_output="戰報上半部 Telegram HTML，依序包含：①數據儀表板 ②核心新聞×3 ②b X推文精選（有則列出） ③市場呢喃×2~3 ④精準操作×2。",
             agent=self.quant_strategist,
             context=[crypto_task, review_task],
         )
@@ -210,7 +220,7 @@ class AIResearchCrew:
             goal="收集 AI 市場核心資訊並輸出 3 則可交易新聞。",
             backstory="科技產業鏈研究員，聚焦可驗證催化。",
             llm=gpt,
-            tools=[market_search_tool, ai_momentum_tool, rumor_scanner_tool],
+            tools=[market_search_tool, ai_momentum_tool, rumor_scanner_tool, x_search_tool],
             verbose=_VERBOSE,
         )
 
@@ -255,6 +265,7 @@ class AIResearchCrew:
                 · market_search_tool('data center power supply nuclear energy AI {year}')
                 · market_search_tool('AI model releases enterprise adoption {year}')
                 · rumor_scanner_tool('AI infrastructure supply chain risk')
+                · x_search_tool('NVIDIA AI GPU data center OpenAI Anthropic Microsoft')（取得 AI 板塊 X/Twitter 即時推文）
 
                 產出 AI 新聞 3 則，每則格式：
                 {_NEWS_FMT}
@@ -296,10 +307,13 @@ class AIResearchCrew:
                 ══════ <b>🤖 AI 市場</b> ══════
                 區塊①【AI 數據儀表板】：列 OpenRouter Top5 熱度（缺資料寫 <code>N/A</code>），嚴格套用 {_DASHBOARD_FMT}
                 區塊②【AI 產業新聞】：3 則（基建/投資案/最新模型各1），套用 {_NEWS_FMT} + {_IMPACT_TAG}，每則附 1 句💎主編共識
+                ════ 🐦 X 即時情緒推文 ════
+                區塊②b【X 推文精選】：套用 {_TWEET_FMT}；若無推文數據則跳過此區塊
+                ────────────
                 區塊③【產業鏈呢喃】：2~3 條，套用 {_CHATTER_FMT}，不可重複新聞事件
                 區塊④【AI 產業鏈精準操作 (US Equities)】：2 支，套用 {_TRADE_RULE}
             """),
-            expected_output="戰報下半部 Telegram HTML，依序包含：①AI 數據儀表板 ②AI 產業新聞×3 ③產業鏈呢喃×2~3 ④精準操作×2。",
+            expected_output="戰報下半部 Telegram HTML，依序包含：①AI 數據儀表板 ②AI 產業新聞×3 ②b X推文精選（有則列出） ③產業鏈呢喃×2~3 ④精準操作×2。",
             agent=self.quant_strategist,
             context=[ai_task, review_task],
         )
