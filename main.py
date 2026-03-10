@@ -10,6 +10,7 @@ import yfinance as yf
 
 from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
+from tracker import parse_trade_signals, log_signals_to_bigquery
 from visualizer import generate_quant_chart
 
 load_dotenv()
@@ -639,6 +640,11 @@ if __name__ == "__main__":
 
     if not SKIP_BIGQUERY and final_report and not final_report.startswith("🚨"):
         extract_and_save_metrics(final_report)
+
+        trade_signals = parse_trade_signals(final_report)
+        if trade_signals:
+            log_signals_to_bigquery(trade_signals)
+            logger.info("Logged %d trade signal(s) to BigQuery.", len(trade_signals))
     elif SKIP_BIGQUERY:
         logger.info("SKIP_BIGQUERY=1: skipping metrics write.")
     elif not final_report or final_report.startswith("🚨"):
