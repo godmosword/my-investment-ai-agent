@@ -4,3 +4,4 @@ import os
 PROJECT_ID = os.getenv("GCP_PROJECT_ID", "my-investment-ai-agent")
 METRICS_TABLE = f"{PROJECT_ID}.market_data.daily_metrics"
 WHALE_TABLE = f"{PROJECT_ID}.market_data.btc_whale_transactions"
+PAPER_TRADE_TABLE = f"{PROJECT_ID}.market_data.trade_recommendations"
