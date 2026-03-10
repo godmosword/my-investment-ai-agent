@@ -10,6 +10,8 @@ from google.cloud import bigquery
 
 from config import PROJECT_ID, METRICS_TABLE
 
+logger = logging.getLogger(__name__)
+
 # ── 模組級 in-memory cache（同一次執行內避免重複打外部 API）────────────
 # key: (tool_name, query_string)  value: (result_str, expire_timestamp)
 _CACHE: dict[tuple, tuple] = {}
@@ -98,13 +100,45 @@ def _search_with_apify(query: str, max_items: int = 8) -> str:
 
 @tool("AI Momentum Analyzer")
 def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
-    """使用 Apify 搜尋 OpenRouter 模型熱度排名。"""
+    """取得 OpenRouter 模型熱度排名（直接呼叫 OpenRouter API，備援 Apify 搜尋）。"""
     cache_key = ("ai_momentum", "openrouter_rankings")
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
-    query = f"OpenRouter model usage rankings top AI models {datetime.now().strftime('%Y-%m')}"
+    # ── 策略 A：OpenRouter 官方 API（直接取得模型列表）──
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key:
+        try:
+            resp = requests.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={"Authorization": f"Bearer {openrouter_key}"},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                models = resp.json().get("data", [])
+                if models:
+                    lines: list[str] = []
+                    for i, m in enumerate(models[:5], 1):
+                        name = m.get("name") or m.get("id") or "unknown"
+                        ctx = m.get("context_length") or 0
+                        pricing = m.get("pricing") or {}
+                        prompt_price = pricing.get("prompt", "N/A")
+                        lines.append(
+                            f"Top{i}: {name}"
+                            f"（上下文 {int(ctx):,} tokens｜提示 ${prompt_price}/token）"
+                        )
+                    result = "【OpenRouter 熱門模型 Top5（API 順序）】\n" + "\n".join(lines)
+                    _set_cache(cache_key, result)
+                    return result
+        except Exception as e:
+            logger.warning("OpenRouter API failed: %s", e)
+
+    # ── 策略 B：Apify 搜尋備援 ──
+    query = (
+        f"OpenRouter top model rankings most popular AI models usage "
+        f"site:openrouter.ai OR site:artificialanalysis.ai {datetime.now().strftime('%Y-%m')}"
+    )
     try:
         result = _search_with_apify(query, max_items=5)
         _set_cache(cache_key, result)
@@ -235,6 +269,75 @@ def _parse_coinglass_options_info(data) -> str:
         return "[DATA_MISSING:options_info] CoinGlass 選擇權格式異常。"
 
 
+# ── Binance 公開 API 備援（不需 API key）──────────────────────────
+
+def _binance_funding_rate() -> str:
+    """從 Binance 公開 API 取得 BTC 最新資金費率（不需 API key）。"""
+    try:
+        resp = requests.get(
+            "https://fapi.binance.com/fapi/v1/fundingRate",
+            params={"symbol": "BTCUSDT", "limit": 1},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data and isinstance(data, list):
+            rate = float(data[-1].get("fundingRate", 0))
+            rate_pct = rate * 100
+            hint = "多頭付費給空頭，情緒偏熱" if rate_pct > 0 else "空頭付費給多頭，情緒偏冷"
+            level = (
+                "🔴 極度過熱" if rate_pct > 0.05 else
+                ("🟡 偏熱" if rate_pct > 0.01 else
+                 ("🟢 中性" if rate_pct >= -0.01 else "🔵 偏冷"))
+            )
+            return f"BTC 資金費率 {rate_pct:.4f}% {level}，{hint}（來源：Binance）"
+    except Exception as e:
+        logger.warning("Binance funding rate fallback failed: %s", e)
+    return "[DATA_MISSING:funding_rate] 資金費率暫無法取得（CoinGlass + Binance 均失敗）。"
+
+
+def _binance_open_interest() -> str:
+    """從 Binance 公開 API 取得 BTC 未平倉合約量（不需 API key）。"""
+    try:
+        oi_resp = requests.get(
+            "https://fapi.binance.com/fapi/v1/openInterest",
+            params={"symbol": "BTCUSDT"},
+            timeout=10,
+        )
+        oi_resp.raise_for_status()
+        oi = float(oi_resp.json().get("openInterest", 0))
+        price_resp = requests.get(
+            "https://api.binance.com/api/v3/ticker/price",
+            params={"symbol": "BTCUSDT"},
+            timeout=5,
+        )
+        btc_price = float(price_resp.json().get("price", 0)) if price_resp.ok else 0
+        oi_usd = oi * btc_price / 1e9 if btc_price else 0
+        return f"BTC 未平倉合約 OI: {oi:,.0f} BTC（約 ${oi_usd:.2f}B）（來源：Binance）"
+    except Exception as e:
+        logger.warning("Binance OI fallback failed: %s", e)
+    return "[DATA_MISSING:open_interest] OI 暫無法取得（CoinGlass + Binance 均失敗）。"
+
+
+def _binance_long_short_ratio() -> str:
+    """從 Binance 公開 API 取得 BTC 全球大戶多空比（不需 API key）。"""
+    try:
+        resp = requests.get(
+            "https://fapi.binance.com/futures/data/globalLongShortAccountRatio",
+            params={"symbol": "BTCUSDT", "period": "1h", "limit": 1},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data and isinstance(data, list):
+            ratio = float(data[-1].get("longShortRatio", 1.0))
+            hint = "多方佔優" if ratio > 1 else "空方佔優"
+            return f"BTC 全球多空比 {ratio:.3f}（{hint}）（來源：Binance）"
+    except Exception as e:
+        logger.warning("Binance long/short ratio fallback failed: %s", e)
+    return "[DATA_MISSING:long_short_ratio] 多空比暫無法取得（CoinGlass + Binance 均失敗）。"
+
+
 @tool("CoinGlass On-chain Data")
 def coinglass_data_tool(metric: str) -> str:
     """獲取幣圈衍生品數據。metric 請輸入 'open_interest'（未平倉）、'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比）、'options_info'（BTC 選擇權 Put/Call Ratio + Max Pain）。"""
@@ -276,7 +379,15 @@ def coinglass_data_tool(metric: str) -> str:
             # CoinGlass API 失敗，直接回傳暫無回應標記。
             pass
 
-    result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應。"
+    # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援 ──
+    if metric_lower == "funding_rate":
+        result = _binance_funding_rate()
+    elif metric_lower == "open_interest":
+        result = _binance_open_interest()
+    elif metric_lower == "long_short_ratio":
+        result = _binance_long_short_ratio()
+    else:
+        result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
     _set_cache(cache_key, result)
     return result
 
@@ -334,6 +445,104 @@ def cryptopanic_tool(topic: str = "bitcoin") -> str:
         return result
     except Exception as e:
         return f"[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: {str(e)}"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# X/Twitter Trending Posts（Twitter API v2 + RapidAPI 備援）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("X/Twitter Trending Posts")
+def x_search_tool(query: str) -> str:
+    """搜尋 X/Twitter 最新 24h 高互動推文。
+    需設定 TWITTER_BEARER_TOKEN（Twitter API v2 官方）或 RAPIDAPI_KEY（twitter154 備援）。
+    回傳含用戶名、時間、推文內容、互動數的結構化列表。
+    """
+    cache_key = ("x_search", query)
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    # ── 策略 A：Twitter API v2 Recent Search ──
+    bearer = os.getenv("TWITTER_BEARER_TOKEN")
+    if bearer:
+        try:
+            resp = requests.get(
+                "https://api.twitter.com/2/tweets/search/recent",
+                headers={"Authorization": f"Bearer {bearer}"},
+                params={
+                    "query": f"({query}) -is:retweet lang:en",
+                    "max_results": 10,
+                    "tweet.fields": "created_at,public_metrics",
+                    "sort_order": "recency",
+                },
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                tweets = resp.json().get("data", [])
+                if tweets:
+                    lines: list[str] = []
+                    for t in tweets[:5]:
+                        created = str(t.get("created_at", ""))[:16].replace("T", " ")
+                        text = t.get("text", "").replace("\n", " ")[:180]
+                        m = t.get("public_metrics", {})
+                        lines.append(
+                            f"🐦 [{created}] {text}"
+                            f"（❤️{m.get('like_count', 0)} 🔁{m.get('retweet_count', 0)}）"
+                        )
+                    result = f"【X 即時推文｜{query}】\n" + "\n".join(lines)
+                    _set_cache(cache_key, result)
+                    return result
+            elif resp.status_code in (401, 403):
+                logger.warning("Twitter API %s: 認證失敗或訂閱方案不支援 search/recent。", resp.status_code)
+            elif resp.status_code == 429:
+                logger.warning("Twitter API 429: 已達速率限制。")
+        except Exception as e:
+            logger.warning("Twitter API v2 failed: %s", e)
+
+    # ── 策略 B：RapidAPI twitter154 備援 ──
+    rapidapi_key = os.getenv("RAPIDAPI_KEY")
+    if rapidapi_key:
+        try:
+            resp = requests.get(
+                "https://twitter154.p.rapidapi.com/search/search",
+                headers={
+                    "X-RapidAPI-Key": rapidapi_key,
+                    "X-RapidAPI-Host": "twitter154.p.rapidapi.com",
+                },
+                params={
+                    "query": query,
+                    "section": "latest",
+                    "min_retweets": "5",
+                    "min_likes": "10",
+                    "limit": "5",
+                    "language": "en",
+                },
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                tweets = resp.json().get("results", [])
+                if tweets:
+                    lines = []
+                    for t in tweets[:5]:
+                        user = (t.get("user") or {}).get("username", "unknown")
+                        text = (t.get("text") or "").replace("\n", " ")[:180]
+                        created = str(t.get("creation_date") or "")[:16]
+                        lines.append(
+                            f"🐦 @{user} [{created}] {text}"
+                            f"（❤️{t.get('favorite_count', 0)} 🔁{t.get('retweet_count', 0)}）"
+                        )
+                    result = f"【X 即時推文｜{query}】\n" + "\n".join(lines)
+                    _set_cache(cache_key, result)
+                    return result
+        except Exception as e:
+            logger.warning("RapidAPI twitter154 failed: %s", e)
+
+    result = (
+        "[DATA_MISSING:x_search] X/Twitter 搜尋失敗："
+        "請設定 TWITTER_BEARER_TOKEN（Twitter API v2）或 RAPIDAPI_KEY（RapidAPI twitter154）。"
+    )
+    _set_cache(cache_key, result)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
