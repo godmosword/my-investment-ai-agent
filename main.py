@@ -11,6 +11,7 @@ import yfinance as yf
 from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
 from visualizer import generate_quant_chart
+import tracker
 
 load_dotenv()
 
@@ -628,18 +629,46 @@ if __name__ == "__main__":
 
     final_report, report_valid = run_pipeline_with_retries(exclusion)
 
+    # ── Tracker：儲存建議 & 每日回查未平倉部位 ───────────────────────────────
+    _report_ok = bool(final_report and not final_report.startswith("🚨"))
+    if not SKIP_BIGQUERY and _report_ok:
+        _saved = tracker.save_recommendations(final_report)
+        if _saved:
+            logger.info("Tracker: saved %d trade recommendations.", _saved)
+        _closed = tracker.check_and_update_positions()
+        if _closed:
+            logger.info("Tracker: %d positions updated today: %s", len(_closed), _closed)
+    elif not SKIP_BIGQUERY:
+        # 即使報告失敗，仍每日回查已有的未平倉建議
+        tracker.check_and_update_positions()
+
+    # ── Tracker：週一發送績效週報 ─────────────────────────────────────────────
+    token, chat_id = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+    if not SKIP_BIGQUERY and not SKIP_TELEGRAM and token and chat_id:
+        if datetime.now(timezone.utc).weekday() == 0:  # 0 = Monday
+            perf_summary = tracker.generate_performance_summary()
+            if perf_summary:
+                try:
+                    import telebot as _tb
+                    _tb.TeleBot(token).send_message(chat_id, perf_summary, parse_mode="HTML", timeout=30)
+                    logger.info("Weekly performance summary sent to Telegram.")
+                except Exception as _e:
+                    logger.warning("Failed to send weekly performance summary: %s", _e)
+
+    # ── 移除機器可讀區塊，再發送 Telegram ────────────────────────────────────
+    clean_report = tracker.strip_tracker_blocks(final_report)
+
     if not SKIP_TELEGRAM:
-        token, chat_id = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
         if token and chat_id:
-            _send_telegram_report(final_report, token, chat_id, image_path="daily_chart.png")
+            _send_telegram_report(clean_report, token, chat_id, image_path="daily_chart.png")
         else:
             logger.warning("Telegram configuration missing. Skipping push.")
     else:
         logger.info("SKIP_TELEGRAM=1: skipping Telegram push.")
 
-    if not SKIP_BIGQUERY and final_report and not final_report.startswith("🚨"):
+    if not SKIP_BIGQUERY and _report_ok:
         extract_and_save_metrics(final_report)
     elif SKIP_BIGQUERY:
         logger.info("SKIP_BIGQUERY=1: skipping metrics write.")
-    elif not final_report or final_report.startswith("🚨"):
+    elif not _report_ok:
         logger.warning("Skipping BigQuery metrics write — report is an error or empty.")
