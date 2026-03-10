@@ -15,6 +15,15 @@ CRYPTOPANIC_API_KEY=
 # APIFY_API_TOKEN：Apify 搜尋引擎（新聞/傳聞/OpenRouter 熱度），必填
 APIFY_API_TOKEN=
 
+# ---------- P2 新增：鏈上數據 API（選填，缺則該工具回傳 DATA_MISSING）----------
+# CRYPTOQUANT_API_KEY：CryptoQuant API — SOPR、交易所 BTC 淨流向
+# 申請：https://cryptoquant.com/  （免費方案有限速）
+CRYPTOQUANT_API_KEY=
+# GLASSNODE_API_KEY：Glassnode API — NUPL 未實現損益比
+# 申請：https://glassnode.com/  （免費方案有延遲）
+GLASSNODE_API_KEY=
+# 注意：活躍地址數使用 Blockchain.info 免費 API，無需額外金鑰
+
 # ---------- Telegram 推送（選填，不填則不發送）----------
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
