@@ -67,6 +67,17 @@ _TRADE_RULE = dedent("""\
     · 進場：<code>$XXX.XX</code>｜目標：<code>$XXX.XX (+Y%)</code>｜停損：<code>$XXX.XX (-Z%)</code>
     · 敘事邏輯：1 句，引用本日新聞""")
 
+# tracker.py 解析用的機器可讀區塊格式（Telegram 不渲染，純文字標記）
+# 欄位：asset=代號大寫不含$, entry/target/stop=純數字, target_pct/stop_pct=百分比數字,
+#        confidence=1~4, category=CRYPTO|EQUITY, current_price=現價數字
+_TRADE_JSON_RULE = dedent("""\
+    === 機器可讀建議（Telegram 不顯示，tracker.py 解析用）===
+    在報告最後一行之後，另起一行輸出以下格式（禁止省略、禁止破壞 JSON 結構）：
+    [QSREC_START]
+    [{"asset":"代號大寫","direction":"LONG或SHORT","current_price":現價數字,"entry":進場數字,"target":目標數字,"stop":停損數字,"target_pct":目標漲幅數字,"stop_pct":停損幅度數字,"confidence":信心1到4,"category":"CRYPTO或EQUITY","narrative":"敘事邏輯原文"}]
+    [QSREC_END]
+    JSON 規則：數字欄位禁止加引號、asset 不含 $、禁止多行縮排、所有建議合併進同一個陣列。""")
+
 
 def _make_llms(*names: str):
     """建立並回傳指定的 LLM 實例。"""
@@ -197,8 +208,10 @@ class CryptoResearchCrew:
                 ────────────
                 區塊③【市場呢喃與傳聞】：2~3 條，套用 {_CHATTER_FMT}，不可重複新聞事件
                 區塊④【資金流向與精準操作 (Crypto)】：1 單邊 + 1 配對，套用 {_TRADE_RULE}
+
+                {_TRADE_JSON_RULE}
             """),
-            expected_output="戰報上半部 Telegram HTML，依序包含：①數據儀表板 ②核心新聞×3 ②b X推文精選（有則列出） ③市場呢喃×2~3 ④精準操作×2。",
+            expected_output="戰報上半部 Telegram HTML，依序包含：①數據儀表板 ②核心新聞×3 ②b X推文精選（有則列出） ③市場呢喃×2~3 ④精準操作×2，末尾附 [QSREC_START]…[QSREC_END] JSON。",
             agent=self.quant_strategist,
             context=[crypto_task, review_task],
         )
@@ -312,8 +325,10 @@ class AIResearchCrew:
                 ────────────
                 區塊③【產業鏈呢喃】：2~3 條，套用 {_CHATTER_FMT}，不可重複新聞事件
                 區塊④【AI 產業鏈精準操作 (US Equities)】：2 支，套用 {_TRADE_RULE}
+
+                {_TRADE_JSON_RULE}
             """),
-            expected_output="戰報下半部 Telegram HTML，依序包含：①AI 數據儀表板 ②AI 產業新聞×3 ②b X推文精選（有則列出） ③產業鏈呢喃×2~3 ④精準操作×2。",
+            expected_output="戰報下半部 Telegram HTML，依序包含：①AI 數據儀表板 ②AI 產業新聞×3 ②b X推文精選（有則列出） ③產業鏈呢喃×2~3 ④精準操作×2，末尾附 [QSREC_START]…[QSREC_END] JSON。",
             agent=self.quant_strategist,
             context=[ai_task, review_task],
         )
