@@ -109,7 +109,85 @@ _TRADE_JSON_RULE = dedent("""\
       {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事..."}
     ]
     [QSREC_END]
-    JSON 規則：數字欄位禁止加引號、asset 不含 $、禁止多行縮排、所有建議合併進同一個陣列。""")
+    JSON 規則：數字欄位禁止加引號、asset 不含 $、允許多行縮排（但必須為合法 JSON）、所有建議合併進同一個陣列。""")
+
+_FINAL_TEMPLATE_CRYPTO = dedent("""\
+    === 【最高排版指令】你最終輸出的戰報必須 100% 模仿以下範例結構（包含獨立換行、<code>標籤與結尾 JSON），不准改變排版樣式！===
+
+    <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · YYYY-MM-DD</i>
+    ────────────
+    【今日市場模式】neutral
+    訊號衝突摘要：RSI 中性 + VIX 倒掛 + 資金費率回穩，短線方向不明，採輕倉。
+
+    ══════ <b>📊 加密市場</b> ══════
+    區塊①【數據儀表板】：(嚴格要求：每項指標必須獨立換行！)
+    · <b>DXY</b> <code><示例值></code>
+    · <b>VIX</b> <code><示例值></code>
+    · <b>VIX期限結構</b> <code><示例值></code>
+    · <b>IBIT</b> <code><示例值></code>
+    · <b>BTC RSI(14)</b> <code><示例值></code>
+    · <b>BTC MA20</b> <code><示例值></code>
+    · <b>BTC MA50</b> <code><示例值></code>
+    · <b>ETF流向</b> <code>N/A</code>
+    · <b>OI</b> <code>N/A</code>
+    · <b>爆倉</b> <code>N/A</code>
+    · <b>P-C</b> <code>N/A</code>
+    <b>低置信度</b>：資料缺失原因：部分衍生品 API 回傳延遲；替代指標：funding、多空比、現貨成交額。
+
+    ...(中間的新聞與呢喃區塊省略，請照常輸出，新聞時間固定 [MM/DD HH:MM UTC+8]，投資解讀至少含一個當日數據)...
+
+    區塊④【資金流向與精準操作 (Crypto)】：
+    · <b>$BTC (LONG)</b>｜現價：$<示例值>｜信心水準：⭐️⭐️
+    · 進場：<code>$<示例值></code>｜目標：<code>$<示例值> (+X.X%)</code>｜停損：<code>$<示例值> (-X.X%)</code>
+    · 風控：<code>R:R = 1:X.X</code>｜最大回撤風險：<code>-X.X%</code>
+    · 敘事邏輯：多時框狀態 D(中性)/4H(中性)/1H(多)，引用當日數據（例如 funding/RSI/MA）。
+
+    · <b>$BTC / $SOL (配對交易)</b>｜現價：$<示例值> / $<示例值>｜信心水準：⭐️⭐️
+    · 單位：BTC/SOL 比值
+    · 進場：<code><比值示例值></code>｜目標：<code><比值示例值> (+X.X%)</code>｜停損：<code><比值示例值> (-X.X%)</code>
+    · 風控：<code>R:R = 1:X.X</code>｜最大回撤風險：<code>-X.X%</code>
+    · 敘事邏輯：必須與比值單位一致，禁止混用單幣價格與比值。
+
+    [QSREC_START]
+    [
+      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 2, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)，funding 轉負支持反彈。"},
+      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 0.000121, "target": 0.000129, "stop": 0.000117, "confidence": 2, "category": "CRYPTO", "narrative": "配對單以 BTC/SOL 比值表示，單位一致。"}
+    ]
+    [QSREC_END]
+    """)
+
+_FINAL_TEMPLATE_AI = dedent("""\
+    === 【最高排版指令】你最終輸出的 AI 戰報必須 100% 模仿以下範例結構（包含獨立換行、<code>標籤與結尾 JSON），不准改變排版樣式！===
+
+    ══════ <b>🤖 AI 市場</b> ══════
+    區塊①【AI 數據儀表板】：(嚴格要求：每項指標必須獨立換行！)
+    · <b>OpenRouter Top1 熱度</b> <code><示例值></code>
+    · <b>OpenRouter Top2 熱度</b> <code><示例值></code>
+    · <b>OpenRouter Top3 熱度</b> <code><示例值></code>
+    · <b>OpenRouter Top4 熱度</b> <code><示例值></code>
+    · <b>OpenRouter Top5 熱度</b> <code><示例值></code>
+
+    區塊②【AI 產業新聞】：
+    〔新聞 1〕[MM/DD HH:MM UTC+8] <b>示例標題</b>（來源：TechCrunch｜性質：confirmed）
+    <blockquote>摘要：1 句核心事實。</blockquote>
+    投資解讀：至少含 1 個當日數據（例如 NVDA 現價、量能、估值或資金流變化）。
+    💎主編共識：點名具體標的，並註明倉位控制。
+
+    區塊③【產業鏈呢喃】：
+    · 傳聞內容...（未確認｜來源：供應鏈訪談｜可信度：B｜主流媒體二次驗證：否）
+
+    區塊④【AI 產業鏈精準操作 (US Equities)】：
+    · <b>NVDA (LONG)</b>｜現價：$<示例值>｜信心水準：⭐️⭐️⭐️
+    · 進場：<code>$<示例值></code>｜目標：<code>$<示例值> (+X.X%)</code>｜停損：<code>$<示例值> (-X.X%)</code>
+    · 風控：<code>R:R = 1:X.X</code>｜最大回撤風險：<code>-X.X%</code>
+    · 敘事邏輯：多時框狀態 D(多)/4H(多)/1H(中性)，並引用當日數據。
+
+    [QSREC_START]
+    [
+      {"asset": "NVDA", "direction": "LONG", "current_price": 184.7, "entry": 184.0, "target": 198.0, "stop": 174.0, "confidence": 3, "category": "EQUITY", "narrative": "多時框共振偏多，且有當日量化數據支持。"}
+    ]
+    [QSREC_END]
+    """)
 
 
 def _make_llms(*names: str):
@@ -253,6 +331,8 @@ class CryptoResearchCrew:
                 區塊④【資金流向與精準操作 (Crypto)】：1 單邊 + 1 配對，套用【上方交易格式】
 
                 {_TRADE_JSON_RULE}
+
+                {_FINAL_TEMPLATE_CRYPTO}
             """),
             expected_output="包含 HTML 戰報與結尾 JSON 陣列的完整字串。結尾必定包含 [QSREC_START] 與 [QSREC_END]。",
             agent=self.quant_strategist,
@@ -379,6 +459,8 @@ class AIResearchCrew:
                 區塊④【AI 產業鏈精準操作 (US Equities)】：2 支，套用【上方交易格式】
 
                 {_TRADE_JSON_RULE}
+
+                {_FINAL_TEMPLATE_AI}
             """),
             expected_output="包含 HTML 戰報與結尾 JSON 陣列的完整字串。結尾必定包含 [QSREC_START] 與 [QSREC_END]。",
             agent=self.quant_strategist,
