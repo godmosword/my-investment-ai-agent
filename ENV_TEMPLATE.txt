@@ -12,7 +12,13 @@ OPENAI_API_KEY=
 # ---------- 資料/搜尋 API（工具會用到，缺則該工具回傳 DATA_MISSING）----------
 COINGLASS_API_KEY=
 CRYPTOPANIC_API_KEY=
-# APIFY_API_TOKEN：Apify 搜尋引擎（新聞/傳聞/OpenRouter 熱度），必填
+# NEWSAPI_KEY：newsapi.org — Bloomberg/Reuters/CNBC 主流財經新聞，每月 1000 次免費
+# 申請：https://newsapi.org/register
+NEWSAPI_KEY=
+# GNEWS_API_KEY：gnews.io — 多語言新聞搜尋，每日 100 次免費
+# 申請：https://gnews.io/
+GNEWS_API_KEY=
+# APIFY_API_TOKEN：Apify 搜尋引擎（市場搜尋/傳聞/OpenRouter 熱度），已降為最後 fallback
 APIFY_API_TOKEN=
 
 # ---------- P2 新增：鏈上數據 API（選填，缺則該工具回傳 DATA_MISSING）----------
