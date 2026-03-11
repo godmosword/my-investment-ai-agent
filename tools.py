@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import requests
 from apify_client import ApifyClient
@@ -151,17 +151,135 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 搜尋工具（Apify）
+# 新聞來源 helpers（NewsAPI / GNews / RSS）— 供多個工具共用
+# ═══════════════════════════════════════════════════════════════════
+
+_RSS_FEEDS: dict[str, list[str]] = {
+    "crypto": [
+        "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "https://www.theblock.co/rss.xml",
+        "https://decrypt.co/feed",
+        "https://cointelegraph.com/rss",
+    ],
+    "ai": [
+        "https://techcrunch.com/category/artificial-intelligence/feed/",
+        "https://venturebeat.com/ai/feed/",
+    ],
+}
+
+
+def _newsapi_fetch(query: str) -> str:
+    """NewsAPI 主流財經新聞（48h）。無 key 或無結果回傳 [DATA_MISSING:newsapi]。"""
+    key = os.getenv("NEWSAPI_KEY", "")
+    if not key:
+        return "[DATA_MISSING:newsapi] NEWSAPI_KEY 未設定"
+    from_dt = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    params = {
+        "q": query,
+        "sources": "bloomberg,reuters,cnbc,the-wall-street-journal,financial-times",
+        "sortBy": "publishedAt",
+        "pageSize": 5,
+        "from": from_dt,
+        "apiKey": key,
+    }
+    try:
+        r = requests.get("https://newsapi.org/v2/everything", params=params, timeout=10)
+        r.raise_for_status()
+        articles = r.json().get("articles", [])
+        if not articles:
+            return "[DATA_MISSING:newsapi] 無符合條件的新聞"
+        lines = [f"【NewsAPI｜{query}】"]
+        for a in articles:
+            lines.append(
+                f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
+                f"{a.get('title', '')}\n{a.get('url', '')}"
+            )
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning("_newsapi_fetch error: %s", e)
+        return f"[DATA_MISSING:newsapi] {e}"
+
+
+def _gnews_fetch(query: str) -> str:
+    """GNews 多語言新聞搜尋（48h）。無 key 或無結果回傳 [DATA_MISSING:gnews]。"""
+    key = os.getenv("GNEWS_API_KEY", "")
+    if not key:
+        return "[DATA_MISSING:gnews] GNEWS_API_KEY 未設定"
+    from_dt = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    params = {"q": query, "lang": "en", "max": 5, "from": from_dt, "token": key}
+    try:
+        r = requests.get("https://gnews.io/api/v4/search", params=params, timeout=10)
+        r.raise_for_status()
+        articles = r.json().get("articles", [])
+        if not articles:
+            return "[DATA_MISSING:gnews] 無符合條件的新聞"
+        lines = [f"【GNews｜{query}】"]
+        for a in articles:
+            lines.append(
+                f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
+                f"{a.get('title', '')}\n{a.get('url', '')}"
+            )
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning("_gnews_fetch error: %s", e)
+        return f"[DATA_MISSING:gnews] {e}"
+
+
+def _rss_fetch(category: str = "crypto") -> str:
+    """feedparser 免費 RSS 抓取（48h）。不需 API key。"""
+    try:
+        import feedparser  # noqa: PLC0415
+    except ImportError:
+        return "[DATA_MISSING:rss] feedparser 未安裝，請執行 pip install feedparser"
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+    entries: list[tuple] = []
+    for url in _RSS_FEEDS.get(category, _RSS_FEEDS["crypto"]):
+        try:
+            feed = feedparser.parse(url)
+            for e in feed.entries[:5]:
+                published = e.get("published_parsed") or e.get("updated_parsed")
+                if published:
+                    dt = datetime(*published[:6], tzinfo=timezone.utc)
+                    if dt < cutoff:
+                        continue
+                    entries.append((dt, e.get("title", ""), e.get("link", ""),
+                                    feed.feed.get("title", "RSS")))
+        except Exception as ex:
+            logger.warning("_rss_fetch %s error: %s", url, ex)
+    entries.sort(key=lambda x: x[0], reverse=True)
+    if not entries:
+        return "[DATA_MISSING:rss] 近 48h 內無新文章"
+    lines = [f"【RSS｜{category}】"]
+    for dt, title, link, src in entries[:6]:
+        lines.append(f"〔{dt.strftime('%m/%d %H:%M')}｜{src}〕{title}\n{link}")
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 搜尋工具（NewsAPI → GNews → Apify 三層 fallback）
 # ═══════════════════════════════════════════════════════════════════
 
 @tool
 def market_search_tool(query: str) -> str:
-    """以 Apify 搜尋全球即時新聞。"""
+    """搜尋全球即時新聞（NewsAPI → GNews → Apify 三層 fallback）。"""
     cache_key = ("market_search", query)
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
+    # 第一層：NewsAPI
+    result = _newsapi_fetch(query)
+    if not result.startswith("[DATA_MISSING"):
+        _set_cache(cache_key, result)
+        return result
+
+    # 第二層：GNews
+    result = _gnews_fetch(query)
+    if not result.startswith("[DATA_MISSING"):
+        _set_cache(cache_key, result)
+        return result
+
+    # 第三層：Apify（付費，最後手段）
     try:
         result = _search_with_apify(query, max_items=6)
         _set_cache(cache_key, result)
@@ -169,7 +287,7 @@ def market_search_tool(query: str) -> str:
     except ValueError as e:
         return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
     except Exception:
-        return "[DATA_MISSING:market_search] Market Search Failed：Apify API 暫無回應。"
+        return "[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -595,7 +713,7 @@ def ml_quant_tool() -> str:
                 query_parameters=[bigquery.ScalarQueryParameter("cutoff", "DATE", cutoff)]
             )
             df_ind = client.query(query, job_config=job_config).to_dataframe()
-        except Exception as e:
+        except Exception:
             return (
                 "ML 模型建置中（BigQuery 無歷史數據，請先執行 backfill_data.py）。"
                 "請在儀表板中寫：ML 模型建置中（需積累歷史數據）｜部位建議：暫不適用"
@@ -1044,17 +1162,32 @@ def multi_timeframe_tool(symbol: str) -> str:
 
 @tool
 def rumor_scanner_tool(topic: str) -> str:
-    """掃描爭議與傳聞（Apify 版）。"""
+    """掃描爭議與傳聞（RSS → NewsAPI → Apify 三層 fallback）。"""
     cache_key = ("rumor_scanner", topic)
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
+    # 第一層：RSS（CoinDesk/TheBlock，免費）
+    rss_result = _rss_fetch("crypto")
+    if not rss_result.startswith("[DATA_MISSING"):
+        combined_lines = [f"【傳聞掃描｜{topic}】", rss_result]
+        result = "\n".join(combined_lines)
+        _set_cache(cache_key, result)
+        return result
+
+    # 第二層：NewsAPI（Reuters/Bloomberg）
+    news_query = f"controversies manipulation accusations {topic}"
+    newsapi_result = _newsapi_fetch(news_query)
+    if not newsapi_result.startswith("[DATA_MISSING"):
+        _set_cache(cache_key, newsapi_result)
+        return newsapi_result
+
+    # 第三層：Apify（付費，最後手段）
     query = (
         f"recent controversies investigations lawsuits market manipulation accusations related to {topic} "
         "site:reuters.com OR site:bloomberg.com OR site:coindesk.com OR site:theblock.co"
     )
-
     try:
         result = _search_with_apify(query, max_items=6)
         _set_cache(cache_key, result)
@@ -1062,7 +1195,7 @@ def rumor_scanner_tool(topic: str) -> str:
     except ValueError as e:
         return f"[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：{e}"
     except Exception:
-        return "[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：Apify API 暫無回應。"
+        return "[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：所有來源均無法取得資料。"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1305,3 +1438,43 @@ def sentiment_score_tool(news_and_tweets: str) -> str:
     except Exception as e:
         logger.warning("Sentiment score tool failed: %s", e)
         return f"[DATA_MISSING:sentiment_score] 情緒評分失敗：{e}"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 新聞來源工具（NewsAPI / GNews / RSS）— Agent 可直接呼叫
+# ═══════════════════════════════════════════════════════════════════
+
+@tool("NewsAPI 主流財經新聞")
+def newsapi_tool(query: str) -> str:
+    """取得 Bloomberg/Reuters/CNBC 等主流財經媒體近 48h 新聞。"""
+    cache_key = ("newsapi", query)
+    if hit := _get_cache(cache_key):
+        return hit
+    result = _newsapi_fetch(query)
+    if not result.startswith("[DATA_MISSING"):
+        _set_cache(cache_key, result)
+    return result
+
+
+@tool("GNews 多語言新聞搜尋")
+def gnews_tool(query: str) -> str:
+    """用 GNews API 搜尋多語言財經新聞（近 48h）。"""
+    cache_key = ("gnews", query)
+    if hit := _get_cache(cache_key):
+        return hit
+    result = _gnews_fetch(query)
+    if not result.startswith("[DATA_MISSING"):
+        _set_cache(cache_key, result)
+    return result
+
+
+@tool("RSS 免費新聞摘要")
+def rss_feed_tool(category: str = "crypto") -> str:
+    """從 RSS 取得加密/AI 媒體近 48h 新聞，category 可為 'crypto' 或 'ai'（免費，不需 API key）。"""
+    cache_key = ("rss", category)
+    if hit := _get_cache(cache_key):
+        return hit
+    result = _rss_fetch(category)
+    if not result.startswith("[DATA_MISSING"):
+        _set_cache(cache_key, result)
+    return result
