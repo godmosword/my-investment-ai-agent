@@ -34,26 +34,34 @@ _TELEGRAM_FMT = dedent("""\
     禁止 Markdown 與其他 HTML；大區塊前加分隔線 ────────────
     儀表板每項獨立一行且數值包 <code>；摘要用 <blockquote>；缺資料寫 <code>N/A</code>""")
 
-_EDITOR_RULE = "【主編共識】每則新聞給 1 句最終操作判斷，必須點名具體標的。"
+_EDITOR_RULE = dedent("""\
+    【主編共識與排版紅線】
+    1. 每則新聞給 1 句最終操作判斷，必須點名具體標的。
+    2. 【嚴禁外洩程式碼】絕對不可在戰報中印出 `multi_timeframe_tool` 等任何 Python 函數名稱，請轉化為自然語言（例：多時框狀態：D(多)/4H(空)/1H(空)）。
+    3. 【嚴禁外洩內部標籤】徹底消除「[IMPACT: 負面]」、「🎯 IMPACT」、「📍 受影響資產」、「📈 做多機會」、「📉 做空風險」、「⏱️ 時效」等原始標籤，必須融入「投資解讀」自然段落。
+    4. 【結尾資料載荷不可省略】輸出末尾必須保留 [QSREC_START] ... [QSREC_END] 區塊，且內含合法 JSON 陣列。""")
 _DATA_RULES = dedent("""\
     【新鮮度】新聞必須在 48h 內；超時跳過重搜。
     【嚴禁播報系統錯誤】若任何 Tool 回傳 `[DATA_MISSING...]`、`失敗` 或 `API 未設定`，絕對禁止將這些錯誤訊息寫成新聞！請直接忽略該工具的輸出。若無足夠真實新聞，寧可減少新聞數量，也絕不允許播報系統日誌！""")
 
 _NEWS_FMT = dedent("""\
-    〔新聞 N〕[MM/DD HH:MM] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
+    〔新聞 N〕[MM/DD HH:MM UTC+8] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
     <blockquote>摘要：（1 句核心事實，禁止加入主觀評論）</blockquote>
-    投資解讀：（將受影響資產、做多做空風險等情報，融合成 1~2 句通順的段落）
+    投資解讀：（將受影響資產、做多做空風險等情報，融合成 1~2 句通順段落；且必須至少引用 1 個當日數據，如資金費率/成交量/基差/RSI/MA/ETF 流向）
     💎主編共識：[1 句最終操作判斷，必須點名具體標的]
     【格式紅線】嚴禁在最終戰報中印出「📍 受影響資產」、「📈 做多機會」、「📉 做空風險」、「⏱️ 時效」、「🎯 IMPACT」等原始標籤符號，必須轉化為自然語言！""")
 
 _DASHBOARD_FMT = dedent("""\
     儀表板格式：每項獨立一行，數值部分【必須】用 <code> 標籤包覆。
     · <b>指標名</b> <code>數值 ▲/▼幅度%</code>
-    缺資料寫 <code>N/A</code>，禁止同一行塞多個指標。""")
+    缺資料寫 <code>N/A</code>，禁止同一行塞多個指標。
+    若關鍵欄位 N/A 超過 3 項，必須在該區塊加註：<b>低置信度</b>，
+    並補 1 行「資料缺失原因 + 替代指標」（例如：OI 缺失改看 funding/多空比/現貨成交額）。""")
 
 _CHATTER_FMT = dedent("""\
     呢喃/傳聞：僅未確認訊息，排除官方已證實事件
-    每條 1 句、結尾標註（未確認）、附來源性質，輸出 2~3 條""")
+    每條 1 句、結尾標註（未確認）、附來源性質與可信度分級（A/B/C 或 0~100）、
+    並標註是否已被主流媒體二次驗證（是/否），輸出 2~3 條""")
 
 _TWEET_FMT = dedent("""\
     X 推文精選：僅摘錄 x_search_tool 回傳的真實推文，嚴禁捏造任何用戶名或推文內容
@@ -75,8 +83,19 @@ _QUOTE_RULE = dedent("""\
 _TRADE_RULE = dedent("""\
     · <b>$代幣/股票 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
     · 進場：<code>$數值</code>｜目標：<code>$數值</code> (+Y%)｜停損：<code>$數值</code> (-Z%)
-    · 敘事邏輯：1 句，引用本日新聞
+    · 風控：<code>R:R = 1:X</code>｜最大回撤風險：<code>-Z%</code>
+    · 敘事邏輯：1 句，引用本日新聞與至少 1 個當日量化數據
     【系統強制覆寫】你輸出的文字【必須完全包含】 `<`、`c`、`o`、`d`、`e`、`>` 這些字元，絕對不允許轉換成 Markdown 格式，否則資料庫將立刻崩潰！""")
+
+_RISK_MODE_RULE = dedent("""\
+    【市場模式聯動風控】
+    - 若今日市場模式為 risk_off：所有交易建議信心水準上限降一級（最高只能 ⭐️⭐️⭐️），並在敘事中明確標註「減倉/輕倉」。
+    - 若訊號互相衝突（例如 RSI 中性 + VIX 倒掛 + 資金費率回穩），必須新增 1 行「訊號衝突摘要：...」。""")
+
+_PAIR_TRADE_RULE = dedent("""\
+    【配對交易單位一致性】
+    - 若輸出配對交易（如 $BTC / $SOL），必須明確標註「單位：BTC/SOL 比值」或「單位：價差」。
+    - 現價/進場/目標/停損必須使用同一單位，禁止混用單幣現價與比值。""")
 
 # tracker.py 解析用的機器可讀區塊格式（Telegram 不渲染，純文字標記）
 # 欄位：asset=代號大寫不含$, entry/target/stop=純數字, target_pct/stop_pct=百分比數字,
@@ -105,7 +124,7 @@ def _make_llms(*names: str):
 
 class CryptoResearchCrew:
     def __init__(self):
-        grok, gpt, gemini = _make_llms("grok", "gpt", "gemini")
+        grok, gpt = _make_llms("grok", "gpt")
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -130,7 +149,7 @@ class CryptoResearchCrew:
             role="機構策略主編（加密市場）",
             goal="整合研究成果，輸出戰報上半部。",
             backstory="最終排版與風控守門員。",
-            llm=gemini,
+            llm=gpt,
             tools=[coinglass_data_tool, ml_quant_tool, multi_timeframe_tool],
             verbose=_VERBOSE,
         )
@@ -200,17 +219,19 @@ class CryptoResearchCrew:
 
         final_report_task = Task(
             description=dedent(f"""
-                【加密市場戰報排版 — Gemini 主編】
+                【加密市場戰報排版 — GPT 主編】
                 {_QUOTE_RULE}
                 {_EDITOR_RULE}
                 {_TELEGRAM_FMT}
                 {_DASHBOARD_FMT}
                 {_CHATTER_FMT}
+                {_RISK_MODE_RULE}
+                {_PAIR_TRADE_RULE}
                 {ctx}
 
                 === 交易建議（Crypto）===
                 【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
-                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，輸出 D/4H/1H：
+                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，並以自然語言輸出多時框狀態 D/4H/1H（禁止印出函數名稱）：
                 - 三時框同向 → 信心 ⭐️⭐️⭐️⭐️
                 - 兩時框同向且一個中性 → 信心 ⭐️⭐️⭐️
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
@@ -224,7 +245,7 @@ class CryptoResearchCrew:
                 區塊①【數據儀表板】：
                 - 三組：宏觀（DXY/VIX/VIX期限結構/IBIT/近期宏觀事件）、技術（BTC RSI/MA20MA50/Fear&Greed）、籌碼（資金費率/多空比/OI/爆倉/P-C/MaxPain/ETF流向）
                 - 嚴格套用【上方儀表板格式】
-                區塊②【核心新聞】：3 則，套用【上方新聞格式 + IMPACT 標籤】，每則附 1 句💎主編共識
+                區塊②【核心新聞】：3 則，套用【上方新聞格式（內部標籤改為自然語言）】，每則附 1 句💎主編共識
                 ════ 🐦 X 即時情緒推文 ════
                 區塊②b【X 推文精選】：套用【上方推文格式】；若無推文數據則跳過此區塊
                 ────────────
@@ -248,7 +269,7 @@ class CryptoResearchCrew:
 
 class AIResearchCrew:
     def __init__(self):
-        gpt, grok, gemini = _make_llms("gpt", "grok", "gemini")
+        gpt, grok = _make_llms("gpt", "grok")
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
@@ -273,7 +294,7 @@ class AIResearchCrew:
             role="機構策略主編（AI 市場）",
             goal="整合 AI 研究成果輸出戰報下半部。",
             backstory="最終格式與可操作性守門。",
-            llm=gemini,
+            llm=gpt,
             tools=[multi_timeframe_tool],
             verbose=_VERBOSE,
         )
@@ -328,17 +349,19 @@ class AIResearchCrew:
 
         final_report_task = Task(
             description=dedent(f"""
-                【AI 市場戰報排版 — Gemini 主編】
+                【AI 市場戰報排版 — GPT 主編】
                 {_EDITOR_RULE}
                 {_TELEGRAM_FMT}
                 {_DASHBOARD_FMT}
                 {_CHATTER_FMT}
                 {_QUOTE_RULE}
+                {_RISK_MODE_RULE}
+                {_PAIR_TRADE_RULE}
                 {ctx}
 
                 === 交易建議（US Equities）===
                 【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
-                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，輸出 D/4H/1H：
+                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，並以自然語言輸出多時框狀態 D/4H/1H（禁止印出函數名稱）：
                 - 三時框同向 → 信心 ⭐️⭐️⭐️⭐️
                 - 兩時框同向且一個中性 → 信心 ⭐️⭐️⭐️
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
@@ -348,7 +371,7 @@ class AIResearchCrew:
 
                 ══════ <b>🤖 AI 市場</b> ══════
                 區塊①【AI 數據儀表板】：列 OpenRouter Top5 熱度（缺資料寫 <code>N/A</code>），嚴格套用【上方儀表板格式】
-                區塊②【AI 產業新聞】：3 則（基建/投資案/最新模型各1），套用【上方新聞格式 + IMPACT 標籤】，每則附 1 句💎主編共識
+                區塊②【AI 產業新聞】：3 則（基建/投資案/最新模型各1），套用【上方新聞格式（內部標籤改為自然語言）】，每則附 1 句💎主編共識
                 ════ 🐦 X 即時情緒推文 ════
                 區塊②b【X 推文精選】：套用【上方推文格式】；若無推文數據則跳過此區塊
                 ────────────
