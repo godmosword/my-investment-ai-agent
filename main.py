@@ -137,13 +137,14 @@ def _extract_section(text: str, header: str, max_chars: int = 500) -> str | None
 def _extract_news_titles(text: str, max_titles: int = 20) -> list[str]:
     """從戰報中萃取所有新聞標題，供次日排除重複使用。"""
     clean = strip_html(text)
+    seen: set[str] = set()
     titles: list[str] = []
-    for m in re.finditer(r'〔新聞\s*\d+〕[^\n]*\n([^\n]{10,120})', clean):
-        titles.append(m.group(1).strip())
-    for m in re.finditer(r'〔新聞\s*\d+〕\s*([^\n]{10,120})', clean):
-        candidate = m.group(1).strip()
-        if candidate not in titles:
-            titles.append(candidate)
+    for pattern in (r'〔新聞\s*\d+〕[^\n]*\n([^\n]{10,120})', r'〔新聞\s*\d+〕\s*([^\n]{10,120})'):
+        for m in re.finditer(pattern, clean):
+            t = m.group(1).strip()
+            if t not in seen:
+                seen.add(t)
+                titles.append(t)
     return titles[:max_titles]
 
 

@@ -10,6 +10,19 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+_C = {
+    "btc":  "#00FF88",
+    "ma":   "#FFD700",
+    "vix":  "#FF4444",
+    "blue": "#00BFFF",
+    "red":  "#FF6666",
+}
+
+
+def _remove_spines(ax) -> None:
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
 
 def generate_quant_chart(filename: str = "daily_chart.png") -> None:
     """
@@ -56,49 +69,46 @@ def generate_quant_chart(filename: str = "daily_chart.png") -> None:
 
         # ── Panel 1: BTC + MA20
         ax1 = fig.add_subplot(gs[0])
-        ax1.plot(common, btc_aligned, color="#00FF88", linewidth=1.8, label="BTC-USD", zorder=3)
-        ax1.plot(common, btc_ma20,    color="#FFD700", linewidth=1.0, linestyle="--", alpha=0.8, label="MA20", zorder=2)
-        ax1.fill_between(common, btc_aligned, btc_aligned.min(), alpha=0.08, color="#00FF88")
-        ax1.set_ylabel("BTC-USD", color="#00FF88", fontsize=9)
-        ax1.tick_params(axis="y", colors="#00FF88", labelsize=8)
+        ax1.plot(common, btc_aligned, color=_C["btc"], linewidth=1.8, label="BTC-USD", zorder=3)
+        ax1.plot(common, btc_ma20,    color=_C["ma"],  linewidth=1.0, linestyle="--", alpha=0.8, label="MA20", zorder=2)
+        ax1.fill_between(common, btc_aligned, btc_aligned.min(), alpha=0.08, color=_C["btc"])
+        ax1.set_ylabel("BTC-USD", color=_C["btc"], fontsize=9)
+        ax1.tick_params(axis="y", colors=_C["btc"], labelsize=8)
         ax1.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
         ax1.legend(loc="upper left", fontsize=8, framealpha=0.3)
         ax1.set_title(
             f"Q-Silicon Daily Brief  ·  {datetime.now().strftime('%Y-%m-%d')}",
             color="white", fontsize=10, pad=6
         )
-        ax1.spines["top"].set_visible(False)
-        ax1.spines["right"].set_visible(False)
+        _remove_spines(ax1)
 
         # ── Panel 2: VIX with danger zones
         ax2 = fig.add_subplot(gs[1], sharex=ax1)
         vix_vals = vix_aligned.values
-        ax2.plot(common, vix_vals, color="#FF4444", linewidth=1.5, label="VIX")
+        ax2.plot(common, vix_vals, color=_C["vix"], linewidth=1.5, label="VIX")
         ax2.axhspan(30, vix_vals.max() * 1.1, alpha=0.15, color="red",    label="恐慌 >30")
         ax2.axhspan(20, 30,                    alpha=0.08, color="orange", label="警戒 20-30")
         ax2.axhline(20, color="orange", linewidth=0.5, linestyle=":")
         ax2.axhline(30, color="red",    linewidth=0.5, linestyle=":")
-        ax2.set_ylabel("VIX", color="#FF4444", fontsize=9)
-        ax2.tick_params(axis="y", colors="#FF4444", labelsize=8)
+        ax2.set_ylabel("VIX", color=_C["vix"], fontsize=9)
+        ax2.tick_params(axis="y", colors=_C["vix"], labelsize=8)
         ax2.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
         ax2.legend(loc="upper left", fontsize=7, framealpha=0.3)
-        ax2.spines["top"].set_visible(False)
-        ax2.spines["right"].set_visible(False)
+        _remove_spines(ax2)
 
         # ── Panel 3: SPY volume ratio (ETF flow proxy)
         ax3 = fig.add_subplot(gs[2], sharex=ax1)
         if len(spy_aligned) > 0:
-            colors_bar = ["#00BFFF" if r >= 1.0 else "#FF6666" for r in spy_aligned.values]
+            colors_bar = [_C["blue"] if r >= 1.0 else _C["red"] for r in spy_aligned.values]
             ax3.bar(spy_common, spy_aligned.values, color=colors_bar, alpha=0.8, width=0.8)
             ax3.axhline(1.0, color="white", linewidth=0.5, linestyle="--", alpha=0.5)
-            ax3.set_ylabel("SPY 量比", color="#00BFFF", fontsize=9)
-            ax3.tick_params(axis="y", colors="#00BFFF", labelsize=8)
+            ax3.set_ylabel("SPY 量比", color=_C["blue"], fontsize=9)
+            ax3.tick_params(axis="y", colors=_C["blue"], labelsize=8)
         ax3.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
         ax3.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
         ax3.tick_params(axis="x", colors="gray", labelsize=7, rotation=30)
         ax3.legend(["SPY 量比 (藍>1=放量，紅<1=縮量)"], loc="upper left", fontsize=7, framealpha=0.3)
-        ax3.spines["top"].set_visible(False)
-        ax3.spines["right"].set_visible(False)
+        _remove_spines(ax3)
 
         fig.text(0.5, 0.5, "Q-Silicon Institutional Research",
                  fontsize=13, ha="center", va="center", alpha=0.06, rotation=20)
