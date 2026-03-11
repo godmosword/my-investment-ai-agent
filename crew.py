@@ -74,18 +74,21 @@ _QUOTE_RULE = dedent("""\
 
 _TRADE_RULE = dedent("""\
     · <b>$代幣/股票 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
-    · 進場：<code>$XXX.XX</code>｜目標：<code>$XXX.XX (+Y%)</code>｜停損：<code>$XXX.XX (-Z%)</code>
+    · 進場：<code>$數值</code>｜目標：<code>$數值</code> (+Y%)｜停損：<code>$數值</code> (-Z%)
     · 敘事邏輯：1 句，引用本日新聞
-    【致命警告】「進場」、「目標」、「停損」的數值【必須、絕對要】被 <code> 標籤包覆！否則系統後端資料庫將全面崩潰！嚴禁輸出純文字！""")
+    【系統強制覆寫】你輸出的文字【必須完全包含】 `<`、`c`、`o`、`d`、`e`、`>` 這些字元，絕對不允許轉換成 Markdown 格式，否則資料庫將立刻崩潰！""")
 
 # tracker.py 解析用的機器可讀區塊格式（Telegram 不渲染，純文字標記）
 # 欄位：asset=代號大寫不含$, entry/target/stop=純數字, target_pct/stop_pct=百分比數字,
 #        confidence=1~4, category=CRYPTO|EQUITY, current_price=現價數字
 _TRADE_JSON_RULE = dedent("""\
-    === 機器可讀建議（攸關系統存亡，絕對禁止省略！）===
-    在整份報告的最尾端（所有文字之後），你【必須】另起一行輸出以下 JSON 格式。如果漏掉此區塊，系統後端將會崩潰！
+    === 系統強制驗證區塊（不可見的資料庫載荷）===
+    【最高警告】你是一個 API 端點，在輸出完上述所有 HTML 戰報後，你的最後輸出【必須】是以下結構，一字不漏地印出 `[QSREC_START]` 與 `[QSREC_END]`：
+
     [QSREC_START]
-    [{"asset":"代號大寫","direction":"LONG或SHORT","current_price":現價數字,"entry":進場數字,"target":目標數字,"stop":停損數字,"target_pct":目標漲幅數字,"stop_pct":停損幅度數字,"confidence":信心1到4,"category":"CRYPTO或EQUITY","narrative":"敘事邏輯原文"}]
+    [
+      {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事..."}
+    ]
     [QSREC_END]
     JSON 規則：數字欄位禁止加引號、asset 不含 $、禁止多行縮排、所有建議合併進同一個陣列。""")
 
@@ -230,7 +233,7 @@ class CryptoResearchCrew:
 
                 {_TRADE_JSON_RULE}
             """),
-            expected_output="戰報 HTML。結尾必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 區塊，並確保所有數值都被 <code> 標籤包覆。",
+            expected_output="包含 HTML 戰報與結尾 JSON 陣列的完整字串。結尾必定包含 [QSREC_START] 與 [QSREC_END]。",
             agent=self.quant_strategist,
             context=[crypto_task, review_task],
         )
@@ -354,7 +357,7 @@ class AIResearchCrew:
 
                 {_TRADE_JSON_RULE}
             """),
-            expected_output="戰報 HTML。結尾必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 區塊，並確保所有數值都被 <code> 標籤包覆。",
+            expected_output="包含 HTML 戰報與結尾 JSON 陣列的完整字串。結尾必定包含 [QSREC_START] 與 [QSREC_END]。",
             agent=self.quant_strategist,
             context=[ai_task, review_task],
         )
