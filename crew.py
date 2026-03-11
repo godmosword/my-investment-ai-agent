@@ -32,7 +32,9 @@ _TELEGRAM_FMT = dedent("""\
     儀表板每項獨立一行且數值包 <code>；摘要用 <blockquote>；缺資料寫 <code>N/A</code>""")
 
 _EDITOR_RULE = "【主編共識】每則新聞給 1 句最終操作判斷，必須點名具體標的。"
-_DATA_RULES = "【新鮮度】新聞必須在 48h 內；超時跳過重搜。"
+_DATA_RULES = dedent("""\
+    【新鮮度】新聞必須在 48h 內；超時跳過重搜。
+    【嚴禁播報系統錯誤】若任何 Tool 回傳 `[DATA_MISSING...]`、`失敗` 或 `API 未設定`，絕對禁止將這些錯誤訊息寫成新聞！請直接忽略該工具的輸出。若無足夠真實新聞，寧可減少新聞數量，也絕不允許播報系統日誌！""")
 
 _NEWS_FMT = dedent("""\
     〔新聞 N〕[MM/DD HH:MM] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
@@ -77,8 +79,8 @@ _TRADE_RULE = dedent("""\
 # 欄位：asset=代號大寫不含$, entry/target/stop=純數字, target_pct/stop_pct=百分比數字,
 #        confidence=1~4, category=CRYPTO|EQUITY, current_price=現價數字
 _TRADE_JSON_RULE = dedent("""\
-    === 機器可讀建議（Telegram 不顯示，tracker.py 解析用）===
-    在報告最後一行之後，另起一行輸出以下格式（禁止省略、禁止破壞 JSON 結構）：
+    === 機器可讀建議（攸關系統存亡，絕對禁止省略！）===
+    在整份報告的最尾端（所有文字之後），你【必須】另起一行輸出以下 JSON 格式。如果漏掉此區塊，系統後端將會崩潰！
     [QSREC_START]
     [{"asset":"代號大寫","direction":"LONG或SHORT","current_price":現價數字,"entry":進場數字,"target":目標數字,"stop":停損數字,"target_pct":目標漲幅數字,"stop_pct":停損幅度數字,"confidence":信心1到4,"category":"CRYPTO或EQUITY","narrative":"敘事邏輯原文"}]
     [QSREC_END]
@@ -222,7 +224,7 @@ class CryptoResearchCrew:
 
                 {_TRADE_JSON_RULE}
             """),
-            expected_output="戰報上半部 Telegram HTML，依序包含：①數據儀表板 ②核心新聞×3 ②b X推文精選（有則列出） ③市場呢喃×2~3 ④精準操作×2，末尾附 [QSREC_START]…[QSREC_END] JSON。",
+            expected_output="戰報 HTML。結尾必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 區塊，並確保所有數值都被 <code> 標籤包覆。",
             agent=self.quant_strategist,
             context=[crypto_task, review_task],
         )
@@ -343,7 +345,7 @@ class AIResearchCrew:
 
                 {_TRADE_JSON_RULE}
             """),
-            expected_output="戰報下半部 Telegram HTML，依序包含：①AI 數據儀表板 ②AI 產業新聞×3 ②b X推文精選（有則列出） ③產業鏈呢喃×2~3 ④精準操作×2，末尾附 [QSREC_START]…[QSREC_END] JSON。",
+            expected_output="戰報 HTML。結尾必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 區塊，並確保所有數值都被 <code> 標籤包覆。",
             agent=self.quant_strategist,
             context=[ai_task, review_task],
         )
