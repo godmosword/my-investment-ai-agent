@@ -11,10 +11,13 @@ from tools import (
     econ_calendar_tool,
     etf_flow_tool,
     fear_greed_tool,
+    gnews_tool,
     market_search_tool,
     ml_quant_tool,
     multi_timeframe_tool,
+    newsapi_tool,
     onchain_metrics_tool,
+    rss_feed_tool,
     rumor_scanner_tool,
     sentiment_score_tool,
     x_search_tool,
@@ -106,7 +109,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool],
+            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool],
             verbose=_VERBOSE,
         )
 
@@ -151,6 +154,9 @@ class CryptoResearchCrew:
                 · etf_flow_tool()（BTC Spot ETF 每日資金流，禁止自行猜測 ETF 數據）
                 · econ_calendar_tool()（本週宏觀經濟日曆，禁止自行猜測 FOMC/CPI 日期）
                 · cryptopanic_tool('bitcoin')
+                · rss_feed_tool('crypto')（CoinDesk / TheBlock / Cointelegraph 免費 RSS，優先取用）
+                · newsapi_tool('Bitcoin crypto ETF market')（Bloomberg / Reuters 主流財經新聞）
+                · gnews_tool('Bitcoin crypto market')（多語言補充）
                 · rumor_scanner_tool('BTC ETF flow OR crypto manipulation OR whale alert')
                 · market_search_tool('Bitcoin market liquidity derivatives risk')
                 · x_search_tool('bitcoin BTC crypto market ETF liquidation')（取得 X/Twitter 即時情緒推文，供 X 推文精選區塊使用）
@@ -246,7 +252,7 @@ class AIResearchCrew:
             goal="收集 AI 市場核心資訊並輸出 3 則可交易新聞。",
             backstory="科技產業鏈研究員，聚焦可驗證催化。",
             llm=gpt,
-            tools=[market_search_tool, ai_momentum_tool, rumor_scanner_tool, x_search_tool],
+            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, ai_momentum_tool, rumor_scanner_tool, x_search_tool],
             verbose=_VERBOSE,
         )
 
@@ -287,6 +293,9 @@ class AIResearchCrew:
                 {excl}
                 呼叫 ai_momentum_tool('openrouter_rankings')。
                 搜尋：
+                · rss_feed_tool('ai')（TechCrunch / VentureBeat AI RSS，優先取用）
+                · newsapi_tool('AI NVIDIA data center GPU Microsoft')（Bloomberg / Reuters AI 報導）
+                · gnews_tool('artificial intelligence GPU infrastructure')（多語言補充）
                 · market_search_tool('AI data center GPU NVIDIA infrastructure {year}')
                 · market_search_tool('data center power supply nuclear energy AI {year}')
                 · market_search_tool('AI model releases enterprise adoption {year}')
