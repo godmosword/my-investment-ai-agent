@@ -37,12 +37,15 @@ _DATA_RULES = "【新鮮度】新聞必須在 48h 內；超時跳過重搜。"
 
 _NEWS_FMT = dedent("""\
     〔新聞 N〕[MM/DD HH:MM] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
-    <blockquote>摘要：（1 句核心事實，禁止加入主觀評論）</blockquote>""")
+    <blockquote>摘要：（1 句核心事實，禁止加入主觀評論）</blockquote>
+    投資解讀：（將受影響資產、做多做空風險等情報，融合成 1~2 句通順的段落）
+    💎主編共識：[1 句最終操作判斷，必須點名具體標的]
+    【格式紅線】嚴禁在最終戰報中印出「📍 受影響資產」、「📈 做多機會」、「📉 做空風險」、「⏱️ 時效」、「🎯 IMPACT」等原始標籤符號，必須轉化為自然語言！""")
 
 _DASHBOARD_FMT = dedent("""\
-    儀表板格式：每項獨立一行
+    儀表板格式：每項獨立一行，數值部分【必須】用 <code> 標籤包覆。
     · <b>指標名</b> <code>數值 ▲/▼幅度%</code>
-    缺資料寫 <code>N/A</code>，禁止同一行塞多個指標""")
+    缺資料寫 <code>N/A</code>，禁止同一行塞多個指標。""")
 
 _CHATTER_FMT = dedent("""\
     呢喃/傳聞：僅未確認訊息，排除官方已證實事件
@@ -68,7 +71,8 @@ _QUOTE_RULE = dedent("""\
 _TRADE_RULE = dedent("""\
     · <b>$代幣/股票 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
     · 進場：<code>$XXX.XX</code>｜目標：<code>$XXX.XX (+Y%)</code>｜停損：<code>$XXX.XX (-Z%)</code>
-    · 敘事邏輯：1 句，引用本日新聞""")
+    · 敘事邏輯：1 句，引用本日新聞
+    【致命警告】「進場」、「目標」、「停損」的數值【必須、絕對要】被 <code> 標籤包覆！否則系統後端資料庫將全面崩潰！嚴禁輸出純文字！""")
 
 # tracker.py 解析用的機器可讀區塊格式（Telegram 不渲染，純文字標記）
 # 欄位：asset=代號大寫不含$, entry/target/stop=純數字, target_pct/stop_pct=百分比數字,
