@@ -48,6 +48,14 @@ MVRV_HEALTHY_HIGH      = 3.0     # MVRV Z 0~3 → 健康多頭區間
 # ── 交易摩擦成本 ──────────────────────────────────────────────────────────
 TRANSACTION_COST = 0.001  # 0.1%：含 Taker 手續費 + 滑點，換倉日才扣除
 
+# ── 特徵欄位 ↔ 權重 key 映射（模組級，避免多處重複定義）────────────────────
+_FEAT_ORDER: list[str] = ["f_dxy", "f_etf", "f_risk", "f_mvrv", "f_sentiment", "f_sopr", "f_netflow"]
+_FEAT_KEY_MAP: dict[str, str] = {
+    "f_dxy": "dxy", "f_etf": "etf_flow", "f_risk": "risk", "f_mvrv": "mvrv",
+    "f_sentiment": "sentiment", "f_sopr": "sopr", "f_netflow": "exchange_netflow",
+}
+_KEY_FEAT_MAP: dict[str, str] = {v: k for k, v in _FEAT_KEY_MAP.items()}
+
 # ── Walk-Forward 參數 ──────────────────────────────────────────────────────
 TRAIN_DAYS   = 180   # 每個窗口的訓練天數
 TEST_DAYS    = 30    # 每個窗口的測試天數（滾動步長）
@@ -520,14 +528,14 @@ def optimize_ml_weights(df: pd.DataFrame) -> dict[str, Any]:
         logging.warning("特徵不足或全為 NaN，使用等權重。")
         return {"weights": _DEFAULT_WEIGHTS, "sharpe": 0.0}
 
+    try:
+        from scipy.optimize import minimize
+    except ImportError:
+        logging.warning("scipy 未安裝，跳過 ML 權重最佳化。請執行 pip install scipy。")
+        return {"weights": _DEFAULT_WEIGHTS, "sharpe": 0.0}
+
     # 動態發現可用特徵欄位（按固定順序保持一致性）
-    _FEAT_ORDER = ["f_dxy", "f_etf", "f_risk", "f_mvrv", "f_sentiment", "f_sopr", "f_netflow"]
     cols = [c for c in _FEAT_ORDER if c in features.columns]
-    # 欄位 → 權重 key 對應
-    _FEAT_KEY_MAP = {
-        "f_dxy": "dxy", "f_etf": "etf_flow", "f_risk": "risk", "f_mvrv": "mvrv",
-        "f_sentiment": "sentiment", "f_sopr": "sopr", "f_netflow": "exchange_netflow",
-    }
 
     X = features[cols].values
     btc_ret = df["close"].pct_change().values
@@ -543,10 +551,10 @@ def optimize_ml_weights(df: pd.DataFrame) -> dict[str, Any]:
         strat_ret = np.nan_to_num(strat_ret, nan=0.0)
         rf = 0.05 / 365
         excess = strat_ret - rf
-        std = np.std(excess)
+        std = np.nanstd(excess, ddof=1)
         if std < 1e-8:
             return 0.0
-        return -(np.mean(excess) / std * math.sqrt(365))
+        return -(np.nanmean(excess) / std * math.sqrt(365))
 
     n = len(cols)
     constraints = {"type": "eq", "fun": lambda w: w.sum() - 1.0}
@@ -574,11 +582,6 @@ def get_latest_ml_signal(df: pd.DataFrame, best_weights: dict[str, float]) -> di
         return {"signal": "建議避險", "momentum_score": 0.0, "weights": best_weights}
 
     features = _build_momentum_features(df)
-    _FEAT_ORDER = ["f_dxy", "f_etf", "f_risk", "f_mvrv", "f_sentiment", "f_sopr", "f_netflow"]
-    _KEY_FEAT_MAP = {v: k for k, v in {
-        "f_dxy": "dxy", "f_etf": "etf_flow", "f_risk": "risk", "f_mvrv": "mvrv",
-        "f_sentiment": "sentiment", "f_sopr": "sopr", "f_netflow": "exchange_netflow",
-    }.items()}
     cols = [c for c in _FEAT_ORDER if c in features.columns]
     w = np.array([best_weights.get(_KEY_FEAT_MAP.get(c, c), 1.0 / len(cols)) for c in cols])
     # Renormalize in case weights don't sum to 1 after dynamic subset
