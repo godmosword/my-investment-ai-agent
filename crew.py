@@ -23,8 +23,7 @@ from tools import (
 _VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
 
 MODEL_GROK = "xai/grok-4-1-fast-reasoning"
-MODEL_GPT = "openai/gpt-5.3-chat-latest"
-MODEL_CLAUDE = "openrouter/anthropic/claude-sonnet-4.6"
+MODEL_GPT = "openai/gpt-5.2-2025-12-11"
 MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
 
 _TELEGRAM_FMT = dedent("""\
@@ -91,7 +90,6 @@ def _make_llms(*names: str):
     factories = {
         "grok": lambda: LLM(model=MODEL_GROK, api_key=os.getenv("XAI_API_KEY"), max_retries=3, timeout=120),
         "gpt": lambda: LLM(model=MODEL_GPT, api_key=os.getenv("OPENAI_API_KEY"), max_retries=3, timeout=120),
-        "claude": lambda: LLM(model=MODEL_CLAUDE, api_key=os.getenv("OPENROUTER_API_KEY"), max_retries=3, timeout=120),
         "gemini": lambda: LLM(model=MODEL_GEMINI, api_key=os.getenv("GEMINI_API_KEY"), max_retries=5, timeout=180),
     }
     return tuple(factories[n]() for n in names)
@@ -99,7 +97,7 @@ def _make_llms(*names: str):
 
 class CryptoResearchCrew:
     def __init__(self):
-        grok, claude, gemini = _make_llms("grok", "claude", "gemini")
+        grok, gpt, gemini = _make_llms("grok", "gpt", "gemini")
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -114,7 +112,7 @@ class CryptoResearchCrew:
             role="首席幣圈風險審計員",
             goal="對幣圈新聞做反向辯論，判定 market_regime。",
             backstory="反身性風險審計者，負責挑錯與驗證。",
-            llm=claude,
+            llm=gpt,
             allow_delegation=False,
             tools=[],
             verbose=_VERBOSE,
@@ -169,7 +167,7 @@ class CryptoResearchCrew:
 
         review_task = Task(
             description=dedent(f"""
-                【幣圈辯論與風險審計 — Claude】
+                【幣圈辯論與風險審計 — GPT】
                 {ctx}
 
                 {_DATA_RULES}
@@ -239,7 +237,7 @@ class CryptoResearchCrew:
 
 class AIResearchCrew:
     def __init__(self):
-        gpt, claude, gemini = _make_llms("gpt", "claude", "gemini")
+        gpt, grok, gemini = _make_llms("gpt", "grok", "gemini")
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
@@ -254,7 +252,7 @@ class AIResearchCrew:
             role="首席 AI 市場辯論員",
             goal="對 AI 新聞做反向辯論與風險審計。",
             backstory="對估值泡沫與敘事偏差高度敏感。",
-            llm=claude,
+            llm=grok,
             allow_delegation=False,
             tools=[],
             verbose=_VERBOSE,
@@ -304,7 +302,7 @@ class AIResearchCrew:
 
         review_task = Task(
             description=dedent(f"""
-                【AI 市場辯論審計 — Claude】
+                【AI 市場辯論審計 — Grok】
                 {_QUOTE_RULE}
                 {ctx}
                 對 3 則新聞逐條提出反向觀點（每則 2~3 句）。
