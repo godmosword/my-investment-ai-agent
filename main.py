@@ -649,7 +649,16 @@ if __name__ == "__main__":
     if exclusion:
         logger.info("Loaded exclusion context from previous report (to avoid duplicate news).")
 
-    final_report, report_valid = run_pipeline_with_retries(exclusion)
+    # Pre-initialize so downstream references are always safe even if the
+    # pipeline call raises an uncaught exception.
+    final_report: str = ""
+    report_valid: bool = False
+    try:
+        final_report, report_valid = run_pipeline_with_retries(exclusion)
+    except Exception as _pipeline_err:
+        logger.error("Critical unhandled pipeline error: %s", _pipeline_err, exc_info=True)
+        final_report = f"{ERROR_PREFIX}{_pipeline_err}"
+        report_valid = False
     logger.info("Pipeline finished (valid=%s, chars=%d).", report_valid, len(final_report or ""))
 
     # ── Tracker：儲存建議 & 每日回查未平倉部位 ───────────────────────────────
