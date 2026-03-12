@@ -12,11 +12,13 @@ from tools import (
     etf_flow_tool,
     fear_greed_tool,
     gnews_tool,
+    macro_context_tool,
     market_search_tool,
     ml_quant_tool,
     multi_timeframe_tool,
     newsapi_tool,
     onchain_metrics_tool,
+    regime_scorecard_tool,
     rss_feed_tool,
     rumor_scanner_tool,
     sentiment_score_tool,
@@ -53,7 +55,7 @@ _FINAL_TEMPLATE_CRYPTO = dedent("""\
     · 敘事邏輯：多時框狀態 D(中性)/4H(中性)/1H(多)，資金費率轉負支持反彈...
     [QSREC_START]
     [
-      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 3, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)..."}
+      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 3, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)...", "trigger": "4H 收盤突破 $70.5k 確認", "invalidation": "日線收 < $67k 或 funding > 0.08%", "position_pct": 8, "timeframe": "3–5 天"}
     ]
     [QSREC_END]
     """)
@@ -71,7 +73,7 @@ _FINAL_TEMPLATE_AI = dedent("""\
     · 敘事邏輯：B200 出貨加速，雲端 CAPEX 上調，三時框多頭排列...
     [QSREC_START]
     [
-      {"asset": "NVDA", "direction": "LONG", "current_price": 875.20, "entry": 870.00, "target": 920.00, "stop": 845.00, "confidence": 3, "category": "EQUITY", "narrative": "B200 出貨加速，雲端 CAPEX 上調..."}
+      {"asset": "NVDA", "direction": "LONG", "current_price": 875.20, "entry": 870.00, "target": 920.00, "stop": 845.00, "confidence": 3, "category": "EQUITY", "narrative": "B200 出貨加速，雲端 CAPEX 上調...", "trigger": "日線突破 $880 且成交量 > 5 日均量", "invalidation": "日線收 < $850 或 AI CAPEX 下調消息", "position_pct": 6, "timeframe": "5–10 天"}
     ]
     [QSREC_END]
     """)
@@ -124,6 +126,10 @@ _QUOTE_RULE = dedent("""\
 _TRADE_RULE = dedent("""\
     · <b>$代幣/股票 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
     · 進場：<code>$數值</code>｜目標：<code>$數值</code> (+Y%)｜停損：<code>$數值</code> (-Z%)
+    · 觸發模式：具體進場條件（例：「4H 收盤突破 $70.5k 確認」）
+    · 建倉邏輯：多時間框架分批建倉（例：「日線確認方向 → 4H 拉回 MA20 → 1H 收針進場 50%，目標位再加 50%」）
+    · 失效條件：清倉觸發（例：「日線收盤 < $67k 或 funding rate > 0.08%」）
+    · 倉位建議：佔總資金比例（例：「8%，高風險環境減半至 4%」）
     · 敘事邏輯：1 句，引用本日新聞
     請確保每個數值都用 <code> 標籤包覆，勿轉換為 Markdown 格式。""")
 
@@ -136,10 +142,11 @@ _TRADE_JSON_RULE = dedent("""\
 
     [QSREC_START]
     [
-      {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事..."}
+      {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事...", "trigger": "觸發條件", "invalidation": "失效條件", "position_pct": 數字, "timeframe": "持倉週期"}
     ]
     [QSREC_END]
-    JSON 規則：數字欄位禁止加引號、asset 不含 $、禁止多行縮排、所有建議合併進同一個陣列。""")
+    JSON 規則：數字欄位禁止加引號、asset 不含 $、禁止多行縮排、所有建議合併進同一個陣列。
+    trigger 範例：4H 收盤突破 $70.5k | invalidation 範例：日線收 < $67k 或 funding > 0.08% | position_pct 範例: 8（代表佔總資金 8%）| timeframe 範例: 3–5 天""")
 
 
 def _make_llms(*names: str):
@@ -167,11 +174,11 @@ class CryptoResearchCrew:
 
         self.risk_critic = Agent(
             role="首席幣圈風險審計員",
-            goal="對幣圈新聞做反向辯論，判定 market_regime。",
-            backstory="反身性風險審計者，負責挑錯與驗證。",
+            goal="對幣圈新聞做反向辯論，以評分卡判定 market_regime。",
+            backstory="反身性風險審計者，負責挑錯、驗證與量化機制判斷。",
             llm=gpt,
             allow_delegation=False,
-            tools=[],
+            tools=[regime_scorecard_tool, macro_context_tool],
             verbose=_VERBOSE,
         )
 
@@ -184,13 +191,18 @@ class CryptoResearchCrew:
             verbose=_VERBOSE,
         )
 
-    def run(self, exclude_context: str | None = None, price_context: str = ""):
+    def run(self, exclude_context: str | None = None, price_context: str = "",
+            prev_recs_block: str = ""):
         today_str = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
         excl = (
             f"\n【避免重複】昨日已涵蓋：\n{exclude_context}\n"
             if exclude_context else ""
         )
         ctx = f"\n【系統強制即時報價】\n{price_context}\n"
+        prev_recs_ctx = (
+            f"\n【上期建議追蹤（必須原文輸出於報告最頂端，排在標題之後）】\n{prev_recs_block}\n"
+            if prev_recs_block else ""
+        )
 
         crypto_task = Task(
             description=dedent(f"""
@@ -237,13 +249,20 @@ class CryptoResearchCrew:
                 === Fact-Check ===
                 以【系統強制即時報價】核對 DXY/VIX/IBIT/BTC。
 
-                === market_regime（risk_on/risk_off/neutral）===
-                列出 6 項信號：VIX（含期限結構）、IBIT、資金費率、爆倉、Fear & Greed、BTC RSI(14)，並給最終判定。
+                === 宏觀框架 ===
+                必須呼叫 macro_context_tool()，將美債殖利率、利率曲線、Fed 預期、本週財報輸出於此區塊。
+
+                === market_regime（可審計評分卡）===
+                必須呼叫 regime_scorecard_tool()，將完整評分卡（6 項指標各自評分 + 總分 + 最終 regime）原文輸出。
+                格式範例：
+                【今日市場模式】risk_on（+4/6）
+                ✅ VIX <code>18.5(< 20)</code>→+1 | ✅ ETF流 <code>320.0(>200)</code>→+1 | ✅ 資金費率 <code>0.012(< 0.03)</code>→+1
+                ❌ 24h爆倉 <code>420.5(> 300)</code>→-1 | ✅ 恐懼貪婪 <code>62.0(> 55)</code>→+1 | ✅ BTC RSI <code>55.2(45–65)</code>→+1
 
                 === 新聞辯論（3 則）===
                 每則 2~3 句反向觀點。
             """),
-            expected_output="風險審計與 regime 判定。",
+            expected_output="宏觀框架、風險審計與可審計 regime 評分卡。",
             agent=self.risk_critic,
             context=[crypto_task],
         )
@@ -257,6 +276,7 @@ class CryptoResearchCrew:
                 {_DASHBOARD_FMT}
                 {_CHATTER_FMT}
                 {ctx}
+                {prev_recs_ctx}
 
                 === 交易建議（Crypto）===
                 【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
@@ -270,7 +290,12 @@ class CryptoResearchCrew:
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
                 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
                 ────────────
-                【今日市場模式】risk_on / risk_off / neutral
+                （若有上期建議追蹤，必須在此輸出，完整照抄 Context 中的【上期建議追蹤】內容）
+                ────────────
+                【今日市場模式】<從 review_task 中的評分卡複製，格式：risk_on/neutral/risk_off（+N/6）>
+                （評分卡明細：從 review_task 輸出的 regime_scorecard_tool 結果原文複製，每條獨立一行）
+                ════ 🏛️ 宏觀框架 ════
+                （從 review_task 的 macro_context_tool 結果原文複製）
                 ══════ <b>📊 加密市場</b> ══════
                 區塊①【數據儀表板】：
                 - 三組：宏觀（DXY/VIX/VIX期限結構/IBIT/近期宏觀事件）、技術（BTC RSI/MA20MA50/Fear&Greed）、籌碼（資金費率/多空比/OI/爆倉/P-C/MaxPain/ETF流向）
@@ -280,7 +305,7 @@ class CryptoResearchCrew:
                 區塊②b【X 推文精選】：套用【上方推文格式】；若無推文數據則跳過此區塊
                 ────────────
                 區塊③【市場呢喃與傳聞】：2~3 條，套用【上方呢喃格式】，不可重複新聞事件
-                區塊④【資金流向與精準操作 (Crypto)】：1 單邊 + 1 配對，套用【上方交易格式】
+                區塊④【資金流向與精準操作 (Crypto)】：1 單邊 + 1 配對，套用【上方交易格式】（含觸發模式、建倉邏輯、失效條件、倉位建議）
 
                 {_TRADE_JSON_RULE}
             """),
@@ -312,11 +337,11 @@ class AIResearchCrew:
 
         self.risk_critic = Agent(
             role="首席 AI 市場辯論員",
-            goal="對 AI 新聞做反向辯論與風險審計。",
-            backstory="對估值泡沫與敘事偏差高度敏感。",
+            goal="對 AI 新聞做反向辯論，引用宏觀框架強化論點。",
+            backstory="對估值泡沫與敘事偏差高度敏感，善用利率與財報催化分析 AI 板塊。",
             llm=grok,
             allow_delegation=False,
-            tools=[],
+            tools=[macro_context_tool],
             verbose=_VERBOSE,
         )
 
@@ -371,9 +396,15 @@ class AIResearchCrew:
                 【AI 市場辯論審計 — Grok】
                 {_QUOTE_RULE}
                 {ctx}
-                對 3 則新聞逐條提出反向觀點（每則 2~3 句）。
+
+                === 宏觀框架（美股利率敏感性）===
+                必須呼叫 macro_context_tool()，輸出美債利率、殖利率曲線、Fed 預期、本週財報，
+                分析這些宏觀變數對 NVDA/MSFT/AI 板塊的下一步影響。
+
+                === 新聞辯論 ===
+                對 3 則 AI 新聞逐條提出反向觀點（每則 2~3 句）。
             """),
-            expected_output="3 則 AI 新聞辯論觀點。",
+            expected_output="宏觀框架分析與 3 則 AI 新聞辯論觀點。",
             agent=self.risk_critic,
             context=[ai_task],
         )
@@ -399,6 +430,8 @@ class AIResearchCrew:
                 {_FINAL_TEMPLATE_AI}
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
 
+                ════ 🏛️ 宏觀框架 ════
+                （從 review_task 的 macro_context_tool 結果原文複製，整合對 AI 板塊影響的 1 句主編共識）
                 ══════ <b>🤖 AI 市場</b> ══════
                 區塊①【AI 數據儀表板】：列 OpenRouter Top5 熱度（缺資料寫 <code>N/A</code>），嚴格套用【上方儀表板格式】
                 區塊②【AI 產業新聞】：3 則（基建/投資案/最新模型各1），套用【上方新聞格式】，將 IMPACT 資訊融入投資解讀（禁止原文印出標籤），每則附 1 句💎主編共識
@@ -406,7 +439,7 @@ class AIResearchCrew:
                 區塊②b【X 推文精選】：套用【上方推文格式】；若無推文數據則跳過此區塊
                 ────────────
                 區塊③【產業鏈呢喃】：2~3 條，套用【上方呢喃格式】，不可重複新聞事件
-                區塊④【AI 產業鏈精準操作 (US Equities)】：2 支，套用【上方交易格式】
+                區塊④【AI 產業鏈精準操作 (US Equities)】：2 支，套用【上方交易格式】（含觸發模式、建倉邏輯、失效條件、倉位建議）
 
                 {_TRADE_JSON_RULE}
             """),

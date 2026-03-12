@@ -5,6 +5,7 @@
   2. 寫入 BigQuery trade_recommendations 資料表
   3. 每日回查 OPEN 狀態建議，抓最新價格，更新 HIT_TARGET / HIT_STOP / EXPIRED
   4. 生成週度績效摘要 Telegram HTML
+  5. 生成上期建議追蹤區塊，注入當日報告
 """
 
 import json
@@ -59,6 +60,11 @@ _SCHEMA = [
     bigquery.SchemaField("pnl_pct",                  "FLOAT"),
     bigquery.SchemaField("days_held",                "INTEGER"),
     bigquery.SchemaField("created_at",               "TIMESTAMP"),
+    # Phase 3：機構級建議新增欄位
+    bigquery.SchemaField("trigger",                  "STRING"),
+    bigquery.SchemaField("invalidation",             "STRING"),
+    bigquery.SchemaField("position_pct",             "FLOAT"),
+    bigquery.SchemaField("timeframe",                "STRING"),
 ]
 
 
@@ -127,6 +133,11 @@ def _validate_rec(raw: dict, report_date: str) -> dict | None:
         "pnl_pct":                 None,
         "days_held":               None,
         "created_at":              datetime.now(timezone.utc).isoformat(),
+        # Phase 3 新欄位
+        "trigger":                 str(raw.get("trigger", ""))[:300] or None,
+        "invalidation":            str(raw.get("invalidation", ""))[:300] or None,
+        "position_pct":            float(raw["position_pct"]) if raw.get("position_pct") is not None else None,
+        "timeframe":               str(raw.get("timeframe", ""))[:100] or None,
     }
 
 
@@ -303,6 +314,94 @@ def check_and_update_positions(project_id: str = PROJECT_ID) -> list[dict]:
             logger.error("Failed to update position %s (date=%s): %s", asset, rep_date, e)
 
     return closed
+
+
+def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
+    """
+    查詢最近一個交易日的 QSREC 建議，抓取當前價格，
+    回傳 Telegram HTML 格式的「上期建議追蹤」區塊。
+    若無數據或 BigQuery 不可用，回傳空字串。
+    """
+    try:
+        client = _get_bq_client(project_id)
+        rows = list(client.query(f"""
+            SELECT asset, direction, entry_price, target_price, stop_price, narrative, report_date
+            FROM `{RECOMMENDATIONS_TABLE}`
+            WHERE report_date = (
+                SELECT MAX(report_date) FROM `{RECOMMENDATIONS_TABLE}`
+                WHERE report_date < CURRENT_DATE()
+            )
+            ORDER BY asset
+        """).result())
+    except Exception as e:
+        logger.warning("load_previous_recs_block: BigQuery query failed: %s", e)
+        return ""
+
+    if not rows:
+        return ""
+
+    # 批次取得最新收盤價
+    assets = {row["asset"] for row in rows}
+    current_prices: dict[str, float | None] = {}
+    for asset in assets:
+        sym = _yf_symbol(asset)
+        try:
+            df = yf.download(sym, period="3d", interval="1d", progress=False, auto_adjust=True)
+            if df is None or df.empty:
+                current_prices[asset] = None
+                continue
+            close = df["Close"].dropna()
+            if hasattr(close, "ndim") and close.ndim > 1:
+                close = close.iloc[:, 0]
+            current_prices[asset] = float(close.iloc[-1]) if not close.empty else None
+        except Exception:
+            current_prices[asset] = None
+
+    lines = ["<b>【上期建議追蹤】</b>"]
+    rep_date = str(rows[0]["report_date"])
+    lines.append(f"<i>（{rep_date} 建議，現價對比）</i>")
+
+    for row in rows:
+        asset = row["asset"]
+        direction = row["direction"]
+        entry = float(row["entry_price"])
+        target = float(row["target_price"])
+        stop = float(row["stop_price"])
+        current = current_prices.get(asset)
+
+        if current is None:
+            pnl_str = "N/A"
+            status_icon = "❓"
+        else:
+            # 方向感知 P&L
+            if direction == "LONG":
+                pnl = (current - entry) / entry * 100
+                hit_target = current >= target
+                hit_stop = current <= stop
+            else:
+                pnl = (entry - current) / entry * 100
+                hit_target = current <= target
+                hit_stop = current >= stop
+
+            pnl_str = f"{pnl:+.1f}%"
+            if hit_target:
+                status_icon = "✅"
+            elif hit_stop:
+                status_icon = "🛑"
+            elif pnl > 0:
+                status_icon = "📈"
+            else:
+                status_icon = "📉"
+
+        dir_icon = "🔼" if direction == "LONG" else "🔽"
+        current_str = f"${current:,.2f}" if current else "N/A"
+        lines.append(
+            f"{status_icon} <b>${asset}</b> {dir_icon}{direction} | "
+            f"進場 <code>${entry:,.2f}</code> → 現價 <code>{current_str}</code> | "
+            f"<b>{pnl_str}</b>"
+        )
+
+    return "\n".join(lines)
 
 
 def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -> str:

@@ -794,6 +794,167 @@ def ml_quant_tool() -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Market Regime Scorecard（可審計的 risk_on/off 評分工具）
+# ═══════════════════════════════════════════════════════════════════
+
+# 每個指標的閾值與對應評分（+1=risk_on, 0=neutral, -1=risk_off）
+_REGIME_RULES: dict[str, list[tuple]] = {
+    "VIX":        [("<20", +1, lambda v: v < 20), ("20–25", 0, lambda v: 20 <= v <= 25), (">25", -1, lambda v: v > 25)],
+    "ETF_flow_M": [(">200", +1, lambda v: v > 200), ("-200~200", 0, lambda v: -200 <= v <= 200), ("<-200", -1, lambda v: v < -200)],
+    "funding_%":  [("<0.03", +1, lambda v: v < 0.03), ("0.03–0.07", 0, lambda v: 0.03 <= v <= 0.07), (">0.07 or <-0.01", -1, lambda v: v > 0.07 or v < -0.01)],
+    "liq_24h_M":  [("<100", +1, lambda v: v < 100), ("100–300", 0, lambda v: 100 <= v <= 300), (">300", -1, lambda v: v > 300)],
+    "fear_greed": [(">55", +1, lambda v: v > 55), ("40–55", 0, lambda v: 40 <= v <= 55), ("<40", -1, lambda v: v < 40)],
+    "BTC_RSI":    [("45–65", +1, lambda v: 45 <= v <= 65), ("35–45 or 65–75", 0, lambda v: (35 <= v < 45) or (65 < v <= 75)), ("<35 or >75", -1, lambda v: v < 35 or v > 75)],
+}
+
+
+def _score_signal(key: str, value: float | None) -> tuple[int, str]:
+    """對單一指標評分，回傳 (score, label)。value=None 時評為 0（neutral）。"""
+    if value is None:
+        return 0, "N/A"
+    for label, score, check in _REGIME_RULES.get(key, []):
+        if check(value):
+            return score, f"{value:.2f}({label})"
+    return 0, f"{value:.2f}(out-of-range)"
+
+
+@tool("市場機制評分卡（可審計 risk_on/off）")
+def regime_scorecard_tool(query: str = "") -> str:
+    """
+    以 6 個量化指標計算市場機制評分卡，輸出可審計的 risk_on/neutral/risk_off 判定。
+    指標：VIX、BTC ETF 資金流（M$）、資金費率(%)、24h 爆倉量(M$)、恐懼貪婪指數、BTC RSI(14)。
+    每項 +1=risk_on, 0=neutral, -1=risk_off；總分 ≥3 → risk_on，≤-3 → risk_off，其餘 → neutral。
+    """
+    cache_key = ("regime_scorecard", "latest")
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    import yfinance as yf  # noqa: PLC0415
+
+    # ── 1. 抓取各指標數值 ──────────────────────────────────────────────
+    values: dict[str, float | None] = {
+        "VIX": None, "ETF_flow_M": None, "funding_%": None,
+        "liq_24h_M": None, "fear_greed": None, "BTC_RSI": None,
+    }
+
+    # VIX
+    try:
+        df_vix = yf.download("^VIX", period="2d", interval="1d", progress=False, auto_adjust=True)
+        if df_vix is not None and not df_vix.empty:
+            close = df_vix["Close"].dropna()
+            if hasattr(close, "ndim") and close.ndim > 1:
+                close = close.iloc[:, 0]
+            values["VIX"] = float(close.iloc[-1]) if not close.empty else None
+    except Exception:
+        pass
+
+    # BTC RSI(14) via yfinance
+    try:
+        df_btc = yf.download("BTC-USD", period="30d", interval="1d", progress=False, auto_adjust=True)
+        if df_btc is not None and not df_btc.empty:
+            close = df_btc["Close"].dropna()
+            if hasattr(close, "ndim") and close.ndim > 1:
+                close = close.iloc[:, 0]
+            if len(close) >= 15:
+                delta = close.diff().dropna()
+                gain = delta.where(delta > 0, 0.0).rolling(14).mean()
+                loss = (-delta.where(delta < 0, 0.0)).rolling(14).mean()
+                rs = gain.iloc[-1] / loss.iloc[-1] if loss.iloc[-1] != 0 else 100
+                values["BTC_RSI"] = round(float(100 - (100 / (1 + rs))), 1)
+    except Exception:
+        pass
+
+    # Fear & Greed
+    try:
+        resp = requests.get("https://api.alternative.me/fng/?limit=1&format=json", timeout=8)
+        data = resp.json().get("data", [{}])
+        if data:
+            values["fear_greed"] = float(data[0].get("value", 0))
+    except Exception:
+        pass
+
+    # CoinGlass fallback：從 Binance 抓資金費率
+    try:
+        resp = requests.get(
+            "https://fapi.binance.com/fapi/v1/fundingRate",
+            params={"symbol": "BTCUSDT", "limit": 1},
+            timeout=8,
+        )
+        items = resp.json()
+        if items:
+            values["funding_%"] = float(items[-1].get("fundingRate", 0)) * 100
+    except Exception:
+        pass
+
+    # CoinGlass 爆倉數據（嘗試 CoinGlass API）
+    try:
+        cg_key = os.getenv("COINGLASS_API_KEY", "")
+        if cg_key:
+            resp = requests.get(
+                "https://open-api.coinglass.com/public/v2/liquidation_ex",
+                headers={"coinglassSecret": cg_key},
+                params={"ex": "Binance", "pair": "BTCUSDT", "interval": "1d"},
+                timeout=10,
+            )
+            liq_data = resp.json().get("data", {})
+            if liq_data:
+                long_liq = float(liq_data.get("longLiquidationUsd", 0))
+                short_liq = float(liq_data.get("shortLiquidationUsd", 0))
+                values["liq_24h_M"] = (long_liq + short_liq) / 1e6
+    except Exception:
+        pass
+
+    # ETF 流量從 BigQuery daily_metrics 最近一筆
+    try:
+        bq = _get_bq_client()
+        from config import METRICS_TABLE  # noqa: PLC0415
+        rows = list(bq.query(
+            f"SELECT etf_flow_millions FROM `{METRICS_TABLE}` "
+            "ORDER BY timestamp DESC LIMIT 1"
+        ).result())
+        if rows and rows[0]["etf_flow_millions"] is not None:
+            values["ETF_flow_M"] = float(rows[0]["etf_flow_millions"])
+    except Exception:
+        pass
+
+    # ── 2. 計算評分 ────────────────────────────────────────────────────
+    scores: dict[str, tuple[int, str]] = {}
+    total = 0
+    for key in _REGIME_RULES:
+        s, label = _score_signal(key, values[key])
+        scores[key] = (s, label)
+        total += s
+
+    if total >= 3:
+        regime = "risk_on"
+        regime_emoji = "🟢"
+    elif total <= -3:
+        regime = "risk_off"
+        regime_emoji = "🔴"
+    else:
+        regime = "neutral"
+        regime_emoji = "🟡"
+
+    # ── 3. 格式化評分卡 ────────────────────────────────────────────────
+    sign = f"+{total}" if total > 0 else str(total)
+    header = f"{regime_emoji} 市場機制評分：<b>{regime}</b>（{sign}/6）"
+
+    score_arrow = {+1: "✅", 0: "⬜", -1: "❌"}
+    detail_lines = []
+    label_map = {
+        "VIX": "VIX", "ETF_flow_M": "ETF流", "funding_%": "資金費率",
+        "liq_24h_M": "24h爆倉", "fear_greed": "恐懼貪婪", "BTC_RSI": "BTC RSI",
+    }
+    for key, (s, lbl) in scores.items():
+        detail_lines.append(f"{score_arrow[s]} {label_map[key]} <code>{lbl}</code>→{s:+d}")
+
+    scorecard = header + "\n" + " | ".join(detail_lines)
+    _set_cache(cache_key, scorecard)
+    return scorecard
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Fear & Greed Index（Alternative.me 免費 API）
 # ═══════════════════════════════════════════════════════════════════
 
@@ -1438,6 +1599,125 @@ def sentiment_score_tool(news_and_tweets: str) -> str:
     except Exception as e:
         logger.warning("Sentiment score tool failed: %s", e)
         return f"[DATA_MISSING:sentiment_score] 情緒評分失敗：{e}"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Macro Context Tool（美債利率、殖利率曲線、Fed 期貨、本週財報）
+# ═══════════════════════════════════════════════════════════════════
+
+# 固定追蹤的大型科技/AI 相關財報標的
+_EARNINGS_WATCHLIST = ["NVDA", "AMD", "MSFT", "GOOGL", "AAPL", "META", "AMZN", "TSM", "AVGO", "ARM"]
+
+
+@tool("宏觀框架（利率、殖利率曲線、Fed 預期、財報）")
+def macro_context_tool(query: str = "") -> str:
+    """
+    取得宏觀投資框架數據：美債 10Y/2Y 殖利率、殖利率曲線利差、Fed SOFR 期貨隱含升降息預期、本週重要科技財報。
+    數據來源：yfinance（^TNX, ^IRX, ZQ=F）。
+    """
+    cache_key = ("macro_context", "latest")
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    import yfinance as yf  # noqa: PLC0415
+
+    lines: list[str] = ["【宏觀框架】"]
+
+    # ── 1. 美債殖利率 ──────────────────────────────────────────────────
+    yield_10y: float | None = None
+    yield_2y: float | None = None
+    try:
+        df10 = yf.download("^TNX", period="3d", interval="1d", progress=False, auto_adjust=True)
+        if df10 is not None and not df10.empty:
+            c = df10["Close"].dropna()
+            if hasattr(c, "ndim") and c.ndim > 1:
+                c = c.iloc[:, 0]
+            if not c.empty:
+                yield_10y = round(float(c.iloc[-1]), 3)
+    except Exception:
+        pass
+
+    try:
+        df2 = yf.download("^IRX", period="3d", interval="1d", progress=False, auto_adjust=True)
+        if df2 is not None and not df2.empty:
+            c = df2["Close"].dropna()
+            if hasattr(c, "ndim") and c.ndim > 1:
+                c = c.iloc[:, 0]
+            if not c.empty:
+                # ^IRX 報的是年化 %，需除以 10 換成實際殖利率（百分比顯示）
+                yield_2y = round(float(c.iloc[-1]) / 10, 3)
+    except Exception:
+        pass
+
+    y10_str = f"{yield_10y:.3f}%" if yield_10y is not None else "N/A"
+    y2_str = f"{yield_2y:.3f}%" if yield_2y is not None else "N/A"
+    if yield_10y is not None and yield_2y is not None:
+        spread_bp = round((yield_10y - yield_2y) * 100, 1)
+        spread_str = f"{spread_bp:+.1f}bp"
+        curve_signal = "利率倒掛（衰退預警）⚠️" if spread_bp < 0 else "正斜率（正常）"
+    else:
+        spread_str = "N/A"
+        curve_signal = ""
+
+    lines.append(f"🏛️ 美債 10Y: <code>{y10_str}</code> | 2Y: <code>{y2_str}</code> | 利差: <code>{spread_str}</code> {curve_signal}")
+
+    # ── 2. Fed SOFR 期貨隱含預期 ─────────────────────────────────────
+    try:
+        df_fed = yf.download("ZQ=F", period="3d", interval="1d", progress=False, auto_adjust=True)
+        if df_fed is not None and not df_fed.empty:
+            c = df_fed["Close"].dropna()
+            if hasattr(c, "ndim") and c.ndim > 1:
+                c = c.iloc[:, 0]
+            if not c.empty:
+                implied_rate = round(100 - float(c.iloc[-1]), 3)
+                lines.append(f"🎯 Fed SOFR 期貨隱含利率: <code>{implied_rate:.3f}%</code>")
+    except Exception:
+        lines.append("🎯 Fed SOFR 期貨: <code>N/A</code>")
+
+    # ── 3. 本週重要財報（使用 yfinance 查詢財報日期）─────────────────
+    from datetime import datetime, timedelta  # noqa: PLC0415
+    today = datetime.utcnow().date()
+    week_end = today + timedelta(days=7)
+    upcoming_earnings: list[str] = []
+
+    for ticker_sym in _EARNINGS_WATCHLIST:
+        try:
+            t = yf.Ticker(ticker_sym)
+            cal = t.calendar
+            if cal is None:
+                continue
+            # yfinance calendar 回傳格式多種，嘗試 'Earnings Date' 欄位
+            if hasattr(cal, "get"):
+                ed = cal.get("Earnings Date")
+            elif hasattr(cal, "iloc"):
+                # DataFrame 格式
+                ed = cal.iloc[0].get("Earnings Date") if not cal.empty else None
+            else:
+                ed = None
+            if ed is None:
+                continue
+            # 可能是 list 或單一值
+            dates = ed if isinstance(ed, list) else [ed]
+            for d in dates:
+                try:
+                    ed_date = d.date() if hasattr(d, "date") else None
+                    if ed_date and today <= ed_date <= week_end:
+                        upcoming_earnings.append(f"{ticker_sym}({ed_date.strftime('%m/%d')})")
+                        break
+                except Exception:
+                    pass
+        except Exception:
+            continue
+
+    if upcoming_earnings:
+        lines.append(f"📅 本週財報: <code>{' · '.join(upcoming_earnings)}</code>")
+    else:
+        lines.append("📅 本週財報: <code>本週無主要科技財報</code>")
+
+    result = "\n".join(lines)
+    _set_cache(cache_key, result)
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════
