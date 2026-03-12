@@ -10,10 +10,10 @@
 
 | Agent（`crew.py` role） | 模型識別碼 | 職責 | 工具 |
 |------------------------|-----------|------|------|
-| 🛸 加密市場情報研究員 | `xai/grok-4-1-fast-reasoning` | 幣圈新聞（3 則）、X 推文（5 則）、宏觀 M2/DXY、鏈上 MVRV、衍生品（資金費率／清算／多空比）、CryptoPanic 快訊、傳聞掃描、VIX/ETF 代理 | `market_search_tool`, `x_search_tool`, `macro_liquidity_tool`, `mvrv_tool`, `coinglass_data_tool`, `rumor_scanner_tool`, `cryptopanic_tool`, `yfinance_macro_tool` |
-| 🤖 前沿 AI 市場研究員 | `openai/gpt-5.3-chat-latest` | AI 基建現況／投資案／最新模型各 3 則新聞、MCP/Agent 推文（5 則）、OpenRouter 熱度排名 | `market_search_tool`, `x_search_tool`, `ai_momentum_tool`, `rumor_scanner_tool` |
-| 🛡️ 首席跨域辯論員 | `openrouter/anthropic/claude-sonnet-4.6` | 每則新聞與推文的反向辯論、VIX/IBIT 傳統金融風險審計、market_regime 判定 | `yfinance_tool` |
-| 💎 機構策略主編 | `gemini/gemini-3.1-pro-preview` | 整合所有 Agent 研究成果、輸出主編共識、排版雙市場戰報、Telegram HTML 定稿 | `coinglass_data_tool`, `cryptoquant_tool`, `ml_quant_tool` |
+| 🛸 加密市場情報研究員 | `xai/grok-4-1-fast-reasoning` | 幣圈新聞（3 則）、X 推文（5 則）、宏觀/鏈上/衍生品彙整 | `market_search_tool`, `newsapi_tool`, `gnews_tool`, `rss_feed_tool`, `x_search_tool`, `coinglass_data_tool`, `onchain_metrics_tool`, `fear_greed_tool`, `etf_flow_tool`, `econ_calendar_tool`, `sentiment_score_tool` |
+| 🤖 前沿 AI 市場研究員 | `openai/gpt-5.2-2025-12-11` | AI 產業新聞、MCP/Agent 推文、模型熱度與風險敘事 | `market_search_tool`, `newsapi_tool`, `gnews_tool`, `rss_feed_tool`, `x_search_tool`, `ai_momentum_tool`, `rumor_scanner_tool` |
+| 🛡️ 首席幣圈風險審計員 | `openai/gpt-5.2-2025-12-11` | 反向辯論、regime scorecard、宏觀風險審計 | `regime_scorecard_tool`, `macro_context_tool` |
+| 💎 機構策略主編 | `openai/gpt-5.2-2025-12-11` | 整合研究成果、排版雙市場戰報、風控欄位與 QSREC 載荷定稿 | `coinglass_data_tool`, `ml_quant_tool`, `multi_timeframe_tool` |
 
 設計原則：**背景充分辯論，報告只呈現乾淨共識與即時數據**。戰報中不顯示 Grok/GPT/Claude 個別觀點，僅保留每則新聞與推文下的 **💎 主編共識**。
 
@@ -21,7 +21,8 @@
 
 | 來源 | 用途 |
 |------|------|
-| Tavily | 即時新聞、OpenRouter 模型熱度排名、傳聞掃描 |
+| NewsAPI / GNews / RSS / Apify | 新聞多來源 fallback（含重試、查詢降級、健康分數排序） |
+| Tavily | 傳聞掃描與補充搜尋 |
 | X API | 社群推文與敘事熱度 |
 | CoinGlass | 未平倉、資金費率、清算、多空比 |
 | CryptoQuant | 交易所淨流入/流出、MVRV Z-Score（若訂閱支援） |
@@ -40,6 +41,10 @@
 - **驗證與重試**：`validate_report()` 檢查新聞/推文數量、market_regime、儀表板關鍵字；不合格則重試（預設最多 3 次）。
 - **503 退避**：偵測 503/Unavailable 時指數退避重試（可配置次數與基數）。
 - **LLM**：各模型 `max_retries` 3～5、`timeout` 120～180 秒。
+- **來源健康分數**：`market_search_tool` 會根據 `newsapi/gnews/apify` 近期成功率動態排序來源，並採 7 天半衰期避免舊資料長期主導。
+- **來源可觀測欄位**：戰報固定輸出 `SourceHealth`、`SourceErrors`、`SourceQuota`，便於監控資料品質與成本。
+- **持久化策略**：來源健康狀態同時寫入本地 `.source_health.json` 與 BigQuery（可關閉）。
+- **成本保護**：依健康分數動態收斂每日來源配額，並限制 Apify 使用量避免過度消耗付費額度。
 
 ---
 
@@ -111,6 +116,10 @@
 | `MAX_REPORT_RETRIES` | 驗證失敗後重試次數（預設 2） |
 | `MAX_503_RETRIES` | 503 退避重試次數（預設 3） |
 | `BACKOFF_BASE_SEC` | 退避基數秒數（預設 30） |
+| `NEWSAPI_DAILY_CALL_LIMIT` | NewsAPI 每日呼叫上限（預設 120） |
+| `GNEWS_DAILY_CALL_LIMIT` | GNews 每日呼叫上限（預設 120） |
+| `APIFY_DAILY_CALL_LIMIT` | Apify 每日呼叫上限（預設 30） |
+| `DISABLE_SOURCE_HEALTH_BQ` | `1` 時停用來源健康分數 BigQuery 同步（僅用本地檔） |
 
 ### GCP（部署 / BigQuery）
 
