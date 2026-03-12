@@ -34,7 +34,36 @@ _TELEGRAM_FMT = dedent("""\
     禁止 Markdown 與其他 HTML；大區塊前加分隔線 ────────────
     儀表板每項獨立一行且數值包 <code>；摘要用 <blockquote>；缺資料寫 <code>N/A</code>""")
 
-_EDITOR_RULE = "【主編共識】每則新聞給 1 句最終操作判斷，必須點名具體標的。"
+_FINAL_TEMPLATE = dedent("""\
+    === 【最高排版指令】最終輸出必須 100% 模仿以下結構，嚴禁添加任何自創欄位，嚴禁印出除錯文字！ ===
+    <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief</i>
+    ────────────
+    【今日市場模式】neutral
+    ══════ <b>📊 加密市場</b> ══════
+    區塊①【數據儀表板】：
+    · <b>DXY</b> <code>104.5</code>
+    · <b>VIX</b> <code>24.44</code>
+    · <b>IBIT</b> <code>$40.12</code>
+    ...(中間區塊照常輸出)...
+    區塊④【精準操作】：
+    · <b>$BTC (LONG)</b>｜現價：$70578｜信心水準：⭐️⭐️
+    · 進場：<code>$69800</code>｜目標：<code>$72800 (+4.3%)</code>｜停損：<code>$67800 (-2.8%)</code>
+    · 敘事邏輯：多時框狀態 D(中性)/4H(中性)/1H(多)，資金費率轉負支持反彈...
+    [QSREC_START]
+    [
+      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 2, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)..."}
+    ]
+    [QSREC_END]
+    """)
+
+_EDITOR_RULE = dedent("""\
+    【主編共識與排版紅線】
+    1. 【極致洗鍊】投資解讀必須精簡，展現華爾街頂級投行主編的俐落。
+    2. 【黑名單封殺】你的輸出【絕對禁止】包含以下字眼或結構：
+       - 禁止印出「低置信度」、「資料缺失原因」、「替代指標」等系統除錯文字。若無資料直接寫 N/A。
+       - 禁止印出「(嚴格要求...)」或「[IMPACT...]」等標籤。
+       - 禁止自創「風控：R:R」或「最大回撤風險」等欄位，交易操作只需列出進場、目標、停損與敘事邏輯。
+    """)
 _DATA_RULES = dedent("""\
     【新鮮度】新聞必須在 48h 內；超時跳過重搜。
     【嚴禁播報系統錯誤】若任何 Tool 回傳 `[DATA_MISSING...]`、`失敗` 或 `API 未設定`，絕對禁止將這些錯誤訊息寫成新聞！請直接忽略該工具的輸出。若無足夠真實新聞，寧可減少新聞數量，也絕不允許播報系統日誌！""")
@@ -216,6 +245,7 @@ class CryptoResearchCrew:
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
                 {_TRADE_RULE}
 
+                {_FINAL_TEMPLATE}
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
                 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
                 ────────────
@@ -233,7 +263,7 @@ class CryptoResearchCrew:
 
                 {_TRADE_JSON_RULE}
             """),
-            expected_output="包含 HTML 戰報與結尾 JSON 陣列的完整字串。結尾必定包含 [QSREC_START] 與 [QSREC_END]。",
+            expected_output="一份純淨的 HTML 戰報。報告的最末端必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 陣列。若遺漏 JSON，你的任務將被判定為徹底失敗！",
             agent=self.quant_strategist,
             context=[crypto_task, review_task],
         )
@@ -344,6 +374,7 @@ class AIResearchCrew:
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
                 {_TRADE_RULE}
 
+                {_FINAL_TEMPLATE}
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
 
                 ══════ <b>🤖 AI 市場</b> ══════
@@ -357,7 +388,7 @@ class AIResearchCrew:
 
                 {_TRADE_JSON_RULE}
             """),
-            expected_output="包含 HTML 戰報與結尾 JSON 陣列的完整字串。結尾必定包含 [QSREC_START] 與 [QSREC_END]。",
+            expected_output="一份純淨的 HTML 戰報。報告的最末端必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 陣列。若遺漏 JSON，你的任務將被判定為徹底失敗！",
             agent=self.quant_strategist,
             context=[ai_task, review_task],
         )
