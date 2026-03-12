@@ -16,7 +16,10 @@
 - **Run Tests**: No automated test suite. Validation is done via `validate_report()` in `main.py`. For lint only: `ruff check .`
 - **Build**: No traditional build step. For container: `docker build -f Dockerfile .` (see `Dockerfile` / `docker-compose.yml`). Main pipeline run: `python main.py` (requires LLM + data API keys; takes ~15–30+ minutes).
 
-## 4. Coding Conventions
+## 4. Bug Reporting & Fixing Workflow
+- **Test-First Bug Fixes**: When a bug is reported, do NOT start by trying to fix it. Instead, first write a test that reproduces the bug. Then, have subagents try to fix the bug and prove it with a passing test.
+
+## 5. Coding Conventions
 - **Style**: Follow standard Ruff guidelines (`ruff check .`). Prefer clean, readable, maintainable code; resolve or document any existing warnings (e.g. unused variables, import order).
 - **Naming**: Use `snake_case` for functions and variables; `PascalCase` for classes (e.g. `CryptoResearchCrew`, `AIResearchCrew`); `UPPER_SNAKE_CASE` for module-level constants; leading underscore for module-private names (e.g. `_get_cache`, `_CACHE`, `_is_retriable`).
 - **Error Handling**: Implement robust error handling. Do not swallow exceptions; log them with `logging` (e.g. `logger.warning`, `logger.error`). Use retries and backoff for transient failures (503, 429, rate limits); return clear `[DATA_MISSING:...]`-style messages from tools when APIs fail.
