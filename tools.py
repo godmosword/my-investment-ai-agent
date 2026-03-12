@@ -204,36 +204,116 @@ _RSS_FEEDS: dict[str, list[str]] = {
 }
 
 
+def _build_query_candidates(query: str, min_words: int = 4) -> list[str]:
+    """
+    建立查詢降級候選：
+    1) 原始 query
+    2) 去除日期/符號後的精簡 query
+    3) 更短 query（避免部分 API 400）
+    """
+    q = (query or "").strip()
+    if not q:
+        return [""]
+
+    cleaned = re.sub(r"\b\d{4}-\d{2}\b", " ", q)  # 移除 2026-03 類月份 token
+    cleaned = re.sub(r"[^\w\s:/.-]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    words = cleaned.split()
+
+    cands = [q]
+    if words:
+        cands.append(" ".join(words[:8]))
+        if len(words) >= min_words:
+            cands.append(" ".join(words[:min_words]))
+
+    # 去重且保序
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for c in cands:
+        if c and c not in seen:
+            seen.add(c)
+            uniq.append(c)
+    return uniq or [q]
+
+
+def _get_with_retry(url: str, *, params: dict, headers: dict | None = None, timeout: int = 10,
+                    retries: int = 2, base_sleep: float = 1.2) -> requests.Response:
+    """針對 429/5xx 做指數退避重試，其他錯誤直接拋出。"""
+    last_err: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            resp = requests.get(url, params=params, headers=headers, timeout=timeout)
+            if resp.status_code in (429, 500, 502, 503, 504) and attempt < retries:
+                time.sleep(base_sleep * (2 ** attempt))
+                continue
+            resp.raise_for_status()
+            return resp
+        except requests.HTTPError as e:
+            last_err = e
+            status = e.response.status_code if e.response is not None else None
+            # 非重試型錯誤（例如 400）交由呼叫端決定是否降級 query
+            if status not in (429, 500, 502, 503, 504):
+                raise
+            if attempt < retries:
+                time.sleep(base_sleep * (2 ** attempt))
+            else:
+                raise
+        except Exception as e:
+            last_err = e
+            if attempt < retries:
+                time.sleep(base_sleep * (2 ** attempt))
+            else:
+                raise
+    if last_err:
+        raise last_err
+    raise RuntimeError("unexpected retry state")
+
+
 def _newsapi_fetch(query: str) -> str:
     """NewsAPI 主流財經新聞（48h）。無 key 或無結果回傳 [DATA_MISSING:newsapi]。"""
     key = os.getenv("NEWSAPI_KEY", "")
     if not key:
         return "[DATA_MISSING:newsapi] NEWSAPI_KEY 未設定"
     from_dt = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    params = {
-        "q": query,
+    base_params = {
         "sources": "bloomberg,reuters,cnbc,the-wall-street-journal,financial-times",
         "sortBy": "publishedAt",
         "pageSize": 5,
         "from": from_dt,
         "apiKey": key,
     }
-    try:
-        r = requests.get("https://newsapi.org/v2/everything", params=params, timeout=10)
-        r.raise_for_status()
-        articles = r.json().get("articles", [])
-        if not articles:
-            return "[DATA_MISSING:newsapi] 無符合條件的新聞"
-        lines = [f"【NewsAPI｜{query}】"]
-        for a in articles:
-            lines.append(
-                f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
-                f"{a.get('title', '')}\n{a.get('url', '')}"
-            )
-        return "\n".join(lines)
-    except Exception as e:
-        logger.warning("_newsapi_fetch error: %s", e)
-        return f"[DATA_MISSING:newsapi] {e}"
+    last_err: Exception | None = None
+    for cand in _build_query_candidates(query):
+        params = dict(base_params)
+        params["q"] = cand
+        try:
+            r = _get_with_retry("https://newsapi.org/v2/everything", params=params, timeout=10, retries=2)
+            articles = r.json().get("articles", [])
+            if not articles:
+                continue
+            lines = [f"【NewsAPI｜{cand}】"]
+            for a in articles:
+                lines.append(
+                    f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
+                    f"{a.get('title', '')}\n{a.get('url', '')}"
+                )
+            return "\n".join(lines)
+        except requests.HTTPError as e:
+            last_err = e
+            status = e.response.status_code if e.response is not None else None
+            # 400 時嘗試更短 query；429/5xx 已由 _get_with_retry 內重試
+            if status == 400:
+                logger.warning("_newsapi_fetch 400 with query=%r, trying degraded query", cand)
+                continue
+            logger.warning("_newsapi_fetch http error (query=%r): %s", cand, e)
+            continue
+        except Exception as e:
+            last_err = e
+            logger.warning("_newsapi_fetch error (query=%r): %s", cand, e)
+            continue
+    if last_err:
+        return f"[DATA_MISSING:newsapi] {last_err}"
+    return "[DATA_MISSING:newsapi] 無符合條件的新聞"
 
 
 def _gnews_fetch(query: str) -> str:
@@ -242,23 +322,41 @@ def _gnews_fetch(query: str) -> str:
     if not key:
         return "[DATA_MISSING:gnews] GNEWS_API_KEY 未設定"
     from_dt = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    params = {"q": query, "lang": "en", "max": 5, "from": from_dt, "token": key}
-    try:
-        r = requests.get("https://gnews.io/api/v4/search", params=params, timeout=10)
-        r.raise_for_status()
-        articles = r.json().get("articles", [])
-        if not articles:
-            return "[DATA_MISSING:gnews] 無符合條件的新聞"
-        lines = [f"【GNews｜{query}】"]
-        for a in articles:
-            lines.append(
-                f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
-                f"{a.get('title', '')}\n{a.get('url', '')}"
-            )
-        return "\n".join(lines)
-    except Exception as e:
-        logger.warning("_gnews_fetch error: %s", e)
-        return f"[DATA_MISSING:gnews] {e}"
+    base_params = {"lang": "en", "max": 5, "from": from_dt, "token": key}
+    last_err: Exception | None = None
+    for i, cand in enumerate(_build_query_candidates(query)):
+        params = dict(base_params)
+        params["q"] = cand
+        # 降級查詢時再降 max，降低 GNews 400 機率
+        if i > 0:
+            params["max"] = 3
+        try:
+            r = _get_with_retry("https://gnews.io/api/v4/search", params=params, timeout=10, retries=2)
+            articles = r.json().get("articles", [])
+            if not articles:
+                continue
+            lines = [f"【GNews｜{cand}】"]
+            for a in articles:
+                lines.append(
+                    f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
+                    f"{a.get('title', '')}\n{a.get('url', '')}"
+                )
+            return "\n".join(lines)
+        except requests.HTTPError as e:
+            last_err = e
+            status = e.response.status_code if e.response is not None else None
+            if status == 400:
+                logger.warning("_gnews_fetch 400 with query=%r, trying degraded query", cand)
+                continue
+            logger.warning("_gnews_fetch http error (query=%r): %s", cand, e)
+            continue
+        except Exception as e:
+            last_err = e
+            logger.warning("_gnews_fetch error (query=%r): %s", cand, e)
+            continue
+    if last_err:
+        return f"[DATA_MISSING:gnews] {last_err}"
+    return "[DATA_MISSING:gnews] 無符合條件的新聞"
 
 
 def _rss_fetch(category: str = "crypto") -> str:
