@@ -42,21 +42,22 @@ _CRYPTO_ASSETS = {
 
 # 各資產合理進場價格範圍（用於防止 LLM 輸出單位錯誤的資料）
 # 例如：BTC/SOL 比值 ($815) 被誤記為 BTC USD 進場價
+# 上限設為現價約 3–5 倍以容納黑天鵝牛市行情，每季複審一次
 _PRICE_SANITY_RANGES: dict[str, tuple[float, float]] = {
-    "BTC":  (10_000, 300_000),
-    "ETH":  (500,    15_000),
-    "SOL":  (10,     1_000),
-    "BNB":  (100,    2_000),
+    "BTC":  (10_000, 500_000),
+    "ETH":  (500,    20_000),
+    "SOL":  (10,     2_000),
+    "BNB":  (100,    5_000),
     "XRP":  (0.1,    50),
     "AVAX": (5,      500),
     "DOGE": (0.01,   5),
-    "NVDA": (50,     2_000),
-    "MSFT": (100,    600),
-    "AAPL": (100,    400),
-    "TSLA": (100,    2_000),
-    "GOOGL": (80,    300),
-    "AMZN": (100,    300),
-    "META": (100,    800),
+    "NVDA": (50,     5_000),
+    "MSFT": (100,    1_000),
+    "AAPL": (100,    600),
+    "TSLA": (100,    3_000),
+    "GOOGL": (80,    500),
+    "AMZN": (100,    500),
+    "META": (100,    2_000),
 }
 
 # 依市場模式限制單筆建議倉位（%）
@@ -515,25 +516,24 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
                 hit_target = current <= target
                 hit_stop = current >= stop
 
-            # 防護：超過 ±1000% 視為資料異常（例如比值單位被當成 USD）
+            # 防護：超過 ±1000% 視為資料異常（例如比值單位被當成 USD），直接跳過不顯示
             if abs(pnl) > 1000:
                 logger.warning(
                     "Skipping %s %s from tracking: P&L %+.1f%% exceeds sanity threshold "
                     "(entry=$%s current=$%s — likely unit/data error)",
                     asset, direction, pnl, entry, current,
                 )
-                pnl_str = "[資料異常]"
-                status_icon = "⚠️"
+                continue
+
+            pnl_str = f"{pnl:+.1f}%"
+            if hit_target:
+                status_icon = "✅"
+            elif hit_stop:
+                status_icon = "🛑"
+            elif pnl > 0:
+                status_icon = "📈"
             else:
-                pnl_str = f"{pnl:+.1f}%"
-                if hit_target:
-                    status_icon = "✅"
-                elif hit_stop:
-                    status_icon = "🛑"
-                elif pnl > 0:
-                    status_icon = "📈"
-                else:
-                    status_icon = "📉"
+                status_icon = "📉"
 
         dir_icon = "🔼" if direction == "LONG" else "🔽"
         current_str = f"${current:,.2f}" if current else "N/A"
