@@ -96,18 +96,54 @@ def _search_with_apify(query: str, max_items: int = 8) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# AI Momentum Analyzer（OpenRouter 模型熱度排名）
+# AI Momentum Analyzer（AI 模型熱度排名：HuggingFace → OpenRouter → Apify）
 # ═══════════════════════════════════════════════════════════════════
 
 @tool
 def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
-    """取得 OpenRouter 模型熱度排名（直接呼叫 OpenRouter API，備援 Apify 搜尋）。"""
+    """
+    取得 AI 模型熱度排名。
+    策略 A：HuggingFace 官方 API（免費，按下載量排名的 text-generation 模型）。
+    策略 B：OpenRouter API（按 API 回傳順序，反映支援模型清單）。
+    策略 C：Apify 搜尋備援。
+    注意：OpenRouter 無官方「熱度排名」端點，HuggingFace 更具可信度。
+    """
     cache_key = ("ai_momentum", "openrouter_rankings")
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
-    # ── 策略 A：OpenRouter 官方 API（直接取得模型列表）──
+    # ── 策略 A：HuggingFace 官方 API（免費，有真實下載量排名）──
+    try:
+        resp = requests.get(
+            "https://huggingface.co/api/models",
+            params={
+                "sort": "downloads",
+                "direction": -1,
+                "limit": 5,
+                "filter": "text-generation",
+            },
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            models = resp.json()
+            if models and isinstance(models, list):
+                lines: list[str] = []
+                for i, m in enumerate(models[:5], 1):
+                    name = m.get("modelId") or m.get("id") or "unknown"
+                    downloads = m.get("downloads") or 0
+                    likes = m.get("likes") or 0
+                    lines.append(
+                        f"Top{i}: {name}"
+                        f"（下載 {int(downloads):,}｜按讚 {int(likes):,}）"
+                    )
+                result = "【HuggingFace AI 模型熱度 Top5（按下載量）】\n" + "\n".join(lines)
+                _set_cache(cache_key, result)
+                return result
+    except Exception as e:
+        logger.warning("HuggingFace API failed: %s", e)
+
+    # ── 策略 B：OpenRouter 官方 API（模型清單，非排名）──
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if openrouter_key:
         try:
@@ -119,7 +155,7 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
             if resp.status_code == 200:
                 models = resp.json().get("data", [])
                 if models:
-                    lines: list[str] = []
+                    lines = []
                     for i, m in enumerate(models[:5], 1):
                         name = m.get("name") or m.get("id") or "unknown"
                         ctx = m.get("context_length") or 0
@@ -129,16 +165,16 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
                             f"Top{i}: {name}"
                             f"（上下文 {int(ctx):,} tokens｜提示 ${prompt_price}/token）"
                         )
-                    result = "【OpenRouter 熱門模型 Top5（API 順序）】\n" + "\n".join(lines)
+                    result = "【OpenRouter 支援模型 Top5（API 順序，非熱度排名）】\n" + "\n".join(lines)
                     _set_cache(cache_key, result)
                     return result
         except Exception as e:
             logger.warning("OpenRouter API failed: %s", e)
 
-    # ── 策略 B：Apify 搜尋備援 ──
+    # ── 策略 C：Apify 搜尋備援 ──
     query = (
-        f"OpenRouter top model rankings most popular AI models usage "
-        f"site:openrouter.ai OR site:artificialanalysis.ai {datetime.now().strftime('%Y-%m')}"
+        f"most popular AI models usage rankings downloads "
+        f"site:huggingface.co OR site:artificialanalysis.ai {datetime.now().strftime('%Y-%m')}"
     )
     try:
         result = _search_with_apify(query, max_items=5)
@@ -1015,6 +1051,62 @@ _ETF_FUND_NAMES: dict[str, str] = {
 }
 
 
+def _yfinance_etf_flow_estimate() -> str | None:
+    """
+    免費備援：用 yfinance 下載 BTC Spot ETF 的近 5 日成交量與價格，
+    以「成交量方向 × 價格方向」啟發式推估資金流向趨勢。
+    無法取得精確淨流入金額，但可提供 IBIT/FBTC/GBTC 等主要 ETF 的方向性訊號。
+    """
+    import yfinance as yf  # noqa: PLC0415
+
+    etfs = list(_ETF_FUND_NAMES.keys())  # IBIT, FBTC, GBTC, ARKB, BITB, BTCO, HODL, BRRR, EZBC, BTCW
+    lines: list[str] = []
+    available = 0
+
+    for ticker in etfs:
+        try:
+            df = yf.download(ticker, period="7d", interval="1d", progress=False, auto_adjust=True)
+            if df is None or df.empty or len(df) < 2:
+                continue
+            close = df["Close"].dropna()
+            vol = df["Volume"].dropna()
+            if hasattr(close, "ndim") and close.ndim > 1:
+                close = close.iloc[:, 0]
+            if hasattr(vol, "ndim") and vol.ndim > 1:
+                vol = vol.iloc[:, 0]
+            if len(close) < 2 or len(vol) < 2:
+                continue
+
+            price_chg = (float(close.iloc[-1]) - float(close.iloc[-2])) / float(close.iloc[-2]) * 100
+            vol_today = float(vol.iloc[-1])
+            vol_avg = float(vol.iloc[-5:].mean()) if len(vol) >= 5 else float(vol.mean())
+            vol_chg = (vol_today - vol_avg) / vol_avg * 100 if vol_avg > 0 else 0.0
+
+            # 啟發式：成交量 ↑ + 價格 ↑ → 流入；成交量 ↑ + 價格 ↓ → 流出
+            if vol_chg > 15 and price_chg > 0.5:
+                signal = "↑ 流入跡象"
+            elif vol_chg > 15 and price_chg < -0.5:
+                signal = "↓ 流出跡象"
+            else:
+                signal = "→ 成交平緩"
+
+            fund_name = _ETF_FUND_NAMES.get(ticker, ticker)
+            lines.append(
+                f"  · {fund_name}: {signal}"
+                f"（成交量 {vol_chg:+.0f}% vs 5日均，價格 {price_chg:+.2f}%）"
+            )
+            available += 1
+        except Exception:
+            continue
+
+    if available == 0:
+        return None
+
+    header = "【BTC Spot ETF 資金流向推估（yfinance 備援，成交量趨勢分析）】"
+    note = "⚠️ 注意：此為方向性推估，非精確淨流入金額；精確數據需 COINGLASS_API_KEY。"
+    return header + "\n" + "\n".join(lines) + "\n" + note
+
+
 def _coinglass_etf_flow() -> str | None:
     """CoinGlass v4 ETF list API → 分基金淨流入摘要（需 COINGLASS_API_KEY）。"""
     api_key = os.getenv("COINGLASS_API_KEY", "")
@@ -1127,27 +1219,32 @@ def etf_flow_tool() -> str:
         _set_cache(cache_key, result)
         return result
 
-    # 備援 2：Apify 搜尋（原始方案）
+    # 備援 2：Apify 搜尋
     query = (
         "Bitcoin spot ETF daily flow IBIT GBTC net inflow outflow millions "
         "site:farside.co.uk OR site:sosovalue.com OR site:theblock.co OR site:coinglass.com"
     )
     try:
         result = _search_with_apify(query, max_items=5)
-        if "[DATA_MISSING" in result:
-            return "[DATA_MISSING:etf_flow] 無法取得 BTC ETF 資金流數據。"
-        prefix = (
-            "【BTC Spot ETF 資金流（Apify 搜尋備援，請從中萃取最新一日淨流入）】\n"
-            "必須輸出：總淨流入金額、IBIT / FBTC / GBTC 等主要基金明細。\n"
-            "若無法確認具體數字，標注（數據待確認）。\n"
-        )
-        result = prefix + result
+        if "[DATA_MISSING" not in result:
+            prefix = (
+                "【BTC Spot ETF 資金流（Apify 搜尋備援，請從中萃取最新一日淨流入）】\n"
+                "必須輸出：總淨流入金額、IBIT / FBTC / GBTC 等主要基金明細。\n"
+                "若無法確認具體數字，標注（數據待確認）。\n"
+            )
+            result = prefix + result
+            _set_cache(cache_key, result)
+            return result
+    except Exception:
+        pass
+
+    # 備援 3：yfinance 成交量趨勢推估（無需 API Key）
+    result = _yfinance_etf_flow_estimate()
+    if result:
         _set_cache(cache_key, result)
         return result
-    except ValueError as e:
-        return f"[DATA_MISSING:etf_flow] ETF Flow Tool Failed：{e}"
-    except Exception:
-        return "[DATA_MISSING:etf_flow] ETF Flow Tool Failed：所有數據源均無回應。"
+
+    return "[DATA_MISSING:etf_flow] ETF Flow Tool Failed：所有數據源均無回應。"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1645,8 +1742,8 @@ def macro_context_tool(query: str = "") -> str:
             if hasattr(c, "ndim") and c.ndim > 1:
                 c = c.iloc[:, 0]
             if not c.empty:
-                # ^IRX 報的是年化 %，需除以 10 換成實際殖利率（百分比顯示）
-                yield_2y = round(float(c.iloc[-1]) / 10, 3)
+                # ^IRX 直接報年化 %（同 ^TNX），不需額外換算
+                yield_2y = round(float(c.iloc[-1]), 3)
     except Exception:
         pass
 

@@ -40,6 +40,25 @@ _CRYPTO_ASSETS = {
     "ARB", "OP", "SUI", "APT", "INJ", "TIA", "NEAR", "ATOM", "DOGE", "ADA",
 }
 
+# 各資產合理進場價格範圍（用於防止 LLM 輸出單位錯誤的資料）
+# 例如：BTC/SOL 比值 ($815) 被誤記為 BTC USD 進場價
+_PRICE_SANITY_RANGES: dict[str, tuple[float, float]] = {
+    "BTC":  (10_000, 300_000),
+    "ETH":  (500,    15_000),
+    "SOL":  (10,     1_000),
+    "BNB":  (100,    2_000),
+    "XRP":  (0.1,    50),
+    "AVAX": (5,      500),
+    "DOGE": (0.01,   5),
+    "NVDA": (50,     2_000),
+    "MSFT": (100,    600),
+    "AAPL": (100,    400),
+    "TSLA": (100,    2_000),
+    "GOOGL": (80,    300),
+    "AMZN": (100,    300),
+    "META": (100,    800),
+}
+
 # BigQuery trade_recommendations schema
 _SCHEMA = [
     bigquery.SchemaField("report_date",              "DATE"),
@@ -109,6 +128,16 @@ def _validate_rec(raw: dict, report_date: str) -> dict | None:
     except (KeyError, ValueError, TypeError) as e:
         logger.debug("Skipping rec for %s — missing price fields: %s", asset, e)
         return None
+
+    # 驗證進場價格是否在合理範圍內，防止 LLM 輸出單位錯誤（例如比值當 USD）
+    if asset in _PRICE_SANITY_RANGES:
+        lo, hi = _PRICE_SANITY_RANGES[asset]
+        if not (lo <= entry <= hi):
+            logger.warning(
+                "Skipping %s %s: entry $%s outside sanity range $%s–$%s (likely unit error)",
+                asset, direction, entry, lo, hi,
+            )
+            return None
 
     category = str(raw.get("category", "CRYPTO")).upper()
     if category not in ("CRYPTO", "EQUITY"):
@@ -383,15 +412,25 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
                 hit_target = current <= target
                 hit_stop = current >= stop
 
-            pnl_str = f"{pnl:+.1f}%"
-            if hit_target:
-                status_icon = "✅"
-            elif hit_stop:
-                status_icon = "🛑"
-            elif pnl > 0:
-                status_icon = "📈"
+            # 防護：超過 ±1000% 視為資料異常（例如比值單位被當成 USD）
+            if abs(pnl) > 1000:
+                logger.warning(
+                    "Skipping %s %s from tracking: P&L %+.1f%% exceeds sanity threshold "
+                    "(entry=$%s current=$%s — likely unit/data error)",
+                    asset, direction, pnl, entry, current,
+                )
+                pnl_str = "[資料異常]"
+                status_icon = "⚠️"
             else:
-                status_icon = "📉"
+                pnl_str = f"{pnl:+.1f}%"
+                if hit_target:
+                    status_icon = "✅"
+                elif hit_stop:
+                    status_icon = "🛑"
+                elif pnl > 0:
+                    status_icon = "📈"
+                else:
+                    status_icon = "📉"
 
         dir_icon = "🔼" if direction == "LONG" else "🔽"
         current_str = f"${current:,.2f}" if current else "N/A"
