@@ -1,5 +1,7 @@
 """圖表生成模組：3 Panel BTC 量化儀表板，供戰報 Telegram 發送使用。"""
+import inspect
 import logging
+import warnings
 from datetime import datetime
 
 import yfinance as yf
@@ -24,6 +26,53 @@ def _remove_spines(ax) -> None:
     ax.spines["right"].set_visible(False)
 
 
+def _ensure_showwarning_compat() -> None:
+    """
+    修復第三方覆寫 warnings.showwarning 的簽名不相容問題。
+    Python 新版可能傳入 skip_file_prefixes；舊簽名會噴 unexpected keyword。
+    """
+    show = warnings.showwarning
+    if getattr(show, "__qs_wrapped__", False):
+        return
+    try:
+        sig = inspect.signature(show)
+        has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+    except Exception:
+        has_kwargs = True
+
+    if has_kwargs:
+        return
+
+    def _wrapped(message, category, filename, lineno, file=None, line=None, **kwargs):
+        return show(message, category, filename, lineno, file=file, line=line)
+
+    _wrapped.__qs_wrapped__ = True  # type: ignore[attr-defined]
+    warnings.showwarning = _wrapped
+
+
+def _ensure_warn_compat() -> None:
+    """
+    修復第三方覆寫 warnings.warn 的簽名不相容問題（缺 skip_file_prefixes）。
+    """
+    warn_fn = warnings.warn
+    if getattr(warn_fn, "__qs_wrapped__", False):
+        return
+    try:
+        sig = inspect.signature(warn_fn)
+        has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+    except Exception:
+        has_kwargs = True
+
+    if has_kwargs:
+        return
+
+    def _warn_wrapped(message, category=None, stacklevel=1, source=None, **kwargs):
+        return warn_fn(message, category=category, stacklevel=stacklevel, source=source)
+
+    _warn_wrapped.__qs_wrapped__ = True  # type: ignore[attr-defined]
+    warnings.warn = _warn_wrapped
+
+
 def generate_quant_chart(filename: str = "daily_chart.png") -> None:
     """
     3 Panel 量化圖表：
@@ -32,6 +81,9 @@ def generate_quant_chart(filename: str = "daily_chart.png") -> None:
     Panel 3 (下): SPY 成交額 vs 5日均值比率（ETF 資金流代理）
     """
     try:
+        _ensure_warn_compat()
+        _ensure_showwarning_compat()
+        warnings.filterwarnings("ignore", message=r"Glyph .* missing from font\(s\) DejaVu Sans\.")
         btc = yf.download("BTC-USD", period="60d", interval="1d", progress=False, auto_adjust=True)
         vix = yf.download("^VIX",    period="60d", interval="1d", progress=False, auto_adjust=True)
         spy = yf.download("SPY",     period="65d", interval="1d", progress=False, auto_adjust=True)

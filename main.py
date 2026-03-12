@@ -1,7 +1,9 @@
 import os
 import re
+import sys
 import time
 import logging
+import builtins
 import telebot
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
@@ -37,6 +39,52 @@ ERROR_PREFIX = "🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n�
 
 # Telegram HTML 支援的標籤白名單
 _ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "blockquote", "a"}
+
+
+class _FilteredStream:
+    """過濾已知無害的 CrewAI event bus pairing 警告。"""
+
+    def __init__(self, wrapped):
+        self._wrapped = wrapped
+        self._buf = ""
+
+    def write(self, s: str):
+        self._buf += s
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            if "CrewAIEventsBus" in line and "Event pairing mismatch" in line:
+                continue
+            self._wrapped.write(line + "\n")
+        return len(s)
+
+    def flush(self):
+        if self._buf:
+            if not ("CrewAIEventsBus" in self._buf and "Event pairing mismatch" in self._buf):
+                self._wrapped.write(self._buf)
+            self._buf = ""
+        self._wrapped.flush()
+
+
+def _install_runtime_noise_filters() -> None:
+    """安裝執行期降噪與相容性處理。"""
+    if not isinstance(sys.stderr, _FilteredStream):
+        sys.stderr = _FilteredStream(sys.stderr)
+    if not isinstance(sys.stdout, _FilteredStream):
+        sys.stdout = _FilteredStream(sys.stdout)
+
+    # 部分 CrewAI 版本直接以 print 寫出 event pairing mismatch，這裡做最小侵入過濾。
+    orig_print = builtins.print
+    if not getattr(orig_print, "__qs_wrapped__", False):
+        def _quiet_print(*args, **kwargs):
+            msg = " ".join(str(a) for a in args)
+            if "CrewAIEventsBus" in msg and "Event pairing mismatch" in msg:
+                return
+            if "expected 'crew_kickoff_started'" in msg or "expected 'agent_execution_started'" in msg:
+                return
+            return orig_print(*args, **kwargs)
+
+        _quiet_print.__qs_wrapped__ = True  # type: ignore[attr-defined]
+        builtins.print = _quiet_print
 
 
 def sanitize_telegram_html(text: str) -> str:
@@ -199,9 +247,15 @@ def _postprocess_report_for_resilience(text: str) -> str:
     return patched
 
 
+def _fallback_news_count(text: str) -> int:
+    """統計自動降級補位新聞數量。"""
+    return len(re.findall(r"資料源不足：自動降級補位", text))
+
+
 def validate_report(text: str) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
     news_count  = len(re.findall(r'〔新聞', text))
+    fallback_count = _fallback_news_count(text)
 
     # Accept both old plain regime label and new scorecard format (e.g. "risk_on（+4/6）")
     has_regime    = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
@@ -289,6 +343,7 @@ def validate_report(text: str) -> dict:
         "valid": len([i for i in issues if "資料缺失" not in i and "呢喃" not in i]) == 0,
         "issues": issues,
         "news_count": news_count,
+        "fallback_news_count": fallback_count,
         "has_data_missing": has_data_missing,
         "has_qsrec": has_valid_qsrec,
         "qsrec_count": len(parsed_qsrec),
@@ -809,9 +864,10 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
 
         result = validate_report(final_report)
         report_valid = result["valid"]
+        fallback_cnt = _fallback_news_count(final_report)
         logger.info(
-            "[Attempt %d] Validation — news=%d, valid=%s",
-            attempt + 1, result["news_count"], report_valid,
+            "[Attempt %d] Validation — news=%d, fallback_news=%d, valid=%s",
+            attempt + 1, result["news_count"], fallback_cnt, report_valid,
         )
         if report_valid:
             logger.info("Report generation successful.")
@@ -846,6 +902,7 @@ def _validate_required_keys() -> None:
 
 
 if __name__ == "__main__":
+    _install_runtime_noise_filters()
     logger.info("Initializing Q-Silicon Ultimate Agent...")
     _validate_required_keys()
     generate_quant_chart("daily_chart.png")
