@@ -2,7 +2,10 @@ import logging
 import os
 import re
 import time
+import json
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import requests
 from apify_client import ApifyClient
@@ -17,6 +20,25 @@ logger = logging.getLogger(__name__)
 # key: (tool_name, query_string)  value: (result_str, expire_timestamp)
 _CACHE: dict[tuple, tuple] = {}
 _CACHE_TTL = 600  # 10 分鐘內相同 query 直接回傳 cache
+_SOURCE_HEALTH: dict[str, dict[str, float | str]] = {
+    "newsapi": {"ok": 0, "fail": 0},
+    "gnews": {"ok": 0, "fail": 0},
+    "apify": {"ok": 0, "fail": 0},
+}
+_SOURCE_HEALTH_FILE = Path(__file__).resolve().parent / ".source_health.json"
+_SOURCE_HEALTH_HALFLIFE_DAYS = 7.0
+_LAST_SOURCE_BQ_SYNC_TS = 0.0
+_SOURCE_BQ_SYNC_INTERVAL_SEC = 120.0
+_SOURCE_DAILY_LIMIT_BASE = {
+    "newsapi": int(os.getenv("NEWSAPI_DAILY_CALL_LIMIT", "120")),
+    "gnews": int(os.getenv("GNEWS_DAILY_CALL_LIMIT", "120")),
+    "apify": int(os.getenv("APIFY_DAILY_CALL_LIMIT", "30")),
+}
+_SOURCE_QUOTA_STATE: dict[str, dict[str, float | str]] = {
+    "newsapi": {"day": "", "used": 0.0},
+    "gnews": {"day": "", "used": 0.0},
+    "apify": {"day": "", "used": 0.0},
+}
 
 
 def _get_cache(key: tuple) -> str | None:
@@ -30,6 +52,339 @@ def _get_cache(key: tuple) -> str | None:
 
 def _set_cache(key: tuple, value: str) -> None:
     _CACHE[key] = (value, time.time() + _CACHE_TTL)
+
+
+def _save_source_health() -> None:
+    try:
+        payload = {
+            "newsapi": _SOURCE_HEALTH.get("newsapi", {"ok": 0, "fail": 0}),
+            "gnews": _SOURCE_HEALTH.get("gnews", {"ok": 0, "fail": 0}),
+            "apify": _SOURCE_HEALTH.get("apify", {"ok": 0, "fail": 0}),
+        }
+        _SOURCE_HEALTH_FILE.write_text(json.dumps(payload, ensure_ascii=True), encoding="utf-8")
+    except Exception as e:
+        logger.warning("failed to persist source health: %s", e)
+    _save_source_health_to_bigquery()
+
+
+def _load_source_health() -> None:
+    if not _SOURCE_HEALTH_FILE.exists():
+        return
+    try:
+        raw = json.loads(_SOURCE_HEALTH_FILE.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            return
+        for source in ("newsapi", "gnews", "apify"):
+            stats = raw.get(source, {})
+            if isinstance(stats, dict):
+                ok = float(stats.get("ok", 0))
+                fail = float(stats.get("fail", 0))
+                loaded = {"ok": max(ok, 0.0), "fail": max(fail, 0.0)}
+                for err_key in ("e429", "e400", "etimeout", "e5xx", "eother"):
+                    loaded[err_key] = max(float(stats.get(err_key, 0.0)), 0.0)
+                if "updated_at" in stats:
+                    loaded["updated_at"] = str(stats.get("updated_at"))
+                _SOURCE_HEALTH[source] = loaded
+    except Exception as e:
+        logger.warning("failed to load source health: %s", e)
+    _load_source_health_from_bigquery()
+
+
+def _source_health_table_id() -> str:
+    # 由現有 METRICS_TABLE 推導 dataset，避免新增額外設定。
+    # 例：project.dataset.table -> project.dataset.source_health_stats
+    parts = METRICS_TABLE.split(".")
+    if len(parts) >= 3:
+        return f"{parts[0]}.{parts[1]}.source_health_stats"
+    return f"{PROJECT_ID}.q_silicon.source_health_stats"
+
+
+def _merge_source_health_row(source: str, row: dict[str, float | str]) -> None:
+    current = _SOURCE_HEALTH.get(source, {})
+    current_updated_at_raw = str(current.get("updated_at", ""))
+    row_updated_at_raw = str(row.get("updated_at", ""))
+    if current_updated_at_raw and row_updated_at_raw:
+        try:
+            current_updated_at = datetime.fromisoformat(current_updated_at_raw.replace("Z", "+00:00"))
+            row_updated_at = datetime.fromisoformat(row_updated_at_raw.replace("Z", "+00:00"))
+            if row_updated_at <= current_updated_at:
+                return
+        except Exception:
+            if row_updated_at_raw <= current_updated_at_raw:
+                return
+    _SOURCE_HEALTH[source] = row
+
+
+def _load_source_health_from_bigquery() -> None:
+    if os.getenv("DISABLE_SOURCE_HEALTH_BQ", "").lower() in ("1", "true", "yes"):
+        return
+    try:
+        client = _get_bq_client()
+        table_id = _source_health_table_id()
+        query = f"""
+            SELECT source, ok, fail, e429, e400, etimeout, e5xx, eother, updated_at
+            FROM `{table_id}`
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY source ORDER BY updated_at DESC) = 1
+        """
+        rows = list(client.query(query).result())
+        for r in rows:
+            source = str(r.get("source", ""))
+            if source not in ("newsapi", "gnews", "apify"):
+                continue
+            _merge_source_health_row(
+                source,
+                {
+                    "ok": max(float(r.get("ok") or 0.0), 0.0),
+                    "fail": max(float(r.get("fail") or 0.0), 0.0),
+                    "e429": max(float(r.get("e429") or 0.0), 0.0),
+                    "e400": max(float(r.get("e400") or 0.0), 0.0),
+                    "etimeout": max(float(r.get("etimeout") or 0.0), 0.0),
+                    "e5xx": max(float(r.get("e5xx") or 0.0), 0.0),
+                    "eother": max(float(r.get("eother") or 0.0), 0.0),
+                    "updated_at": str(r.get("updated_at") or ""),
+                },
+            )
+    except Exception as e:
+        logger.warning("failed to load source health from bigquery: %s", e)
+
+
+def _save_source_health_to_bigquery() -> None:
+    global _LAST_SOURCE_BQ_SYNC_TS
+    if os.getenv("DISABLE_SOURCE_HEALTH_BQ", "").lower() in ("1", "true", "yes"):
+        return
+    now = time.time()
+    if now - _LAST_SOURCE_BQ_SYNC_TS < _SOURCE_BQ_SYNC_INTERVAL_SEC:
+        return
+    _LAST_SOURCE_BQ_SYNC_TS = now
+    try:
+        client = _get_bq_client()
+        table_id = _source_health_table_id()
+        schema = [
+            bigquery.SchemaField("source", "STRING"),
+            bigquery.SchemaField("ok", "FLOAT"),
+            bigquery.SchemaField("fail", "FLOAT"),
+            bigquery.SchemaField("e429", "FLOAT"),
+            bigquery.SchemaField("e400", "FLOAT"),
+            bigquery.SchemaField("etimeout", "FLOAT"),
+            bigquery.SchemaField("e5xx", "FLOAT"),
+            bigquery.SchemaField("eother", "FLOAT"),
+            bigquery.SchemaField("updated_at", "TIMESTAMP"),
+        ]
+        table = bigquery.Table(table_id, schema=schema)
+        try:
+            client.get_table(table_id)
+        except Exception:
+            client.create_table(table, exists_ok=True)
+
+        rows = []
+        for source in ("newsapi", "gnews", "apify"):
+            stats = _SOURCE_HEALTH.get(source, {})
+            updated_at = stats.get("updated_at") or datetime.now(timezone.utc).isoformat()
+            rows.append(
+                {
+                    "source": source,
+                    "ok": float(stats.get("ok", 0.0)),
+                    "fail": float(stats.get("fail", 0.0)),
+                    "e429": float(stats.get("e429", 0.0)),
+                    "e400": float(stats.get("e400", 0.0)),
+                    "etimeout": float(stats.get("etimeout", 0.0)),
+                    "e5xx": float(stats.get("e5xx", 0.0)),
+                    "eother": float(stats.get("eother", 0.0)),
+                    "updated_at": str(updated_at),
+                }
+            )
+        if rows:
+            errs = client.insert_rows_json(table_id, rows)
+            if errs:
+                logger.warning("insert source health rows errors: %s", errs)
+    except Exception as e:
+        logger.warning("failed to save source health to bigquery: %s", e)
+
+
+def _decayed_source_counts(source: str) -> tuple[float, float]:
+    stats = _SOURCE_HEALTH.get(source, {"ok": 0, "fail": 0})
+    ok = float(stats.get("ok", 0.0))
+    fail = float(stats.get("fail", 0.0))
+    updated_at_raw = stats.get("updated_at")
+    if not updated_at_raw:
+        return ok, fail
+
+    try:
+        updated_at = datetime.fromisoformat(str(updated_at_raw))
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+    except Exception:
+        return ok, fail
+
+    now_utc = datetime.now(timezone.utc)
+    age_days = max((now_utc - updated_at).total_seconds() / 86400.0, 0.0)
+    decay_factor = 0.5 ** (age_days / _SOURCE_HEALTH_HALFLIFE_DAYS)
+    return ok * decay_factor, fail * decay_factor
+
+
+def _normalize_error_key(reason: str | None) -> str:
+    r = (reason or "").strip().lower()
+    if r in ("429", "rate_limit"):
+        return "e429"
+    if r in ("400", "bad_request"):
+        return "e400"
+    if r in ("timeout", "read_timeout", "connect_timeout"):
+        return "etimeout"
+    if r in ("5xx", "server_error"):
+        return "e5xx"
+    return "eother"
+
+
+def _record_source_outcome(source: str, ok: bool, reason: str | None = None) -> None:
+    if source not in _SOURCE_HEALTH:
+        _SOURCE_HEALTH[source] = {"ok": 0, "fail": 0}
+    decayed_ok, decayed_fail = _decayed_source_counts(source)
+    stats = _SOURCE_HEALTH.get(source, {})
+    e429 = float(stats.get("e429", 0.0))
+    e400 = float(stats.get("e400", 0.0))
+    etimeout = float(stats.get("etimeout", 0.0))
+    e5xx = float(stats.get("e5xx", 0.0))
+    eother = float(stats.get("eother", 0.0))
+    if ok:
+        decayed_ok += 1.0
+    else:
+        decayed_fail += 1.0
+        err_key = _normalize_error_key(reason)
+        if err_key == "e429":
+            e429 += 1.0
+        elif err_key == "e400":
+            e400 += 1.0
+        elif err_key == "etimeout":
+            etimeout += 1.0
+        elif err_key == "e5xx":
+            e5xx += 1.0
+        else:
+            eother += 1.0
+    _SOURCE_HEALTH[source] = {
+        "ok": decayed_ok,
+        "fail": decayed_fail,
+        "e429": e429,
+        "e400": e400,
+        "etimeout": etimeout,
+        "e5xx": e5xx,
+        "eother": eother,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_source_health()
+
+
+def _source_score(source: str) -> float:
+    """
+    來源健康分數（0~1）：
+    - 冷啟動給 0.5（中立）
+    - 有樣本後用 ok / (ok+fail)
+    """
+    ok, fail = _decayed_source_counts(source)
+    total = ok + fail
+    if total <= 0:
+        return 0.5
+    # 輕量先驗，避免小樣本時分數過度極端。
+    return (ok + 1.0) / (total + 2.0)
+
+
+def _source_health_summary() -> str:
+    parts = []
+    for s in ("newsapi", "gnews", "apify"):
+        score = _source_score(s)
+        parts.append(f"{s}:{score:.2f}")
+    return " | ".join(parts)
+
+
+def _source_error_summary() -> str:
+    parts = []
+    for s in ("newsapi", "gnews", "apify"):
+        stats = _SOURCE_HEALTH.get(s, {})
+        e429 = int(float(stats.get("e429", 0.0)))
+        e400 = int(float(stats.get("e400", 0.0)))
+        etimeout = int(float(stats.get("etimeout", 0.0)))
+        e5xx = int(float(stats.get("e5xx", 0.0)))
+        eother = int(float(stats.get("eother", 0.0)))
+        parts.append(f"{s}:429={e429},400={e400},timeout={etimeout},5xx={e5xx},other={eother}")
+    return " | ".join(parts)
+
+
+def source_observability_lines() -> str:
+    return (
+        f"【SourceHealth】{_source_health_summary()}\n"
+        f"【SourceErrors】{_source_error_summary()}\n"
+        f"【SourceQuota】{_source_quota_summary()}"
+    )
+
+
+def _reason_from_exception(err: Exception | None) -> str:
+    if err is None:
+        return "other"
+    if isinstance(err, requests.Timeout):
+        return "timeout"
+    if isinstance(err, requests.HTTPError):
+        status = err.response.status_code if err.response is not None else None
+        if status == 429:
+            return "429"
+        if status == 400:
+            return "400"
+        if status and 500 <= status < 600:
+            return "5xx"
+    msg = str(err).lower()
+    if "timeout" in msg:
+        return "timeout"
+    if "429" in msg:
+        return "429"
+    if "400" in msg:
+        return "400"
+    return "other"
+
+
+def _today_utc() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _effective_source_limit(source: str) -> int:
+    base = int(_SOURCE_DAILY_LIMIT_BASE.get(source, 100))
+    score = _source_score(source)
+    if score < 0.35:
+        return max(1, int(base * 0.4))
+    if score < 0.50:
+        return max(1, int(base * 0.7))
+    return base
+
+
+def _quota_used(source: str) -> int:
+    state = _SOURCE_QUOTA_STATE.get(source)
+    today = _today_utc()
+    if state is None:
+        _SOURCE_QUOTA_STATE[source] = {"day": today, "used": 0.0}
+        return 0
+    if str(state.get("day", "")) != today:
+        state["day"] = today
+        state["used"] = 0.0
+        return 0
+    return int(float(state.get("used", 0.0)))
+
+
+def _consume_source_quota(source: str) -> bool:
+    used = _quota_used(source)
+    limit = _effective_source_limit(source)
+    if used >= limit:
+        return False
+    _SOURCE_QUOTA_STATE[source]["used"] = float(used + 1)
+    return True
+
+
+def _source_quota_summary() -> str:
+    parts = []
+    for s in ("newsapi", "gnews", "apify"):
+        used = _quota_used(s)
+        limit = _effective_source_limit(s)
+        parts.append(f"{s}:{used}/{limit}")
+    return " | ".join(parts)
+
+
+_load_source_health()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -291,6 +646,7 @@ def _newsapi_fetch(query: str) -> str:
             articles = r.json().get("articles", [])
             if not articles:
                 continue
+            _record_source_outcome("newsapi", True)
             lines = [f"【NewsAPI｜{cand}】"]
             for a in articles:
                 lines.append(
@@ -311,6 +667,7 @@ def _newsapi_fetch(query: str) -> str:
             last_err = e
             logger.warning("_newsapi_fetch error (query=%r): %s", cand, e)
             continue
+    _record_source_outcome("newsapi", False, _reason_from_exception(last_err))
     if last_err:
         return f"[DATA_MISSING:newsapi] {last_err}"
     return "[DATA_MISSING:newsapi] 無符合條件的新聞"
@@ -335,6 +692,7 @@ def _gnews_fetch(query: str) -> str:
             articles = r.json().get("articles", [])
             if not articles:
                 continue
+            _record_source_outcome("gnews", True)
             lines = [f"【GNews｜{cand}】"]
             for a in articles:
                 lines.append(
@@ -354,6 +712,7 @@ def _gnews_fetch(query: str) -> str:
             last_err = e
             logger.warning("_gnews_fetch error (query=%r): %s", cand, e)
             continue
+    _record_source_outcome("gnews", False, _reason_from_exception(last_err))
     if last_err:
         return f"[DATA_MISSING:gnews] {last_err}"
     return "[DATA_MISSING:gnews] 無符合條件的新聞"
@@ -401,27 +760,43 @@ def market_search_tool(query: str) -> str:
     if cached:
         return cached
 
-    # 第一層：NewsAPI
-    result = _newsapi_fetch(query)
-    if not result.startswith("[DATA_MISSING"):
-        _set_cache(cache_key, result)
-        return result
+    # 第一/二層：依來源健康分數動態排序（僅在有 API key 的來源間排序）
+    source_funcs: list[tuple[str, Callable[[str], str]]] = []
+    if os.getenv("NEWSAPI_KEY"):
+        source_funcs.append(("newsapi", _newsapi_fetch))
+    if os.getenv("GNEWS_API_KEY"):
+        source_funcs.append(("gnews", _gnews_fetch))
+    source_funcs.sort(key=lambda x: _source_score(x[0]), reverse=True)
 
-    # 第二層：GNews
-    result = _gnews_fetch(query)
-    if not result.startswith("[DATA_MISSING"):
-        _set_cache(cache_key, result)
-        return result
+    for _source_name, fn in source_funcs:
+        if not _consume_source_quota(_source_name):
+            logger.info("skip source %s due to quota limit", _source_name)
+            continue
+        result = fn(query)
+        if not result.startswith("[DATA_MISSING"):
+            result = f"{result}\n{source_observability_lines()}"
+            _set_cache(cache_key, result)
+            return result
 
     # 第三層：Apify（付費，最後手段）
+    if not _consume_source_quota("apify"):
+        return (
+            "[DATA_MISSING:market_search] Market Search Failed：免費來源失敗，且 Apify 當日配額已用盡。\n"
+            f"{source_observability_lines()}"
+        )
+
     try:
         result = _search_with_apify(query, max_items=6)
+        _record_source_outcome("apify", True)
+        result = f"{result}\n{source_observability_lines()}"
         _set_cache(cache_key, result)
         return result
     except ValueError as e:
-        return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
+        _record_source_outcome("apify", False, "other")
+        return f"[DATA_MISSING:market_search] Market Search Failed：{e}\n{source_observability_lines()}"
     except Exception:
-        return "[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。"
+        _record_source_outcome("apify", False, "other")
+        return f"[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。\n{source_observability_lines()}"
 
 
 # ═══════════════════════════════════════════════════════════════════

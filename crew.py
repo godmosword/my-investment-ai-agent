@@ -48,6 +48,8 @@ _FINAL_TEMPLATE_CRYPTO = dedent("""\
     · <b>IBIT</b> <code>$40.12</code>
     · <b>BTC RSI(14)</b> <code>52.3（中性）</code>
     · <b>資金費率</b> <code>0.012%</code>
+    · <b>SourceHealth</b> <code>newsapi:0.67 | gnews:0.60 | apify:1.00</code>
+    · <b>SourceErrors</b> <code>newsapi:429=1,400=0,timeout=0,5xx=0,other=0 | gnews:429=0,400=1,timeout=0,5xx=0,other=0 | apify:429=0,400=0,timeout=0,5xx=0,other=0</code>
     （依序輸出所有儀表板指標，每項獨立一行）
     區塊④【資金流向與精準操作 (Crypto)】：
     · <b>$BTC (LONG)</b>｜現價：$70578｜信心水準：⭐️⭐️⭐️
@@ -66,6 +68,8 @@ _FINAL_TEMPLATE_AI = dedent("""\
     區塊①【AI 數據儀表板】：
     · <b>OpenRouter #1</b> <code>claude-3.5-sonnet（熱度 ▲12%）</code>
     · <b>OpenRouter #2</b> <code>gpt-4o（熱度 ▼3%）</code>
+    · <b>SourceHealth</b> <code>newsapi:0.67 | gnews:0.60 | apify:1.00</code>
+    · <b>SourceErrors</b> <code>newsapi:429=1,400=0,timeout=0,5xx=0,other=0 | gnews:429=0,400=1,timeout=0,5xx=0,other=0 | apify:429=0,400=0,timeout=0,5xx=0,other=0</code>
     （依序輸出 Top5，缺資料寫 <code>N/A</code>，每項獨立一行）
     區塊④【AI 產業鏈精準操作 (US Equities)】：
     · <b>$NVDA (LONG)</b>｜現價：$875.20｜信心水準：⭐️⭐️⭐️
@@ -110,6 +114,10 @@ _DASHBOARD_FMT = dedent("""\
     儀表板格式：每項獨立一行，數值部分【必須】用 <code> 標籤包覆。
     · <b>指標名</b> <code>數值 ▲/▼幅度%</code>
     缺資料寫 <code>N/A</code>，禁止同一行塞多個指標。
+    儀表板尾端固定輸出兩行（不可省略）：
+    · <b>SourceHealth</b> <code>newsapi:x.xx | gnews:x.xx | apify:x.xx</code>
+    · <b>SourceErrors</b> <code>newsapi:429=n,400=n,timeout=n,5xx=n,other=n | gnews:... | apify:...</code>
+    · <b>SourceQuota</b> <code>newsapi:used/max | gnews:used/max | apify:used/max</code>
     若關鍵欄位 N/A 超過 3 項，必須在該區塊加註：<b>低置信度</b>，
     並補 1 行「資料缺失原因 + 替代指標」（例如：OI 缺失改看 funding/多空比/現貨成交額）。""")
 
