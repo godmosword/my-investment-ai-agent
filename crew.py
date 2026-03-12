@@ -34,7 +34,7 @@ _TELEGRAM_FMT = dedent("""\
     禁止 Markdown 與其他 HTML；大區塊前加分隔線 ────────────
     儀表板每項獨立一行且數值包 <code>；摘要用 <blockquote>；缺資料寫 <code>N/A</code>""")
 
-_FINAL_TEMPLATE = dedent("""\
+_FINAL_TEMPLATE_CRYPTO = dedent("""\
     === 【排版參考】輸出結構參照以下範例，嚴禁添加任何自創欄位，嚴禁印出除錯文字！ ===
     <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief</i>
     ────────────
@@ -44,14 +44,34 @@ _FINAL_TEMPLATE = dedent("""\
     · <b>DXY</b> <code>104.5</code>
     · <b>VIX</b> <code>24.44</code>
     · <b>IBIT</b> <code>$40.12</code>
+    · <b>BTC RSI(14)</b> <code>52.3（中性）</code>
+    · <b>資金費率</b> <code>0.012%</code>
     （依序輸出所有儀表板指標，每項獨立一行）
-    區塊④【精準操作】：
-    · <b>$BTC (LONG)</b>｜現價：$70578｜信心水準：⭐️⭐️
+    區塊④【資金流向與精準操作 (Crypto)】：
+    · <b>$BTC (LONG)</b>｜現價：$70578｜信心水準：⭐️⭐️⭐️
     · 進場：<code>$69800</code>｜目標：<code>$72800 (+4.3%)</code>｜停損：<code>$67800 (-2.8%)</code>
     · 敘事邏輯：多時框狀態 D(中性)/4H(中性)/1H(多)，資金費率轉負支持反彈...
     [QSREC_START]
     [
-      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 2, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)..."}
+      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 3, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)..."}
+    ]
+    [QSREC_END]
+    """)
+
+_FINAL_TEMPLATE_AI = dedent("""\
+    === 【排版參考】輸出結構參照以下範例，嚴禁添加任何自創欄位，嚴禁印出除錯文字！ ===
+    ══════ <b>🤖 AI 市場</b> ══════
+    區塊①【AI 數據儀表板】：
+    · <b>OpenRouter #1</b> <code>claude-3.5-sonnet（熱度 ▲12%）</code>
+    · <b>OpenRouter #2</b> <code>gpt-4o（熱度 ▼3%）</code>
+    （依序輸出 Top5，缺資料寫 <code>N/A</code>，每項獨立一行）
+    區塊④【AI 產業鏈精準操作 (US Equities)】：
+    · <b>$NVDA (LONG)</b>｜現價：$875.20｜信心水準：⭐️⭐️⭐️
+    · 進場：<code>$870.00</code>｜目標：<code>$920.00 (+5.7%)</code>｜停損：<code>$845.00 (-2.9%)</code>
+    · 敘事邏輯：B200 出貨加速，雲端 CAPEX 上調，三時框多頭排列...
+    [QSREC_START]
+    [
+      {"asset": "NVDA", "direction": "LONG", "current_price": 875.20, "entry": 870.00, "target": 920.00, "stop": 845.00, "confidence": 3, "category": "EQUITY", "narrative": "B200 出貨加速，雲端 CAPEX 上調..."}
     ]
     [QSREC_END]
     """)
@@ -246,7 +266,7 @@ class CryptoResearchCrew:
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
                 {_TRADE_RULE}
 
-                {_FINAL_TEMPLATE}
+                {_FINAL_TEMPLATE_CRYPTO}
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
                 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
                 ────────────
@@ -376,7 +396,7 @@ class AIResearchCrew:
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
                 {_TRADE_RULE}
 
-                {_FINAL_TEMPLATE}
+                {_FINAL_TEMPLATE_AI}
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
 
                 ══════ <b>🤖 AI 市場</b> ══════

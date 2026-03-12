@@ -1,97 +1,116 @@
-"""Unit tests for tracker.parse_trade_signals."""
+"""Unit tests for tracker System A — JSON-based recommendation parsing."""
 
 import unittest
 
-from tracker import parse_trade_signals
-
+from tracker import extract_recommendations_json, strip_tracker_blocks
 
 # ── realistic snippet mirroring actual LLM-generated report ──
 SAMPLE_REPORT = """\
 <b>【資金流向與精準操作 (Crypto)】</b>
 
-· <b>$BTC (做多)</b>｜現價：$95,000｜信心水準：⭐️⭐️⭐️⭐️
-· 進場：<code>$94,500</code>｜目標：<code>$100,000 (+5.8%)</code>｜停損：<code>$91,000 (-3.7%)</code>
+· <b>$BTC (LONG)</b>｜現價：$95,000｜信心水準：⭐️⭐️⭐️⭐️
+· 進場：<code>$94500</code>｜目標：<code>$100000 (+5.8%)</code>｜停損：<code>$91000 (-3.7%)</code>
 · 敘事邏輯：ETF 持續流入，鏈上鯨魚增持
 
-· <b>$SOL (做空)</b>｜現價：$145.50｜信心水準：⭐️⭐️⭐️
-· 進場：<code>$146.00</code>｜目標：<code>$130.00 (-11%)</code>｜停損：<code>$152.00 (+4.1%)</code>
-· 敘事邏輯：DeFi TVL 下滑，鏈上活躍度回落
+[QSREC_START]
+[
+  {"asset": "BTC", "direction": "LONG", "current_price": 95000, "entry": 94500, "target": 100000, "stop": 91000, "confidence": 4, "category": "CRYPTO", "narrative": "ETF 持續流入，鏈上鯨魚增持"},
+  {"asset": "SOL", "direction": "SHORT", "current_price": 145.5, "entry": 146, "target": 130, "stop": 152, "confidence": 3, "category": "CRYPTO", "narrative": "DeFi TVL 下滑，鏈上活躍度回落"}
+]
+[QSREC_END]
 
 <b>【AI 產業鏈精準操作 (US Equities)】</b>
 
-· <b>$NVDA (做多)</b>｜現價：$890.00｜信心水準：⭐️⭐️⭐️⭐️⭐️
-· 進場：<code>$885.00</code>｜目標：<code>$950.00 (+7.3%)</code>｜停損：<code>$860.00 (-2.8%)</code>
-· 敘事邏輯：B200 需求強勁，雲端巨頭增加 CAPEX
+[QSREC_START]
+[
+  {"asset": "NVDA", "direction": "LONG", "current_price": 890, "entry": 885, "target": 950, "stop": 860, "confidence": 4, "category": "EQUITY", "narrative": "B200 需求強勁，雲端巨頭增加 CAPEX"}
+]
+[QSREC_END]
+"""
+
+REPORT_NO_JSON = """\
+<b>【資金流向與精準操作 (Crypto)】</b>
+· <b>$BTC (LONG)</b>｜現價：$95,000
+"""
+
+REPORT_BAD_JSON = """\
+[QSREC_START]
+{ invalid json here
+[QSREC_END]
 """
 
 
-class TestParseTradeSignals(unittest.TestCase):
-    """Tests for parse_trade_signals regex extraction."""
+class TestExtractRecommendationsJson(unittest.TestCase):
+    """Tests for extract_recommendations_json (System A)."""
 
     def test_parses_correct_count(self):
-        signals = parse_trade_signals(SAMPLE_REPORT)
-        self.assertEqual(len(signals), 3)
+        recs = extract_recommendations_json(SAMPLE_REPORT)
+        self.assertEqual(len(recs), 3)
 
-    def test_btc_long(self):
-        signals = parse_trade_signals(SAMPLE_REPORT)
-        btc = next((s for s in signals if s["symbol"] == "BTC"), None)
-        self.assertIsNotNone(btc, "BTC signal not found")
+    def test_btc_long_fields(self):
+        recs = extract_recommendations_json(SAMPLE_REPORT)
+        btc = next((r for r in recs if r["asset"] == "BTC"), None)
+        self.assertIsNotNone(btc, "BTC recommendation not found")
         self.assertEqual(btc["direction"], "LONG")
-        self.assertAlmostEqual(btc["entry_price"], 94500.0)
-        self.assertAlmostEqual(btc["target_price"], 100000.0)
-        self.assertAlmostEqual(btc["stop_loss"], 91000.0)
-        self.assertEqual(btc["confidence_level"], 4)
+        self.assertAlmostEqual(btc["entry"], 94500.0)
+        self.assertAlmostEqual(btc["target"], 100000.0)
+        self.assertAlmostEqual(btc["stop"], 91000.0)
+        self.assertEqual(btc["confidence"], 4)
+        self.assertEqual(btc["category"], "CRYPTO")
         self.assertIn("ETF 持續流入", btc["narrative"])
 
-    def test_sol_short(self):
-        signals = parse_trade_signals(SAMPLE_REPORT)
-        sol = next((s for s in signals if s["symbol"] == "SOL"), None)
-        self.assertIsNotNone(sol, "SOL signal not found")
+    def test_sol_short_fields(self):
+        recs = extract_recommendations_json(SAMPLE_REPORT)
+        sol = next((r for r in recs if r["asset"] == "SOL"), None)
+        self.assertIsNotNone(sol, "SOL recommendation not found")
         self.assertEqual(sol["direction"], "SHORT")
-        self.assertAlmostEqual(sol["entry_price"], 146.0)
-        self.assertAlmostEqual(sol["target_price"], 130.0)
-        self.assertAlmostEqual(sol["stop_loss"], 152.0)
-        self.assertEqual(sol["confidence_level"], 3)
-        self.assertIn("DeFi TVL 下滑", sol["narrative"])
+        self.assertAlmostEqual(sol["entry"], 146.0)
+        self.assertAlmostEqual(sol["target"], 130.0)
+        self.assertAlmostEqual(sol["stop"], 152.0)
 
-    def test_nvda_five_stars(self):
-        signals = parse_trade_signals(SAMPLE_REPORT)
-        nvda = next((s for s in signals if s["symbol"] == "NVDA"), None)
-        self.assertIsNotNone(nvda, "NVDA signal not found")
-        self.assertEqual(nvda["direction"], "LONG")
-        self.assertEqual(nvda["confidence_level"], 5)
-        self.assertAlmostEqual(nvda["entry_price"], 885.0)
+    def test_nvda_equity(self):
+        recs = extract_recommendations_json(SAMPLE_REPORT)
+        nvda = next((r for r in recs if r["asset"] == "NVDA"), None)
+        self.assertIsNotNone(nvda, "NVDA recommendation not found")
+        self.assertEqual(nvda["category"], "EQUITY")
+        self.assertAlmostEqual(nvda["entry"], 885.0)
         self.assertIn("B200 需求強勁", nvda["narrative"])
 
     def test_empty_report(self):
-        self.assertEqual(parse_trade_signals(""), [])
+        self.assertEqual(extract_recommendations_json(""), [])
 
-    def test_no_trade_section(self):
-        self.assertEqual(parse_trade_signals("Just some random text with no trades"), [])
+    def test_no_qsrec_block(self):
+        self.assertEqual(extract_recommendations_json(REPORT_NO_JSON), [])
 
-    def test_malformed_report_does_not_crash(self):
-        bad = "【資金流向與精準操作 (Crypto)】\n· <b>$XYZ (做多)</b>｜現價：abc｜信心水準：⭐️"
-        signals = parse_trade_signals(bad)
-        # Should return empty or partial — must NOT raise
-        self.assertIsInstance(signals, list)
+    def test_malformed_json_does_not_crash(self):
+        recs = extract_recommendations_json(REPORT_BAD_JSON)
+        self.assertIsInstance(recs, list)
+        self.assertEqual(len(recs), 0)
 
-    def test_signal_fields_present(self):
-        signals = parse_trade_signals(SAMPLE_REPORT)
-        required = {"symbol", "direction", "entry_price", "target_price", "stop_loss", "confidence_level", "narrative"}
-        for s in signals:
-            self.assertTrue(required.issubset(s.keys()), f"Missing fields in {s}")
+    def test_multiple_blocks_merged(self):
+        """Two separate [QSREC_START] blocks should both be parsed."""
+        recs = extract_recommendations_json(SAMPLE_REPORT)
+        assets = {r["asset"] for r in recs}
+        self.assertIn("BTC", assets)
+        self.assertIn("NVDA", assets)
 
-    def test_commas_in_prices(self):
-        """Prices with comma separators (e.g. $95,000) should be parsed correctly."""
-        report = """\
-【資金流向與精準操作 (Crypto)】
-· <b>$ETH (做多)</b>｜現價：$3,450.50｜信心水準：⭐️⭐️
-· 進場：<code>$3,400.00</code>｜目標：<code>$3,800.00 (+11.8%)</code>｜停損：<code>$3,200.00 (-5.9%)</code>
-"""
-        signals = parse_trade_signals(report)
-        self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0]["symbol"], "ETH")
-        self.assertAlmostEqual(signals[0]["entry_price"], 3400.0)
+
+class TestStripTrackerBlocks(unittest.TestCase):
+    """Tests for strip_tracker_blocks."""
+
+    def test_removes_qsrec_block(self):
+        cleaned = strip_tracker_blocks(SAMPLE_REPORT)
+        self.assertNotIn("[QSREC_START]", cleaned)
+        self.assertNotIn("[QSREC_END]", cleaned)
+
+    def test_preserves_html_content(self):
+        cleaned = strip_tracker_blocks(SAMPLE_REPORT)
+        self.assertIn("資金流向與精準操作", cleaned)
+        self.assertIn("AI 產業鏈精準操作", cleaned)
+
+    def test_no_block_unchanged(self):
+        cleaned = strip_tracker_blocks(REPORT_NO_JSON)
+        self.assertEqual(cleaned, REPORT_NO_JSON.rstrip())
 
 
 if __name__ == "__main__":
