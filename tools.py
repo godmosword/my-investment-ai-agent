@@ -1053,27 +1053,43 @@ _ETF_FUND_NAMES: dict[str, str] = {
 
 def _yfinance_etf_flow_estimate() -> str | None:
     """
-    免費備援：用 yfinance 下載 BTC Spot ETF 的近 5 日成交量與價格，
+    免費備援：用 yfinance 批量下載 BTC Spot ETF 的近 7 日成交量與價格，
     以「成交量方向 × 價格方向」啟發式推估資金流向趨勢。
     無法取得精確淨流入金額，但可提供 IBIT/FBTC/GBTC 等主要 ETF 的方向性訊號。
+    批量下載（一次請求）避免逐 ticker 串行造成 ~30s 阻塞。
     """
+    import pandas as pd  # noqa: PLC0415
     import yfinance as yf  # noqa: PLC0415
 
     etfs = list(_ETF_FUND_NAMES.keys())  # IBIT, FBTC, GBTC, ARKB, BITB, BTCO, HODL, BRRR, EZBC, BTCW
     lines: list[str] = []
     available = 0
 
+    try:
+        # 批量下載：一次請求所有 ETF，columns 為 MultiIndex (field, ticker)
+        df_all = yf.download(
+            " ".join(etfs),
+            period="7d",
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            group_by="ticker",
+        )
+    except Exception as e:
+        logger.warning("yfinance batch ETF download failed: %s", e)
+        return None
+
     for ticker in etfs:
         try:
-            df = yf.download(ticker, period="7d", interval="1d", progress=False, auto_adjust=True)
-            if df is None or df.empty or len(df) < 2:
-                continue
-            close = df["Close"].dropna()
-            vol = df["Volume"].dropna()
-            if hasattr(close, "ndim") and close.ndim > 1:
-                close = close.iloc[:, 0]
-            if hasattr(vol, "ndim") and vol.ndim > 1:
-                vol = vol.iloc[:, 0]
+            # MultiIndex columns: (ticker, field) when group_by="ticker"
+            if isinstance(df_all.columns, pd.MultiIndex):
+                close = df_all[ticker]["Close"].dropna()
+                vol = df_all[ticker]["Volume"].dropna()
+            else:
+                # Single ticker fallback (shouldn't happen in batch mode)
+                close = df_all["Close"].dropna()
+                vol = df_all["Volume"].dropna()
+
             if len(close) < 2 or len(vol) < 2:
                 continue
 
@@ -1235,8 +1251,8 @@ def etf_flow_tool() -> str:
             result = prefix + result
             _set_cache(cache_key, result)
             return result
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Apify etf_flow search failed: %s", e)
 
     # 備援 3：yfinance 成交量趨勢推估（無需 API Key）
     result = _yfinance_etf_flow_estimate()
@@ -1742,7 +1758,8 @@ def macro_context_tool(query: str = "") -> str:
             if hasattr(c, "ndim") and c.ndim > 1:
                 c = c.iloc[:, 0]
             if not c.empty:
-                # ^IRX 直接報年化 %（同 ^TNX），不需額外換算
+                # ^IRX (13-week T-bill) 在 Yahoo Finance 已以百分比單位回報（同 ^TNX），
+                # 不需除以 10 或其他換算；歷史曾誤除導致顯示值偏低 10 倍
                 yield_2y = round(float(c.iloc[-1]), 3)
     except Exception:
         pass
