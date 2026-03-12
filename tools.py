@@ -854,7 +854,7 @@ def _score_signal(key: str, value: float | None) -> tuple[int, str]:
     return 0, f"{value:.2f}(out-of-range)"
 
 
-@tool("市場機制評分卡（可審計 risk_on/off）")
+@tool
 def regime_scorecard_tool(query: str = "") -> str:
     """
     以 6 個量化指標計算市場機制評分卡，輸出可審計的 risk_on/neutral/risk_off 判定。
@@ -1632,16 +1632,19 @@ def sentiment_score_tool(news_and_tweets: str) -> str:
     if cached := _get_cache(cache_key):
         return cached
 
-    # 選用最快/最便宜的可用模型
-    model: str | None = None
+    # 依可用金鑰建立候選模型，避免單一模型下線導致工具整體失效
+    model_candidates: list[str] = []
     if os.getenv("GEMINI_API_KEY"):
-        model = "gemini/gemini-2.0-flash-lite"
-    elif os.getenv("OPENAI_API_KEY"):
-        model = "openai/gpt-4o-mini"
-    elif os.getenv("OPENROUTER_API_KEY"):
-        model = "openrouter/anthropic/claude-haiku-4-5-20251001"
+        model_candidates.extend([
+            "gemini/gemini-2.5-flash",
+            "gemini/gemini-2.0-flash",
+        ])
+    if os.getenv("OPENAI_API_KEY"):
+        model_candidates.append("openai/gpt-4o-mini")
+    if os.getenv("OPENROUTER_API_KEY"):
+        model_candidates.append("openrouter/anthropic/claude-haiku-4-5-20251001")
 
-    if not model:
+    if not model_candidates:
         return "[DATA_MISSING:sentiment_score] 無可用 LLM 金鑰進行情緒評分。"
 
     prompt = f"""你是加密貨幣市場情緒分析師。對以下新聞/推文評分：
@@ -1656,13 +1659,32 @@ def sentiment_score_tool(news_and_tweets: str) -> str:
     try:
         from litellm import completion as _llm_completion
 
-        resp = _llm_completion(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
-            temperature=0.1,
-        )
-        raw = resp.choices[0].message.content.strip()
+        raw = ""
+        last_err: Exception | None = None
+        for model in model_candidates:
+            try:
+                resp = _llm_completion(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=200,
+                    temperature=0.1,
+                )
+                raw = (resp.choices[0].message.content or "").strip()
+                if raw:
+                    break
+            except Exception as model_err:
+                last_err = model_err
+                msg = str(model_err).lower()
+                # 模型下線/找不到時嘗試下一個候選
+                if ("not_found" in msg) or ("no longer available" in msg) or ("404" in msg):
+                    logger.warning("sentiment_score_tool model unavailable, fallback to next: %s", model)
+                    continue
+                raise
+
+        if not raw:
+            if last_err is not None:
+                raise last_err
+            return "[DATA_MISSING:sentiment_score] 情緒評分模型回傳空結果。"
 
         import json as _json
 
@@ -1706,7 +1728,7 @@ def sentiment_score_tool(news_and_tweets: str) -> str:
 _EARNINGS_WATCHLIST = ["NVDA", "AMD", "MSFT", "GOOGL", "AAPL", "META", "AMZN", "TSM", "AVGO", "ARM"]
 
 
-@tool("宏觀框架（利率、殖利率曲線、Fed 預期、財報）")
+@tool
 def macro_context_tool(query: str = "") -> str:
     """
     取得宏觀投資框架數據：美債 10Y/2Y 殖利率、殖利率曲線利差、Fed SOFR 期貨隱含升降息預期、本週重要科技財報。
@@ -1821,7 +1843,7 @@ def macro_context_tool(query: str = "") -> str:
 # 新聞來源工具（NewsAPI / GNews / RSS）— Agent 可直接呼叫
 # ═══════════════════════════════════════════════════════════════════
 
-@tool("NewsAPI 主流財經新聞")
+@tool
 def newsapi_tool(query: str) -> str:
     """取得 Bloomberg/Reuters/CNBC 等主流財經媒體近 48h 新聞。"""
     cache_key = ("newsapi", query)
@@ -1833,7 +1855,7 @@ def newsapi_tool(query: str) -> str:
     return result
 
 
-@tool("GNews 多語言新聞搜尋")
+@tool
 def gnews_tool(query: str) -> str:
     """用 GNews API 搜尋多語言財經新聞（近 48h）。"""
     cache_key = ("gnews", query)
@@ -1845,7 +1867,7 @@ def gnews_tool(query: str) -> str:
     return result
 
 
-@tool("RSS 免費新聞摘要")
+@tool
 def rss_feed_tool(category: str = "crypto") -> str:
     """從 RSS 取得加密/AI 媒體近 48h 新聞，category 可為 'crypto' 或 'ai'（免費，不需 API key）。"""
     cache_key = ("rss", category)
