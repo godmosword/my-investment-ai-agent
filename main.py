@@ -138,7 +138,10 @@ def validate_report(text: str) -> dict:
     has_valid_qsrec = bool(parsed_qsrec)
     has_rr = bool(re.search(r'R:R\s*=\s*1:\d+(?:\.\d+)?', text, re.IGNORECASE))
     has_max_drawdown = bool(re.search(r'最大回撤風險[：:]\s*(?:<code>)?\s*-\d+(?:\.\d+)?%(?:</code>)?', text))
+    has_expected_win_rate = bool(re.search(r'預期勝率[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?%', text))
+    has_signal_score = bool(re.search(r'Signal\s*Score[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?\s*/\s*100', text, re.IGNORECASE))
     has_signal_conflict = bool(re.search(r'訊號衝突摘要[：:]', text))
+    has_risk_budget = bool(re.search(r'今日風險預算[：:]', text))
     has_rumor_grade = bool(re.search(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})', text, re.IGNORECASE))
     has_utc8 = _has_news_timezone_utc8(text)
     too_many_na = len(re.findall(r'\bN/A\b', text)) > 3
@@ -181,6 +184,10 @@ def validate_report(text: str) -> dict:
         issues.append("傳聞區缺少可信度分級（A/B/C 或 0~100）")
     if not has_rr or not has_max_drawdown:
         issues.append("交易建議缺少 R:R 或最大回撤風險欄位")
+    if not has_expected_win_rate or not has_signal_score:
+        issues.append("交易建議缺少預期勝率或 Signal Score 欄位")
+    if not has_risk_budget:
+        issues.append("缺少今日風險預算摘要")
     if not has_numeric_in_investment:
         issues.append("投資解讀缺少當日量化數據引用")
     if not pair_unit_ok:
