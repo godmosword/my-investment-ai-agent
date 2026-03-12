@@ -73,6 +73,53 @@ def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
         return None
 
 
+def _has_news_timezone_utc8(text: str) -> bool:
+    """新聞時間格式是否包含 UTC+8。"""
+    return bool(re.search(r'〔新聞\s*\d+〕\s*\[\d{2}/\d{2}\s+\d{2}:\d{2}\s+UTC\+8\]', text))
+
+
+def _risk_off_star_cap_violated(text: str) -> bool:
+    """risk_off 下是否出現超過上限的信心星等（4 顆星）。"""
+    has_risk_off = bool(re.search(r'【今日市場模式】\s*risk_off', text, re.IGNORECASE))
+    has_4_star = "⭐️⭐️⭐️⭐️" in text
+    return has_risk_off and has_4_star
+
+
+def _pair_trade_unit_consistent(text: str) -> bool:
+    """
+    粗略檢查配對交易單位一致性：
+    若出現 $A / $B，必須標註比值/價差單位，且現價比值與進場不應嚴重失真。
+    """
+    pair_m = re.search(
+        r'\$([A-Z]{2,10})\s*/\s*\$([A-Z]{2,10}).*?現價[：:]\s*\$?([0-9,]+(?:\.\d+)?)\s*/\s*\$?([0-9,]+(?:\.\d+)?)',
+        text,
+        re.DOTALL,
+    )
+    if not pair_m:
+        return True
+
+    has_pair_unit = bool(re.search(r'單位[：:]\s*(?:比值|價差|[A-Z]{2,10}/[A-Z]{2,10}\s*比值)', text))
+    if not has_pair_unit:
+        return False
+
+    a = float(pair_m.group(3).replace(",", ""))
+    b = float(pair_m.group(4).replace(",", ""))
+    if b <= 0:
+        return False
+    implied_ratio = a / b
+
+    nearby = text[pair_m.start(): pair_m.start() + 500]
+    entry_m = re.search(r'進場[：:]\s*(?:<code>)?\$?([0-9,]+(?:\.\d+)?)', nearby)
+    if not entry_m:
+        return False
+    entry = float(entry_m.group(1).replace(",", ""))
+    if entry <= 0:
+        return False
+
+    # 容忍 35% 誤差（避免過度嚴苛），超出視為單位可能混用
+    return abs(entry - implied_ratio) / implied_ratio <= 0.35
+
+
 def validate_report(text: str) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
     news_count  = len(re.findall(r'〔新聞', text))
@@ -86,6 +133,22 @@ def validate_report(text: str) -> dict:
     has_crypto_section = bool(re.search(r'加密市場|核心新聞|數據儀表板', text, re.IGNORECASE))
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
     has_data_missing = bool(re.search(r'\[DATA_MISSING:', text))
+    has_qsrec_markers = bool(re.search(r'\[QSREC_START\][\s\S]*?\[QSREC_END\]', text))
+    parsed_qsrec = tracker.extract_recommendations_json(text) if has_qsrec_markers else []
+    has_valid_qsrec = bool(parsed_qsrec)
+    has_rr = bool(re.search(r'R:R\s*=\s*1:\d+(?:\.\d+)?', text, re.IGNORECASE))
+    has_max_drawdown = bool(re.search(r'最大回撤風險[：:]\s*(?:<code>)?\s*-\d+(?:\.\d+)?%(?:</code>)?', text))
+    has_signal_conflict = bool(re.search(r'訊號衝突摘要[：:]', text))
+    has_rumor_grade = bool(re.search(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})', text, re.IGNORECASE))
+    has_utc8 = _has_news_timezone_utc8(text)
+    too_many_na = len(re.findall(r'\bN/A\b', text)) > 3
+    has_low_confidence_tag = bool(re.search(r'低置信度|低信心', text))
+    has_missing_reason_proxy = bool(re.search(r'資料缺失原因.*替代指標|替代指標.*資料缺失原因', text))
+    has_numeric_in_investment = bool(re.search(r'投資解讀[：:][^\n]*(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)', text))
+    has_code_leak = bool(re.search(r'multi_timeframe_tool\s*\(', text))
+    has_impact_leak = bool(re.search(r'\[IMPACT:|🎯\s*IMPACT|📍\s*受影響資產|📈\s*做多機會|📉\s*做空風險', text))
+    pair_unit_ok = _pair_trade_unit_consistent(text)
+    risk_off_star_ok = not _risk_off_star_cap_violated(text)
 
     issues = []
     if len(text) < 3000:
@@ -106,6 +169,30 @@ def validate_report(text: str) -> dict:
         issues.append("缺少加密市場段落")
     if not has_chatter:
         issues.append("缺少呢喃/傳聞區塊")
+    if not has_qsrec_markers:
+        issues.append("缺少系統追蹤載荷區塊（[QSREC_START]...[QSREC_END]）")
+    elif not has_valid_qsrec:
+        issues.append("QSREC 區塊存在但 JSON 無法解析或為空陣列")
+    if not has_utc8:
+        issues.append("新聞時間未統一標示 UTC+8")
+    if not has_signal_conflict:
+        issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
+    if not has_rumor_grade:
+        issues.append("傳聞區缺少可信度分級（A/B/C 或 0~100）")
+    if not has_rr or not has_max_drawdown:
+        issues.append("交易建議缺少 R:R 或最大回撤風險欄位")
+    if not has_numeric_in_investment:
+        issues.append("投資解讀缺少當日量化數據引用")
+    if not pair_unit_ok:
+        issues.append("配對交易單位不一致或未標註比值/價差單位")
+    if not risk_off_star_ok:
+        issues.append("risk_off 模式下出現超過上限的信心水準（4 顆星）")
+    if too_many_na and (not has_low_confidence_tag or not has_missing_reason_proxy):
+        issues.append("N/A 過多但缺少低置信度標籤與替代指標說明")
+    if has_code_leak:
+        issues.append("戰報外洩 Python 函數名稱（multi_timeframe_tool）")
+    if has_impact_leak:
+        issues.append("戰報外洩內部 IMPACT 原始標籤")
     if has_data_missing:
         missing_fields = re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)
         issues.append(f"資料缺失欄位：{', '.join(set(missing_fields))}")
@@ -115,6 +202,8 @@ def validate_report(text: str) -> dict:
         "issues": issues,
         "news_count": news_count,
         "has_data_missing": has_data_missing,
+        "has_qsrec": has_valid_qsrec,
+        "qsrec_count": len(parsed_qsrec),
     }
 
 
@@ -655,7 +744,6 @@ def _validate_required_keys() -> None:
     required = {
         "XAI_API_KEY": "Grok（加密市場情報員）",
         "OPENROUTER_API_KEY": "Claude（幣圈/AI 辯論員）",
-        "GEMINI_API_KEY": "Gemini（戰報主編）",
         "OPENAI_API_KEY": "GPT（AI 情報員）",
         "APIFY_API_TOKEN": "Apify 搜尋引擎",
     }
