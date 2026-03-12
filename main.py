@@ -12,6 +12,7 @@ from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
 from visualizer import generate_quant_chart
 import tracker
+from tracker import load_previous_recs_block
 
 load_dotenv()
 
@@ -76,6 +77,7 @@ def validate_report(text: str) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
     news_count  = len(re.findall(r'〔新聞', text))
 
+    # Accept both old plain regime label and new scorecard format (e.g. "risk_on（+4/6）")
     has_regime    = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
     has_dashboard = bool(re.search(r'DXY|BTC\s*OI|資金費率|模型排名|ML.*權重|RSI|Fear.*Greed|儀表板', text, re.IGNORECASE))
     has_crypto_trade = bool(re.search(r'資金流向與精準操作\s*\(Crypto\)|精準操作.*Crypto', text, re.IGNORECASE))
@@ -319,10 +321,16 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
     news_titles_str = "\n".join(f"· {t}" for t in all_titles) if all_titles else None
     logger.info("Extracted %d news titles for deduplication.", len(all_titles))
 
+    # ── Phase 4：從評分卡萃取 regime_score（-6 到 +6）──────────────
+    regime_score: float | None = None
+    regime_score_m = re.search(r'市場機制評分[^（(]*[（(]([+-]?\d+)/6[）)]', clean_text)
+    if regime_score_m:
+        regime_score = _safe_float(regime_score_m)
+
     logger.info(
         "Extracted metrics — DXY: %s, ETF Flow: %s億, Avg Risk: %s, MVRV Z: %s, "
-        "Sentiment: %s, SOPR: %s, Netflow: %s",
-        dxy, etf_flow, avg_risk, mvrv_z, sentiment_score, sopr, exchange_netflow,
+        "Sentiment: %s, SOPR: %s, Netflow: %s, RegimeScore: %s",
+        dxy, etf_flow, avg_risk, mvrv_z, sentiment_score, sopr, exchange_netflow, regime_score,
     )
 
     # ── 7. 寫入 BigQuery ──────────────────────────────────────────
@@ -343,6 +351,8 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             bigquery.SchemaField("sentiment_score",    "FLOAT"),
             bigquery.SchemaField("sopr",               "FLOAT"),
             bigquery.SchemaField("exchange_netflow",   "FLOAT"),
+            # Phase 4 新增欄位
+            bigquery.SchemaField("regime_score",       "FLOAT"),
         ]
         table_ref = bigquery.Table(metrics_table, schema=schema)
         client.create_table(table_ref, exists_ok=True)
@@ -370,6 +380,8 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             "sentiment_score":   sentiment_score,
             "sopr":              sopr,
             "exchange_netflow":  exchange_netflow,
+            # Phase 4 新增欄位
+            "regime_score":      regime_score,
         }
         non_null_count = sum(1 for v in [dxy, etf_flow, avg_risk, mvrv_z] if v is not None)
         if non_null_count == 0:
@@ -558,11 +570,26 @@ def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | No
     """使用 ThreadPoolExecutor 讓兩個 Crew 同時執行，回傳合併戰報。"""
     try:
         price_context = get_realtime_quotes()
+
+        # Phase 1：載入上期建議追蹤（注入 Crypto 戰報頭部）
+        prev_recs = ""
+        if not SKIP_BIGQUERY:
+            try:
+                prev_recs = load_previous_recs_block()
+                if prev_recs:
+                    logger.info("Loaded previous recommendations block (%d chars).", len(prev_recs))
+            except Exception as _e:
+                logger.warning("Could not load previous recs block: %s", _e)
+
         from concurrent.futures import ThreadPoolExecutor
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_crypto = executor.submit(
-                lambda: str(CryptoResearchCrew().run(exclude_context=exclude_context, price_context=price_context))
+                lambda: str(CryptoResearchCrew().run(
+                    exclude_context=exclude_context,
+                    price_context=price_context,
+                    prev_recs_block=prev_recs,
+                ))
             )
             future_ai = executor.submit(
                 lambda: str(AIResearchCrew().run(exclude_context=exclude_context, price_context=price_context))
