@@ -2,7 +2,12 @@
 
 import unittest
 
-from tracker import extract_recommendations_json, strip_tracker_blocks
+from tracker import (
+    extract_recommendations_json,
+    strip_tracker_blocks,
+    _compute_trade_metrics,
+    _validate_rec,
+)
 
 # ── realistic snippet mirroring actual LLM-generated report ──
 SAMPLE_REPORT = """\
@@ -111,6 +116,66 @@ class TestStripTrackerBlocks(unittest.TestCase):
     def test_no_block_unchanged(self):
         cleaned = strip_tracker_blocks(REPORT_NO_JSON)
         self.assertEqual(cleaned, REPORT_NO_JSON.rstrip())
+
+
+class TestRiskControls(unittest.TestCase):
+    """Tests for regime caps and trade-structure filters."""
+
+    def test_compute_metrics_long_positive_rr(self):
+        m = _compute_trade_metrics(entry=100, target=110, stop=95, direction="LONG", confidence=3)
+        self.assertGreater(m["rr_ratio"], 1.0)
+        self.assertLess(m["max_drawdown_pct"], 0.0)
+        self.assertGreater(m["expected_win_rate"], 0.0)
+
+    def test_validate_rec_clamps_position_in_risk_off(self):
+        raw = {
+            "asset": "BTC",
+            "direction": "LONG",
+            "entry": 70000,
+            "target": 73000,
+            "stop": 68000,
+            "confidence": 3,
+            "category": "CRYPTO",
+            "narrative": "test",
+            "trigger": "4H close above 70k",
+            "invalidation": "daily close below 67k",
+            "position_pct": 12,
+            "timeframe": "3-5d",
+        }
+        rec = _validate_rec(raw, "2026-03-12", "risk_off")
+        self.assertIsNotNone(rec)
+        self.assertAlmostEqual(rec["position_pct"], 5.0)
+
+    def test_validate_rec_rejects_invalid_long_structure(self):
+        raw = {
+            "asset": "BTC",
+            "direction": "LONG",
+            "entry": 70000,
+            "target": 69000,  # invalid for LONG
+            "stop": 68000,
+            "confidence": 3,
+            "category": "CRYPTO",
+            "narrative": "test",
+        }
+        rec = _validate_rec(raw, "2026-03-12", "neutral")
+        self.assertIsNone(rec)
+
+    def test_validate_rec_rejects_low_rr(self):
+        raw = {
+            "asset": "BTC",
+            "direction": "LONG",
+            "entry": 70000,
+            "target": 70500,  # tiny reward
+            "stop": 68000,    # large risk
+            "confidence": 3,
+            "category": "CRYPTO",
+            "narrative": "test",
+            "trigger": "x",
+            "invalidation": "y",
+            "timeframe": "3d",
+        }
+        rec = _validate_rec(raw, "2026-03-12", "neutral")
+        self.assertIsNone(rec)
 
 
 if __name__ == "__main__":

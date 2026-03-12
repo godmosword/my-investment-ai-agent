@@ -162,6 +162,13 @@ def _compute_trade_metrics(entry: float, target: float, stop: float, direction: 
     }
 
 
+def _has_valid_trade_structure(entry: float, target: float, stop: float, direction: str) -> bool:
+    """檢查 LONG/SHORT 的目標與停損方向是否合理。"""
+    if direction == "LONG":
+        return target > entry and stop < entry
+    return target < entry and stop > entry
+
+
 def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | None:
     """驗證並補全建議欄位；必要欄位缺失時回傳 None。"""
     asset = str(raw.get("asset", "")).upper().strip("$")
@@ -187,6 +194,13 @@ def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | 
             )
             return None
 
+    if not _has_valid_trade_structure(entry, target, stop, direction):
+        logger.warning(
+            "Skipping %s %s: invalid trade structure (entry=%s target=%s stop=%s)",
+            asset, direction, entry, target, stop,
+        )
+        return None
+
     category = str(raw.get("category", "CRYPTO")).upper()
     if category not in ("CRYPTO", "EQUITY"):
         category = "CRYPTO" if asset in _CRYPTO_ASSETS else "EQUITY"
@@ -199,6 +213,12 @@ def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | 
     position_pct_raw = raw.get("position_pct")
     position_pct = float(position_pct_raw) if position_pct_raw is not None else None
     cap = _REGIME_POSITION_CAP.get(regime_at_signal, 10.0)
+    if position_pct is None:
+        # 依 regime 與信心給保守預設倉位，避免遺漏時無法落地執行
+        position_pct = round(min(cap, 2.0 + confidence * 1.5), 2)
+    if position_pct <= 0:
+        logger.warning("Skipping %s %s: non-positive position_pct=%s", asset, direction, position_pct)
+        return None
     if position_pct is not None and position_pct > cap:
         logger.info(
             "Clamping %s position_pct %.2f%% -> %.2f%% due to regime=%s",
@@ -207,6 +227,12 @@ def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | 
         position_pct = cap
 
     metrics = _compute_trade_metrics(entry, target, stop, direction, confidence)
+    if metrics["rr_ratio"] < 0.8:
+        logger.warning(
+            "Skipping %s %s: rr_ratio %.3f below minimum threshold 0.8",
+            asset, direction, metrics["rr_ratio"],
+        )
+        return None
     execution_complete = all([trigger, invalidation, timeframe])
     if execution_complete:
         metrics["signal_score"] = round(min(100.0, metrics["signal_score"] + 12.5), 1)

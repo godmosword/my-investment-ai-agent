@@ -120,6 +120,33 @@ def _pair_trade_unit_consistent(text: str) -> bool:
     return abs(entry - implied_ratio) / implied_ratio <= 0.35
 
 
+def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
+    """檢查 QSREC 載荷的交易欄位完整度與 regime 倉位一致性。"""
+    if not recs:
+        return []
+
+    regime_m = re.search(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', report_text, re.IGNORECASE)
+    regime = regime_m.group(1).lower() if regime_m else "neutral"
+    cap_map = {"risk_off": 5.0, "neutral": 10.0, "risk_on": 15.0}
+    cap = cap_map.get(regime, 10.0)
+
+    issues: list[str] = []
+    required = ("trigger", "invalidation", "position_pct", "timeframe")
+    for i, rec in enumerate(recs, start=1):
+        missing = [k for k in required if rec.get(k) in (None, "", [])]
+        if missing:
+            issues.append(f"QSREC 第 {i} 筆缺少必要欄位：{', '.join(missing)}")
+
+        pos = rec.get("position_pct")
+        try:
+            if pos is not None and float(pos) > cap:
+                issues.append(f"QSREC 第 {i} 筆 position_pct 超過 regime 上限（{float(pos):.2f}% > {cap:.2f}%）")
+        except (TypeError, ValueError):
+            issues.append(f"QSREC 第 {i} 筆 position_pct 非數字")
+
+    return issues
+
+
 def validate_report(text: str) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
     news_count  = len(re.findall(r'〔新聞', text))
@@ -152,6 +179,7 @@ def validate_report(text: str) -> dict:
     has_impact_leak = bool(re.search(r'\[IMPACT:|🎯\s*IMPACT|📍\s*受影響資產|📈\s*做多機會|📉\s*做空風險', text))
     pair_unit_ok = _pair_trade_unit_consistent(text)
     risk_off_star_ok = not _risk_off_star_cap_violated(text)
+    qsrec_issues = _qsrec_consistency_issues(text, parsed_qsrec) if has_valid_qsrec else []
 
     issues = []
     if len(text) < 3000:
@@ -200,6 +228,7 @@ def validate_report(text: str) -> dict:
         issues.append("戰報外洩 Python 函數名稱（multi_timeframe_tool）")
     if has_impact_leak:
         issues.append("戰報外洩內部 IMPACT 原始標籤")
+    issues.extend(qsrec_issues)
     if has_data_missing:
         missing_fields = re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)
         issues.append(f"資料缺失欄位：{', '.join(set(missing_fields))}")
