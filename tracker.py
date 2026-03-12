@@ -59,6 +59,13 @@ _PRICE_SANITY_RANGES: dict[str, tuple[float, float]] = {
     "META": (100,    800),
 }
 
+# 依市場模式限制單筆建議倉位（%）
+_REGIME_POSITION_CAP: dict[str, float] = {
+    "risk_off": 5.0,
+    "neutral": 10.0,
+    "risk_on": 15.0,
+}
+
 # BigQuery trade_recommendations schema
 _SCHEMA = [
     bigquery.SchemaField("report_date",              "DATE"),
@@ -84,6 +91,12 @@ _SCHEMA = [
     bigquery.SchemaField("invalidation",             "STRING"),
     bigquery.SchemaField("position_pct",             "FLOAT"),
     bigquery.SchemaField("timeframe",                "STRING"),
+    bigquery.SchemaField("regime_at_signal",         "STRING"),
+    bigquery.SchemaField("rr_ratio",                 "FLOAT"),
+    bigquery.SchemaField("max_drawdown_pct",         "FLOAT"),
+    bigquery.SchemaField("expected_win_rate",        "FLOAT"),
+    bigquery.SchemaField("expected_value_pct",       "FLOAT"),
+    bigquery.SchemaField("signal_score",             "FLOAT"),
 ]
 
 
@@ -114,7 +127,42 @@ def strip_tracker_blocks(report_text: str) -> str:
     return _QSREC_RE.sub("", report_text).rstrip()
 
 
-def _validate_rec(raw: dict, report_date: str) -> dict | None:
+def _detect_regime_from_report(report_text: str) -> str:
+    """從報告文字偵測 regime，預設 neutral。"""
+    m = re.search(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', report_text, re.IGNORECASE)
+    return m.group(1).lower() if m else "neutral"
+
+
+def _compute_trade_metrics(entry: float, target: float, stop: float, direction: str, confidence: int) -> dict[str, float]:
+    """計算 R:R、最大回撤、預期勝率、期望值、訊號分數。"""
+    if direction == "LONG":
+        reward = max(0.0, (target - entry) / entry * 100)
+        risk = max(0.0, (entry - stop) / entry * 100)
+    else:
+        reward = max(0.0, (entry - target) / entry * 100)
+        risk = max(0.0, (stop - entry) / entry * 100)
+
+    rr_ratio = round(reward / risk, 3) if risk > 0 else 0.0
+    max_drawdown_pct = round(-risk, 2)
+    expected_win_rate = 40.0 + confidence * 8.0  # 1~4 星 => 48~72%
+    expected_value_pct = round((expected_win_rate / 100) * reward - (1 - expected_win_rate / 100) * risk, 2)
+
+    # 0~100：confidence(40%) + R:R(35%) + 執行完整度(25%)
+    conf_score = min(100.0, confidence * 25.0)
+    rr_score = min(100.0, rr_ratio * 25.0)
+    execution_score = 50.0  # 預設；若 trigger/invalidation/timeframe 完整，於 _validate_rec 後補齊
+    signal_score = round(conf_score * 0.40 + rr_score * 0.35 + execution_score * 0.25, 1)
+
+    return {
+        "rr_ratio": rr_ratio,
+        "max_drawdown_pct": max_drawdown_pct,
+        "expected_win_rate": expected_win_rate,
+        "expected_value_pct": expected_value_pct,
+        "signal_score": signal_score,
+    }
+
+
+def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | None:
     """驗證並補全建議欄位；必要欄位缺失時回傳 None。"""
     asset = str(raw.get("asset", "")).upper().strip("$")
     direction = str(raw.get("direction", "LONG")).upper()
@@ -143,6 +191,28 @@ def _validate_rec(raw: dict, report_date: str) -> dict | None:
     if category not in ("CRYPTO", "EQUITY"):
         category = "CRYPTO" if asset in _CRYPTO_ASSETS else "EQUITY"
 
+    confidence = max(1, min(4, int(raw.get("confidence", 3))))
+    trigger = str(raw.get("trigger", ""))[:300] or None
+    invalidation = str(raw.get("invalidation", ""))[:300] or None
+    timeframe = str(raw.get("timeframe", ""))[:100] or None
+
+    position_pct_raw = raw.get("position_pct")
+    position_pct = float(position_pct_raw) if position_pct_raw is not None else None
+    cap = _REGIME_POSITION_CAP.get(regime_at_signal, 10.0)
+    if position_pct is not None and position_pct > cap:
+        logger.info(
+            "Clamping %s position_pct %.2f%% -> %.2f%% due to regime=%s",
+            asset, position_pct, cap, regime_at_signal,
+        )
+        position_pct = cap
+
+    metrics = _compute_trade_metrics(entry, target, stop, direction, confidence)
+    execution_complete = all([trigger, invalidation, timeframe])
+    if execution_complete:
+        metrics["signal_score"] = round(min(100.0, metrics["signal_score"] + 12.5), 1)
+    else:
+        metrics["signal_score"] = round(max(0.0, metrics["signal_score"] - 10.0), 1)
+
     return {
         "report_date":             report_date,
         "asset":                   asset,
@@ -153,7 +223,7 @@ def _validate_rec(raw: dict, report_date: str) -> dict | None:
         "stop_price":              stop,
         "target_pct":              float(raw.get("target_pct", 0.0)),
         "stop_pct":                float(raw.get("stop_pct", 0.0)),
-        "confidence":              max(1, min(4, int(raw.get("confidence", 3)))),
+        "confidence":              confidence,
         "narrative":               str(raw.get("narrative", ""))[:500],
         "category":                category,
         "status":                  "OPEN",
@@ -163,10 +233,16 @@ def _validate_rec(raw: dict, report_date: str) -> dict | None:
         "days_held":               None,
         "created_at":              datetime.now(timezone.utc).isoformat(),
         # Phase 3 新欄位
-        "trigger":                 str(raw.get("trigger", ""))[:300] or None,
-        "invalidation":            str(raw.get("invalidation", ""))[:300] or None,
-        "position_pct":            float(raw["position_pct"]) if raw.get("position_pct") is not None else None,
-        "timeframe":               str(raw.get("timeframe", ""))[:100] or None,
+        "trigger":                 trigger,
+        "invalidation":            invalidation,
+        "position_pct":            position_pct,
+        "timeframe":               timeframe,
+        "regime_at_signal":        regime_at_signal,
+        "rr_ratio":                metrics["rr_ratio"],
+        "max_drawdown_pct":        metrics["max_drawdown_pct"],
+        "expected_win_rate":       metrics["expected_win_rate"],
+        "expected_value_pct":      metrics["expected_value_pct"],
+        "signal_score":            metrics["signal_score"],
     }
 
 
@@ -193,8 +269,9 @@ def save_recommendations(report_text: str,
     if report_date is None:
         report_date = date.today().isoformat()
 
+    regime_at_signal = _detect_regime_from_report(report_text)
     raw_recs = extract_recommendations_json(report_text)
-    recs = [r for raw in raw_recs if (r := _validate_rec(raw, report_date)) is not None]
+    recs = [r for raw in raw_recs if (r := _validate_rec(raw, report_date, regime_at_signal)) is not None]
 
     if not recs:
         logger.info("No valid recommendations found in report (raw_count=%d).", len(raw_recs))
@@ -464,6 +541,29 @@ def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -
             GROUP BY status
             ORDER BY status
         """).result())
+
+        pnl_rows = list(client.query(f"""
+            SELECT report_date, created_at, pnl_pct, regime_at_signal
+            FROM `{RECOMMENDATIONS_TABLE}`
+            WHERE report_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
+              AND status != 'OPEN'
+              AND pnl_pct IS NOT NULL
+            ORDER BY report_date, created_at
+        """).result())
+
+        regime_rows = list(client.query(f"""
+            SELECT
+                COALESCE(regime_at_signal, 'unknown') AS regime,
+                COUNT(*) AS cnt,
+                ROUND(AVG(pnl_pct), 2) AS avg_pnl,
+                ROUND(SUM(CASE WHEN pnl_pct > 0 THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) AS win_rate
+            FROM `{RECOMMENDATIONS_TABLE}`
+            WHERE report_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
+              AND status != 'OPEN'
+              AND pnl_pct IS NOT NULL
+            GROUP BY regime
+            ORDER BY cnt DESC
+        """).result())
     except Exception as e:
         logger.warning("Cannot generate performance summary: %s", e)
         return ""
@@ -482,6 +582,23 @@ def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -
     )
     avg_all = round(weighted_sum / total, 2) if total else 0.0
 
+    pnl_values = [float(r["pnl_pct"]) for r in pnl_rows]
+    gross_profit = sum(p for p in pnl_values if p > 0)
+    gross_loss = abs(sum(p for p in pnl_values if p < 0))
+    profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else None
+    expectancy = round(sum(pnl_values) / len(pnl_values), 2) if pnl_values else 0.0
+
+    # 以已平倉單序列近似計算 max drawdown（回測級近似）
+    peak = 0.0
+    equity = 0.0
+    max_dd = 0.0
+    for p in pnl_values:
+        equity += p
+        peak = max(peak, equity)
+        dd = peak - equity
+        max_dd = max(max_dd, dd)
+    max_dd = round(max_dd, 2)
+
     _STATUS_LABEL = {
         "HIT_TARGET": "✅ 達標",
         "HIT_STOP":   "❌ 停損",
@@ -492,6 +609,8 @@ def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -
         "────────────",
         f"· 總建議：<code>{total}</code> 筆 | 勝率：<code>{win_rate}%</code>",
         f"· 加權平均報酬：<code>{avg_all:+.2f}%</code>",
+        f"· Profit Factor：<code>{profit_factor if profit_factor is not None else 'N/A'}</code> | Expectancy：<code>{expectancy:+.2f}%</code>",
+        f"· Max Drawdown（closed-trade curve）：<code>-{max_dd:.2f}%</code>",
         "────────────",
     ]
     for r in rows:
@@ -504,5 +623,13 @@ def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -
             f" / 最差 <code>{(r['worst'] or 0.0):+.1f}%</code>）"
             f"{avg_days_str}"
         )
+
+    if regime_rows:
+        lines.append("────────────")
+        lines.append("<b>🧭 Regime 分層績效</b>")
+        for r in regime_rows:
+            lines.append(
+                f"· {r['regime']}: <code>{r['cnt']}</code> 筆 | 勝率 <code>{r['win_rate']}%</code> | 均損益 <code>{(r['avg_pnl'] or 0.0):+.2f}%</code>"
+            )
     return "\n".join(lines)
 

@@ -82,10 +82,19 @@ _EDITOR_RULE = dedent("""\
     【主編共識與排版紅線】
     1. 【極致洗鍊】投資解讀必須精簡，展現華爾街頂級投行主編的俐落。
     2. 【黑名單封殺】你的輸出【絕對禁止】包含以下字眼或結構：
-       - 禁止印出「低置信度」、「資料缺失原因」、「替代指標」等系統除錯文字。若無資料直接寫 N/A。
        - 禁止印出「(嚴格要求...)」或「[IMPACT...]」等標籤。
-       - 禁止自創「風控：R:R」或「最大回撤風險」等欄位，交易操作只需列出進場、目標、停損與敘事邏輯。
+       - 禁止印出任何 Python 函數名稱（如 multi_timeframe_tool）。
+    3. 【專業交易欄位必備】每筆建議必須包含：進場、目標、停損、觸發模式、失效條件、倉位建議、敘事邏輯。
+    4. 【量化風控必備】每筆建議必須包含：R:R、最大回撤風險、預期勝率（%）、Signal Score（0-100）。
+    5. 【缺值處理】若關鍵欄位 N/A 超過 3 項，必須加註「低置信度」並說明資料缺失原因與替代指標。
+    6. 【資料載荷】結尾 QSREC JSON 不得遺漏，且欄位需與交易內容一致。
     """)
+_REGIME_POSITION_POLICY = dedent("""\
+    【Regime 風險預算（硬規則）】
+    - risk_off：單筆建議倉位上限 5%，總風險預算 20%，信心上限 ⭐️⭐️⭐️
+    - neutral：單筆建議倉位上限 10%，總風險預算 40%
+    - risk_on：單筆建議倉位上限 15%，總風險預算 60%
+    必須在交易段落前輸出「今日風險預算」摘要，並讓每筆 position_pct 與 regime 一致。""")
 _DATA_RULES = dedent("""\
     【新鮮度】新聞必須在 48h 內；超時跳過重搜。
     【嚴禁播報系統錯誤】若任何 Tool 回傳 `[DATA_MISSING...]`、`失敗` 或 `API 未設定`，絕對禁止將這些錯誤訊息寫成新聞！請直接忽略該工具的輸出。若無足夠真實新聞，寧可減少新聞數量，也絕不允許播報系統日誌！""")
@@ -129,6 +138,7 @@ _QUOTE_RULE = dedent("""\
 _TRADE_RULE = dedent("""\
     · <b>$代幣/股票 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
     · 進場：<code>$數值</code>｜目標：<code>$數值</code> (+Y%)｜停損：<code>$數值</code> (-Z%)
+    · 風控：<code>R:R = 1:X</code>｜最大回撤風險：<code>-Z%</code>｜預期勝率：<code>W%</code>｜Signal Score：<code>S/100</code>
     · 觸發模式：具體進場條件（例：「4H 收盤突破 $70.5k 確認」）
     · 建倉邏輯：多時間框架分批建倉（例：「日線確認方向 → 4H 拉回 MA20 → 1H 收針進場 50%，目標位再加 50%」）
     · 失效條件：清倉觸發（例：「日線收盤 < $67k 或 funding rate > 0.08%」）
@@ -139,7 +149,8 @@ _TRADE_RULE = dedent("""\
 _RISK_MODE_RULE = dedent("""\
     【市場模式聯動風控】
     - 若今日市場模式為 risk_off：所有交易建議信心水準上限降一級（最高只能 ⭐️⭐️⭐️），並在敘事中明確標註「減倉/輕倉」。
-    - 若訊號互相衝突（例如 RSI 中性 + VIX 倒掛 + 資金費率回穩），必須新增 1 行「訊號衝突摘要：...」。""")
+    - 若訊號互相衝突（例如 RSI 中性 + VIX 倒掛 + 資金費率回穩），必須新增 1 行「訊號衝突摘要：...」。
+    - 交易段落前必須新增 1 行「今日風險預算：...」（依 Regime 風險預算硬規則）。""")
 
 _PAIR_TRADE_RULE = dedent("""\
     【配對交易單位一致性】
@@ -158,8 +169,9 @@ _TRADE_JSON_RULE = dedent("""\
       {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事...", "trigger": "觸發條件", "invalidation": "失效條件", "position_pct": 數字, "timeframe": "持倉週期"}
     ]
     [QSREC_END]
-    JSON 規則：數字欄位禁止加引號、asset 不含 $、禁止多行縮排、所有建議合併進同一個陣列。
-    trigger 範例：4H 收盤突破 $70.5k | invalidation 範例：日線收 < $67k 或 funding > 0.08% | position_pct 範例: 8（代表佔總資金 8%）| timeframe 範例: 3–5 天""")
+    JSON 規則：數字欄位禁止加引號、asset 不含 $、允許多行縮排（但必須合法 JSON）、所有建議合併進同一個陣列。
+    trigger 範例：4H 收盤突破 $70.5k | invalidation 範例：日線收 < $67k 或 funding > 0.08% | position_pct 範例: 8（代表佔總資金 8%）| timeframe 範例: 3–5 天
+    建議附加欄位：rr_ratio（數字）、max_drawdown_pct（數字）、expected_win_rate（數字%）、signal_score（0-100）、regime（risk_on/neutral/risk_off）""")
 
 
 def _make_llms(*names: str):
@@ -289,6 +301,7 @@ class CryptoResearchCrew:
                 {_DASHBOARD_FMT}
                 {_CHATTER_FMT}
                 {_RISK_MODE_RULE}
+                {_REGIME_POSITION_POLICY}
                 {_PAIR_TRADE_RULE}
                 {ctx}
                 {prev_recs_ctx}
@@ -301,7 +314,6 @@ class CryptoResearchCrew:
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
                 {_TRADE_RULE}
 
-                {_FINAL_TEMPLATE_CRYPTO}
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
                 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
                 ────────────
@@ -435,6 +447,7 @@ class AIResearchCrew:
                 {_CHATTER_FMT}
                 {_QUOTE_RULE}
                 {_RISK_MODE_RULE}
+                {_REGIME_POSITION_POLICY}
                 {_PAIR_TRADE_RULE}
                 {ctx}
 
@@ -446,7 +459,6 @@ class AIResearchCrew:
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
                 {_TRADE_RULE}
 
-                {_FINAL_TEMPLATE_AI}
                 === 排版結構（嚴格依序，禁止調換區塊順序）===
 
                 ════ 🏛️ 宏觀框架 ════
