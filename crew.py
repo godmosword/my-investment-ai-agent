@@ -69,20 +69,23 @@ _DATA_RULES = dedent("""\
     【嚴禁播報系統錯誤】若任何 Tool 回傳 `[DATA_MISSING...]`、`失敗` 或 `API 未設定`，絕對禁止將這些錯誤訊息寫成新聞！請直接忽略該工具的輸出。若無足夠真實新聞，寧可減少新聞數量，也絕不允許播報系統日誌！""")
 
 _NEWS_FMT = dedent("""\
-    〔新聞 N〕[MM/DD HH:MM] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
+    〔新聞 N〕[MM/DD HH:MM UTC+8] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
     <blockquote>摘要：（1 句核心事實，禁止加入主觀評論）</blockquote>
-    投資解讀：（將受影響資產、做多做空風險等情報，融合成 1~2 句通順的段落）
+    投資解讀：（將受影響資產、做多做空風險等情報，融合成 1~2 句通順段落；且必須至少引用 1 個當日數據，如資金費率/成交量/基差/RSI/MA/ETF 流向）
     💎主編共識：[1 句最終操作判斷，必須點名具體標的]
     【格式紅線】嚴禁在最終戰報中印出「📍 受影響資產」、「📈 做多機會」、「📉 做空風險」、「⏱️ 時效」、「🎯 IMPACT」等原始標籤符號，必須轉化為自然語言！""")
 
 _DASHBOARD_FMT = dedent("""\
     儀表板格式：每項獨立一行，數值部分【必須】用 <code> 標籤包覆。
     · <b>指標名</b> <code>數值 ▲/▼幅度%</code>
-    缺資料寫 <code>N/A</code>，禁止同一行塞多個指標。""")
+    缺資料寫 <code>N/A</code>，禁止同一行塞多個指標。
+    若關鍵欄位 N/A 超過 3 項，必須在該區塊加註：<b>低置信度</b>，
+    並補 1 行「資料缺失原因 + 替代指標」（例如：OI 缺失改看 funding/多空比/現貨成交額）。""")
 
 _CHATTER_FMT = dedent("""\
     呢喃/傳聞：僅未確認訊息，排除官方已證實事件
-    每條 1 句、結尾標註（未確認）、附來源性質，輸出 2~3 條""")
+    每條 1 句、結尾標註（未確認）、附來源性質與可信度分級（A/B/C 或 0~100）、
+    並標註是否已被主流媒體二次驗證（是/否），輸出 2~3 條""")
 
 _TWEET_FMT = dedent("""\
     X 推文精選：僅摘錄 x_search_tool 回傳的真實推文，嚴禁捏造任何用戶名或推文內容
@@ -107,6 +110,16 @@ _TRADE_RULE = dedent("""\
     · 敘事邏輯：1 句，引用本日新聞
     請確保每個數值都用 <code> 標籤包覆，勿轉換為 Markdown 格式。""")
 
+_RISK_MODE_RULE = dedent("""\
+    【市場模式聯動風控】
+    - 若今日市場模式為 risk_off：所有交易建議信心水準上限降一級（最高只能 ⭐️⭐️⭐️），並在敘事中明確標註「減倉/輕倉」。
+    - 若訊號互相衝突（例如 RSI 中性 + VIX 倒掛 + 資金費率回穩），必須新增 1 行「訊號衝突摘要：...」。""")
+
+_PAIR_TRADE_RULE = dedent("""\
+    【配對交易單位一致性】
+    - 若輸出配對交易（如 $BTC / $SOL），必須明確標註「單位：BTC/SOL 比值」或「單位：價差」。
+    - 現價/進場/目標/停損必須使用同一單位，禁止混用單幣現價與比值。""")
+
 # tracker.py 解析用的機器可讀區塊格式（Telegram 不渲染，純文字標記）
 # 欄位：asset=代號大寫不含$, entry/target/stop=純數字, target_pct/stop_pct=百分比數字,
 #        confidence=1~4, category=CRYPTO|EQUITY, current_price=現價數字
@@ -119,7 +132,85 @@ _TRADE_JSON_RULE = dedent("""\
       {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事..."}
     ]
     [QSREC_END]
-    JSON 規則：數字欄位禁止加引號、asset 不含 $、禁止多行縮排、所有建議合併進同一個陣列。""")
+    JSON 規則：數字欄位禁止加引號、asset 不含 $、允許多行縮排（但必須為合法 JSON）、所有建議合併進同一個陣列。""")
+
+_FINAL_TEMPLATE_CRYPTO = dedent("""\
+    === 【最高排版指令】你最終輸出的戰報必須 100% 模仿以下範例結構（包含獨立換行、<code>標籤與結尾 JSON），不准改變排版樣式！===
+
+    <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · YYYY-MM-DD</i>
+    ────────────
+    【今日市場模式】neutral
+    訊號衝突摘要：RSI 中性 + VIX 倒掛 + 資金費率回穩，短線方向不明，採輕倉。
+
+    ══════ <b>📊 加密市場</b> ══════
+    區塊①【數據儀表板】：(嚴格要求：每項指標必須獨立換行！)
+    · <b>DXY</b> <code><示例值></code>
+    · <b>VIX</b> <code><示例值></code>
+    · <b>VIX期限結構</b> <code><示例值></code>
+    · <b>IBIT</b> <code><示例值></code>
+    · <b>BTC RSI(14)</b> <code><示例值></code>
+    · <b>BTC MA20</b> <code><示例值></code>
+    · <b>BTC MA50</b> <code><示例值></code>
+    · <b>ETF流向</b> <code>N/A</code>
+    · <b>OI</b> <code>N/A</code>
+    · <b>爆倉</b> <code>N/A</code>
+    · <b>P-C</b> <code>N/A</code>
+    <b>低置信度</b>：資料缺失原因：部分衍生品 API 回傳延遲；替代指標：funding、多空比、現貨成交額。
+
+    ...(中間的新聞與呢喃區塊省略，請照常輸出，新聞時間固定 [MM/DD HH:MM UTC+8]，投資解讀至少含一個當日數據)...
+
+    區塊④【資金流向與精準操作 (Crypto)】：
+    · <b>$BTC (LONG)</b>｜現價：$<示例值>｜信心水準：⭐️⭐️
+    · 進場：<code>$<示例值></code>｜目標：<code>$<示例值> (+X.X%)</code>｜停損：<code>$<示例值> (-X.X%)</code>
+    · 風控：<code>R:R = 1:X.X</code>｜最大回撤風險：<code>-X.X%</code>
+    · 敘事邏輯：多時框狀態 D(中性)/4H(中性)/1H(多)，引用當日數據（例如 funding/RSI/MA）。
+
+    · <b>$BTC / $SOL (配對交易)</b>｜現價：$<示例值> / $<示例值>｜信心水準：⭐️⭐️
+    · 單位：BTC/SOL 比值
+    · 進場：<code><比值示例值></code>｜目標：<code><比值示例值> (+X.X%)</code>｜停損：<code><比值示例值> (-X.X%)</code>
+    · 風控：<code>R:R = 1:X.X</code>｜最大回撤風險：<code>-X.X%</code>
+    · 敘事邏輯：必須與比值單位一致，禁止混用單幣價格與比值。
+
+    [QSREC_START]
+    [
+      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 2, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)，funding 轉負支持反彈。"},
+      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 0.000121, "target": 0.000129, "stop": 0.000117, "confidence": 2, "category": "CRYPTO", "narrative": "配對單以 BTC/SOL 比值表示，單位一致。"}
+    ]
+    [QSREC_END]
+    """)
+
+_FINAL_TEMPLATE_AI = dedent("""\
+    === 【最高排版指令】你最終輸出的 AI 戰報必須 100% 模仿以下範例結構（包含獨立換行、<code>標籤與結尾 JSON），不准改變排版樣式！===
+
+    ══════ <b>🤖 AI 市場</b> ══════
+    區塊①【AI 數據儀表板】：(嚴格要求：每項指標必須獨立換行！)
+    · <b>OpenRouter Top1 熱度</b> <code><示例值></code>
+    · <b>OpenRouter Top2 熱度</b> <code><示例值></code>
+    · <b>OpenRouter Top3 熱度</b> <code><示例值></code>
+    · <b>OpenRouter Top4 熱度</b> <code><示例值></code>
+    · <b>OpenRouter Top5 熱度</b> <code><示例值></code>
+
+    區塊②【AI 產業新聞】：
+    〔新聞 1〕[MM/DD HH:MM UTC+8] <b>示例標題</b>（來源：TechCrunch｜性質：confirmed）
+    <blockquote>摘要：1 句核心事實。</blockquote>
+    投資解讀：至少含 1 個當日數據（例如 NVDA 現價、量能、估值或資金流變化）。
+    💎主編共識：點名具體標的，並註明倉位控制。
+
+    區塊③【產業鏈呢喃】：
+    · 傳聞內容...（未確認｜來源：供應鏈訪談｜可信度：B｜主流媒體二次驗證：否）
+
+    區塊④【AI 產業鏈精準操作 (US Equities)】：
+    · <b>NVDA (LONG)</b>｜現價：$<示例值>｜信心水準：⭐️⭐️⭐️
+    · 進場：<code>$<示例值></code>｜目標：<code>$<示例值> (+X.X%)</code>｜停損：<code>$<示例值> (-X.X%)</code>
+    · 風控：<code>R:R = 1:X.X</code>｜最大回撤風險：<code>-X.X%</code>
+    · 敘事邏輯：多時框狀態 D(多)/4H(多)/1H(中性)，並引用當日數據。
+
+    [QSREC_START]
+    [
+      {"asset": "NVDA", "direction": "LONG", "current_price": 184.7, "entry": 184.0, "target": 198.0, "stop": 174.0, "confidence": 3, "category": "EQUITY", "narrative": "多時框共振偏多，且有當日量化數據支持。"}
+    ]
+    [QSREC_END]
+    """)
 
 
 def _make_llms(*names: str):
@@ -134,7 +225,7 @@ def _make_llms(*names: str):
 
 class CryptoResearchCrew:
     def __init__(self):
-        grok, gpt, gemini = _make_llms("grok", "gpt", "gemini")
+        grok, gpt = _make_llms("grok", "gpt")
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -159,7 +250,7 @@ class CryptoResearchCrew:
             role="機構策略主編（加密市場）",
             goal="整合研究成果，輸出戰報上半部。",
             backstory="最終排版與風控守門員。",
-            llm=gemini,
+            llm=gpt,
             tools=[coinglass_data_tool, ml_quant_tool, multi_timeframe_tool],
             verbose=_VERBOSE,
         )
@@ -230,17 +321,19 @@ class CryptoResearchCrew:
 
         final_report_task = Task(
             description=dedent(f"""
-                【加密市場戰報排版 — Gemini 主編】
+                【加密市場戰報排版 — GPT 主編】
                 {_QUOTE_RULE}
                 {_EDITOR_RULE}
                 {_TELEGRAM_FMT}
                 {_DASHBOARD_FMT}
                 {_CHATTER_FMT}
+                {_RISK_MODE_RULE}
+                {_PAIR_TRADE_RULE}
                 {ctx}
 
                 === 交易建議（Crypto）===
                 【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
-                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，輸出 D/4H/1H：
+                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，並以自然語言輸出多時框狀態 D/4H/1H（禁止印出函數名稱）：
                 - 三時框同向 → 信心 ⭐️⭐️⭐️⭐️
                 - 兩時框同向且一個中性 → 信心 ⭐️⭐️⭐️
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
@@ -263,6 +356,8 @@ class CryptoResearchCrew:
                 區塊④【資金流向與精準操作 (Crypto)】：1 單邊 + 1 配對，套用【上方交易格式】
 
                 {_TRADE_JSON_RULE}
+
+                {_FINAL_TEMPLATE_CRYPTO}
             """),
             expected_output="一份純淨的 HTML 戰報。報告的最末端必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 陣列。若遺漏 JSON，你的任務將被判定為徹底失敗！",
             agent=self.quant_strategist,
@@ -279,7 +374,7 @@ class CryptoResearchCrew:
 
 class AIResearchCrew:
     def __init__(self):
-        gpt, grok, gemini = _make_llms("gpt", "grok", "gemini")
+        gpt, grok = _make_llms("gpt", "grok")
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
@@ -304,7 +399,7 @@ class AIResearchCrew:
             role="機構策略主編（AI 市場）",
             goal="整合 AI 研究成果輸出戰報下半部。",
             backstory="最終格式與可操作性守門。",
-            llm=gemini,
+            llm=gpt,
             tools=[multi_timeframe_tool],
             verbose=_VERBOSE,
         )
@@ -360,17 +455,19 @@ class AIResearchCrew:
 
         final_report_task = Task(
             description=dedent(f"""
-                【AI 市場戰報排版 — Gemini 主編】
+                【AI 市場戰報排版 — GPT 主編】
                 {_EDITOR_RULE}
                 {_TELEGRAM_FMT}
                 {_DASHBOARD_FMT}
                 {_CHATTER_FMT}
                 {_QUOTE_RULE}
+                {_RISK_MODE_RULE}
+                {_PAIR_TRADE_RULE}
                 {ctx}
 
                 === 交易建議（US Equities）===
                 【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
-                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，輸出 D/4H/1H：
+                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，並以自然語言輸出多時框狀態 D/4H/1H（禁止印出函數名稱）：
                 - 三時框同向 → 信心 ⭐️⭐️⭐️⭐️
                 - 兩時框同向且一個中性 → 信心 ⭐️⭐️⭐️
                 - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
@@ -389,6 +486,8 @@ class AIResearchCrew:
                 區塊④【AI 產業鏈精準操作 (US Equities)】：2 支，套用【上方交易格式】
 
                 {_TRADE_JSON_RULE}
+
+                {_FINAL_TEMPLATE_AI}
             """),
             expected_output="一份純淨的 HTML 戰報。報告的最末端必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 陣列。若遺漏 JSON，你的任務將被判定為徹底失敗！",
             agent=self.quant_strategist,
