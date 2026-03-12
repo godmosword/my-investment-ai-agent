@@ -12,6 +12,7 @@ import yfinance as yf
 
 from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
+from tools import source_observability_lines
 from visualizer import generate_quant_chart
 import tracker
 from tracker import load_previous_recs_block
@@ -239,11 +240,19 @@ def _inject_fallback_news_entries(text: str, min_news: int = 6) -> str:
 
 
 def _postprocess_report_for_resilience(text: str) -> str:
-    """修正易失格式：新聞 UTC+8 與新聞不足降級補齊。"""
+    """修正易失格式：新聞 UTC+8、新聞不足降級補齊、來源可觀測欄位。"""
     if not text:
         return text
     patched = _normalize_news_timezone_utc8(text)
     patched = _inject_fallback_news_entries(patched, min_news=6)
+    if "【SourceHealth】" not in patched or "【SourceErrors】" not in patched:
+        observe_block = source_observability_lines()
+        marker = "[QSREC_START]"
+        pos = patched.find(marker)
+        if pos != -1:
+            patched = patched[:pos].rstrip() + f"\n\n{observe_block}\n\n" + patched[pos:]
+        else:
+            patched = patched.rstrip() + f"\n\n{observe_block}"
     return patched
 
 
@@ -281,6 +290,9 @@ def validate_report(text: str) -> dict:
     has_low_confidence_tag = bool(re.search(r'低置信度|低信心', text))
     has_missing_reason_proxy = bool(re.search(r'資料缺失原因.*替代指標|替代指標.*資料缺失原因', text))
     has_numeric_in_investment = bool(re.search(r'投資解讀[：:][^\n]*(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)', text))
+    has_source_health = "【SourceHealth】" in text
+    has_source_errors = "【SourceErrors】" in text
+    has_source_quota = "【SourceQuota】" in text
     has_code_leak = bool(re.search(r'multi_timeframe_tool\s*\(', text))
     has_impact_leak = bool(re.search(r'\[IMPACT:|🎯\s*IMPACT|📍\s*受影響資產|📈\s*做多機會|📉\s*做空風險', text))
     pair_unit_ok = _pair_trade_unit_consistent(text)
@@ -324,6 +336,8 @@ def validate_report(text: str) -> dict:
         issues.append("缺少今日風險預算摘要")
     if not has_numeric_in_investment:
         issues.append("投資解讀缺少當日量化數據引用")
+    if not has_source_health or not has_source_errors or not has_source_quota:
+        issues.append("缺少來源健康欄位（SourceHealth/SourceErrors/SourceQuota）")
     if not pair_unit_ok:
         issues.append("配對交易單位不一致或未標註比值/價差單位")
     if not risk_off_star_ok:
@@ -347,6 +361,9 @@ def validate_report(text: str) -> dict:
         "has_data_missing": has_data_missing,
         "has_qsrec": has_valid_qsrec,
         "qsrec_count": len(parsed_qsrec),
+        "has_source_health": has_source_health,
+        "has_source_errors": has_source_errors,
+        "has_source_quota": has_source_quota,
     }
 
 
