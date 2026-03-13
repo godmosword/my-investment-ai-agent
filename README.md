@@ -11,9 +11,9 @@
 | Agent（`crew.py` role） | 模型識別碼 | 職責 | 工具 |
 |------------------------|-----------|------|------|
 | 🛸 加密市場情報研究員 | `xai/grok-4-1-fast-reasoning` | 幣圈新聞（3 則）、X 推文（5 則）、宏觀/鏈上/衍生品彙整 | `market_search_tool`, `newsapi_tool`, `gnews_tool`, `rss_feed_tool`, `x_search_tool`, `coinglass_data_tool`, `onchain_metrics_tool`, `fear_greed_tool`, `etf_flow_tool`, `econ_calendar_tool`, `sentiment_score_tool` |
-| 🤖 前沿 AI 市場研究員 | `openai/gpt-5.2-2025-12-11` | AI 產業新聞、MCP/Agent 推文、模型熱度與風險敘事 | `market_search_tool`, `newsapi_tool`, `gnews_tool`, `rss_feed_tool`, `x_search_tool`, `ai_momentum_tool`, `rumor_scanner_tool` |
-| 🛡️ 首席幣圈風險審計員 | `openai/gpt-5.2-2025-12-11` | 反向辯論、regime scorecard、宏觀風險審計 | `regime_scorecard_tool`, `macro_context_tool` |
-| 💎 機構策略主編 | `openai/gpt-5.2-2025-12-11` | 整合研究成果、排版雙市場戰報、風控欄位與 QSREC 載荷定稿 | `coinglass_data_tool`, `ml_quant_tool`, `multi_timeframe_tool` |
+| 🤖 前沿 AI 市場研究員 | `openai/gpt-4o-mini`（可設 `OPENAI_MODEL` 覆寫） | AI 產業新聞、MCP/Agent 推文、模型熱度與風險敘事 | `market_search_tool`, `newsapi_tool`, `gnews_tool`, `rss_feed_tool`, `x_search_tool`, `ai_momentum_tool`, `rumor_scanner_tool` |
+| 🛡️ 首席幣圈風險審計員 | `openai/gpt-4o-mini`（可設 `OPENAI_MODEL` 覆寫） | 反向辯論、regime scorecard、宏觀風險審計 | `regime_scorecard_tool`, `macro_context_tool` |
+| 💎 機構策略主編 | `openai/gpt-4o-mini`（可設 `OPENAI_MODEL` 覆寫） | 整合研究成果、排版雙市場戰報、風控欄位與 QSREC 載荷定稿 | `coinglass_data_tool`, `ml_quant_tool`, `multi_timeframe_tool` |
 
 設計原則：**背景充分辯論，報告只呈現乾淨共識與即時數據**。戰報中不顯示 Grok/GPT/Claude 個別觀點，僅保留每則新聞與推文下的 **💎 主編共識**。
 
@@ -81,7 +81,7 @@
 | 變數 | 說明 |
 |------|------|
 | `XAI_API_KEY` | Grok（加密市場） |
-| `OPENAI_API_KEY` | GPT（AI 市場） |
+| `OPENAI_API_KEY` | GPT（AI 市場）；預設模型為 `gpt-4o-mini`，可設 `OPENAI_MODEL=openai/gpt-4o` 等覆寫 |
 | `OPENROUTER_API_KEY` | Claude（OpenRouter） |
 | `GEMINI_API_KEY` | Gemini（主編定稿） |
 
