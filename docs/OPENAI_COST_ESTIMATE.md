@@ -6,13 +6,15 @@
 
 ## 1. Pipeline 中哪裡用到 OpenAI？
 
+目前僅 **2 個 Agent** 使用 OpenAI（其餘為 Grok / Gemini），詳見 `docs/COST_PER_MODEL.md`。
+
 | 位置 | 用途 | 模型（`crew.py`） | 預估 LLM 輪數/次 |
 |------|------|-------------------|-------------------|
 | **Crypto 戰報** | 辯論與風險審計（review_task） | `MODEL_GPT` | 約 2～4 輪（regime_scorecard_tool、macro_context_tool） |
-| **Crypto 戰報** | 策略主編產出戰報（final_report_task） | `MODEL_GPT` | 約 3～6 輪（coinglass、ml_quant、multi_timeframe） |
 | **AI 戰報** | AI 情報收集（ai_task） | `MODEL_GPT` | 約 5～10 輪（多個搜尋/新聞/推文工具） |
-| **AI 戰報** | 策略主編產出戰報（final_report_task） | `MODEL_GPT` | 約 2～4 輪（multi_timeframe_tool） |
-| **選用** | `sentiment_score_tool`（情緒評分） | 候選含 `gpt-4o-mini` | 0～1 次（多數情況由 Gemini 先處理） |
+| **選用** | `sentiment_score_tool`（情緒評分） | 候選含 `gpt-4o-mini` | 0～1 次（多數由 Gemini 先處理） |
+
+註：機構策略主編（加密/AI）已改為 **Gemini 3.1 Pro Preview**，不再使用 OpenAI。
 
 目前 `crew.py` 中**預設**為低成本模型，並可透過環境變數覆寫：
 
