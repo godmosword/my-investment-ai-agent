@@ -131,6 +131,17 @@
 
 ## 快速開始
 
+### 開發工具設定（Claude Code / AI 協作）
+
+本專案使用 [gstack](https://github.com/garrytan/gstack) 作為 Claude Code 技能集，提供網頁瀏覽與工程流程工具。
+
+```bash
+git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
+cd ~/.claude/skills/gstack && ./setup
+```
+
+> **前置需求**：需安裝 [bun](https://bun.sh/)（`curl -fsSL https://bun.sh/install | bash`）。
+
 ### 安裝
 
 ```bash
