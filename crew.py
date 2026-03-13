@@ -28,7 +28,8 @@ from tools import (
 _VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
 
 MODEL_GROK = "xai/grok-4-1-fast-reasoning"
-MODEL_GPT = "openai/gpt-5.2-2025-12-11"
+# 預設改為 gpt-4o-mini 以壓低單次日報成本（約 $0.03～0.05）；可設 OPENAI_MODEL 覆寫，例如 openai/gpt-4o
+MODEL_GPT = os.getenv("OPENAI_MODEL", "openai/gpt-4o-mini")
 MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
 
 _TELEGRAM_FMT = dedent("""\
