@@ -115,13 +115,6 @@ _TWEET_FMT = dedent("""\
     每條格式：· 🐦 @用戶名 [時間] 推文核心內容（❤️互動數）
     若 x_search_tool 回傳 [DATA_MISSING:x_search]，直接跳過此區塊，不輸出任何佔位文字""")
 
-_IMPACT_TAG = dedent("""\
-    📍 受影響資產：[Ticker]
-    📈 做多機會：[標的]—[原因]
-    📉 做空風險：[標的]—[原因]
-    ⏱️ 時效：短期/中期/長期
-    🎯 IMPACT：強利空/弱利空/中性/弱利多/強利多""")
-
 _QUOTE_RULE = dedent("""\
     【實盤價格強制查核】關於 DXY、VIX、IBIT、SPY、BTC、SOL、NVDA、MSFT 等數值，
     以及 RSI(14)、MA20/MA50、VIX 期限結構等技術指標，
@@ -165,6 +158,38 @@ _TRADE_JSON_RULE = dedent("""\
     JSON 規則：數字欄位禁止加引號、asset 不含 $、允許多行縮排（但必須合法 JSON）、所有建議合併進同一個陣列。
     trigger 範例：4H 收盤突破 $70.5k | invalidation 範例：日線收 < $67k 或 funding > 0.08% | position_pct 範例: 8（代表佔總資金 8%）| timeframe 範例: 3–5 天
     建議附加欄位：rr_ratio（數字）、max_drawdown_pct（數字）、expected_win_rate（數字%）、signal_score（0-100）、regime（risk_on/neutral/risk_off）""")
+
+_MTF_CONF_RULE = dedent("""\
+    === 交易建議（通用）===
+    每筆必須呼叫 multi_timeframe_tool('標的')，僅輸出自然語言（禁止函數名）：
+    - 三時框同向 → ⭐️⭐️⭐️⭐️
+    - 兩同向一中性 → ⭐️⭐️⭐️
+    - 分歧 → ⭐️⭐️ 或 ⭐️""")
+
+_CRYPTO_LAYOUT_RULE = dedent("""\
+    === 排版順序（Crypto）===
+    1) <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
+    2) 若有【上期建議追蹤】則原文貼上（標題後）
+    3) 【今日市場模式】與評分卡明細（取自 review_task）
+    4) 🏛️ 宏觀框架（取自 macro_context_tool）
+    5) 📊 加密市場：
+       - 區塊① 儀表板（宏觀/技術/籌碼；嚴格套用儀表板格式）
+       - 區塊② 核心新聞 3 則（套用新聞格式）
+       - 區塊②b X 推文精選（無資料可跳過）
+       - 區塊③ 市場呢喃與傳聞 2~3 條
+       - 區塊④ 資金流向與精準操作：1 單邊 + 1 配對
+    6) 最後必須輸出 QSREC JSON 區塊""")
+
+_AI_LAYOUT_RULE = dedent("""\
+    === 排版順序（AI）===
+    1) 🏛️ 宏觀框架（取自 macro_context_tool + 1 句主編共識）
+    2) 🤖 AI 市場：
+       - 區塊① AI 儀表板（OpenRouter Top5；缺值 <code>N/A</code>）
+       - 區塊② AI 產業新聞 3 則（基建/投資案/模型各 1）
+       - 區塊②b X 推文精選（無資料可跳過）
+       - 區塊③ 產業鏈呢喃 2~3 條
+       - 區塊④ AI 精準操作 2 檔
+    3) 最後必須輸出 QSREC JSON 區塊""")
 
 
 def _make_llms(*names: str):
@@ -297,33 +322,10 @@ class CryptoResearchCrew:
                 {ctx}
                 {prev_recs_ctx}
 
-                === 交易建議（Crypto）===
-                【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
-                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，並以自然語言輸出多時框狀態 D/4H/1H（禁止印出函數名稱）：
-                - 三時框同向 → 信心 ⭐️⭐️⭐️⭐️
-                - 兩時框同向且一個中性 → 信心 ⭐️⭐️⭐️
-                - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
+                {_MTF_CONF_RULE}
                 {_TRADE_RULE}
 
-                === 排版結構（嚴格依序，禁止調換區塊順序）===
-                <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
-                ────────────
-                （若有上期建議追蹤，必須在此輸出，完整照抄 Context 中的【上期建議追蹤】內容）
-                ────────────
-                【今日市場模式】<從 review_task 中的評分卡複製，格式：risk_on/neutral/risk_off（+N/6）>
-                （評分卡明細：從 review_task 輸出的 regime_scorecard_tool 結果原文複製，每條獨立一行）
-                ════ 🏛️ 宏觀框架 ════
-                （從 review_task 的 macro_context_tool 結果原文複製）
-                ══════ <b>📊 加密市場</b> ══════
-                區塊①【數據儀表板】：
-                - 三組：宏觀（DXY/VIX/VIX期限結構/IBIT/近期宏觀事件）、技術（BTC RSI/MA20MA50/Fear&Greed）、籌碼（資金費率/多空比/OI/爆倉/P-C/MaxPain/ETF流向）
-                - 嚴格套用【上方儀表板格式】
-                區塊②【核心新聞】：3 則，套用【上方新聞格式】，將 IMPACT 資訊融入投資解讀（禁止原文印出標籤），每則附 1 句💎主編共識
-                ════ 🐦 X 即時情緒推文 ════
-                區塊②b【X 推文精選】：套用【上方推文格式】；若無推文數據則跳過此區塊
-                ────────────
-                區塊③【市場呢喃與傳聞】：2~3 條，套用【上方呢喃格式】，不可重複新聞事件
-                區塊④【資金流向與精準操作 (Crypto)】：1 單邊 + 1 配對，套用【上方交易格式】（含觸發模式、建倉邏輯、失效條件、倉位建議）
+                {_CRYPTO_LAYOUT_RULE.format(today_str=today_str)}
 
                 {_TRADE_JSON_RULE}
 
@@ -440,26 +442,10 @@ class AIResearchCrew:
                 {_PAIR_TRADE_RULE}
                 {ctx}
 
-                === 交易建議（US Equities）===
-                【實盤價格強制查核】：必須使用 Context 中的【系統強制即時報價】來設定現價與進場點位，嚴禁自行捏造！
-                對每筆交易建議必須呼叫 multi_timeframe_tool('標的')，並以自然語言輸出多時框狀態 D/4H/1H（禁止印出函數名稱）：
-                - 三時框同向 → 信心 ⭐️⭐️⭐️⭐️
-                - 兩時框同向且一個中性 → 信心 ⭐️⭐️⭐️
-                - 方向分歧 → 信心降為 ⭐️⭐️ 或 ⭐️
+                {_MTF_CONF_RULE}
                 {_TRADE_RULE}
 
-                === 排版結構（嚴格依序，禁止調換區塊順序）===
-
-                ════ 🏛️ 宏觀框架 ════
-                （從 review_task 的 macro_context_tool 結果原文複製，整合對 AI 板塊影響的 1 句主編共識）
-                ══════ <b>🤖 AI 市場</b> ══════
-                區塊①【AI 數據儀表板】：列 OpenRouter Top5 熱度（缺資料寫 <code>N/A</code>），嚴格套用【上方儀表板格式】
-                區塊②【AI 產業新聞】：3 則（基建/投資案/最新模型各1），套用【上方新聞格式】，將 IMPACT 資訊融入投資解讀（禁止原文印出標籤），每則附 1 句💎主編共識
-                ════ 🐦 X 即時情緒推文 ════
-                區塊②b【X 推文精選】：套用【上方推文格式】；若無推文數據則跳過此區塊
-                ────────────
-                區塊③【產業鏈呢喃】：2~3 條，套用【上方呢喃格式】，不可重複新聞事件
-                區塊④【AI 產業鏈精準操作 (US Equities)】：2 支，套用【上方交易格式】（含觸發模式、建倉邏輯、失效條件、倉位建議）
+                {_AI_LAYOUT_RULE}
 
                 {_TRADE_JSON_RULE}
 
