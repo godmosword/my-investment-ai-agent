@@ -35,11 +35,21 @@ MAX_REPORT_RETRIES = int(os.getenv("MAX_REPORT_RETRIES", "2"))
 MAX_503_RETRIES = int(os.getenv("MAX_503_RETRIES", "3"))
 BACKOFF_BASE_SEC = int(os.getenv("BACKOFF_BASE_SEC", "30"))
 ERROR_PREFIX = "🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息："
+MAX_EXCLUSION_CONTEXT_CHARS = int(os.getenv("MAX_EXCLUSION_CONTEXT_CHARS", "1000"))
+MAX_PREV_RECS_CHARS = int(os.getenv("MAX_PREV_RECS_CHARS", "1200"))
 
 # 除錯用環境變數：LOG_LEVEL=DEBUG | DEBUG=1 | CREW_VERBOSE=1（Agent 步驟）| SKIP_TELEGRAM=1 | SKIP_BIGQUERY=1
 
 # Telegram HTML 支援的標籤白名單
 _ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "blockquote", "a"}
+
+
+def _truncate_text(text: str | None, limit: int) -> str:
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "\n…[truncated]"
 
 
 class _FilteredStream:
@@ -1025,6 +1035,7 @@ def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | No
     """使用 ThreadPoolExecutor 讓兩個 Crew 同時執行，回傳合併戰報。"""
     try:
         price_context = get_realtime_quotes()
+        trimmed_exclusion = _truncate_text(exclude_context, MAX_EXCLUSION_CONTEXT_CHARS)
 
         # Phase 1：載入上期建議追蹤（注入 Crypto 戰報頭部）
         prev_recs = ""
@@ -1032,6 +1043,7 @@ def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | No
             try:
                 prev_recs = load_previous_recs_block()
                 if prev_recs:
+                    prev_recs = _truncate_text(prev_recs, MAX_PREV_RECS_CHARS)
                     logger.info("Loaded previous recommendations block (%d chars).", len(prev_recs))
             except Exception as _e:
                 logger.warning("Could not load previous recs block: %s", _e)
@@ -1041,13 +1053,13 @@ def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | No
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_crypto = executor.submit(
                 lambda: str(CryptoResearchCrew().run(
-                    exclude_context=exclude_context,
+                    exclude_context=trimmed_exclusion,
                     price_context=price_context,
                     prev_recs_block=prev_recs,
                 ))
             )
             future_ai = executor.submit(
-                lambda: str(AIResearchCrew().run(exclude_context=exclude_context, price_context=price_context))
+                lambda: str(AIResearchCrew().run(exclude_context=trimmed_exclusion, price_context=price_context))
             )
 
             crypto_report = future_crypto.result()

@@ -37,24 +37,14 @@ _TELEGRAM_FMT = dedent("""\
     儀表板每項獨立一行且數值包 <code>；摘要用 <blockquote>；缺資料寫 <code>N/A</code>""")
 
 _FINAL_TEMPLATE_CRYPTO = dedent("""\
-    === 【排版參考】輸出結構參照以下範例，嚴禁添加任何自創欄位，嚴禁印出除錯文字！ ===
+    === 極簡範例（嚴禁輸出除錯字樣） ===
     <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief</i>
-    ────────────
     【今日市場模式】neutral
     ══════ <b>📊 加密市場</b> ══════
-    區塊①【數據儀表板】：
-    · <b>DXY</b> <code>104.5</code>
-    · <b>VIX</b> <code>24.44</code>
-    · <b>IBIT</b> <code>$40.12</code>
-    · <b>BTC RSI(14)</b> <code>52.3（中性）</code>
-    · <b>資金費率</b> <code>0.012%</code>
-    · <b>SourceHealth</b> <code>newsapi:0.67 | gnews:0.60 | apify:1.00</code>
-    · <b>SourceErrors</b> <code>newsapi:429=1,400=0,timeout=0,5xx=0,other=0 | gnews:429=0,400=1,timeout=0,5xx=0,other=0 | apify:429=0,400=0,timeout=0,5xx=0,other=0</code>
-    （依序輸出所有儀表板指標，每項獨立一行）
-    區塊④【資金流向與精準操作 (Crypto)】：
-    · <b>$BTC (LONG)</b>｜現價：$70578｜信心水準：⭐️⭐️⭐️
-    · 進場：<code>$69800</code>｜目標：<code>$72800 (+4.3%)</code>｜停損：<code>$67800 (-2.8%)</code>
-    · 敘事邏輯：多時框狀態 D(中性)/4H(中性)/1H(多)，資金費率轉負支持反彈...
+    區塊①【數據儀表板】（每行獨立，數值用 <code>）
+    區塊②【核心新聞】（3 則，每則含投資解讀 + 💎主編共識）
+    區塊③【市場呢喃與傳聞】（2~3 條）
+    區塊④【資金流向與精準操作 (Crypto)】（含 R:R/回撤/勝率/Signal Score）
     [QSREC_START]
     [
       {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 3, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)...", "trigger": "4H 收盤突破 $70.5k 確認", "invalidation": "日線收 < $67k 或 funding > 0.08%", "position_pct": 8, "timeframe": "3–5 天"}
@@ -63,18 +53,12 @@ _FINAL_TEMPLATE_CRYPTO = dedent("""\
     """)
 
 _FINAL_TEMPLATE_AI = dedent("""\
-    === 【排版參考】輸出結構參照以下範例，嚴禁添加任何自創欄位，嚴禁印出除錯文字！ ===
+    === 極簡範例（嚴禁輸出除錯字樣） ===
     ══════ <b>🤖 AI 市場</b> ══════
-    區塊①【AI 數據儀表板】：
-    · <b>OpenRouter #1</b> <code>claude-3.5-sonnet（熱度 ▲12%）</code>
-    · <b>OpenRouter #2</b> <code>gpt-4o（熱度 ▼3%）</code>
-    · <b>SourceHealth</b> <code>newsapi:0.67 | gnews:0.60 | apify:1.00</code>
-    · <b>SourceErrors</b> <code>newsapi:429=1,400=0,timeout=0,5xx=0,other=0 | gnews:429=0,400=1,timeout=0,5xx=0,other=0 | apify:429=0,400=0,timeout=0,5xx=0,other=0</code>
-    （依序輸出 Top5，缺資料寫 <code>N/A</code>，每項獨立一行）
-    區塊④【AI 產業鏈精準操作 (US Equities)】：
-    · <b>$NVDA (LONG)</b>｜現價：$875.20｜信心水準：⭐️⭐️⭐️
-    · 進場：<code>$870.00</code>｜目標：<code>$920.00 (+5.7%)</code>｜停損：<code>$845.00 (-2.9%)</code>
-    · 敘事邏輯：B200 出貨加速，雲端 CAPEX 上調，三時框多頭排列...
+    區塊①【AI 數據儀表板】（每行獨立，數值用 <code>）
+    區塊②【AI 產業新聞】（3 則，每則含投資解讀 + 💎主編共識）
+    區塊③【產業鏈呢喃】（2~3 條）
+    區塊④【AI 產業鏈精準操作 (US Equities)】（2 檔，含完整風控欄位）
     [QSREC_START]
     [
       {"asset": "NVDA", "direction": "LONG", "current_price": 875.20, "entry": 870.00, "target": 920.00, "stop": 845.00, "confidence": 3, "category": "EQUITY", "narrative": "B200 出貨加速，雲端 CAPEX 上調...", "trigger": "日線突破 $880 且成交量 > 5 日均量", "invalidation": "日線收 < $850 或 AI CAPEX 下調消息", "position_pct": 6, "timeframe": "5–10 天"}
@@ -264,8 +248,6 @@ class CryptoResearchCrew:
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
                 研判：2~3 句，必須明確說明哪個標的受影響
-                {_IMPACT_TAG}
-                （以上 IMPACT 標籤為主編整合用的內部格式，不得原文印入最終戰報，主編須轉化為自然語言）
                 禁止捏造來源。
             """),
             expected_output="3 則幣圈新聞結構化初稿。",
@@ -422,8 +404,6 @@ class AIResearchCrew:
                 產出 AI 新聞 3 則，每則格式：
                 {_NEWS_FMT}
                 🤖 GPT 研判：2~3 句，必須點名受影響美股或 ETF
-                {_IMPACT_TAG}
-                （以上 IMPACT 標籤為主編整合用的內部格式，不得原文印入最終戰報，主編須轉化為自然語言）
             """),
             expected_output="3 則 AI 新聞結構化初稿。",
             agent=self.ai_researcher,

@@ -633,7 +633,7 @@ def _newsapi_fetch(query: str) -> str:
     base_params = {
         "sources": "bloomberg,reuters,cnbc,the-wall-street-journal,financial-times",
         "sortBy": "publishedAt",
-        "pageSize": 5,
+        "pageSize": 3,
         "from": from_dt,
         "apiKey": key,
     }
@@ -679,14 +679,14 @@ def _gnews_fetch(query: str) -> str:
     if not key:
         return "[DATA_MISSING:gnews] GNEWS_API_KEY 未設定"
     from_dt = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    base_params = {"lang": "en", "max": 5, "from": from_dt, "token": key}
+    base_params = {"lang": "en", "max": 3, "from": from_dt, "token": key}
     last_err: Exception | None = None
     for i, cand in enumerate(_build_query_candidates(query)):
         params = dict(base_params)
         params["q"] = cand
         # 降級查詢時再降 max，降低 GNews 400 機率
         if i > 0:
-            params["max"] = 3
+            params["max"] = 2
         try:
             r = _get_with_retry("https://gnews.io/api/v4/search", params=params, timeout=10, retries=2)
             articles = r.json().get("articles", [])
@@ -774,29 +774,24 @@ def market_search_tool(query: str) -> str:
             continue
         result = fn(query)
         if not result.startswith("[DATA_MISSING"):
-            result = f"{result}\n{source_observability_lines()}"
             _set_cache(cache_key, result)
             return result
 
     # 第三層：Apify（付費，最後手段）
     if not _consume_source_quota("apify"):
-        return (
-            "[DATA_MISSING:market_search] Market Search Failed：免費來源失敗，且 Apify 當日配額已用盡。\n"
-            f"{source_observability_lines()}"
-        )
+        return "[DATA_MISSING:market_search] Market Search Failed：免費來源失敗，且 Apify 當日配額已用盡。"
 
     try:
-        result = _search_with_apify(query, max_items=6)
+        result = _search_with_apify(query, max_items=4)
         _record_source_outcome("apify", True)
-        result = f"{result}\n{source_observability_lines()}"
         _set_cache(cache_key, result)
         return result
     except ValueError as e:
         _record_source_outcome("apify", False, "other")
-        return f"[DATA_MISSING:market_search] Market Search Failed：{e}\n{source_observability_lines()}"
+        return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
     except Exception:
         _record_source_outcome("apify", False, "other")
-        return f"[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。\n{source_observability_lines()}"
+        return "[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。"
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -26,3 +26,7 @@ venv/
 
 # Test
 .pytest_cache/
+
+# Local generated artifacts
+daily_chart.png
+.claude/
