@@ -205,7 +205,7 @@ def _make_llms(*names: str):
 
 class CryptoResearchCrew:
     def __init__(self):
-        grok, gpt = _make_llms("grok", "gpt")
+        grok, gpt, gemini = _make_llms("grok", "gpt", "gemini")
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -230,7 +230,7 @@ class CryptoResearchCrew:
             role="機構策略主編（加密市場）",
             goal="整合研究成果，輸出戰報上半部。",
             backstory="最終排版與風控守門員。",
-            llm=gpt,
+            llm=gemini,
             tools=[coinglass_data_tool, ml_quant_tool, multi_timeframe_tool],
             verbose=_VERBOSE,
         )
@@ -347,7 +347,7 @@ class CryptoResearchCrew:
 
 class AIResearchCrew:
     def __init__(self):
-        gpt, grok = _make_llms("gpt", "grok")
+        gpt, grok, gemini = _make_llms("gpt", "grok", "gemini")
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
@@ -372,7 +372,7 @@ class AIResearchCrew:
             role="機構策略主編（AI 市場）",
             goal="整合 AI 研究成果輸出戰報下半部。",
             backstory="最終格式與可操作性守門。",
-            llm=gpt,
+            llm=gemini,
             tools=[multi_timeframe_tool],
             verbose=_VERBOSE,
         )
