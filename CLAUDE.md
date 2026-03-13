@@ -19,7 +19,17 @@
 ## 4. Bug Reporting & Fixing Workflow
 - **Test-First Bug Fixes**: When a bug is reported, do NOT start by trying to fix it. Instead, first write a test that reproduces the bug. Then, have subagents try to fix the bug and prove it with a passing test.
 
-## 5. Coding Conventions
+## 5. gstack — Web Browsing & Engineering Workflow Skills
+- **Web Browsing**: Use the `/browse` skill from gstack for ALL web browsing tasks. NEVER use `mcp__claude-in-chrome__*` tools.
+- **Available skills**:
+  - `/plan-ceo-review` — CEO-level review of a plan or proposal
+  - `/plan-eng-review` — Engineering review of a plan or technical design
+  - `/review` — Code review
+  - `/ship` — Ship / merge a feature
+  - `/browse` — Headless web browsing (use this instead of Chrome MCP tools)
+  - `/retro` — Retrospective on a completed task or sprint
+
+## 6. Coding Conventions
 - **Style**: Follow standard Ruff guidelines (`ruff check .`). Prefer clean, readable, maintainable code; resolve or document any existing warnings (e.g. unused variables, import order).
 - **Naming**: Use `snake_case` for functions and variables; `PascalCase` for classes (e.g. `CryptoResearchCrew`, `AIResearchCrew`); `UPPER_SNAKE_CASE` for module-level constants; leading underscore for module-private names (e.g. `_get_cache`, `_CACHE`, `_is_retriable`).
 - **Error Handling**: Implement robust error handling. Do not swallow exceptions; log them with `logging` (e.g. `logger.warning`, `logger.error`). Use retries and backoff for transient failures (503, 429, rate limits); return clear `[DATA_MISSING:...]`-style messages from tools when APIs fail.
