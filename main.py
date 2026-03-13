@@ -12,6 +12,12 @@ import yfinance as yf
 
 from config import PROJECT_ID, METRICS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
+from report_output_validator import (
+    assert_report_output,
+    assert_sample_output,
+    build_judge_prompt,
+    parse_report_output,
+)
 from tools import source_observability_lines
 from visualizer import generate_quant_chart
 import tracker
@@ -130,6 +136,46 @@ def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
         return float(m.group(group))
     except (ValueError, IndexError):
         return None
+
+
+def _build_output_json_for_validation(report_text: str) -> dict:
+    """將戰報文字轉成結構化 payload，供 Pydantic 與 assertion 驗證。"""
+    plain = strip_html(report_text).strip()
+    title = "Daily Brief"
+    if plain:
+        first = plain.splitlines()[0].strip()
+        if first:
+            title = first[:120]
+
+    summary = plain[:800] if plain else ""
+    code_match = re.search(r"(<code>[\s\S]*?</code>)", report_text, re.IGNORECASE)
+    code = code_match.group(1) if code_match else ""
+    news_text = "\n".join(
+        line for line in report_text.splitlines()
+        if ("HTTPError" in line or "[DATA_MISSING" in line or "Traceback" in line)
+    )
+    return {
+        "title": title,
+        "summary": summary,
+        "code": code,
+        "news": news_text,
+    }
+
+
+def _codex_judge_pass(report_text: str) -> bool:
+    """
+    以 Codex 裁判提示詞 + 關鍵詞規則做快速審核。
+    若判定含 API 錯誤訊息/無關內容，回傳 False 觸發重試。
+    """
+    judge_prompt = build_judge_prompt(report_text[:2000])
+    logger.debug("Codex judge prompt prepared (%d chars).", len(judge_prompt))
+    return not bool(
+        re.search(
+            r"HTTPError|\[DATA_MISSING:|Traceback|Exception:|API key 未設定|Will be right back",
+            report_text,
+            re.IGNORECASE,
+        )
+    )
 
 
 def _has_news_timezone_utc8(text: str) -> bool:
@@ -1165,6 +1211,23 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
             report, err = _run_pipeline_once(exclude_context)
             if err is None:
                 final_report = _postprocess_report_for_resilience(report)
+                # Pydantic + assertion（你要求的順序）
+                output_json = _build_output_json_for_validation(final_report)
+                try:
+                    parsed = parse_report_output(output_json)
+                    assert_report_output(parsed)
+                    assert_sample_output(output_json)
+                    if not _codex_judge_pass(final_report):
+                        raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
+                except Exception as v_err:
+                    last_err = v_err
+                    if step < MAX_503_RETRIES:
+                        logger.warning("輸出結構/內容驗證未通過，重試 (%d/%d)：%s", step + 1, MAX_503_RETRIES + 1, v_err)
+                        wait = max(5, BACKOFF_BASE_SEC // 2)
+                        time.sleep(wait)
+                        continue
+                    final_report = f"{ERROR_PREFIX}{v_err}"
+                    break
                 last_err = None
                 break
             last_err = err
