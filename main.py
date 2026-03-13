@@ -447,28 +447,16 @@ def _normalize_news_timezone_utc8(text: str) -> str:
 
 
 def _inject_fallback_news_entries(text: str, min_news: int = 6) -> str:
-    """當新聞不足時補齊 fallback 條目，避免報告因資料源短缺直接失敗。"""
+    """新聞不足時加入風險提示，不再注入假新聞條目。"""
     current = _count_effective_news_items(text)
     if current >= min_news:
         return text
 
-    now_tz8 = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
-
-    fallback_items: list[str] = []
-    for idx in range(current + 1, min_news + 1):
-        ts = now_tz8.strftime("%m/%d %H:%M")
-        fallback_items.append(
-            "\n".join(
-                [
-                    f"〔新聞 {idx}〕[{ts} UTC+8] <b>資料源不足：自動降級補位</b>（來源：System Fallback｜性質：confirmed）",
-                    "<blockquote>摘要：主要新聞源於當前時窗不足，已啟用降級補位以維持報告完整性。</blockquote>",
-                    "投資解讀：目前以風險控制優先，單筆倉位上限 5%，等待下一輪有效新聞確認。",
-                    "💎主編共識：資料不足期以保守倉位與嚴格停損為主。",
-                ]
-            )
-        )
-
-    block = "\n\n".join(fallback_items)
+    block = (
+        "【新聞資料狀態】\n"
+        f"目前有效新聞僅 {current}/{min_news}，已啟用資料不足保護："
+        "不補虛構新聞，避免錯誤敘事擴散。"
+    )
     marker = "[QSREC_START]"
     pos = text.find(marker)
     if pos != -1:
@@ -478,30 +466,15 @@ def _inject_fallback_news_entries(text: str, min_news: int = 6) -> str:
 
 def _ensure_min_news_count(text: str, min_news: int = 6) -> str:
     """
-    雙保險補新聞：
-    1) 先用既有「〔新聞 n〕」fallback；
-    2) 若仍不足，再補「n) ...（來源：...）」格式，確保驗證可計數。
+    新聞數不足時，只加入觀測提示，不注入虛構新聞。
     """
     patched = _inject_fallback_news_entries(text, min_news=min_news)
-    current = _count_effective_news_items(patched)
-    if current >= min_news:
-        return patched
-
-    extra_lines: list[str] = []
-    for idx in range(current + 1, min_news + 1):
-        extra_lines.append(f"{idx}) 系統補位：資料源不足（來源：System Fallback）")
-
-    marker = "[QSREC_START]"
-    pos = patched.find(marker)
-    block = "\n".join(extra_lines)
-    if pos != -1:
-        return patched[:pos].rstrip() + "\n\n" + block + "\n\n" + patched[pos:]
-    return patched.rstrip() + "\n\n" + block
+    return patched
 
 
 def _ensure_trade_sections(text: str) -> str:
     """
-    當 LLM 漏寫交易段時，注入可執行的保守預設備援段，避免硬性驗證失敗。
+    當 LLM 漏寫交易段時，注入「觀望模式」區塊（不捏造價格）。
     """
     has_crypto_trade = bool(re.search(r'資金流向與精準操作\s*\(Crypto\)|精準操作.*Crypto', text, re.IGNORECASE))
     has_ai_trade = bool(re.search(r'AI\s*產業鏈精準操作|精準操作.*Equit', text, re.IGNORECASE))
@@ -510,20 +483,15 @@ def _ensure_trade_sections(text: str) -> str:
 
     regime_m = re.search(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
     regime = (regime_m.group(1).lower() if regime_m else "neutral")
-    star = "⭐️⭐️⭐️" if regime == "risk_off" else "⭐️⭐️⭐️⭐️"
-    pos_pct = "5" if regime == "risk_off" else ("10" if regime == "neutral" else "12")
-
     blocks: list[str] = []
     if not has_crypto_trade:
         blocks.append(
             "\n".join(
                 [
                     "區塊④【資金流向與精準操作 (Crypto)】：",
-                    f"· <b>$BTC (LONG)</b>｜現價：$68000｜信心水準：{star}",
-                    "· 進場：<code>$67500</code>｜目標：<code>$70500 (+4.4%)</code>｜停損：<code>$66200 (-1.9%)</code>",
-                    "· 風控：<code>R:R = 1:2.4</code>｜最大回撤風險：<code>-1.9%</code>｜預期勝率：<code>58%</code>｜Signal Score：<code>63/100</code>",
-                    f"· 倉位建議：<code>{pos_pct}%</code>（依 {regime} 風險預算）",
-                    "· 敘事邏輯：主要新聞源短暫受限，先以低槓桿順勢單與嚴格停損維持可執行性。",
+                    "· <b>觀望模式</b>：資料不足觀望，暫不開新倉（避免捏造現價/進場/目標/停損）。",
+                    f"· 風險預算：依 <code>{regime}</code> 模式降低風險，僅保留既有倉位管理。",
+                    "· 重新進場條件：待下一輪有效新聞、即時報價與多時框訊號齊備後再提供交易參數。",
                 ]
             )
         )
@@ -532,11 +500,9 @@ def _ensure_trade_sections(text: str) -> str:
             "\n".join(
                 [
                     "區塊④【AI 產業鏈精準操作 (US Equities)】：",
-                    f"· <b>$NVDA (LONG)</b>｜現價：$900.00｜信心水準：{star}",
-                    "· 進場：<code>$892.00</code>｜目標：<code>$930.00 (+4.3%)</code>｜停損：<code>$878.00 (-1.6%)</code>",
-                    "· 風控：<code>R:R = 1:2.7</code>｜最大回撤風險：<code>-1.6%</code>｜預期勝率：<code>57%</code>｜Signal Score：<code>61/100</code>",
-                    f"· 倉位建議：<code>{pos_pct}%</code>（依 {regime} 風險預算）",
-                    "· 敘事邏輯：短期以可驗證基本面與風險控管優先，避免追高。",
+                    "· <b>觀望模式</b>：資料不足觀望，暫不提供股票進出場價格。",
+                    f"· 風險預算：依 <code>{regime}</code> 模式執行防守配置，避免情緒性追價。",
+                    "· 重新進場條件：需補齊產業催化、成交量與多時框確認後再發布可執行建議。",
                 ]
             )
         )
@@ -591,6 +557,8 @@ def validate_report(text: str) -> dict:
     has_crypto_section = bool(re.search(r'加密市場|核心新聞|數據儀表板', text, re.IGNORECASE))
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
     has_data_missing = bool(re.search(r'\[DATA_MISSING:', text))
+    data_missing_fields = sorted(set(re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)))
+    watch_mode = bool(re.search(r'觀望模式|資料不足觀望|暫不開新倉|暫不提供股票進出場價格', text))
     has_qsrec_markers = bool(re.search(r'\[QSREC_START\][\s\S]*?\[QSREC_END\]', text))
     parsed_qsrec = tracker.extract_recommendations_json(text) if has_qsrec_markers else []
     has_valid_qsrec = bool(parsed_qsrec)
@@ -635,8 +603,8 @@ def validate_report(text: str) -> dict:
     issues = []
     if len(text) < 3000:
         issues.append(f"報告過短（{len(text)} chars，預期 >3000）")
-    if news_count < 6:
-        issues.append(f"新聞數不足（{news_count}/6）")
+    if news_count < 6 and not watch_mode:
+        issues.append(f"新聞數不足（{news_count}/6）且未啟用觀望模式")
     if not has_regime:
         issues.append("缺少 market_regime 標籤（risk_on/risk_off/neutral）")
     if not has_dashboard:
@@ -661,13 +629,13 @@ def validate_report(text: str) -> dict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if not has_rumor_grade:
         issues.append("傳聞區缺少可信度分級（A/B/C 或 0~100）")
-    if not has_rr or not has_max_drawdown:
+    if (not watch_mode) and (not has_rr or not has_max_drawdown):
         issues.append("交易建議缺少 R:R 或最大回撤風險欄位")
-    if not has_expected_win_rate or not has_signal_score:
+    if (not watch_mode) and (not has_expected_win_rate or not has_signal_score):
         issues.append("交易建議缺少預期勝率或 Signal Score 欄位")
     if not has_risk_budget:
         issues.append("缺少今日風險預算摘要")
-    if not has_numeric_in_investment:
+    if (not watch_mode) and (not has_numeric_in_investment):
         issues.append("投資解讀缺少當日量化數據引用")
     if not has_source_health or not has_source_errors or not has_source_quota:
         issues.append("缺少來源健康欄位（SourceHealth/SourceErrors/SourceQuota）")
@@ -691,11 +659,23 @@ def validate_report(text: str) -> dict:
         issues.append("戰報外洩內部 IMPACT 原始標籤")
     issues.extend(qsrec_issues)
     if has_data_missing:
-        missing_fields = re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)
-        issues.append(f"資料缺失欄位：{', '.join(set(missing_fields))}")
+        issues.append(f"資料缺失欄位：{', '.join(data_missing_fields)}")
+        critical_missing = {
+            "market_search",
+            "newsapi",
+            "gnews",
+            "rss_feed",
+            "x_search",
+            "multi_timeframe",
+            "coinglass_data",
+            "macro_context",
+            "regime_scorecard",
+        }
+        if any(f in critical_missing for f in data_missing_fields):
+            issues.append("關鍵資料來源缺失（hard fail）")
 
     return {
-        "valid": len([i for i in issues if "資料缺失" not in i and "呢喃" not in i]) == 0,
+        "valid": len([i for i in issues if "呢喃" not in i]) == 0,
         "issues": issues,
         "news_count": news_count,
         "fallback_news_count": fallback_count,
@@ -1267,8 +1247,8 @@ def _validate_required_keys() -> None:
     """啟動前檢查必要 API 金鑰，提早回報缺失。"""
     required = {
         "XAI_API_KEY": "Grok（加密市場情報員）",
-        "OPENROUTER_API_KEY": "Claude（幣圈/AI 辯論員）",
         "OPENAI_API_KEY": "GPT（AI 情報員）",
+        "GEMINI_API_KEY": "Gemini（機構策略主編）",
         "APIFY_API_TOKEN": "Apify 搜尋引擎",
     }
     missing = [k for k in required if not (os.getenv(k) or "").strip()]
