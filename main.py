@@ -196,6 +196,181 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
     return issues
 
 
+def _count_effective_news_items(text: str) -> int:
+    """統計有效新聞數（支援「〔新聞 n〕」與「1) 標題（來源：...）」兩種格式）。"""
+    tagged = len(re.findall(r'〔新聞\s*\d+〕', text))
+    numbered = len(re.findall(r'(?m)^\s*\d+\)\s+.+?（來源：', text))
+    return max(tagged, numbered)
+
+
+def _sanitize_macro_outlier_values(text: str) -> str:
+    """
+    宏觀數值異常修正：
+    - 10Y/2Y/SOFR 超出合理區間時改為 N/A（數據異常待確認）
+    """
+    patched = text
+
+    def _pct_or_none(raw: str) -> float | None:
+        try:
+            return float(raw.replace(",", ""))
+        except ValueError:
+            return None
+
+    def _repl_ust(m: re.Match) -> str:
+        y10_raw = m.group(1)
+        y2_raw = m.group(2)
+        y10 = _pct_or_none(y10_raw)
+        y2 = _pct_or_none(y2_raw)
+        if y10 is None or y2 is None:
+            return m.group(0)
+        if not (0.0 <= y10 <= 20.0 and 0.0 <= y2 <= 20.0):
+            return "美債 10Y: N/A（數據異常待確認） | 2Y: N/A（數據異常待確認） | 利差: N/A"
+        return m.group(0)
+
+    # 美債 10Y / 2Y 行（覆蓋常見格式）
+    patched = re.sub(
+        r"美債\s*10Y[：:]\s*([0-9,]+(?:\.[0-9]+)?)%\s*\|\s*2Y[：:]\s*([0-9,]+(?:\.[0-9]+)?)%",
+        _repl_ust,
+        patched,
+    )
+
+    # 更泛用：2Y 數值若超過合理區間，僅替換數值本體，避免句式變化漏網。
+    def _repl_2y(m: re.Match) -> str:
+        prefix = m.group(1)
+        raw = m.group(2)
+        val = _pct_or_none(raw)
+        if val is None or 0.0 <= val <= 20.0:
+            return m.group(0)
+        return f"{prefix}N/A（數據異常待確認）"
+
+    patched = re.sub(
+        r"(2Y[^0-9%\n]{0,12})([0-9,]+(?:\.[0-9]+)?)%",
+        _repl_2y,
+        patched,
+    )
+
+    def _repl_sofr(m: re.Match) -> str:
+        raw = m.group(1)
+        val = _pct_or_none(raw)
+        if val is None:
+            return m.group(0)
+        if not (0.0 <= val <= 20.0):
+            return "Fed SOFR 期貨隱含利率: N/A（數據異常待確認）"
+        return m.group(0)
+
+    patched = re.sub(
+        r"Fed SOFR 期貨隱含利率[：:]\s*([0-9,]+(?:\.[0-9]+)?)%",
+        _repl_sofr,
+        patched,
+    )
+
+    # SOFR 句型變體（不一定含「Fed」）
+    patched = re.sub(
+        r"(SOFR 期貨隱含利率[^0-9%\n]{0,12})([0-9,]+(?:\.[0-9]+)?)%",
+        lambda m: f"{m.group(1)}N/A（數據異常待確認）"
+        if (_pct_or_none(m.group(2)) or 0.0) > 20.0
+        else m.group(0),
+        patched,
+    )
+
+    # 利差絕對值過大（>= 1000bp）視為異常。
+    patched = re.sub(
+        r"(利差[：:]?\s*)-?([0-9,]{4,}(?:\.[0-9]+)?)\s*bp",
+        r"\1N/A",
+        patched,
+    )
+    return patched
+
+
+def _unify_regime_mentions(text: str) -> str:
+    """統一全篇 regime：以第一個【今日市場模式】為準，覆寫後續風險預算中的 regime。"""
+    m = re.search(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
+    if not m:
+        return text
+    regime = m.group(1).lower()
+    patched = text
+    patched = re.sub(
+        r"(今日風險預算[：:]\s*)regime\s*=\s*(risk_on|risk_off|neutral)",
+        rf"\1regime={regime}",
+        patched,
+        flags=re.IGNORECASE,
+    )
+    patched = re.sub(
+        r"(今日風險預算[：:]\s*)(risk_on|risk_off|neutral)(\s*｜)",
+        rf"\1{regime}\3",
+        patched,
+        flags=re.IGNORECASE,
+    )
+    patched = re.sub(
+        r'("regime"\s*:\s*")(risk_on|risk_off|neutral)(")',
+        rf'\1{regime}\3',
+        patched,
+        flags=re.IGNORECASE,
+    )
+    return patched
+
+
+def _remove_duplicate_source_observability(text: str) -> str:
+    """移除報告內重複/過時的 SourceHealth/SourceErrors/SourceQuota 行，避免前後矛盾。"""
+    lines = text.splitlines()
+    cleaned: list[str] = []
+    for line in lines:
+        if re.match(r"^\s*[·-]?\s*Source(?:Health|Errors|Quota)\b", line):
+            continue
+        if re.match(r"^\s*【Source(?:Health|Errors|Quota)】", line):
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned).strip()
+
+
+def _drop_unactionable_trade_blocks(text: str) -> str:
+    """
+    移除不可執行交易段（現價/進場/目標/停損為 N/A）。
+    以每筆「· $TICKER ...」起始，直到下一筆交易或段落邊界為一個 block。
+    """
+    lines = text.splitlines()
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    bullet_re = re.compile(r'^\s*·\s*\$[A-Z0-9/]+')
+    boundary_re = re.compile(r'^\s*(?:────────────|區塊\d+|【|════)')
+    while i < n:
+        line = lines[i]
+        if bullet_re.search(line):
+            j = i + 1
+            while j < n and not bullet_re.search(lines[j]) and not boundary_re.search(lines[j]):
+                j += 1
+            block = "\n".join(lines[i:j])
+            if re.search(r'(現價|進場|目標|停損)[：:]\s*(?:<code>)?\s*N/A', block):
+                i = j
+                continue
+            out.extend(lines[i:j])
+            i = j
+            continue
+        out.append(line)
+        i += 1
+    return "\n".join(out)
+
+
+def _has_macro_outlier_values(text: str) -> bool:
+    """
+    僅檢查宏觀欄位中的實值是否超出合理範圍：
+    - 10Y/2Y/SOFR 應在 0~20%
+    - 利差應在 +/-1000bp 以內
+    """
+    for m in re.finditer(r'(10Y|2Y|SOFR)[^0-9%\n]{0,20}([0-9,]+(?:\.\d+)?)%', text, re.IGNORECASE):
+        val = float(m.group(2).replace(",", ""))
+        if val < 0 or val > 20:
+            return True
+
+    for m in re.finditer(r'利差[：:]?\s*(-?[0-9,]+(?:\.\d+)?)\s*bp', text):
+        val = float(m.group(1).replace(",", ""))
+        if abs(val) > 1000:
+            return True
+
+    return False
+
+
 def _normalize_news_timezone_utc8(text: str) -> str:
     """將新聞時間標籤統一補上 UTC+8。"""
     pattern = re.compile(r'(〔新聞\s*\d+〕\s*\[\d{2}/\d{2}\s+\d{2}:\d{2})(\])')
@@ -211,7 +386,7 @@ def _normalize_news_timezone_utc8(text: str) -> str:
 
 def _inject_fallback_news_entries(text: str, min_news: int = 6) -> str:
     """當新聞不足時補齊 fallback 條目，避免報告因資料源短缺直接失敗。"""
-    current = len(re.findall(r'〔新聞', text))
+    current = _count_effective_news_items(text)
     if current >= min_news:
         return text
 
@@ -243,16 +418,19 @@ def _postprocess_report_for_resilience(text: str) -> str:
     """修正易失格式：新聞 UTC+8、新聞不足降級補齊、來源可觀測欄位。"""
     if not text:
         return text
-    patched = _normalize_news_timezone_utc8(text)
+    patched = _sanitize_macro_outlier_values(text)
+    patched = _unify_regime_mentions(patched)
+    patched = _drop_unactionable_trade_blocks(patched)
+    patched = _normalize_news_timezone_utc8(patched)
     patched = _inject_fallback_news_entries(patched, min_news=6)
-    if "【SourceHealth】" not in patched or "【SourceErrors】" not in patched:
-        observe_block = source_observability_lines()
-        marker = "[QSREC_START]"
-        pos = patched.find(marker)
-        if pos != -1:
-            patched = patched[:pos].rstrip() + f"\n\n{observe_block}\n\n" + patched[pos:]
-        else:
-            patched = patched.rstrip() + f"\n\n{observe_block}"
+    patched = _remove_duplicate_source_observability(patched)
+    observe_block = source_observability_lines()
+    marker = "[QSREC_START]"
+    pos = patched.find(marker)
+    if pos != -1:
+        patched = patched[:pos].rstrip() + f"\n\n{observe_block}\n\n" + patched[pos:]
+    else:
+        patched = patched.rstrip() + f"\n\n{observe_block}"
     return patched
 
 
@@ -263,7 +441,7 @@ def _fallback_news_count(text: str) -> int:
 
 def validate_report(text: str) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
-    news_count  = len(re.findall(r'〔新聞', text))
+    news_count  = _count_effective_news_items(text)
     fallback_count = _fallback_news_count(text)
 
     # Accept both old plain regime label and new scorecard format (e.g. "risk_on（+4/6）")
@@ -293,6 +471,23 @@ def validate_report(text: str) -> dict:
     has_source_health = "【SourceHealth】" in text
     has_source_errors = "【SourceErrors】" in text
     has_source_quota = "【SourceQuota】" in text
+    mode_tags = re.findall(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
+    budget_tags = re.findall(r'今日風險預算[：:][^\n]*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
+    qsrec_regimes = []
+    if has_valid_qsrec:
+        for rec in parsed_qsrec:
+            rv = str(rec.get("regime", "")).strip().lower()
+            if rv in ("risk_on", "risk_off", "neutral"):
+                qsrec_regimes.append(rv)
+    unique_regimes = {r.lower() for r in (mode_tags + budget_tags + qsrec_regimes)}
+    has_mixed_regime = len(unique_regimes) > 1
+    malformed_invalidation = bool(
+        re.search(r'失效條件[：:]\s*(?:<code>)?\s*(?:</code>)?\s*(?:\n|$)', text)
+    )
+    has_unactionable_trade = bool(
+        re.search(r'·\s*\$[A-Z0-9/]+[\s\S]*?(?:現價|進場|目標|停損)[：:]\s*(?:<code>)?\s*N/A', text)
+    )
+    has_macro_outlier = _has_macro_outlier_values(text)
     has_code_leak = bool(re.search(r'multi_timeframe_tool\s*\(', text))
     has_impact_leak = bool(re.search(r'\[IMPACT:|🎯\s*IMPACT|📍\s*受影響資產|📈\s*做多機會|📉\s*做空風險', text))
     pair_unit_ok = _pair_trade_unit_consistent(text)
@@ -338,6 +533,14 @@ def validate_report(text: str) -> dict:
         issues.append("投資解讀缺少當日量化數據引用")
     if not has_source_health or not has_source_errors or not has_source_quota:
         issues.append("缺少來源健康欄位（SourceHealth/SourceErrors/SourceQuota）")
+    if has_mixed_regime:
+        issues.append(f"報告內 market_regime 不一致：{', '.join(sorted(unique_regimes))}")
+    if malformed_invalidation:
+        issues.append("交易建議存在空白/截斷的失效條件")
+    if has_unactionable_trade:
+        issues.append("交易段含 N/A 關鍵價格（現價/進場/目標/停損），不可執行")
+    if has_macro_outlier:
+        issues.append("宏觀數值疑似異常（10Y/2Y/SOFR/利差超出合理範圍）")
     if not pair_unit_ok:
         issues.append("配對交易單位不一致或未標註比值/價差單位")
     if not risk_off_star_ok:
@@ -364,6 +567,9 @@ def validate_report(text: str) -> dict:
         "has_source_health": has_source_health,
         "has_source_errors": has_source_errors,
         "has_source_quota": has_source_quota,
+        "has_mixed_regime": has_mixed_regime,
+        "has_unactionable_trade": has_unactionable_trade,
+        "has_macro_outlier": has_macro_outlier,
     }
 
 

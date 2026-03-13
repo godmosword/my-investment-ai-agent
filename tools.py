@@ -384,9 +384,6 @@ def _source_quota_summary() -> str:
     return " | ".join(parts)
 
 
-_load_source_health()
-
-
 # ═══════════════════════════════════════════════════════════════════
 # BigQuery Tool（Client 只初始化一次）
 # ═══════════════════════════════════════════════════════════════════
@@ -411,6 +408,9 @@ def _get_apify_client() -> ApifyClient:
             raise ValueError("APIFY_API_TOKEN 未設定。")
         _APIFY_CLIENT = ApifyClient(token)
     return _APIFY_CLIENT
+
+
+_load_source_health()
 
 
 def _search_with_apify(query: str, max_items: int = 8) -> str:
