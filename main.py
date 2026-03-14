@@ -1353,6 +1353,18 @@ if __name__ == "__main__":
         final_report = f"{ERROR_PREFIX}{_pipeline_err}"
         report_valid = False
     logger.info("Pipeline finished (valid=%s, chars=%d).", report_valid, len(final_report or ""))
+    invalid_issues_preview = ""
+    if final_report and (not final_report.startswith("🚨")) and not report_valid:
+        try:
+            invalid_result = validate_report(final_report)
+            top_issues = [i for i in invalid_result.get("issues", []) if i][:3]
+            invalid_issues_preview = " | ".join(top_issues)
+            logger.error(
+                "Report invalid under consistency gate. Top issues: %s",
+                invalid_issues_preview or "N/A",
+            )
+        except Exception as _validate_err:
+            logger.warning("Could not build invalid report issue preview: %s", _validate_err)
 
     # ── Tracker：儲存建議 & 每日回查未平倉部位 ───────────────────────────────
     _report_ok = bool(final_report and not final_report.startswith("🚨") and (report_valid or not STRICT_CONSISTENCY_GATE))
@@ -1385,7 +1397,10 @@ if __name__ == "__main__":
 
     if not SKIP_TELEGRAM:
         if STRICT_CONSISTENCY_GATE and not report_valid:
-            logger.error("STRICT_CONSISTENCY_GATE=1 且 report_valid=False，阻擋 Telegram 發送。")
+            logger.error(
+                "STRICT_CONSISTENCY_GATE=1 且 report_valid=False，阻擋 Telegram 發送。Top issues: %s",
+                invalid_issues_preview or "N/A",
+            )
         elif token and chat_id:
             _send_telegram_report(clean_report, token, chat_id, image_path="daily_chart.png")
         else:
@@ -1398,4 +1413,11 @@ if __name__ == "__main__":
     elif SKIP_BIGQUERY:
         logger.info("SKIP_BIGQUERY=1: skipping metrics write.")
     elif not _report_ok:
-        logger.warning("Skipping BigQuery metrics write — report is an error or empty.")
+        logger.warning(
+            "Skipping BigQuery metrics write — report blocked. strict_gate=%s, report_valid=%s, startswith_error=%s, empty=%s, top_issues=%s",
+            STRICT_CONSISTENCY_GATE,
+            report_valid,
+            bool(final_report.startswith("🚨")) if final_report else False,
+            not bool(final_report),
+            invalid_issues_preview or "N/A",
+        )
