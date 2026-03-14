@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 # 除錯與乾跑開關（方便本地測試）
 SKIP_TELEGRAM = os.getenv("SKIP_TELEGRAM", "").lower() in ("1", "true", "yes")
 SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
+STRICT_CONSISTENCY_GATE = os.getenv("STRICT_CONSISTENCY_GATE", "1").lower() in ("1", "true", "yes")
 
 # 重試常數（集中管理，方便調參）
 MAX_REPORT_RETRIES = int(os.getenv("MAX_REPORT_RETRIES", "2"))
@@ -253,10 +254,11 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
 
 
 def _count_effective_news_items(text: str) -> int:
-    """統計有效新聞數（支援「〔新聞 n〕」與「1) 標題（來源：...）」兩種格式）。"""
+    """統計有效新聞數（支援 〔新聞 n〕、1) 與 1. 列表格式）。"""
     tagged = len(re.findall(r'〔新聞\s*\d+〕', text))
-    numbered = len(re.findall(r'(?m)^\s*\d+\)\s+.+?（來源：', text))
-    return max(tagged, numbered)
+    numbered_paren = len(re.findall(r'(?m)^\s*\d+\)\s+.+', text))
+    numbered_dot = len(re.findall(r'(?m)^\s*\d+\.\s+.+', text))
+    return max(tagged, numbered_paren, numbered_dot)
 
 
 def _sanitize_macro_outlier_values(text: str) -> str:
@@ -377,7 +379,7 @@ def _remove_duplicate_source_observability(text: str) -> str:
     lines = text.splitlines()
     cleaned: list[str] = []
     for line in lines:
-        if re.match(r"^\s*[·-]?\s*Source(?:Health|Errors|Quota)\b", line):
+        if re.search(r"\bSource(?:Health|Errors|Quota)\b", line):
             continue
         if re.match(r"^\s*【Source(?:Health|Errors|Quota)】", line):
             continue
@@ -430,6 +432,65 @@ def _has_macro_outlier_values(text: str) -> bool:
         if abs(val) > 1000:
             return True
 
+    return False
+
+
+def _has_macro_conflicts(text: str) -> bool:
+    """
+    檢查宏觀欄位自我矛盾：
+    - 同時出現 2Y 的 N/A 與數值
+    - 利差同時出現正值與負值
+    - 2Y 多個數值差異過大（>1.0%）
+    """
+    y2_has_na = bool(re.search(r'美債\s*2Y[^\n]*N/?A', text, re.IGNORECASE))
+    y2_vals = [
+        float(v.replace(",", ""))
+        for v in re.findall(r'美債\s*2Y[^0-9\n]{0,20}([0-9,]+(?:\.\d+)?)\s*%', text, re.IGNORECASE)
+    ]
+    if y2_has_na and y2_vals:
+        return True
+    if len(y2_vals) >= 2 and (max(y2_vals) - min(y2_vals) > 1.0):
+        return True
+
+    spread_vals = [
+        float(v.replace(",", ""))
+        for v in re.findall(r'利差[：:]?\s*(-?[0-9,]+(?:\.\d+)?)\s*bp', text)
+    ]
+    has_pos_spread = any(v > 0 for v in spread_vals)
+    has_neg_spread = any(v < 0 for v in spread_vals)
+    if has_pos_spread and has_neg_spread:
+        return True
+
+    return False
+
+
+def _has_source_observability_conflicts(text: str) -> bool:
+    """檢查 SourceHealth/Errors/Quota 是否重複或互相矛盾。"""
+    src_lines = [
+        ln.strip()
+        for ln in text.splitlines()
+        if re.search(r'(?:【)?Source(?:Health|Errors|Quota)', ln)
+    ]
+    if not src_lines:
+        return True
+
+    def _norm(line: str, key: str) -> str:
+        line = re.sub(r'^[·\-\s]*', '', line)
+        line = line.replace(f"【{key}】", "")
+        line = re.sub(rf"^{key}\s*", "", line, flags=re.IGNORECASE)
+        return line.strip()
+
+    per_key = {"SourceHealth": [], "SourceErrors": [], "SourceQuota": []}
+    for ln in src_lines:
+        for key in per_key:
+            if re.search(key, ln, re.IGNORECASE):
+                per_key[key].append(_norm(ln, key))
+
+    for key, values in per_key.items():
+        if len(values) != 1:
+            return True
+        if len(set(values)) != 1:
+            return True
     return False
 
 
@@ -579,13 +640,16 @@ def validate_report(text: str) -> dict:
     has_source_quota = "【SourceQuota】" in text
     mode_tags = re.findall(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
     budget_tags = re.findall(r'今日風險預算[：:][^\n]*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
+    budget_alias_tags = re.findall(r'今日風險預算[：:][^\n]*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)', text, re.IGNORECASE)
+    budget_alias_tags = [re.sub(r"[\s-]+", "_", b.strip().lower()) for b in budget_alias_tags]
+    budget_alias_tags = [b.replace("risk__", "risk_") for b in budget_alias_tags]
     qsrec_regimes = []
     if has_valid_qsrec:
         for rec in parsed_qsrec:
             rv = str(rec.get("regime", "")).strip().lower()
             if rv in ("risk_on", "risk_off", "neutral"):
                 qsrec_regimes.append(rv)
-    unique_regimes = {r.lower() for r in (mode_tags + budget_tags + qsrec_regimes)}
+    unique_regimes = {r.lower() for r in (mode_tags + budget_tags + budget_alias_tags + qsrec_regimes)}
     has_mixed_regime = len(unique_regimes) > 1
     malformed_invalidation = bool(
         re.search(r'失效條件[：:]\s*(?:<code>)?\s*(?:</code>)?\s*(?:\n|$)', text)
@@ -594,6 +658,8 @@ def validate_report(text: str) -> dict:
         re.search(r'·\s*\$[A-Z0-9/]+[\s\S]*?(?:現價|進場|目標|停損)[：:]\s*(?:<code>)?\s*N/A', text)
     )
     has_macro_outlier = _has_macro_outlier_values(text)
+    has_macro_conflict = _has_macro_conflicts(text)
+    has_source_observability_conflict = _has_source_observability_conflicts(text)
     has_code_leak = bool(re.search(r'multi_timeframe_tool\s*\(', text))
     has_impact_leak = bool(re.search(r'\[IMPACT:|🎯\s*IMPACT|📍\s*受影響資產|📈\s*做多機會|📉\s*做空風險', text))
     pair_unit_ok = _pair_trade_unit_consistent(text)
@@ -647,6 +713,10 @@ def validate_report(text: str) -> dict:
         issues.append("交易段含 N/A 關鍵價格（現價/進場/目標/停損），不可執行")
     if has_macro_outlier:
         issues.append("宏觀數值疑似異常（10Y/2Y/SOFR/利差超出合理範圍）")
+    if has_macro_conflict:
+        issues.append("宏觀段落前後矛盾（2Y/利差數值不一致）")
+    if has_source_observability_conflict:
+        issues.append("Source observability 欄位重複或互相矛盾")
     if not pair_unit_ok:
         issues.append("配對交易單位不一致或未標註比值/價差單位")
     if not risk_off_star_ok:
@@ -688,6 +758,8 @@ def validate_report(text: str) -> dict:
         "has_mixed_regime": has_mixed_regime,
         "has_unactionable_trade": has_unactionable_trade,
         "has_macro_outlier": has_macro_outlier,
+        "has_macro_conflict": has_macro_conflict,
+        "has_source_observability_conflict": has_source_observability_conflict,
     }
 
 
@@ -1283,7 +1355,7 @@ if __name__ == "__main__":
     logger.info("Pipeline finished (valid=%s, chars=%d).", report_valid, len(final_report or ""))
 
     # ── Tracker：儲存建議 & 每日回查未平倉部位 ───────────────────────────────
-    _report_ok = bool(final_report and not final_report.startswith("🚨"))
+    _report_ok = bool(final_report and not final_report.startswith("🚨") and (report_valid or not STRICT_CONSISTENCY_GATE))
     if not SKIP_BIGQUERY and _report_ok:
         _saved = tracker.save_recommendations(final_report)
         if _saved:
@@ -1312,7 +1384,9 @@ if __name__ == "__main__":
     clean_report = tracker.strip_tracker_blocks(final_report)
 
     if not SKIP_TELEGRAM:
-        if token and chat_id:
+        if STRICT_CONSISTENCY_GATE and not report_valid:
+            logger.error("STRICT_CONSISTENCY_GATE=1 且 report_valid=False，阻擋 Telegram 發送。")
+        elif token and chat_id:
             _send_telegram_report(clean_report, token, chat_id, image_path="daily_chart.png")
         else:
             logger.warning("Telegram configuration missing. Skipping push.")
