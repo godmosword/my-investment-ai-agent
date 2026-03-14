@@ -47,9 +47,7 @@ _FINAL_TEMPLATE_CRYPTO = dedent("""\
     區塊③【市場呢喃與傳聞】（2~3 條）
     區塊④【資金流向與精準操作 (Crypto)】（含 R:R/回撤/勝率/Signal Score）
     [QSREC_START]
-    [
-      {"asset": "BTC", "direction": "LONG", "current_price": 70578, "entry": 69800, "target": 72800, "stop": 67800, "confidence": 3, "category": "CRYPTO", "narrative": "多時框狀態 D(中性)/4H(中性)/1H(多)...", "trigger": "4H 收盤突破 $70.5k 確認", "invalidation": "日線收 < $67k 或 funding > 0.08%", "position_pct": 8, "timeframe": "3–5 天"}
-    ]
+    [{"asset":"BTC","direction":"LONG","current_price":70578,"entry":69800,"target":72800,"stop":67800,"confidence":3,"category":"CRYPTO","trigger":"...","invalidation":"...","position_pct":8,"timeframe":"3-5天"}]
     [QSREC_END]
     """)
 
@@ -61,9 +59,7 @@ _FINAL_TEMPLATE_AI = dedent("""\
     區塊③【產業鏈呢喃】（2~3 條）
     區塊④【AI 產業鏈精準操作 (US Equities)】（2 檔，含完整風控欄位）
     [QSREC_START]
-    [
-      {"asset": "NVDA", "direction": "LONG", "current_price": 875.20, "entry": 870.00, "target": 920.00, "stop": 845.00, "confidence": 3, "category": "EQUITY", "narrative": "B200 出貨加速，雲端 CAPEX 上調...", "trigger": "日線突破 $880 且成交量 > 5 日均量", "invalidation": "日線收 < $850 或 AI CAPEX 下調消息", "position_pct": 6, "timeframe": "5–10 天"}
-    ]
+    [{"asset":"NVDA","direction":"LONG","current_price":875.2,"entry":870,"target":920,"stop":845,"confidence":3,"category":"EQUITY","trigger":"...","invalidation":"...","position_pct":6,"timeframe":"5-10天"}]
     [QSREC_END]
     """)
 
@@ -148,17 +144,15 @@ _PAIR_TRADE_RULE = dedent("""\
 # 欄位：asset=代號大寫不含$, entry/target/stop=純數字, target_pct/stop_pct=百分比數字,
 #        confidence=1~4, category=CRYPTO|EQUITY, current_price=現價數字
 _TRADE_JSON_RULE = dedent("""\
-    === 系統強制驗證區塊（不可見的資料庫載荷）===
-    【最高警告】你是一個 API 端點，在輸出完上述所有 HTML 戰報後，你的最後輸出【必須】是以下結構，一字不漏地印出 `[QSREC_START]` 與 `[QSREC_END]`：
-
+    === 系統強制驗證區塊 ===
+    在報告最後輸出 `[QSREC_START]` 與 `[QSREC_END]` 包住的 JSON 陣列：
     [QSREC_START]
     [
       {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事...", "trigger": "觸發條件", "invalidation": "失效條件", "position_pct": 數字, "timeframe": "持倉週期"}
     ]
     [QSREC_END]
-    JSON 規則：數字欄位禁止加引號、asset 不含 $、允許多行縮排（但必須合法 JSON）、所有建議合併進同一個陣列。
-    trigger 範例：4H 收盤突破 $70.5k | invalidation 範例：日線收 < $67k 或 funding > 0.08% | position_pct 範例: 8（代表佔總資金 8%）| timeframe 範例: 3–5 天
-    建議附加欄位：rr_ratio（數字）、max_drawdown_pct（數字）、expected_win_rate（數字%）、signal_score（0-100）、regime（risk_on/neutral/risk_off）""")
+    規則：數字欄位不可加引號、asset 不含 $、必須是合法 JSON、所有建議放在同一陣列。
+    可附加欄位：rr_ratio、max_drawdown_pct、expected_win_rate、signal_score、regime。""")
 
 _MTF_CONF_RULE = dedent("""\
     === 交易建議（通用）===
@@ -400,7 +394,6 @@ class AIResearchCrew:
                 · gnews_tool('artificial intelligence GPU infrastructure')（多語言補充）
                 · market_search_tool('AI data center GPU NVIDIA infrastructure {year}')
                 · market_search_tool('data center power supply nuclear energy AI {year}')
-                · market_search_tool('AI model releases enterprise adoption {year}')
                 · rumor_scanner_tool('AI infrastructure supply chain risk')
                 · x_search_tool('NVIDIA AI GPU data center OpenAI Anthropic Microsoft')（取得 AI 板塊 X/Twitter 即時推文）
 

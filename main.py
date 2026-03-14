@@ -15,7 +15,6 @@ from crew import CryptoResearchCrew, AIResearchCrew
 from report_output_validator import (
     assert_report_output,
     assert_sample_output,
-    build_judge_prompt,
     parse_report_output,
 )
 from tools import source_observability_lines
@@ -168,8 +167,6 @@ def _codex_judge_pass(report_text: str) -> bool:
     以 Codex 裁判提示詞 + 關鍵詞規則做快速審核。
     若判定含 API 錯誤訊息/無關內容，回傳 False 觸發重試。
     """
-    judge_prompt = build_judge_prompt(report_text[:2000])
-    logger.debug("Codex judge prompt prepared (%d chars).", len(judge_prompt))
     return not bool(
         re.search(
             r"HTTPError|\[DATA_MISSING:|Traceback|Exception:|API key 未設定|Will be right back",
@@ -1251,12 +1248,13 @@ def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | No
         return "", e
 
 
-def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
+def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, dict | None]:
     """
     帶 503 退避與驗證重試的產報流程。回傳 (final_report, report_valid)。
     """
     final_report = ""
     report_valid = False
+    last_validation: dict | None = None
     for attempt in range(MAX_REPORT_RETRIES + 1):
         last_err: Exception | None = None
         for step in range(MAX_503_RETRIES + 1):
@@ -1295,6 +1293,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
             break
 
         result = validate_report(final_report)
+        last_validation = result
         report_valid = result["valid"]
         fallback_cnt = _fallback_news_count(final_report)
         logger.info(
@@ -1303,7 +1302,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
         )
         if report_valid:
             logger.info("Report generation successful.")
-            return final_report, True
+            return final_report, True, result
         logger.warning("Report incomplete: %s", result["issues"])
         if logger.isEnabledFor(logging.DEBUG) and final_report:
             logger.debug("Report snippet (first 500 chars): %s", final_report[:500].replace("\n", " "))
@@ -1312,7 +1311,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool]:
 
     if final_report and not final_report.startswith("🚨"):
         logger.warning("Sending report despite validation issues (retries exhausted).")
-    return final_report, report_valid
+    return final_report, report_valid, last_validation
 
 
 def _validate_required_keys() -> None:
@@ -1346,8 +1345,9 @@ if __name__ == "__main__":
     # pipeline call raises an uncaught exception.
     final_report: str = ""
     report_valid: bool = False
+    validation_result: dict | None = None
     try:
-        final_report, report_valid = run_pipeline_with_retries(exclusion)
+        final_report, report_valid, validation_result = run_pipeline_with_retries(exclusion)
     except Exception as _pipeline_err:
         logger.error("Critical unhandled pipeline error: %s", _pipeline_err, exc_info=True)
         final_report = f"{ERROR_PREFIX}{_pipeline_err}"
@@ -1356,7 +1356,7 @@ if __name__ == "__main__":
     invalid_issues_preview = ""
     if final_report and (not final_report.startswith("🚨")) and not report_valid:
         try:
-            invalid_result = validate_report(final_report)
+            invalid_result = validation_result or validate_report(final_report)
             top_issues = [i for i in invalid_result.get("issues", []) if i][:3]
             invalid_issues_preview = " | ".join(top_issues)
             logger.error(
