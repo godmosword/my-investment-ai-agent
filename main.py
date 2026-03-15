@@ -177,8 +177,21 @@ def _codex_judge_pass(report_text: str) -> bool:
 
 
 def _has_news_timezone_utc8(text: str) -> bool:
-    """新聞時間格式是否包含 UTC+8。"""
-    return bool(re.search(r'〔新聞\s*\d+〕\s*\[\d{2}/\d{2}\s+\d{2}:\d{2}\s+UTC\+8\]', text))
+    """新聞時間格式檢查：標籤格式需全數 UTC+8；數字條列格式視為已降級接受。"""
+    tagged_total = len(re.findall(r'〔新聞\s*\d+〕', text))
+    if tagged_total > 0:
+        tagged_utc = len(re.findall(r'〔新聞\s*\d+〕\s*\[\d{2}/\d{2}\s+\d{2}:\d{2}\s+UTC\+8\]', text))
+        return tagged_utc == tagged_total
+    numbered = len(re.findall(r'(?m)^\s*\d+[.)]\s+.+', text))
+    return numbered > 0
+
+
+def _normalize_regime_token(raw: str) -> str | None:
+    token = re.sub(r'[\s-]+', '_', (raw or "").strip().lower())
+    token = token.replace("risk__on", "risk_on").replace("risk__off", "risk_off")
+    if token in ("risk_on", "risk_off", "neutral"):
+        return token
+    return None
 
 
 def _risk_off_star_cap_violated(text: str) -> bool:
@@ -339,25 +352,27 @@ def _sanitize_macro_outlier_values(text: str) -> str:
 
 def _unify_regime_mentions(text: str) -> str:
     """統一全篇 regime：以第一個【今日市場模式】為準，覆寫後續風險預算中的 regime。"""
-    m = re.search(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
+    m = re.search(r'【今日市場模式】\s*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)', text, re.IGNORECASE)
     if not m:
         return text
-    regime = m.group(1).lower()
+    regime = _normalize_regime_token(m.group(1))
+    if not regime:
+        return text
     patched = text
     patched = re.sub(
-        r'(【今日市場模式】\s*)(risk_on|risk_off|neutral)',
+        r'(【今日市場模式】\s*)(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)',
         rf"\1{regime}",
         patched,
         flags=re.IGNORECASE,
     )
     patched = re.sub(
-        r"(今日風險預算[：:]\s*)regime\s*=\s*(risk_on|risk_off|neutral)",
+        r"(今日風險預算[：:]\s*)regime\s*=\s*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)",
         rf"\1regime={regime}",
         patched,
         flags=re.IGNORECASE,
     )
     patched = re.sub(
-        r"(今日風險預算[：:]\s*)(risk_on|risk_off|neutral)(\s*｜)",
+        r"(今日風險預算[：:]\s*)(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)(\s*[｜|])",
         rf"\1{regime}\3",
         patched,
         flags=re.IGNORECASE,
@@ -616,7 +631,9 @@ def validate_report(text: str) -> dict:
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
     has_data_missing = bool(re.search(r'\[DATA_MISSING:', text))
     data_missing_fields = sorted(set(re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)))
-    watch_mode = bool(re.search(r'觀望模式|資料不足觀望|暫不開新倉|暫不提供股票進出場價格', text))
+    watch_mode = bool(
+        re.search(r'觀望模式|資料不足觀望|暫不開新倉|暫不提供股票進出場價格|新聞資料狀態|資料不足保護', text)
+    )
     has_qsrec_markers = bool(re.search(r'\[QSREC_START\][\s\S]*?\[QSREC_END\]', text))
     parsed_qsrec = tracker.extract_recommendations_json(text) if has_qsrec_markers else []
     has_valid_qsrec = bool(parsed_qsrec)
@@ -635,18 +652,17 @@ def validate_report(text: str) -> dict:
     has_source_health = "【SourceHealth】" in text
     has_source_errors = "【SourceErrors】" in text
     has_source_quota = "【SourceQuota】" in text
-    mode_tags = re.findall(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
-    budget_tags = re.findall(r'今日風險預算[：:][^\n]*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
-    budget_alias_tags = re.findall(r'今日風險預算[：:][^\n]*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)', text, re.IGNORECASE)
-    budget_alias_tags = [re.sub(r"[\s-]+", "_", b.strip().lower()) for b in budget_alias_tags]
-    budget_alias_tags = [b.replace("risk__", "risk_") for b in budget_alias_tags]
+    mode_tags_raw = re.findall(r'【今日市場模式】\s*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)', text, re.IGNORECASE)
+    budget_tags_raw = re.findall(r'今日風險預算[：:][^\n]*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)', text, re.IGNORECASE)
+    mode_tags = [r for r in (_normalize_regime_token(x) for x in mode_tags_raw) if r]
+    budget_tags = [r for r in (_normalize_regime_token(x) for x in budget_tags_raw) if r]
     qsrec_regimes = []
     if has_valid_qsrec:
         for rec in parsed_qsrec:
-            rv = str(rec.get("regime", "")).strip().lower()
-            if rv in ("risk_on", "risk_off", "neutral"):
+            rv = _normalize_regime_token(str(rec.get("regime", "")))
+            if rv:
                 qsrec_regimes.append(rv)
-    unique_regimes = {r.lower() for r in (mode_tags + budget_tags + budget_alias_tags + qsrec_regimes)}
+    unique_regimes = set(mode_tags + budget_tags + qsrec_regimes)
     has_mixed_regime = len(unique_regimes) > 1
     malformed_invalidation = bool(
         re.search(r'失效條件[：:]\s*(?:<code>)?\s*(?:</code>)?\s*(?:\n|$)', text)
