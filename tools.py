@@ -2216,7 +2216,7 @@ _EARNINGS_WATCHLIST = ["NVDA", "AMD", "MSFT", "GOOGL", "AAPL", "META", "AMZN", "
 def macro_context_tool(query: str = "") -> str:
     """
     取得宏觀投資框架數據：美債 10Y/2Y 殖利率、殖利率曲線利差、Fed SOFR 期貨隱含升降息預期、本週重要科技財報。
-    數據來源：yfinance（^TNX, ^IRX, ZQ=F）。
+    數據來源：yfinance（^TNX, 2YY=F, ZQ=F）+ FRED（DGS2 fallback）。
     """
     cache_key = ("macro_context", "latest")
     cached = _get_cache(cache_key)
@@ -2230,6 +2230,36 @@ def macro_context_tool(query: str = "") -> str:
     # ── 1. 美債殖利率 ──────────────────────────────────────────────────
     yield_10y: float | None = None
     yield_2y: float | None = None
+
+    def _fetch_latest_fred_percent(series_id: str) -> float | None:
+        fred_key = (os.getenv("FRED_API_KEY") or "").strip()
+        if not fred_key:
+            return None
+        try:
+            resp = requests.get(
+                "https://api.stlouisfed.org/fred/series/observations",
+                params={
+                    "series_id": series_id,
+                    "api_key": fred_key,
+                    "file_type": "json",
+                    "sort_order": "desc",
+                    "limit": 10,
+                },
+                timeout=8,
+            )
+            resp.raise_for_status()
+            observations = resp.json().get("observations", [])
+            for obs in observations:
+                raw = str(obs.get("value", "")).strip()
+                if not raw or raw == ".":
+                    continue
+                try:
+                    return round(float(raw), 3)
+                except ValueError:
+                    continue
+        except Exception:
+            return None
+        return None
     try:
         df10 = yf.download("^TNX", period="3d", interval="1d", progress=False, auto_adjust=True)
         if df10 is not None and not df10.empty:
@@ -2242,17 +2272,17 @@ def macro_context_tool(query: str = "") -> str:
         pass
 
     try:
-        df2 = yf.download("^IRX", period="3d", interval="1d", progress=False, auto_adjust=True)
+        df2 = yf.download("2YY=F", period="5d", interval="1d", progress=False, auto_adjust=True)
         if df2 is not None and not df2.empty:
             c = df2["Close"].dropna()
             if hasattr(c, "ndim") and c.ndim > 1:
                 c = c.iloc[:, 0]
             if not c.empty:
-                # ^IRX (13-week T-bill) 在 Yahoo Finance 已以百分比單位回報（同 ^TNX），
-                # 不需除以 10 或其他換算；歷史曾誤除導致顯示值偏低 10 倍
                 yield_2y = round(float(c.iloc[-1]), 3)
     except Exception:
         pass
+    if yield_2y is None:
+        yield_2y = _fetch_latest_fred_percent("DGS2")
 
     y10_str = f"{yield_10y:.3f}%" if yield_10y is not None else "N/A"
     y2_str = f"{yield_2y:.3f}%" if yield_2y is not None else "N/A"
