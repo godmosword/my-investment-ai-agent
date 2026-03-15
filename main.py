@@ -4,6 +4,7 @@ import sys
 import time
 import logging
 import builtins
+import html
 import telebot
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
@@ -105,22 +106,86 @@ def _install_runtime_noise_filters() -> None:
 
 
 def sanitize_telegram_html(text: str) -> str:
-    """清洗 LLM 輸出的 HTML，保留 Telegram 支援的標籤。"""
+    """清洗 LLM 輸出的 HTML，保留 Telegram 支援標籤並修復失衡標籤。"""
+    if not text:
+        return ""
+    text = text.replace("\r\n", "\n")
     text = re.sub(r'&(?!(?:amp|lt|gt|quot|apos);)', '&amp;', text)
 
-    def _fix_tag(m: re.Match) -> str:
-        inner = m.group(1)
-        tag_name = inner.lstrip('/').split()[0].lower()
-        if tag_name == 'a':
-            if inner.startswith('/'):
-                return '</a>'
-            href_m = re.search(r'href=["\']([^"\']+)["\']', inner)
-            if href_m:
-                return f'<a href="{href_m.group(1)}">'
-            return ''
-        return m.group(0) if tag_name in _ALLOWED_TAGS else ''
+    placeholders: dict[str, str] = {}
+    seq = 0
 
-    return re.sub(r'<(/?\w+(?:\s[^>]*)?)>', _fix_tag, text)
+    def _stash(val: str) -> str:
+        nonlocal seq
+        key = f"__TG_TAG_{seq}__"
+        placeholders[key] = val
+        seq += 1
+        return key
+
+    def _keep_anchor_open(m: re.Match) -> str:
+        href_m = re.search(r'href=["\']([^"\']+)["\']', m.group(0), re.IGNORECASE)
+        if not href_m:
+            return ""
+        href = html.escape(html.unescape(href_m.group(1)), quote=True)
+        return _stash(f'<a href="{href}">')
+
+    text = re.sub(r'<a\b[^>]*>', _keep_anchor_open, text, flags=re.IGNORECASE)
+    text = re.sub(r'</a\s*>', lambda _m: _stash("</a>"), text, flags=re.IGNORECASE)
+    text = re.sub(
+        r'</?(?:b|i|u|s|code|pre|blockquote)\s*>',
+        lambda m: _stash(m.group(0).lower()),
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # 先把所有殘餘尖括號轉義，避免 `<0.03)</code>` 這類非標籤片段炸掉 Telegram parser。
+    text = text.replace("<", "&lt;").replace(">", "&gt;")
+
+    for key, val in placeholders.items():
+        text = text.replace(key, val)
+
+    return _balance_telegram_html_tags(text)
+
+
+def _balance_telegram_html_tags(text: str) -> str:
+    """移除不合法 closing tag，並為未關閉 tag 自動補齊結尾。"""
+    tag_re = re.compile(
+        r'</?(?:b|i|u|s|code|pre|blockquote|a)(?:\s+href="[^"]*")?\s*>',
+        re.IGNORECASE,
+    )
+    out: list[str] = []
+    stack: list[str] = []
+    last = 0
+    for m in tag_re.finditer(text):
+        out.append(text[last:m.start()])
+        tag = m.group(0)
+        name_m = re.match(r'</?\s*([a-z]+)', tag, re.IGNORECASE)
+        if not name_m:
+            last = m.end()
+            continue
+        name = name_m.group(1).lower()
+        is_close = tag.startswith("</")
+
+        if not is_close:
+            if name == "a":
+                if not re.match(r'<a\s+href="[^"]*">', tag, re.IGNORECASE):
+                    last = m.end()
+                    continue
+                out.append(tag)
+            else:
+                out.append(f"<{name}>")
+            stack.append(name)
+        else:
+            if stack and stack[-1] == name:
+                out.append(f"</{name}>")
+                stack.pop()
+            # unmatched closing tag -> drop
+        last = m.end()
+
+    out.append(text[last:])
+    while stack:
+        out.append(f"</{stack.pop()}>")
+    return "".join(out)
 
 
 def strip_html(text: str) -> str:
@@ -187,8 +252,7 @@ def _has_news_timezone_utc8(text: str) -> bool:
 
 
 def _normalize_regime_token(raw: str) -> str | None:
-    token = re.sub(r'[\s-]+', '_', (raw or "").strip().lower())
-    token = token.replace("risk__on", "risk_on").replace("risk__off", "risk_off")
+    token = re.sub(r'[\s\-_]+', '_', (raw or "").strip().lower())
     if token in ("risk_on", "risk_off", "neutral"):
         return token
     return None
@@ -196,7 +260,13 @@ def _normalize_regime_token(raw: str) -> str | None:
 
 def _risk_off_star_cap_violated(text: str) -> bool:
     """risk_off 下是否出現超過上限的信心星等（4 顆星）。"""
-    has_risk_off = bool(re.search(r'【今日市場模式】\s*risk_off', text, re.IGNORECASE))
+    has_risk_off = bool(
+        re.search(
+            r'【今日市場模式】\s*(?:<[^>]*>\s*)*risk[\s_\-]*off(?:\s*</[^>]*>)*',
+            text,
+            re.IGNORECASE,
+        )
+    )
     has_4_star = "⭐️⭐️⭐️⭐️" in text
     return has_risk_off and has_4_star
 
@@ -241,8 +311,13 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
     if not recs:
         return []
 
-    regime_m = re.search(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', report_text, re.IGNORECASE)
-    regime = regime_m.group(1).lower() if regime_m else "neutral"
+    regime_m = re.search(
+        r'【今日市場模式】\s*(?:<[^>]*>\s*)*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)(?:\s*</[^>]*>)*',
+        report_text,
+        re.IGNORECASE,
+    )
+    regime = _normalize_regime_token(regime_m.group(1)) if regime_m else "neutral"
+    regime = regime or "neutral"
     cap_map = {"risk_off": 5.0, "neutral": 10.0, "risk_on": 15.0}
     cap = cap_map.get(regime, 10.0)
 
@@ -335,24 +410,57 @@ def _sanitize_macro_outlier_values(text: str) -> str:
     # SOFR 句型變體（不一定含「Fed」）
     patched = re.sub(
         r"(SOFR 期貨隱含利率[^0-9%\n]{0,12})([0-9,]+(?:\.[0-9]+)?)%",
-        lambda m: f"{m.group(1)}N/A（數據異常待確認）"
-        if (_pct_or_none(m.group(2)) or 0.0) > 20.0
-        else m.group(0),
+        lambda m: (
+            f"{m.group(1)}N/A（數據異常待確認）"
+            if (lambda v: v is not None and v > 20.0)(_pct_or_none(m.group(2)))
+            else m.group(0)
+        ),
         patched,
     )
 
-    # 利差絕對值過大（>= 1000bp）視為異常。
+    # 利差絕對值過大（>= 1000bp）視為異常，兼容 + / - / Unicode 負號 / 小數。
     patched = re.sub(
-        r"(利差[：:]?\s*)-?([0-9,]{4,}(?:\.[0-9]+)?)\s*bp",
+        r"(利差[：:]?\s*)[+\-−]?([0-9,]{4,}(?:\.[0-9]+)?)\s*bp",
         r"\1N/A",
         patched,
+        flags=re.IGNORECASE,
+    )
+    # 強制收斂任何異常百分比到 N/A（避免格式變體漏網）
+    patched = re.sub(
+        r"(10Y[^0-9%\n]{0,16})([0-9,]+(?:\.[0-9]+)?)%",
+        lambda m: f"{m.group(1)}N/A（數據異常待確認）"
+        if (lambda v: v is not None and not (0.0 <= v <= 20.0))(_pct_or_none(m.group(2)))
+        else m.group(0),
+        patched,
+        flags=re.IGNORECASE,
+    )
+    patched = re.sub(
+        r"(2Y[^0-9%\n]{0,16})([0-9,]+(?:\.[0-9]+)?)%",
+        lambda m: f"{m.group(1)}N/A（數據異常待確認）"
+        if (lambda v: v is not None and not (0.0 <= v <= 20.0))(_pct_or_none(m.group(2)))
+        else m.group(0),
+        patched,
+        flags=re.IGNORECASE,
+    )
+    patched = re.sub(
+        r"(SOFR[^0-9%\n]{0,24})([0-9,]+(?:\.[0-9]+)?)%",
+        lambda m: f"{m.group(1)}N/A（數據異常待確認）"
+        if (lambda v: v is not None and not (0.0 <= v <= 20.0))(_pct_or_none(m.group(2)))
+        else m.group(0),
+        patched,
+        flags=re.IGNORECASE,
     )
     return patched
 
 
 def _unify_regime_mentions(text: str) -> str:
     """統一全篇 regime：以第一個【今日市場模式】為準，覆寫後續風險預算中的 regime。"""
-    m = re.search(r'【今日市場模式】\s*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)', text, re.IGNORECASE)
+    regime_token_re = r'(risk[\s_\-]*on|risk[\s_\-]*off|neutral)'
+    m = re.search(
+        rf'【今日市場模式】\s*(?:<[^>]*>\s*)*{regime_token_re}(?:\s*</[^>]*>)*',
+        text,
+        re.IGNORECASE,
+    )
     if not m:
         return text
     regime = _normalize_regime_token(m.group(1))
@@ -360,19 +468,19 @@ def _unify_regime_mentions(text: str) -> str:
         return text
     patched = text
     patched = re.sub(
-        r'(【今日市場模式】\s*)(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)',
+        rf'(【今日市場模式】\s*(?:<[^>]*>\s*)*){regime_token_re}(?:\s*</[^>]*>)*',
         rf"\1{regime}",
         patched,
         flags=re.IGNORECASE,
     )
     patched = re.sub(
-        r"(今日風險預算[：:]\s*)regime\s*=\s*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)",
+        rf"(今日風險預算[：:][^\n]*?regime\s*=\s*)(?:<[^>]*>\s*)*{regime_token_re}(?:\s*</[^>]*>)*",
         rf"\1regime={regime}",
         patched,
         flags=re.IGNORECASE,
     )
     patched = re.sub(
-        r"(今日風險預算[：:]\s*)(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)(\s*[｜|])",
+        rf"(今日風險預算[：:]\s*)(?:<[^>]*>\s*)*{regime_token_re}(?:\s*</[^>]*>)*(\s*[｜|])",
         rf"\1{regime}\3",
         patched,
         flags=re.IGNORECASE,
@@ -382,6 +490,19 @@ def _unify_regime_mentions(text: str) -> str:
         rf'\1{regime}\3',
         patched,
         flags=re.IGNORECASE,
+    )
+    # 兼容英文寫法（Risk Off / Risk-On）在風險預算行中造成的不一致。
+    def _risk_budget_line_repl(m: re.Match) -> str:
+        line = m.group(0)
+        line = re.sub(r'\brisk[\s_-]*on\b', regime, line, flags=re.IGNORECASE)
+        line = re.sub(r'\brisk[\s_-]*off\b', regime, line, flags=re.IGNORECASE)
+        line = re.sub(r'\bneutral\b', regime, line, flags=re.IGNORECASE)
+        return line
+
+    patched = re.sub(
+        r'(?im)^.*今日風險預算[^\n]*$',
+        _risk_budget_line_repl,
+        patched,
     )
     return patched
 
@@ -434,14 +555,21 @@ def _has_macro_outlier_values(text: str) -> bool:
     - 10Y/2Y/SOFR 應在 0~20%
     - 利差應在 +/-1000bp 以內
     """
-    for m in re.finditer(r'(10Y|2Y|SOFR)[^0-9%\n]{0,20}([0-9,]+(?:\.\d+)?)%', text, re.IGNORECASE):
-        val = float(m.group(2).replace(",", ""))
-        if val < 0 or val > 20:
+    for m in re.finditer(r'(10Y|2Y|SOFR)[^0-9%\n]{0,24}([0-9,]+(?:\.\d+)?)%', text, re.IGNORECASE):
+        try:
+            val = float(m.group(2).replace(",", ""))
+        except ValueError:
+            continue
+        if not (0.0 <= val <= 20.0):
             return True
 
-    for m in re.finditer(r'利差[：:]?\s*(-?[0-9,]+(?:\.\d+)?)\s*bp', text):
-        val = float(m.group(1).replace(",", ""))
-        if abs(val) > 1000:
+    for m in re.finditer(r'利差[：:]?\s*([+\-−]?[0-9,]+(?:\.\d+)?)\s*bp', text):
+        raw = m.group(1).replace(",", "").replace("−", "-")
+        try:
+            val = float(raw)
+        except ValueError:
+            continue
+        if abs(val) >= 1000:
             return True
 
     return False
@@ -554,8 +682,12 @@ def _ensure_trade_sections(text: str) -> str:
     if has_crypto_trade and has_ai_trade:
         return text
 
-    regime_m = re.search(r'【今日市場模式】\s*(risk_on|risk_off|neutral)', text, re.IGNORECASE)
-    regime = (regime_m.group(1).lower() if regime_m else "neutral")
+    regime_m = re.search(
+        r'【今日市場模式】\s*(?:<[^>]*>\s*)*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)(?:\s*</[^>]*>)*',
+        text,
+        re.IGNORECASE,
+    )
+    regime = (_normalize_regime_token(regime_m.group(1)) if regime_m else None) or "neutral"
     blocks: list[str] = []
     if not has_crypto_trade:
         blocks.append(
@@ -600,6 +732,8 @@ def _postprocess_report_for_resilience(text: str) -> str:
     patched = _ensure_trade_sections(patched)
     patched = _normalize_news_timezone_utc8(patched)
     patched = _ensure_min_news_count(patched, min_news=6)
+
+    # 原子化來源欄位收斂：只做一次「清理 -> 注入」避免重複殘留。
     patched = _remove_duplicate_source_observability(patched)
     observe_block = source_observability_lines()
     marker = "[QSREC_START]"
@@ -608,6 +742,8 @@ def _postprocess_report_for_resilience(text: str) -> str:
         patched = patched[:pos].rstrip() + f"\n\n{observe_block}\n\n" + patched[pos:]
     else:
         patched = patched.rstrip() + f"\n\n{observe_block}"
+    patched = _unify_regime_mentions(patched)
+    patched = _sanitize_macro_outlier_values(patched)
     return patched
 
 
@@ -622,7 +758,7 @@ def validate_report(text: str) -> dict:
     fallback_count = _fallback_news_count(text)
 
     # Accept both old plain regime label and new scorecard format (e.g. "risk_on（+4/6）")
-    has_regime    = bool(re.search(r'risk_on|risk_off|neutral', text, re.IGNORECASE))
+    has_regime    = bool(re.search(r'risk[\s_\-]*on|risk[\s_\-]*off|neutral', text, re.IGNORECASE))
     has_dashboard = bool(re.search(r'DXY|BTC\s*OI|資金費率|模型排名|ML.*權重|RSI|Fear.*Greed|儀表板', text, re.IGNORECASE))
     has_crypto_trade = bool(re.search(r'資金流向與精準操作\s*\(Crypto\)|精準操作.*Crypto', text, re.IGNORECASE))
     has_ai_trade  = bool(re.search(r'AI\s*產業鏈精準操作|精準操作.*Equit', text, re.IGNORECASE))
@@ -639,21 +775,43 @@ def validate_report(text: str) -> dict:
     has_valid_qsrec = bool(parsed_qsrec)
     has_rr = bool(re.search(r'R:R\s*=\s*1:\d+(?:\.\d+)?', text, re.IGNORECASE))
     has_max_drawdown = bool(re.search(r'最大回撤風險[：:]\s*(?:<code>)?\s*-\d+(?:\.\d+)?%(?:</code>)?', text))
-    has_expected_win_rate = bool(re.search(r'預期勝率[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?%', text))
-    has_signal_score = bool(re.search(r'Signal\s*Score[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?\s*/\s*100', text, re.IGNORECASE))
-    has_signal_conflict = bool(re.search(r'訊號衝突摘要[：:]', text))
+    has_expected_win_rate = bool(
+        re.search(r'(?:預期勝率|勝率預期)[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?\s*%?(?:</code>)?', text)
+    )
+    has_signal_score = bool(
+        re.search(
+            r'Signal\s*Score[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?(?:\s*/\s*100)?(?:</code>)?',
+            text,
+            re.IGNORECASE,
+        )
+    )
+    has_signal_conflict = bool(re.search(r'[訊信]號衝突(?:摘要|分析)?[：:]', text))
     has_risk_budget = bool(re.search(r'今日風險預算[：:]', text))
     has_rumor_grade = bool(re.search(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})', text, re.IGNORECASE))
     has_utc8 = _has_news_timezone_utc8(text)
     too_many_na = len(re.findall(r'\bN/A\b', text)) > 3
     has_low_confidence_tag = bool(re.search(r'低置信度|低信心', text))
     has_missing_reason_proxy = bool(re.search(r'資料缺失原因.*替代指標|替代指標.*資料缺失原因', text))
-    has_numeric_in_investment = bool(re.search(r'投資解讀[：:][^\n]*(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)', text))
+    has_numeric_in_investment = bool(
+        re.search(r'投資解讀[：:][^\n]*(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)', text)
+        or re.search(
+            r'投資解讀[：:][^\n]*(?:\n[^\n]*){0,5}(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)',
+            text,
+        )
+    )
     has_source_health = "【SourceHealth】" in text
     has_source_errors = "【SourceErrors】" in text
     has_source_quota = "【SourceQuota】" in text
-    mode_tags_raw = re.findall(r'【今日市場模式】\s*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)', text, re.IGNORECASE)
-    budget_tags_raw = re.findall(r'今日風險預算[：:][^\n]*(risk\s*[_-]?\s*on|risk\s*[_-]?\s*off|neutral)', text, re.IGNORECASE)
+    mode_tags_raw = re.findall(
+        r'【今日市場模式】\s*(?:<[^>]*>\s*)*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)(?:\s*</[^>]*>)*',
+        text,
+        re.IGNORECASE,
+    )
+    budget_tags_raw = re.findall(
+        r'今日風險預算[：:][^\n]*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)',
+        text,
+        re.IGNORECASE,
+    )
     mode_tags = [r for r in (_normalize_regime_token(x) for x in mode_tags_raw) if r]
     budget_tags = [r for r in (_normalize_regime_token(x) for x in budget_tags_raw) if r]
     qsrec_regimes = []
@@ -758,7 +916,7 @@ def validate_report(text: str) -> dict:
             issues.append("關鍵資料來源缺失（hard fail）")
 
     return {
-        "valid": len([i for i in issues if "呢喃" not in i]) == 0,
+        "valid": len([i for i in issues if all(k not in i for k in ("呢喃", "傳聞"))]) == 0,
         "issues": issues,
         "news_count": news_count,
         "fallback_news_count": fallback_count,
@@ -861,26 +1019,134 @@ def _send_telegram_report(text: str, token: str, chat_id: str, image_path: str =
                 if attempt < 2:
                     time.sleep(5 * (attempt + 1))
 
-    cleaned = sanitize_telegram_html(text)
-    for i, chunk in enumerate(_safe_chunks(cleaned)):
+    html_mode = True
+    for i, raw_chunk in enumerate(_safe_chunks(text)):
+        chunk = sanitize_telegram_html(raw_chunk)
+        plain_chunk = strip_html(chunk)
         sent = False
         for attempt in range(4):
             try:
-                bot.send_message(chat_id, chunk, parse_mode="HTML", timeout=60)
+                if html_mode:
+                    bot.send_message(chat_id, chunk, parse_mode="HTML", timeout=60)
+                else:
+                    bot.send_message(chat_id, plain_chunk, timeout=60)
                 sent = True
                 time.sleep(0.5)
                 break
             except Exception as e:
                 err_str = str(e).lower()
+                if html_mode and "can't parse entities" in err_str:
+                    logger.warning("Chunk %d HTML parse failed; downgrade to plain text mode: %s", i, e)
+                    html_mode = False
+                    continue
                 wait = 5 if "429" not in err_str else 30 * (attempt + 1)
                 logger.warning("Chunk %d send attempt %d failed (wait=%ds): %s", i, attempt + 1, wait, e)
                 if attempt < 3:
                     time.sleep(wait)
         if not sent:
             try:
-                bot.send_message(chat_id, strip_html(chunk), timeout=60)
+                bot.send_message(chat_id, plain_chunk, timeout=60)
             except Exception as final_e:
                 logger.error("Chunk %d all retries failed: %s", i, final_e)
+
+
+# Gate 告警錯誤碼（供 Telegram 關鍵字過濾）
+GATE_CODE_CRITICAL_SOURCE = "GATE_CRITICAL_SOURCE"
+GATE_CODE_LLM_DISCONNECT = "GATE_LLM_DISCONNECT"
+GATE_CODE_EXECUTION_FAILED = "GATE_EXECUTION_FAILED"
+GATE_CODE_VALIDATION = "GATE_VALIDATION"
+GATE_CODE_UNKNOWN = "GATE_UNKNOWN"
+
+
+def _gate_alert_severity_and_code(
+    top_issues: str | None,
+    error_text: str | None,
+) -> tuple[str, str]:
+    """依 top_issues 與 error_text 決定 severity 與固定錯誤碼。"""
+    issues = (top_issues or "").strip().lower()
+    err = (error_text or "").strip().lower()
+
+    if "關鍵資料來源缺失" in (top_issues or ""):
+        return "CRITICAL", GATE_CODE_CRITICAL_SOURCE
+    if err and err != "n/a":
+        if "server disconnected" in err or "disconnected without sending" in err:
+            return "WARNING", GATE_CODE_LLM_DISCONNECT
+        if "503" in err or "unavailable" in err or "rate limit" in err:
+            return "WARNING", GATE_CODE_LLM_DISCONNECT
+        return "CRITICAL", GATE_CODE_EXECUTION_FAILED
+    if issues and issues != "n/a":
+        return "WARNING", GATE_CODE_VALIDATION
+    return "WARNING", GATE_CODE_UNKNOWN
+
+
+def _send_telegram_gate_alert(
+    token: str,
+    chat_id: str,
+    top_issues: str | None = None,
+    error_text: str | None = None,
+) -> None:
+    """一致性 gate 阻擋時，發送簡短告警到 Telegram（含 severity 與固定錯誤碼）。"""
+    if not token or not chat_id:
+        return
+
+    bot = telebot.TeleBot(token)
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    issue_line = top_issues.strip() if (top_issues or "").strip() else "N/A"
+    err_line = (error_text or "").strip()
+    if len(err_line) > 240:
+        err_line = err_line[:240] + "..."
+    if not err_line:
+        err_line = "N/A"
+    last_ok = _get_last_success_report_time_utc()
+    severity, code = _gate_alert_severity_and_code(top_issues, error_text)
+
+    alert_text = (
+        "<b>Q-Silicon Gate 告警</b>\n"
+        f"<code>code: {code}</code>\n"
+        f"<code>severity: {severity}</code>\n"
+        f"<code>STRICT_CONSISTENCY_GATE=1</code> 已阻擋本次正式戰報推送。\n"
+        f"<code>time: {ts}</code>\n"
+        f"<code>last_success: {last_ok or 'N/A'}</code>\n"
+        f"<code>top_issues: {issue_line}</code>\n"
+        f"<code>error: {err_line}</code>"
+    )
+    safe_alert = sanitize_telegram_html(alert_text)
+    try:
+        bot.send_message(chat_id, safe_alert, parse_mode="HTML", timeout=30)
+        logger.info("Gate alert sent to Telegram.")
+    except Exception as e:
+        logger.warning("Failed to send gate alert to Telegram: %s", e)
+
+
+def _get_last_success_report_time_utc(
+    project_id: str = PROJECT_ID,
+    metrics_table: str = METRICS_TABLE,
+) -> str | None:
+    """查詢最近一次成功寫入 metrics 的時間（視為最近成功戰報時間）。"""
+    if SKIP_BIGQUERY:
+        return None
+    try:
+        client = bigquery.Client(project=project_id)
+        query = f"""
+            SELECT timestamp
+            FROM `{metrics_table}`
+            WHERE timestamp IS NOT NULL
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """
+        rows = list(client.query(query).result())
+        if not rows:
+            return None
+        row = rows[0]
+        ts = row.get("timestamp") if hasattr(row, "get") else None
+        if not ts:
+            return None
+        if hasattr(ts, "strftime"):
+            return ts.strftime("%Y-%m-%d %H:%M UTC")
+        return str(ts)
+    except Exception as e:
+        logger.warning("Could not fetch last successful report time from BigQuery: %s", e)
+        return None
 
 
 def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> None:
@@ -1273,6 +1539,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
     last_validation: dict | None = None
     for attempt in range(MAX_REPORT_RETRIES + 1):
         last_err: Exception | None = None
+        structural_validation_err: Exception | None = None
         for step in range(MAX_503_RETRIES + 1):
             report, err = _run_pipeline_once(exclude_context)
             if err is None:
@@ -1286,15 +1553,11 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     if not _codex_judge_pass(final_report):
                         raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
                 except Exception as v_err:
-                    last_err = v_err
-                    if step < MAX_503_RETRIES:
-                        logger.warning("輸出結構/內容驗證未通過，重試 (%d/%d)：%s", step + 1, MAX_503_RETRIES + 1, v_err)
-                        wait = max(5, BACKOFF_BASE_SEC // 2)
-                        time.sleep(wait)
-                        continue
-                    final_report = f"{ERROR_PREFIX}{v_err}"
-                    break
-                last_err = None
+                    structural_validation_err = v_err
+                    logger.warning(
+                        "輸出結構/內容驗證未通過（不佔 503 重試配額，交由報告驗證重試機制處理）：%s",
+                        v_err,
+                    )
                 break
             last_err = err
             if _is_retriable(err) and step < MAX_503_RETRIES:
@@ -1307,6 +1570,12 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                 break
         if last_err is not None:
             break
+        if structural_validation_err is not None:
+            logger.info(
+                "[Attempt %d] 結構驗證未過，保留可讀報告交由 validate_report 決定是否重試：%s",
+                attempt + 1,
+                structural_validation_err,
+            )
 
         result = validate_report(final_report)
         last_validation = result
@@ -1326,7 +1595,10 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             logger.info("Retrying report generation (%d/%d)...", attempt + 2, MAX_REPORT_RETRIES + 1)
 
     if final_report and not final_report.startswith("🚨"):
-        logger.warning("Sending report despite validation issues (retries exhausted).")
+        if STRICT_CONSISTENCY_GATE:
+            logger.error("Report invalid and STRICT_CONSISTENCY_GATE=1; keep blocked (no forced send).")
+        else:
+            logger.warning("Sending report despite validation issues (retries exhausted).")
     return final_report, report_valid, last_validation
 
 
@@ -1417,6 +1689,15 @@ if __name__ == "__main__":
                 "STRICT_CONSISTENCY_GATE=1 且 report_valid=False，阻擋 Telegram 發送。Top issues: %s",
                 invalid_issues_preview or "N/A",
             )
+            if token and chat_id:
+                _send_telegram_gate_alert(
+                    token,
+                    chat_id,
+                    top_issues=invalid_issues_preview,
+                    error_text=final_report if final_report.startswith("🚨") else None,
+                )
+            else:
+                logger.warning("Telegram configuration missing. Skipping gate alert push.")
         elif token and chat_id:
             _send_telegram_report(clean_report, token, chat_id, image_path="daily_chart.png")
         else:
