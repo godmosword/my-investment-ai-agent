@@ -117,6 +117,11 @@ _QUOTE_RULE = dedent("""\
     以及 RSI(14)、MA20/MA50、VIX 期限結構等技術指標，
     必須直接使用上方【系統強制即時報價】+【技術指標與結構】Context；不得自行捏造或改寫。""")
 
+_NARRATIVE_CONSISTENCY_RULE = dedent("""\
+    【敘事與數據一致】引用 BTC/指數/均線時，須與【技術指標與結構】的趨勢描述一致：
+    若 Context 為「多頭排列（價>MA20>MA50）」或現價高於 MA50，不得寫「跌破 MA50」或「跌破均線」；
+    若為「空頭排列（價<MA20<MA50）」或現價低於 MA50，不得寫「站上 MA50」。不確定時改寫為「若跌破/若站上」等條件句。""")
+
 _TRADE_RULE = dedent("""\
     · <b>$代幣/股票 (操作方向)</b>｜現價：$真實最新報價｜信心水準：⭐️⭐️⭐️⭐️
     · 進場：<code>$數值</code>｜目標：<code>$數值</code> (+Y%)｜停損：<code>$數值</code> (-Z%)
@@ -177,7 +182,7 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
 
 _AI_LAYOUT_RULE = dedent("""\
     === 排版順序（AI）===
-    1) 🏛️ 宏觀框架（取自 macro_context_tool + 1 句主編共識）
+    1) 🏛️ 宏觀框架：本戰報將接在加密戰報之後，前段已含完整宏觀數據；本節僅輸出「承上宏觀」+ 一句主編共識（如 10Y/VIX 對美股影響），勿重複貼上美債/SOFR/利差整段。
     2) 🤖 AI 市場：
        - 區塊① AI 儀表板（OpenRouter Top5；缺值 <code>N/A</code>）
        - 區塊② AI 產業新聞 3 則（基建/投資案/模型各 1）
@@ -284,6 +289,7 @@ class CryptoResearchCrew:
 
                 === Fact-Check ===
                 以【系統強制即時報價】核對 DXY/VIX/IBIT/BTC。
+                {_NARRATIVE_CONSISTENCY_RULE}
 
                 === 宏觀框架 ===
                 必須呼叫 macro_context_tool()，將美債殖利率、利率曲線、Fed 預期、本週財報輸出於此區塊。
@@ -307,6 +313,7 @@ class CryptoResearchCrew:
             description=dedent(f"""
                 【加密市場戰報排版 — GPT 主編】
                 {_QUOTE_RULE}
+                {_NARRATIVE_CONSISTENCY_RULE}
                 {_EDITOR_RULE}
                 {_TELEGRAM_FMT}
                 {_DASHBOARD_FMT}
@@ -409,6 +416,7 @@ class AIResearchCrew:
             description=dedent(f"""
                 【AI 市場辯論審計 — Grok】
                 {_QUOTE_RULE}
+                {_NARRATIVE_CONSISTENCY_RULE}
                 {ctx}
 
                 === 宏觀框架（美股利率敏感性）===
@@ -416,7 +424,7 @@ class AIResearchCrew:
                 分析這些宏觀變數對 NVDA/MSFT/AI 板塊的下一步影響。
 
                 === 新聞辯論 ===
-                對 3 則 AI 新聞逐條提出反向觀點（每則 2~3 句）。
+                對 3 則 AI 新聞逐條提出反向觀點（每則 2~3 句）；引用 BTC/均線時須與上方【技術指標與結構】一致。
             """),
             expected_output="宏觀框架分析與 3 則 AI 新聞辯論觀點。",
             agent=self.risk_critic,
@@ -431,6 +439,7 @@ class AIResearchCrew:
                 {_DASHBOARD_FMT}
                 {_CHATTER_FMT}
                 {_QUOTE_RULE}
+                {_NARRATIVE_CONSISTENCY_RULE}
                 {_RISK_MODE_RULE}
                 {_REGIME_POSITION_POLICY}
                 {_PAIR_TRADE_RULE}
