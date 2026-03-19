@@ -242,10 +242,12 @@ def _codex_judge_pass(report_text: str) -> bool:
 
 
 def _has_news_timezone_utc8(text: str) -> bool:
-    """新聞時間格式檢查：標籤格式需全數 UTC+8；數字條列格式視為已降級接受。"""
+    """新聞時間格式檢查：標籤格式需全數 UTC+8；數字條列格式視為已降級接受。
+    允許月/日為 1~2 位數，避免 LLM 不補前導零時誤觸 gate。
+    """
     tagged_total = len(re.findall(r'〔新聞\s*\d+〕', text))
     if tagged_total > 0:
-        tagged_utc = len(re.findall(r'〔新聞\s*\d+〕\s*\[\d{2}/\d{2}\s+\d{2}:\d{2}\s+UTC\+8\]', text))
+        tagged_utc = len(re.findall(r'〔新聞\s*\d+〕\s*\[\d{1,2}/\d{1,2}\s+\d{2}:\d{2}\s+UTC\+8\]', text))
         return tagged_utc == tagged_total
     numbered = len(re.findall(r'(?m)^\s*\d+[.)]\s+.+', text))
     return numbered > 0
@@ -610,8 +612,10 @@ def _has_source_observability_conflicts(text: str) -> bool:
 
 
 def _normalize_news_timezone_utc8(text: str) -> str:
-    """將新聞時間標籤統一補上 UTC+8。"""
-    pattern = re.compile(r'(〔新聞\s*\d+〕\s*\[\d{2}/\d{2}\s+\d{2}:\d{2})(\])')
+    """將新聞時間標籤統一補上 UTC+8。
+    允許月/日為 1~2 位數，確保與 LLM 未補前導零的輸出相容。
+    """
+    pattern = re.compile(r'(〔新聞\s*\d+〕\s*\[\d{1,2}/\d{1,2}\s+\d{2}:\d{2})(\])')
 
     def _repl(m: re.Match) -> str:
         left = m.group(1)
