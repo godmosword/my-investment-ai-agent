@@ -1,0 +1,9 @@
+{
+  "crypto": [
+    "BTC", "ETH", "SOL", "BNB", "XRP", "AVAX", "LINK", "DOT", "MATIC",
+    "ARB", "OP", "SUI", "APT", "INJ", "TIA", "NEAR", "ATOM", "DOGE", "ADA"
+  ],
+  "equity": [
+    "NVDA", "MSFT", "AAPL", "TSLA", "GOOGL", "AMZN", "META"
+  ]
+}
