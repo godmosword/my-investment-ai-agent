@@ -57,9 +57,9 @@ _FINAL_TEMPLATE_AI = dedent("""\
     區塊①【AI 數據儀表板】（每行獨立，數值用 <code>）
     區塊②【AI 產業新聞】（3 則，每則含投資解讀 + 💎主編共識）
     區塊③【產業鏈呢喃】（2~3 條）
-    區塊④【AI 產業鏈精準操作 (US Equities)】（2 檔，含完整風控欄位）
+    區塊④【AI 產業鏈精準操作 (US Equities)】（2 檔，由今日新聞動態選出，含完整風控欄位）
     [QSREC_START]
-    [{"asset":"NVDA","direction":"LONG","current_price":875.2,"entry":870,"target":920,"stop":845,"confidence":3,"category":"EQUITY","trigger":"...","invalidation":"...","position_pct":6,"timeframe":"5-10天"}]
+    [{"asset":"TODAY_PICK_1","direction":"LONG/SHORT","current_price":0,"entry":0,"target":0,"stop":0,"confidence":3,"category":"EQUITY","trigger":"...","invalidation":"...","position_pct":6,"timeframe":"5-10天"}]
     [QSREC_END]
     """)
 
@@ -109,7 +109,7 @@ _CHATTER_FMT = dedent("""\
 
 
 _QUOTE_RULE = dedent("""\
-    【實盤價格強制查核】關於 DXY、VIX、IBIT、SPY、BTC、SOL、NVDA、MSFT 等數值，
+    【實盤價格強制查核】關於 DXY、VIX、IBIT、SPY、BTC、SOL 及當日選定美股標的等數值，
     以及 RSI(14)、MA20/MA50、VIX 期限結構等技術指標，
     必須直接使用上方【系統強制即時報價】+【技術指標與結構】Context；不得自行捏造或改寫。""")
 
@@ -180,11 +180,16 @@ _AI_LAYOUT_RULE = dedent("""\
     === 排版順序（AI）===
     1) 🏛️ 宏觀框架：本戰報將接在加密戰報之後，前段已含完整宏觀數據；本節僅輸出「承上宏觀」+ 一句主編共識（如 10Y/VIX 對美股影響），勿重複貼上美債/SOFR/利差整段。
     2) 🤖 AI 市場：
-       - 區塊① AI 儀表板（OpenRouter Top5；缺值 <code>N/A</code>）
+       - 區塊① AI 儀表板（HuggingFace / OpenRouter 模型熱度 Top5；缺值 <code>N/A</code>）
        - 區塊② AI 產業新聞 3 則（基建/投資案/模型各 1）
        - 區塊②b X 推文精選（無資料可跳過）
        - 區塊③ 產業鏈呢喃 2~3 條
-       - 區塊④ AI 精準操作 2 檔
+       - 區塊④ AI 精準操作 2 檔：
+         【動態選股規則】禁止固定使用特定股票。必須根據以下優先順序動態選出本日 2 檔：
+         (a) 優先選今日 AI 新聞中直接點名且有具體財務/產品事件的美股（如財報、拉貨、合約）
+         (b) 次選 ai_momentum_tool 回傳模型排名中，對應的上市公司股票（如 Meta, Google, Microsoft, AMD 等）
+         (c) 最後才考慮 AI 基建通殺標的（如 ETF BOTZ/ARKQ）
+         每次必須說明「本日選擇理由：XXX 因 [具體事件] 入選」
     3) 最後必須輸出 QSREC JSON 區塊""")
 
 
@@ -392,9 +397,9 @@ class AIResearchCrew:
                 呼叫 ai_momentum_tool('openrouter_rankings')。
                 搜尋：
                 · rss_feed_tool('ai')（TechCrunch / VentureBeat AI RSS，優先取用）
-                · newsapi_tool('AI NVIDIA data center GPU Microsoft')（Bloomberg / Reuters AI 報導）
-                · gnews_tool('artificial intelligence GPU infrastructure')（多語言補充）
-                · market_search_tool('AI data center GPU NVIDIA infrastructure {year}')
+                · newsapi_tool('AI data center GPU cloud computing semiconductor')（Bloomberg / Reuters AI 報導）
+                · gnews_tool('artificial intelligence GPU infrastructure semiconductor')（多語言補充）
+                · market_search_tool('AI data center GPU semiconductor infrastructure {year}')
                 · market_search_tool('data center power supply nuclear energy AI {year}')
                 · rumor_scanner_tool('AI infrastructure supply chain risk')
                 · x_search_tool('NVIDIA AI GPU data center OpenAI Anthropic Microsoft')（取得 AI 板塊 X/Twitter 即時推文）
@@ -416,7 +421,7 @@ class AIResearchCrew:
 
                 === 宏觀框架（美股利率敏感性）===
                 必須呼叫 macro_context_tool()，輸出美債利率、殖利率曲線、Fed 預期、本週財報，
-                分析這些宏觀變數對 NVDA/MSFT/AI 板塊的下一步影響。
+                分析這些宏觀變數對本日 AI 新聞點名之美股標的的下一步影響。
 
                 === 新聞辯論 ===
                 對 3 則 AI 新聞逐條提出反向觀點（每則 2~3 句）；引用 BTC/均線時須與上方【技術指標與結構】一致。
