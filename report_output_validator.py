@@ -27,11 +27,3 @@ def assert_sample_output(sample_output: dict) -> None:
     assert sample_output.get("title"), "title 不能為空"
     assert "<code>" in sample_output.get("code", ""), "code block 缺失"
     assert "HTTPError" not in sample_output.get("news", ""), "news 含有 API error"
-
-
-def build_judge_prompt(output: str) -> str:
-    """讓 LLM 當裁判：判斷是否含 API 錯誤訊息或無關內容。"""
-    return (
-        "請判斷以下報告內容是否包含 API 錯誤訊息或無關內容，回答 yes/no：\n"
-        f"{output}"
-    )

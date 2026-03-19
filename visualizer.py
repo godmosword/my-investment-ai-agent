@@ -8,8 +8,6 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.dates as mdates
-import numpy as np
-
 logger = logging.getLogger(__name__)
 
 _C = {

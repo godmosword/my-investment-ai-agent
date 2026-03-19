@@ -6,7 +6,7 @@ import logging
 import builtins
 import html
 import telebot
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from google.cloud import bigquery
 import yfinance as yf
@@ -377,7 +377,7 @@ def _sanitize_macro_outlier_values(text: str) -> str:
         patched,
     )
 
-    # 更泛用：2Y 數值若超過合理區間，僅替換數值本體，避免句式變化漏網。
+    # 泛用：2Y 數值若超過合理區間，僅替換數值本體，避免句式變化漏網。
     def _repl_2y(m: re.Match) -> str:
         prefix = m.group(1)
         raw = m.group(2)
@@ -387,7 +387,7 @@ def _sanitize_macro_outlier_values(text: str) -> str:
         return f"{prefix}N/A（數據異常待確認）"
 
     patched = re.sub(
-        r"(2Y[^0-9%\n]{0,12})([0-9,]+(?:\.[0-9]+)?)%",
+        r"(2Y[^0-9%\n]{0,16})([0-9,]+(?:\.[0-9]+)?)%",
         _repl_2y,
         patched,
     )
@@ -422,31 +422,6 @@ def _sanitize_macro_outlier_values(text: str) -> str:
     patched = re.sub(
         r"(利差[：:]?\s*)[+\-−]?([0-9,]{4,}(?:\.[0-9]+)?)\s*bp",
         r"\1N/A",
-        patched,
-        flags=re.IGNORECASE,
-    )
-    # 強制收斂任何異常百分比到 N/A（避免格式變體漏網）
-    patched = re.sub(
-        r"(10Y[^0-9%\n]{0,16})([0-9,]+(?:\.[0-9]+)?)%",
-        lambda m: f"{m.group(1)}N/A（數據異常待確認）"
-        if (lambda v: v is not None and not (0.0 <= v <= 20.0))(_pct_or_none(m.group(2)))
-        else m.group(0),
-        patched,
-        flags=re.IGNORECASE,
-    )
-    patched = re.sub(
-        r"(2Y[^0-9%\n]{0,16})([0-9,]+(?:\.[0-9]+)?)%",
-        lambda m: f"{m.group(1)}N/A（數據異常待確認）"
-        if (lambda v: v is not None and not (0.0 <= v <= 20.0))(_pct_or_none(m.group(2)))
-        else m.group(0),
-        patched,
-        flags=re.IGNORECASE,
-    )
-    patched = re.sub(
-        r"(SOFR[^0-9%\n]{0,24})([0-9,]+(?:\.[0-9]+)?)%",
-        lambda m: f"{m.group(1)}N/A（數據異常待確認）"
-        if (lambda v: v is not None and not (0.0 <= v <= 20.0))(_pct_or_none(m.group(2)))
-        else m.group(0),
         patched,
         flags=re.IGNORECASE,
     )
@@ -666,11 +641,8 @@ def _inject_fallback_news_entries(text: str, min_news: int = 6) -> str:
 
 
 def _ensure_min_news_count(text: str, min_news: int = 6) -> str:
-    """
-    新聞數不足時，只加入觀測提示，不注入虛構新聞。
-    """
-    patched = _inject_fallback_news_entries(text, min_news=min_news)
-    return patched
+    """新聞數不足時，只加入觀測提示，不注入虛構新聞。"""
+    return _inject_fallback_news_entries(text, min_news=min_news)
 
 
 def _ensure_trade_sections(text: str) -> str:
@@ -742,8 +714,6 @@ def _postprocess_report_for_resilience(text: str) -> str:
         patched = patched[:pos].rstrip() + f"\n\n{observe_block}\n\n" + patched[pos:]
     else:
         patched = patched.rstrip() + f"\n\n{observe_block}"
-    patched = _unify_regime_mentions(patched)
-    patched = _sanitize_macro_outlier_values(patched)
     return patched
 
 
@@ -1259,7 +1229,7 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
 
     # ── 7. 寫入 BigQuery ──────────────────────────────────────────
     try:
-        client = bigquery.Client(project=project_id)  # noqa: 每次戰報執行一次，不需全域 client
+        client = bigquery.Client(project=project_id)
 
         schema = [
             bigquery.SchemaField("timestamp",          "TIMESTAMP"),
@@ -1391,7 +1361,6 @@ def _quote_of(symbol: str) -> float | None:
 
 def _compute_rsi(closes, period: int = 14) -> float | None:
     """計算 RSI(period)，需要至少 period+1 筆收盤價。"""
-    import pandas as pd  # noqa: F811 — 模組頂層已有，此處為防呼叫端缺失
     if closes is None or len(closes) < period + 1:
         return None
     try:
