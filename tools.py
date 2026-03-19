@@ -54,6 +54,12 @@ def _set_cache(key: tuple, value: str) -> None:
     _CACHE[key] = (value, time.time() + _CACHE_TTL)
 
 
+def _append_data_as_of(body: str, source_id: str) -> str:
+    """在 tool 回傳字串末尾加上 data_as_of 供 main 做時效驗證（>2h 標記 STALE）。"""
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return f"{body}\n[data_as_of: {ts}] (source={source_id})"
+
+
 def _save_source_health() -> None:
     try:
         payload = {
@@ -1104,7 +1110,7 @@ def coinglass_data_tool(metric: str) -> str:
                         result = _parse_coinglass_long_short_ratio(data)
                     if result:
                         _set_cache(cache_key, result)
-                        return result
+                        return _append_data_as_of(result, "coinglass")
         except Exception:
             # CoinGlass API 失敗，直接回傳暫無回應標記。
             pass
@@ -1121,7 +1127,9 @@ def coinglass_data_tool(metric: str) -> str:
     else:
         result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
     _set_cache(cache_key, result)
-    return result
+    if result.startswith("[DATA_MISSING:"):
+        return result
+    return _append_data_as_of(result, "coinglass")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1290,7 +1298,7 @@ def ml_quant_tool() -> str:
     cache_key = ("ml_quant", "v1")
     cached = _get_cache(cache_key)
     if cached:
-        return cached
+        return _append_data_as_of(cached, "ml_quant")
 
     try:
         import pandas as pd
@@ -1401,7 +1409,7 @@ def ml_quant_tool() -> str:
             f"量化模型強烈建議：【{sig}】。"
         )
         _set_cache(cache_key, result)
-        return result
+        return _append_data_as_of(result, "ml_quant")
     except Exception as e:
         return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 backfill_data.py 補入歷史數據。"
 
@@ -1441,7 +1449,7 @@ def regime_scorecard_tool(query: str = "") -> str:
     cache_key = ("regime_scorecard", "latest")
     cached = _get_cache(cache_key)
     if cached:
-        return cached
+        return _append_data_as_of(cached, "regime_scorecard")
 
     import yfinance as yf  # noqa: PLC0415
 
@@ -1564,7 +1572,7 @@ def regime_scorecard_tool(query: str = "") -> str:
 
     scorecard = header + "\n" + " | ".join(detail_lines)
     _set_cache(cache_key, scorecard)
-    return scorecard
+    return _append_data_as_of(scorecard, "regime_scorecard")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1577,7 +1585,7 @@ def fear_greed_tool() -> str:
     cache_key = ("fear_greed", "latest")
     cached = _get_cache(cache_key)
     if cached:
-        return cached
+        return _append_data_as_of(cached, "fear_greed")
 
     try:
         resp = requests.get(
@@ -1610,7 +1618,7 @@ def fear_greed_tool() -> str:
 
         result = " ｜ ".join(result_parts)
         _set_cache(cache_key, result)
-        return result
+        return _append_data_as_of(result, "fear_greed")
     except Exception as e:
         return f"[DATA_MISSING:fear_greed] Fear & Greed Tool Failed: {e}"
 
@@ -1798,19 +1806,19 @@ def etf_flow_tool() -> str:
     """
     cache_key = ("etf_flow", "latest")
     if cached := _get_cache(cache_key):
-        return cached
+        return _append_data_as_of(cached, "etf_flow")
 
     # 優先：CoinGlass 結構化 API
     result = _coinglass_etf_flow()
     if result:
         _set_cache(cache_key, result)
-        return result
+        return _append_data_as_of(result, "etf_flow")
 
     # 備援 1：SoSoValue 公開 API
     result = _sosovalue_etf_flow()
     if result:
         _set_cache(cache_key, result)
-        return result
+        return _append_data_as_of(result, "etf_flow")
 
     # 備援 2：Apify 搜尋
     query = (
@@ -1827,7 +1835,7 @@ def etf_flow_tool() -> str:
             )
             result = prefix + result
             _set_cache(cache_key, result)
-            return result
+            return _append_data_as_of(result, "etf_flow")
     except Exception as e:
         logger.warning("Apify etf_flow search failed: %s", e)
 
@@ -1835,7 +1843,7 @@ def etf_flow_tool() -> str:
     result = _yfinance_etf_flow_estimate()
     if result:
         _set_cache(cache_key, result)
-        return result
+        return _append_data_as_of(result, "etf_flow")
 
     return "[DATA_MISSING:etf_flow] ETF Flow Tool Failed：所有數據源均無回應。"
 
@@ -2185,7 +2193,7 @@ def onchain_metrics_tool() -> str:
     """
     cache_key = ("onchain_metrics", "btc")
     if cached := _get_cache(cache_key):
-        return cached
+        return _append_data_as_of(cached, "onchain_metrics")
 
     parts: list[str] = []
     for fn in (_cq_sopr, _cq_exchange_netflow, _blockchain_info_active_addresses, _glassnode_nupl):
@@ -2202,7 +2210,9 @@ def onchain_metrics_tool() -> str:
         result = "【BTC 鏈上深度指標】\n" + "\n".join(parts)
 
     _set_cache(cache_key, result)
-    return result
+    if result.startswith("[DATA_MISSING:"):
+        return result
+    return _append_data_as_of(result, "onchain_metrics")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -2330,7 +2340,7 @@ def macro_context_tool(query: str = "") -> str:
     cache_key = ("macro_context", "latest")
     cached = _get_cache(cache_key)
     if cached:
-        return cached
+        return _append_data_as_of(cached, "macro_context")
 
     import yfinance as yf  # noqa: PLC0415
 
@@ -2459,7 +2469,7 @@ def macro_context_tool(query: str = "") -> str:
 
     result = "\n".join(lines)
     _set_cache(cache_key, result)
-    return result
+    return _append_data_as_of(result, "macro_context")
 
 
 # ═══════════════════════════════════════════════════════════════════

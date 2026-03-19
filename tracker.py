@@ -10,8 +10,10 @@
 
 import json
 import logging
+import os
 import re
 from datetime import date, datetime, timezone
+from pathlib import Path
 
 import yfinance as yf
 from google.cloud import bigquery
@@ -19,6 +21,10 @@ from google.cloud import bigquery
 from config import PROJECT_ID, RECOMMENDATIONS_TABLE
 
 logger = logging.getLogger(__name__)
+
+# 動態資產清單：預設路徑為專案根目錄 assets_config.json，可由 ASSETS_CONFIG_PATH 覆寫
+_DEFAULT_ASSETS_PATH = Path(__file__).resolve().parent / "assets_config.json"
+_CRYPTO_ASSETS_CACHE: set[str] | None = None
 
 # ── BigQuery client singleton ──────────────────────────────────────────────────
 _bq_clients: dict[str, bigquery.Client] = {}
@@ -34,11 +40,42 @@ def _get_bq_client(project_id: str = PROJECT_ID) -> bigquery.Client:
 # ── 建議 JSON 區塊標記 ─────────────────────────────────────────────────────────
 _QSREC_RE = re.compile(r'\[QSREC_START\]\s*([\s\S]*?)\[QSREC_END\]')
 
-# 已知 crypto 代號，用於判斷 category 與 yfinance symbol 轉換
-_CRYPTO_ASSETS = {
+# 已知 crypto 代號（寫死 fallback），供 _load_crypto_assets() 無法讀取設定時使用
+_CRYPTO_ASSETS_DEFAULT: set[str] = {
     "BTC", "ETH", "SOL", "BNB", "XRP", "AVAX", "LINK", "DOT", "MATIC",
     "ARB", "OP", "SUI", "APT", "INJ", "TIA", "NEAR", "ATOM", "DOGE", "ADA",
 }
+
+
+def _load_crypto_assets() -> set[str]:
+    """從 assets_config.json 讀取 crypto 清單；缺失或錯誤時回傳預設 set。"""
+    global _CRYPTO_ASSETS_CACHE
+    if _CRYPTO_ASSETS_CACHE is not None:
+        return _CRYPTO_ASSETS_CACHE
+    path = os.getenv("ASSETS_CONFIG_PATH")
+    if path:
+        path = Path(path)
+    else:
+        path = _DEFAULT_ASSETS_PATH
+    if not path.exists():
+        logger.debug("Assets config not found at %s, using default crypto set.", path)
+        _CRYPTO_ASSETS_CACHE = _CRYPTO_ASSETS_DEFAULT
+        return _CRYPTO_ASSETS_CACHE
+    try:
+        raw = path.read_text(encoding="utf-8")
+        data = json.loads(raw)
+        if isinstance(data.get("crypto"), list):
+            _CRYPTO_ASSETS_CACHE = {str(a).upper().strip() for a in data["crypto"] if a}
+            return _CRYPTO_ASSETS_CACHE
+    except Exception as e:
+        logger.warning("Failed to load assets config from %s: %s. Using default.", path, e)
+    _CRYPTO_ASSETS_CACHE = _CRYPTO_ASSETS_DEFAULT
+    return _CRYPTO_ASSETS_CACHE
+
+
+def _get_crypto_assets() -> set[str]:
+    """取得目前生效的 crypto 資產 set（供 _yf_symbol、_validate_rec 等使用）。"""
+    return _load_crypto_assets()
 
 # 各資產合理進場價格範圍（用於防止 LLM 輸出單位錯誤的資料）
 # 例如：BTC/SOL 比值 ($815) 被誤記為 BTC USD 進場價
@@ -104,7 +141,7 @@ _SCHEMA = [
 def _yf_symbol(asset: str) -> str:
     """將代幣/股票代號轉換為 yfinance 查詢用的 symbol。"""
     a = asset.upper().strip("$")
-    return f"{a}-USD" if a in _CRYPTO_ASSETS else a
+    return f"{a}-USD" if a in _get_crypto_assets() else a
 
 
 def extract_recommendations_json(report_text: str) -> list[dict]:
@@ -204,7 +241,7 @@ def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | 
 
     category = str(raw.get("category", "CRYPTO")).upper()
     if category not in ("CRYPTO", "EQUITY"):
-        category = "CRYPTO" if asset in _CRYPTO_ASSETS else "EQUITY"
+        category = "CRYPTO" if asset in _get_crypto_assets() else "EQUITY"
 
     confidence = max(1, min(4, int(raw.get("confidence", 3))))
     trigger = str(raw.get("trigger", ""))[:300] or None

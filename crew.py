@@ -209,9 +209,19 @@ def _make_llms(*names: str):
     return tuple(factories[n]() for n in names)
 
 
+def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
+    """Primary 為 grok/gpt/gemini 各一；fallback 時全用 GPT 降低凌晨靜默失敗。回傳 {grok, gpt, gemini}。"""
+    if use_fallback_llm:
+        g = _make_llms("gpt", "gpt", "gpt")[0]
+        return {"grok": g, "gpt": g, "gemini": g}
+    grok, gpt, gemini = _make_llms("grok", "gpt", "gemini")
+    return {"grok": grok, "gpt": gpt, "gemini": gemini}
+
+
 class CryptoResearchCrew:
-    def __init__(self):
-        grok, gpt, gemini = _make_llms("grok", "gpt", "gemini")
+    def __init__(self, use_fallback_llm: bool = False):
+        llms = _get_llms_for_crew(use_fallback_llm)
+        grok, gpt, gemini = llms["grok"], llms["gpt"], llms["gemini"]
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -354,8 +364,9 @@ class CryptoResearchCrew:
 
 
 class AIResearchCrew:
-    def __init__(self):
-        gpt, grok, gemini = _make_llms("gpt", "grok", "gemini")
+    def __init__(self, use_fallback_llm: bool = False):
+        llms = _get_llms_for_crew(use_fallback_llm)
+        gpt, grok, gemini = llms["gpt"], llms["grok"], llms["gemini"]
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",

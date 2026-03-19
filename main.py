@@ -762,6 +762,30 @@ def _fallback_news_count(text: str) -> int:
     return len(re.findall(r"資料源不足：自動降級補位", text))
 
 
+# 資料時效：tool 回傳內 [data_as_of: ISO] 超過此秒數則在驗證時標記 STALE
+STALE_DATA_THRESHOLD_SEC = 2 * 3600  # 2 小時
+
+
+def _collect_stale_data_sources(text: str) -> list[str]:
+    """掃描報告中的 [data_as_of: ISO] (source=id)，回傳超過 2h 的 source_id 列表。"""
+    pattern = re.compile(r"\[data_as_of:\s*([^\]]+)\]\s*\(source=(\w+)\)")
+    now = datetime.now(timezone.utc)
+    latest_ts: dict[str, datetime] = {}
+    for m in pattern.finditer(text):
+        ts_str, source_id = m.group(1).strip(), m.group(2)
+        try:
+            ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            if source_id not in latest_ts or ts > latest_ts[source_id]:
+                latest_ts[source_id] = ts
+        except ValueError:
+            continue
+    stale = []
+    for source_id, ts in latest_ts.items():
+        if (now - ts).total_seconds() > STALE_DATA_THRESHOLD_SEC:
+            stale.append(source_id)
+    return stale
+
+
 def validate_report(text: str) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
     news_count  = _count_effective_news_items(text)
@@ -909,6 +933,8 @@ def validate_report(text: str) -> dict:
     if has_impact_leak:
         issues.append("戰報外洩內部 IMPACT 原始標籤")
     issues.extend(qsrec_issues)
+    for source_id in _collect_stale_data_sources(text):
+        issues.append(f"[STALE_DATA:{source_id}]")
     if has_data_missing:
         issues.append(f"資料缺失欄位：{', '.join(data_missing_fields)}")
         critical_missing = {
@@ -1499,8 +1525,11 @@ def get_realtime_quotes() -> str:
     return header
 
 
-def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | None]:
-    """使用 ThreadPoolExecutor 讓兩個 Crew 同時執行，回傳合併戰報。"""
+def _run_pipeline_once(
+    exclude_context: str | None,
+    use_fallback_llm: bool = False,
+) -> tuple[str, Exception | None]:
+    """使用 ThreadPoolExecutor 讓兩個 Crew 同時執行，回傳合併戰報。use_fallback_llm=True 時全用 GPT 降低靜默失敗。"""
     try:
         price_context = get_realtime_quotes()
         trimmed_exclusion = _truncate_text(exclude_context, MAX_EXCLUSION_CONTEXT_CHARS)
@@ -1520,14 +1549,16 @@ def _run_pipeline_once(exclude_context: str | None) -> tuple[str, Exception | No
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             future_crypto = executor.submit(
-                lambda: str(CryptoResearchCrew().run(
+                lambda: str(CryptoResearchCrew(use_fallback_llm=use_fallback_llm).run(
                     exclude_context=trimmed_exclusion,
                     price_context=price_context,
                     prev_recs_block=prev_recs,
                 ))
             )
             future_ai = executor.submit(
-                lambda: str(AIResearchCrew().run(exclude_context=trimmed_exclusion, price_context=price_context))
+                lambda: str(AIResearchCrew(use_fallback_llm=use_fallback_llm).run(
+                    exclude_context=trimmed_exclusion, price_context=price_context
+                ))
             )
 
             crypto_report = future_crypto.result()
@@ -1550,7 +1581,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
         last_err: Exception | None = None
         structural_validation_err: Exception | None = None
         for step in range(MAX_503_RETRIES + 1):
-            report, err = _run_pipeline_once(exclude_context)
+            report, err = _run_pipeline_once(exclude_context, use_fallback_llm=False)
             if err is None:
                 final_report = _postprocess_report_for_resilience(report)
                 # Pydantic + assertion（你要求的順序）
@@ -1577,6 +1608,22 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                 logger.error("Execution failed: %s", err)
                 final_report = f"{ERROR_PREFIX}{err}"
                 break
+        # 可重試錯誤時，以 fallback LLM（全 GPT）再跑一次
+        if last_err is not None and _is_retriable(last_err):
+            logger.warning("Primary LLM 失敗，改用 fallback LLM（全 GPT）重試一次：%s", last_err)
+            report, err = _run_pipeline_once(exclude_context, use_fallback_llm=True)
+            if err is None:
+                final_report = _postprocess_report_for_resilience(report)
+                output_json = _build_output_json_for_validation(final_report)
+                try:
+                    parsed = parse_report_output(output_json)
+                    assert_report_output(parsed)
+                    assert_sample_output(output_json)
+                    if not _codex_judge_pass(final_report):
+                        raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
+                except Exception as v_err:
+                    structural_validation_err = v_err
+                last_err = None
         if last_err is not None:
             break
         if structural_validation_err is not None:
