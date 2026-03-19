@@ -451,82 +451,147 @@ def _search_with_apify(query: str, max_items: int = 8) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
-# AI Momentum Analyzer（AI 模型熱度排名：HuggingFace → OpenRouter → Apify）
+# AI Momentum Analyzer（AI 模型熱度排名：HuggingFace → OpenRouter → RSS → Apify）
 # ═══════════════════════════════════════════════════════════════════
+
+_HF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; QSilicon-AIAgent/1.0)",
+    "Accept": "application/json",
+}
+
+
+def _hf_fetch_models() -> str | None:
+    """HuggingFace 官方 API 取 text-generation 模型下載量排名，失敗回傳 None。"""
+    try:
+        resp = requests.get(
+            "https://huggingface.co/api/models",
+            params={"sort": "downloads", "direction": -1, "limit": 10, "filter": "text-generation"},
+            headers=_HF_HEADERS,
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            logger.warning("HuggingFace API HTTP %s", resp.status_code)
+            return None
+        models = resp.json()
+        if not isinstance(models, list) or not models:
+            logger.warning("HuggingFace API returned empty or non-list")
+            return None
+        lines: list[str] = []
+        for i, m in enumerate(models[:5], 1):
+            name = m.get("modelId") or m.get("id") or "unknown"
+            downloads = m.get("downloads") or m.get("downloadsAllTime") or 0
+            likes = m.get("likes") or 0
+            # 過濾掉 downloads=0 的無效條目，改選下一個
+            if downloads == 0 and len(models) > i + 4:
+                continue
+            lines.append(
+                f"Top{i}: {name}"
+                f"（下載 {int(downloads):,}｜按讚 {int(likes):,}）"
+            )
+        if not lines:
+            return None
+        return "【HuggingFace AI 模型熱度 Top5（按下載量）】\n" + "\n".join(lines)
+    except Exception as e:
+        logger.warning("HuggingFace API failed: %s", e)
+        return None
+
+
+def _openrouter_fetch_models() -> str | None:
+    """OpenRouter API 取模型清單（需 OPENROUTER_API_KEY），失敗回傳 None。"""
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if not openrouter_key:
+        return None
+    try:
+        resp = requests.get(
+            "https://openrouter.ai/api/v1/models",
+            headers={"Authorization": f"Bearer {openrouter_key}", **_HF_HEADERS},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            logger.warning("OpenRouter API HTTP %s", resp.status_code)
+            return None
+        models = resp.json().get("data", [])
+        if not models:
+            return None
+        lines: list[str] = []
+        for i, m in enumerate(models[:5], 1):
+            name = m.get("name") or m.get("id") or "unknown"
+            ctx = m.get("context_length") or 0
+            pricing = m.get("pricing") or {}
+            prompt_price = pricing.get("prompt", "N/A")
+            lines.append(
+                f"Top{i}: {name}"
+                f"（上下文 {int(ctx):,} tokens｜提示 ${prompt_price}/token）"
+            )
+        return "【OpenRouter 支援模型 Top5（API 順序，非熱度排名）】\n" + "\n".join(lines)
+    except Exception as e:
+        logger.warning("OpenRouter API failed: %s", e)
+        return None
+
+
+def _ai_momentum_rss_fallback() -> str | None:
+    """從 AI RSS 取近期熱門模型/工具新聞作為儀表板備援，失敗回傳 None。"""
+    try:
+        import feedparser  # noqa: PLC0415
+        ai_urls = _RSS_FEEDS.get("ai", [])
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+        entries: list[tuple] = []
+        for url in ai_urls[:3]:
+            try:
+                feed = feedparser.parse(url)
+                for e in feed.entries[:3]:
+                    published = e.get("published_parsed") or e.get("updated_parsed")
+                    if published:
+                        dt = datetime(*published[:6], tzinfo=timezone.utc)
+                        if dt >= cutoff:
+                            entries.append((dt, e.get("title", ""), feed.feed.get("title", "AI RSS")))
+            except Exception as ex:
+                logger.warning("_ai_momentum_rss_fallback feed error: %s", ex)
+        if not entries:
+            return None
+        entries.sort(key=lambda x: x[0], reverse=True)
+        lines = ["【AI 熱門話題 Top5（RSS 備援，非模型排名）】"]
+        for i, (dt, title, src) in enumerate(entries[:5], 1):
+            lines.append(f"Top{i}: {title}（{src}｜{dt.strftime('%m/%d %H:%M')}）")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning("_ai_momentum_rss_fallback failed: %s", e)
+        return None
+
 
 @tool
 def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
     """
     取得 AI 模型熱度排名。
     策略 A：HuggingFace 官方 API（免費，按下載量排名的 text-generation 模型）。
-    策略 B：OpenRouter API（按 API 回傳順序，反映支援模型清單）。
-    策略 C：Apify 搜尋備援。
-    注意：OpenRouter 無官方「熱度排名」端點，HuggingFace 更具可信度。
+    策略 B：OpenRouter API（需 OPENROUTER_API_KEY，模型清單）。
+    策略 C：AI RSS 備援（近 48h 熱門 AI 新聞標題）。
+    策略 D：Apify 搜尋備援（最後手段）。
     """
     cache_key = ("ai_momentum", "openrouter_rankings")
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
-    # ── 策略 A：HuggingFace 官方 API（免費，有真實下載量排名）──
-    try:
-        resp = requests.get(
-            "https://huggingface.co/api/models",
-            params={
-                "sort": "downloads",
-                "direction": -1,
-                "limit": 5,
-                "filter": "text-generation",
-            },
-            timeout=15,
-        )
-        if resp.status_code == 200:
-            models = resp.json()
-            if models and isinstance(models, list):
-                lines: list[str] = []
-                for i, m in enumerate(models[:5], 1):
-                    name = m.get("modelId") or m.get("id") or "unknown"
-                    downloads = m.get("downloads") or 0
-                    likes = m.get("likes") or 0
-                    lines.append(
-                        f"Top{i}: {name}"
-                        f"（下載 {int(downloads):,}｜按讚 {int(likes):,}）"
-                    )
-                result = "【HuggingFace AI 模型熱度 Top5（按下載量）】\n" + "\n".join(lines)
-                _set_cache(cache_key, result)
-                return result
-    except Exception as e:
-        logger.warning("HuggingFace API failed: %s", e)
+    # ── 策略 A：HuggingFace ──
+    result = _hf_fetch_models()
+    if result:
+        _set_cache(cache_key, result)
+        return result
 
-    # ── 策略 B：OpenRouter 官方 API（模型清單，非排名）──
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key:
-        try:
-            resp = requests.get(
-                "https://openrouter.ai/api/v1/models",
-                headers={"Authorization": f"Bearer {openrouter_key}"},
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                models = resp.json().get("data", [])
-                if models:
-                    lines = []
-                    for i, m in enumerate(models[:5], 1):
-                        name = m.get("name") or m.get("id") or "unknown"
-                        ctx = m.get("context_length") or 0
-                        pricing = m.get("pricing") or {}
-                        prompt_price = pricing.get("prompt", "N/A")
-                        lines.append(
-                            f"Top{i}: {name}"
-                            f"（上下文 {int(ctx):,} tokens｜提示 ${prompt_price}/token）"
-                        )
-                    result = "【OpenRouter 支援模型 Top5（API 順序，非熱度排名）】\n" + "\n".join(lines)
-                    _set_cache(cache_key, result)
-                    return result
-        except Exception as e:
-            logger.warning("OpenRouter API failed: %s", e)
+    # ── 策略 B：OpenRouter ──
+    result = _openrouter_fetch_models()
+    if result:
+        _set_cache(cache_key, result)
+        return result
 
-    # ── 策略 C：Apify 搜尋備援 ──
+    # ── 策略 C：RSS 備援 ──
+    result = _ai_momentum_rss_fallback()
+    if result:
+        _set_cache(cache_key, result)
+        return result
+
+    # ── 策略 D：Apify 搜尋備援 ──
     query = (
         f"most popular AI models usage rankings downloads "
         f"site:huggingface.co OR site:artificialanalysis.ai {datetime.now().strftime('%Y-%m')}"
@@ -538,7 +603,7 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
     except ValueError as e:
         return f"[DATA_MISSING:openrouter_rankings] AI Momentum Tool Failed：{e}"
     except Exception:
-        return "[DATA_MISSING:openrouter_rankings] AI Momentum Tool Failed：Apify API 暫無回應。"
+        return "[DATA_MISSING:openrouter_rankings] AI Momentum Tool Failed：所有來源均無回應。"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -555,6 +620,10 @@ _RSS_FEEDS: dict[str, list[str]] = {
     "ai": [
         "https://techcrunch.com/category/artificial-intelligence/feed/",
         "https://venturebeat.com/ai/feed/",
+        "https://www.theverge.com/ai-artificial-intelligence/rss/index.xml",
+        "https://www.wired.com/feed/tag/ai/latest/rss",
+        "https://feeds.feedburner.com/AIweekly",
+        "https://www.artificialintelligence-news.com/feed/",
     ],
 }
 
@@ -625,48 +694,70 @@ def _get_with_retry(url: str, *, params: dict, headers: dict | None = None, time
 
 
 def _newsapi_fetch(query: str) -> str:
-    """NewsAPI 主流財經新聞（48h）。無 key 或無結果回傳 [DATA_MISSING:newsapi]。"""
+    """NewsAPI 主流財經新聞（48h）。無 key 或無結果回傳 [DATA_MISSING:newsapi]。
+    降級策略：sources 限定主流媒體 → 失敗時改用 language=en 全域搜尋（无 sources 限制）。
+    """
     key = os.getenv("NEWSAPI_KEY", "")
     if not key:
         return "[DATA_MISSING:newsapi] NEWSAPI_KEY 未設定"
     from_dt = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    base_params = {
-        "sources": "bloomberg,reuters,cnbc,the-wall-street-journal,financial-times",
-        "sortBy": "publishedAt",
-        "pageSize": 3,
-        "from": from_dt,
-        "apiKey": key,
-    }
+
+    # 建立兩組 param 模板：(1) 主流媒體 sources 限定 (2) 全域無 sources 限制
+    param_templates = [
+        {
+            "sources": "bloomberg,reuters,cnbc,the-wall-street-journal,financial-times",
+            "sortBy": "publishedAt",
+            "pageSize": 3,
+            "from": from_dt,
+            "apiKey": key,
+        },
+        {
+            "language": "en",
+            "sortBy": "publishedAt",
+            "pageSize": 5,
+            "from": from_dt,
+            "apiKey": key,
+        },
+    ]
+
     last_err: Exception | None = None
-    for cand in _build_query_candidates(query):
-        params = dict(base_params)
-        params["q"] = cand
-        try:
-            r = _get_with_retry("https://newsapi.org/v2/everything", params=params, timeout=10, retries=2)
-            articles = r.json().get("articles", [])
-            if not articles:
-                continue
-            _record_source_outcome("newsapi", True)
-            lines = [f"【NewsAPI｜{cand}】"]
-            for a in articles:
-                lines.append(
-                    f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
-                    f"{a.get('title', '')}\n{a.get('url', '')}"
-                )
-            return "\n".join(lines)
-        except requests.HTTPError as e:
-            last_err = e
-            status = e.response.status_code if e.response is not None else None
-            # 400 時嘗試更短 query；429/5xx 已由 _get_with_retry 內重試
-            if status == 400:
-                logger.warning("_newsapi_fetch 400 with query=%r, trying degraded query", cand)
-                continue
-            logger.warning("_newsapi_fetch http error (query=%r): %s", cand, e)
-            continue
-        except Exception as e:
-            last_err = e
-            logger.warning("_newsapi_fetch error (query=%r): %s", cand, e)
-            continue
+    for base_params in param_templates:
+        for cand in _build_query_candidates(query):
+            params = dict(base_params)
+            params["q"] = cand
+            try:
+                r = _get_with_retry("https://newsapi.org/v2/everything", params=params, timeout=10, retries=2)
+                data = r.json()
+                # NewsAPI 有時回傳 status=error 但 HTTP 200
+                if data.get("status") == "error":
+                    logger.warning("_newsapi_fetch API error (query=%r): %s", cand, data.get("message"))
+                    last_err = RuntimeError(data.get("message", "newsapi status=error"))
+                    break  # 此模板組失敗，跳到下一組 param_template
+                articles = data.get("articles", [])
+                if not articles:
+                    continue
+                _record_source_outcome("newsapi", True)
+                lines = [f"【NewsAPI｜{cand}】"]
+                for a in articles:
+                    lines.append(
+                        f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
+                        f"{a.get('title', '')}\n{a.get('url', '')}"
+                    )
+                return "\n".join(lines)
+            except requests.HTTPError as e:
+                last_err = e
+                status = e.response.status_code if e.response is not None else None
+                # 400 時嘗試更短 query；429/5xx 已由 _get_with_retry 內重試
+                if status == 400:
+                    logger.warning("_newsapi_fetch 400 with query=%r, trying degraded query", cand)
+                    continue
+                logger.warning("_newsapi_fetch http error (query=%r): %s", cand, e)
+                break  # 非 400 HTTP 錯誤，跳出此模板組
+            except Exception as e:
+                last_err = e
+                logger.warning("_newsapi_fetch error (query=%r): %s", cand, e)
+                break  # 網路或解析錯誤，跳出此模板組
+
     _record_source_outcome("newsapi", False, _reason_from_exception(last_err))
     if last_err:
         return f"[DATA_MISSING:newsapi] {last_err}"
