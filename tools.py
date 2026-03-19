@@ -936,6 +936,22 @@ def _parse_coinglass_liquidations(data: list) -> str:
     return f"過去 24h 總爆倉 ${total/1e6:.2f}M，其中多頭爆倉 ${total_long/1e6:.2f}M，空頭爆倉 ${total_short/1e6:.2f}M"
 
 
+def _apify_liquidations_fallback() -> str:
+    """CoinGlass 爆倉數據失敗時，以 Apify 搜尋最新 24h 清算總額作為備援。"""
+    query = (
+        f"crypto liquidations 24h total long short million "
+        f"site:coinglass.com OR site:coinstats.app OR site:theblock.co "
+        f"{datetime.now().strftime('%Y-%m-%d')}"
+    )
+    try:
+        raw = _search_with_apify(query, max_items=3)
+        if "[DATA_MISSING" not in raw:
+            return "【爆倉數據（Apify 搜尋備援，請從中萃取最新 24h 清算金額）】\n" + raw
+    except Exception as e:
+        logger.warning("_apify_liquidations_fallback failed: %s", e)
+    return "[DATA_MISSING:liquidations] CoinGlass 與備援來源均無爆倉數據，請以資金費率/OI 代替判讀。"
+
+
 def _parse_coinglass_long_short_ratio(data: list) -> str:
     """將大戶多空比 API 回傳解析為 Agent 友善文字。"""
     if not data or not isinstance(data, list):
@@ -1100,6 +1116,8 @@ def coinglass_data_tool(metric: str) -> str:
         result = _binance_open_interest()
     elif metric_lower == "long_short_ratio":
         result = _binance_long_short_ratio()
+    elif metric_lower == "liquidations":
+        result = _apify_liquidations_fallback()
     else:
         result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
     _set_cache(cache_key, result)
