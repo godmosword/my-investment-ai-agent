@@ -2310,8 +2310,7 @@ def macro_context_tool(query: str = "") -> str:
         lines.append("🎯 Fed SOFR 期貨: <code>N/A</code>")
 
     # ── 3. 本週重要財報（使用 yfinance 查詢財報日期）─────────────────
-    from datetime import datetime, timedelta  # noqa: PLC0415
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     week_end = today + timedelta(days=7)
     upcoming_earnings: list[str] = []
 
