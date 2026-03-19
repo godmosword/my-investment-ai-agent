@@ -6,7 +6,6 @@ from report_output_validator import (
     ReportOutput,
     assert_report_output,
     assert_sample_output,
-    build_judge_prompt,
     parse_report_output,
 )
 
@@ -56,12 +55,6 @@ class TestReportOutputValidator(unittest.TestCase):
         }
         with self.assertRaises(AssertionError):
             assert_sample_output(bad_output)
-
-    def test_build_judge_prompt(self):
-        output = "這是一份報告內容。"
-        prompt = build_judge_prompt(output)
-        self.assertIn("回答 yes/no", prompt)
-        self.assertIn(output, prompt)
 
 
 if __name__ == "__main__":
