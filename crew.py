@@ -45,9 +45,9 @@ _FINAL_TEMPLATE_CRYPTO = dedent("""\
     區塊①【數據儀表板】（每行獨立，數值用 <code>）
     區塊②【核心新聞】（3 則，每則含投資解讀 + 💎主編共識）
     區塊③【市場呢喃與傳聞】（2~3 條）
-    區塊④【資金流向與精準操作 (Crypto)】（含 R:R/回撤/勝率/Signal Score）
+    區塊④【資金流向與精準操作 (Crypto)】（1 單邊 + 1 配對，由今日新聞動態選出）
     [QSREC_START]
-    [{"asset":"BTC","direction":"LONG","current_price":70578,"entry":69800,"target":72800,"stop":67800,"confidence":3,"category":"CRYPTO","trigger":"...","invalidation":"...","position_pct":8,"timeframe":"3-5天"}]
+    [{"asset":"TODAY_PICK_CRYPTO","direction":"LONG/SHORT","current_price":0,"entry":0,"target":0,"stop":0,"confidence":3,"category":"CRYPTO","trigger":"...","invalidation":"...","position_pct":8,"timeframe":"3-5天"}]
     [QSREC_END]
     """)
 
@@ -174,6 +174,12 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
        - 區塊②b X 推文精選（無資料可跳過）
        - 區塊③ 市場呢喃與傳聞 2~3 條
        - 區塊④ 資金流向與精準操作：1 單邊 + 1 配對
+         【動態選幣規則】禁止每次固定選 BTC/SOL。必須根據以下優先順序動態選出本日標的：
+         (a) 優先選今日新聞中有明確催化劑的幣種（如 ETF 核准/拒絕、主網升級、大額清算、機構買入）
+         (b) 次選鏈上指標異動最顯著的幣種（SOPR 偏離/交易所淨流出/OI 暴增）
+         (c) 最後才考慮 BTC/ETH 等大型幣（僅在無其他明顯催化劑時）
+         配對交易必須選擇強弱分化最明顯的兩幣，禁止用 BTC/SOL 當預設配對
+         每次必須說明「本日選擇理由：XXX 因 [具體事件] 入選」
     6) 最後必須輸出 QSREC JSON 區塊""")
 
 _AI_LAYOUT_RULE = dedent("""\
@@ -261,13 +267,14 @@ class CryptoResearchCrew:
                 · fear_greed_tool()（恐懼與貪婪指數）
                 · etf_flow_tool()（BTC Spot ETF 每日資金流，禁止自行猜測 ETF 數據）
                 · econ_calendar_tool()（本週宏觀經濟日曆，禁止自行猜測 FOMC/CPI 日期）
-                · cryptopanic_tool('bitcoin')
+                · cryptopanic_tool('bitcoin')（BTC 原生新聞）
+                · cryptopanic_tool('ethereum altcoin defi')（ETH / 山寨幣 / DeFi 新聞，補充多幣種視角）
                 · rss_feed_tool('crypto')（CoinDesk / TheBlock / Cointelegraph 免費 RSS，優先取用）
-                · newsapi_tool('Bitcoin crypto ETF market')（Bloomberg / Reuters 主流財經新聞）
-                · gnews_tool('Bitcoin crypto market')（多語言補充）
-                · rumor_scanner_tool('BTC ETF flow OR crypto manipulation OR whale alert')
-                · market_search_tool('Bitcoin market liquidity derivatives risk')
-                · x_search_tool('bitcoin BTC crypto market ETF liquidation')（取得 X/Twitter 即時情緒推文，供 X 推文精選區塊使用）
+                · newsapi_tool('crypto ETF regulation blockchain market')（主流財經：幣圈監管/ETF/機構動態）
+                · gnews_tool('Ethereum altcoin DeFi Layer2 crypto market')（多語言 + 山寨幣補充）
+                · rumor_scanner_tool('crypto whale ETF flow OR altcoin catalyst OR DeFi exploit OR Layer2 upgrade')
+                · market_search_tool('crypto market altcoin DeFi Layer2 catalyst liquidity derivatives')
+                · x_search_tool('crypto ETF bitcoin ethereum altcoin DeFi liquidation whale')（取得 X/Twitter 即時情緒推文，供 X 推文精選區塊使用）
                 · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
                 · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（P2 社群情緒量化：-1 到 +1）
 
