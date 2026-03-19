@@ -107,10 +107,6 @@ _CHATTER_FMT = dedent("""\
     每條 1 句、結尾標註（未確認）、附來源性質與可信度分級（A/B/C 或 0~100）、
     並標註是否已被主流媒體二次驗證（是/否），輸出 2~3 條""")
 
-_TWEET_FMT = dedent("""\
-    X 推文精選：僅摘錄 x_search_tool 回傳的真實推文，嚴禁捏造任何用戶名或推文內容
-    每條格式：· 🐦 @用戶名 [時間] 推文核心內容（❤️互動數）
-    若 x_search_tool 回傳 [DATA_MISSING:x_search]，直接跳過此區塊，不輸出任何佔位文字""")
 
 _QUOTE_RULE = dedent("""\
     【實盤價格強制查核】關於 DXY、VIX、IBIT、SPY、BTC、SOL、NVDA、MSFT 等數值，
@@ -284,7 +280,6 @@ class CryptoResearchCrew:
                 【幣圈辯論與風險審計 — GPT】
                 {ctx}
 
-                {_DATA_RULES}
                 {_QUOTE_RULE}
 
                 === Fact-Check ===
@@ -466,21 +461,3 @@ class AIResearchCrew:
         )
         return crew.kickoff()
 
-
-# 向後相容別名（保留給直接使用舊名稱的程式碼參考）
-class QSiliconResearchCrew:
-    """向後相容別名：保留舊入口。"""
-
-    def run(self, exclude_context: str | None = None, price_context: str = ""):
-        from concurrent.futures import ThreadPoolExecutor
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            future_crypto = executor.submit(
-                lambda: str(CryptoResearchCrew().run(exclude_context=exclude_context, price_context=price_context))
-            )
-            future_ai = executor.submit(
-                lambda: str(AIResearchCrew().run(exclude_context=exclude_context, price_context=price_context))
-            )
-            crypto_report = future_crypto.result()
-            ai_report = future_ai.result()
-        return f"{crypto_report}\n\n{ai_report}"
