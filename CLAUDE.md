@@ -20,14 +20,32 @@
 - **Test-First Bug Fixes**: When a bug is reported, do NOT start by trying to fix it. Instead, first write a test that reproduces the bug. Then, have subagents try to fix the bug and prove it with a passing test.
 
 ## 5. gstack — Web Browsing & Engineering Workflow Skills
+
+### Setup（首次使用，每位隊友都需執行一次）
+```bash
+git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup
+```
+安裝完後重新啟動 Claude Code session，skills 即生效。
+
+### 使用規則
 - **Web Browsing**: Use the `/browse` skill from gstack for ALL web browsing tasks. NEVER use `mcp__claude-in-chrome__*` tools.
 - **Available skills**:
   - `/plan-ceo-review` — CEO-level review of a plan or proposal
   - `/plan-eng-review` — Engineering review of a plan or technical design
-  - `/review` — Code review
-  - `/ship` — Ship / merge a feature
+  - `/plan-design-review` — Design review of a plan or UI/UX proposal
+  - `/review` — Code review before merge
+  - `/ship` — Ship / merge a feature / create PR
   - `/browse` — Headless web browsing (use this instead of Chrome MCP tools)
   - `/retro` — Retrospective on a completed task or sprint
+  - `/qa` — QA testing / verify a deployment
+  - `/investigate` — Debug errors with evidence
+  - `/codex` — Adversarial second opinion / code review
+  - `/office-hours` — Brainstorm a new idea
+  - `/careful` — Safety mode for production / live systems
+  - `/freeze` — Scope edits to one module/directory
+  - `/guard` — Maximum safety mode (destructive warnings + edit restrictions)
+  - `/unfreeze` — Remove edit restrictions
+  - `/gstack-upgrade` — Upgrade gstack to the latest version
 
 ## 6. Coding Conventions
 - **Style**: Follow standard Ruff guidelines (`ruff check .`). Prefer clean, readable, maintainable code; resolve or document any existing warnings (e.g. unused variables, import order).
