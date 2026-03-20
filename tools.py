@@ -2482,7 +2482,13 @@ def macro_context_tool(query: str = "") -> str:
     if yield_10y is not None and yield_2y is not None:
         spread_bp = round((yield_10y - yield_2y) * 100, 1)
         spread_str = f"{spread_bp:+.1f}bp"
-        curve_signal = "利率倒掛（衰退預警）⚠️" if spread_bp < 0 else "正斜率（正常）"
+        # 利差近零時勿稱「正斜率」，避免與「極端正斜率」敘事矛盾
+        if spread_bp < -0.5:
+            curve_signal = "利率倒掛（衰退預警）⚠️"
+        elif spread_bp > 0.5:
+            curve_signal = "正斜率（長端高於短端）"
+        else:
+            curve_signal = "曲線平坦（2Y≈10Y，利差近零）"
     else:
         spread_str = "N/A"
         curve_signal = ""

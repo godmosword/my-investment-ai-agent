@@ -13,6 +13,7 @@ from main import (
     _has_macro_conflicts,
     _risk_off_star_cap_violated,
     _pair_trade_unit_consistent,
+    _has_crypto_trade_section,
 )
 
 
@@ -281,6 +282,18 @@ class TestValidateReport(unittest.TestCase):
         report = _make_report(extra="10Y 25.00%")
         result = validate_report(report)
         self.assertTrue(result["has_macro_outlier"])
+
+
+class TestHasCryptoTradeSection(unittest.TestCase):
+    """避免 LLM 省略 (Crypto) 括號時誤注入觀望區塊。"""
+
+    def test_detects_header_without_crypto_paren(self):
+        text = "【資金流向與精準操作】\n· $BTC (LONG)｜進場：$70000"
+        self.assertTrue(_has_crypto_trade_section(text))
+
+    def test_detects_classic_crypto_paren(self):
+        text = "區塊④【資金流向與精準操作 (Crypto)】"
+        self.assertTrue(_has_crypto_trade_section(text))
 
 
 if __name__ == "__main__":
