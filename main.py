@@ -344,11 +344,18 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
 
 
 def _count_effective_news_items(text: str) -> int:
-    """統計有效新聞數（支援 〔新聞 n〕、1) 與 1. 列表格式）。"""
-    tagged = len(re.findall(r'〔新聞\s*\d+〕', text))
-    numbered_paren = len(re.findall(r'(?m)^\s*\d+\)\s+.+', text))
-    numbered_dot = len(re.findall(r'(?m)^\s*\d+\.\s+.+', text))
-    return max(tagged, numbered_paren, numbered_dot)
+    """統計有效新聞數。
+
+    優先採 crew 規定的〔新聞 N〕（全篇目標 6：幣圈 3 + AI 3）；只要出現此格式就只信該計數，
+    避免「新聞辯論」「列表」裡的 1. / 1) 被 max() 誤算成 6+ 而掩蓋真正缺則。
+    無任何〔新聞〕標籤時才退回 1) / 1.（舊稿相容）。
+    """
+    tagged = len(re.findall(r"〔新聞\s*\d+〕", text))
+    if tagged > 0:
+        return tagged
+    numbered_paren = len(re.findall(r"(?m)^\s*\d+\)\s+.+", text))
+    numbered_dot = len(re.findall(r"(?m)^\s*\d+\.\s+.+", text))
+    return max(numbered_paren, numbered_dot)
 
 
 def _sanitize_macro_outlier_values(text: str) -> str:
@@ -656,8 +663,9 @@ def _inject_fallback_news_entries(text: str, min_news: int = 6) -> str:
 
     block = (
         "【新聞資料狀態】\n"
-        f"目前有效新聞僅 {current}/{min_news}，已啟用資料不足保護："
-        "不補虛構新聞，避免錯誤敘事擴散。"
+        f"以〔新聞 N〕標籤計入的新聞為 <code>{current}</code> 則／目標 <code>{min_news}</code> "
+        f"則（幣圈 3 + AI 3）。已啟用資料不足保護：不補虛構新聞。"
+        "若實際已寫滿 6 則但格式未統一為〔新聞 N〕，請主編下一版改為規定格式以便系統計數。"
     )
     marker = "[QSREC_START]"
     pos = text.find(marker)

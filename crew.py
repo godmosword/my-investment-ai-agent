@@ -102,6 +102,12 @@ _DATA_RULES = dedent("""\
     【新鮮度】新聞必須在 48h 內；超時跳過重搜。
     【嚴禁播報系統錯誤】若任何 Tool 回傳 `[DATA_MISSING...]`、`失敗` 或 `API 未設定`，絕對禁止將這些錯誤訊息寫成新聞！請直接忽略該工具的輸出。若無足夠真實新聞，寧可減少新聞數量，也絕不允許播報系統日誌！""")
 
+_TOOL_TRUTH_RULE = dedent("""\
+    【工具輸出與缺數敘述（防幻覺）】
+    - CoinGlass／ETF／爆倉／OI：若工具為 `[DATA_MISSING:coinglass_*]` 或含 401／Upgrade plan，僅能表述為「第三方衍生品數據源未回傳或訂閱方案不含該端點」；嚴禁寫成「資料庫 API 連線異常」「內部 API 故障」等未經證實說法。
+    - 若儀表板已出現 Binance 備援、資金費率或多空比等數值，不得稱「籌碼面全缺失」；應寫「CoinGlass 不可用，已採備援／近似指標觀察短線情緒」。
+    - AI 儀表板（HuggingFace／OpenRouter）：禁止發明工具未提供的欄位（例如 OpenRouter Request Vol、Error Rate 排行）；每行一個指標；僅能複述 `ai_momentum_tool` 回傳中已出現的名稱與數字；缺資料則單獨一行 <code>N/A</code>，並在段末用一句說明原因（逾時／金鑰／來源不可用），替代觀測可寫 RSS 或 X 熱度—不得捏造數字。""")
+
 _NEWS_FMT = dedent("""\
     〔新聞 N〕[MM/DD HH:MM UTC+8] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
     <blockquote>摘要：（1 句核心事實，禁止加入主觀評論）</blockquote>
@@ -118,7 +124,7 @@ _DASHBOARD_FMT = dedent("""\
     · <b>SourceErrors</b> <code>newsapi:429=n,400=n,timeout=n,5xx=n,other=n | gnews:... | apify:...</code>
     · <b>SourceQuota</b> <code>newsapi:used/max | gnews:used/max | apify:used/max</code>
     若關鍵欄位 N/A 超過 3 項，必須在該區塊加註：<b>低置信度</b>，
-    並補 1 行「資料缺失原因 + 替代指標」（例如：OI 缺失改看 funding/多空比/現貨成交額）。""")
+    並補 1 行「資料缺失原因 + 替代指標」（須符合上方【工具輸出與缺數敘述】，原因只寫工具實際回傳狀態，例如方案權限／逾時；替代指標例：OI 缺失改看 funding／多空比／現貨成交額）。""")
 
 _CHATTER_FMT = dedent("""\
     呢喃/傳聞：僅未確認訊息，排除官方已證實事件
@@ -309,6 +315,7 @@ class CryptoResearchCrew:
                 {ctx}
 
                 {_DATA_RULES}
+                {_TOOL_TRUTH_RULE}
                 {_QUOTE_RULE}
                 {excl}
                 === 數據來源（必須全部呼叫）===
@@ -375,6 +382,7 @@ class CryptoResearchCrew:
                 {_EDITOR_RULE}
                 {_TELEGRAM_FMT}
                 {_DASHBOARD_FMT}
+                {_TOOL_TRUTH_RULE}
                 {_CHATTER_FMT}
                 {_RISK_MODE_RULE}
                 {_REGIME_POSITION_POLICY}
@@ -452,6 +460,7 @@ class AIResearchCrew:
                 {ctx}
 
                 {_DATA_RULES}
+                {_TOOL_TRUTH_RULE}
                 {_QUOTE_RULE}
                 {excl}
                 呼叫 ai_momentum_tool('openrouter_rankings')。
@@ -497,6 +506,7 @@ class AIResearchCrew:
                 {_EDITOR_RULE}
                 {_TELEGRAM_FMT}
                 {_DASHBOARD_FMT}
+                {_TOOL_TRUTH_RULE}
                 {_CHATTER_FMT}
                 {_QUOTE_RULE}
                 {_NARRATIVE_CONSISTENCY_RULE}
