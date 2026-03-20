@@ -15,3 +15,6 @@
 ## 3. 程式碼修改規範
 - 任何新增的 Tool (如 `tools.py`) 都必須實作 `_get_cache` / `_set_cache` 機制。
 - 確保 `main.py` 中 `ThreadPoolExecutor` (Crypto 與 AI 雙線程) 的執行緒安全。
+
+## 4. Review／嚴重發現互動（對齊 gstack）
+- 無 `AskUserQuestion` 時：CRITICAL 級問題請使用者以 **A/B/C** 回覆；細節見 `.cursor/rules/review-user-choice.mdc`。

@@ -225,7 +225,7 @@ docker-compose --env-file .env up --build
 本專案以 **Cloud Run Job** 形式部署（排程或手動觸發），非 HTTP 服務。
 
 - **前置**：Artifact Registry、Service Account（Artifact Registry Writer、Cloud Run Admin、BigQuery 權限）、Secret Manager 存放 API 金鑰。
-- **CI/CD**：Push `main` 觸發 `deploy.yml`，建映像、推至 GAR、`gcloud run jobs deploy`，金鑰經 `--set-secrets` 注入。
+- **CI/CD**：**PR** 一律跑 `ci.yml`（Lint & Test，含純文件 PR，方便 Required checks）。Push `main` 僅在變更 `**/*.py`、`requirements.txt`、`Dockerfile`、workflow 等路徑時跑 `deploy.yml`（內含同樣 Lint+Test + 部署）；純文件 push 不觸發部署。需部署時可用 Actions → **Run workflow**（`workflow_dispatch`）。
 - **排程**：手動執行一次 `setup-scheduler.yml` 建立 Cloud Scheduler（預設每日 09:00 台北時間）。
 
 GitHub Secrets 建議：`GCP_PROJECT_ID`、`GCP_SA_KEY`、`CLOUD_RUN_SERVICE`、`GAR_REPOSITORY`；排程需 `GCP_SCHEDULER_SA_EMAIL`。

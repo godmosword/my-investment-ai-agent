@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - main
+    # 僅在會影響映像檔或執行程式時跑完整 CI+部署（純文件 push 省時間）
+    paths:
+      - "**/*.py"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "assets_config.json"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 env:
