@@ -1,0 +1,287 @@
+"""Unit tests for validate_report() and its helper functions in main.py."""
+
+import unittest
+
+from main import (
+    validate_report,
+    strip_html,
+    _count_effective_news_items,
+    _fallback_news_count,
+    _normalize_regime_token,
+    _has_news_timezone_utc8,
+    _has_macro_outlier_values,
+    _has_macro_conflicts,
+    _risk_off_star_cap_violated,
+    _pair_trade_unit_consistent,
+)
+
+
+# ── Minimal valid report template ──
+# Enough sections / keywords to pass most checks; tests override specific parts.
+def _make_report(
+    *,
+    length: int = 5000,
+    news_count: int = 8,
+    regime: str = "risk_on",
+    include_dashboard: bool = True,
+    include_crypto_trade: bool = True,
+    include_ai_trade: bool = True,
+    include_ai_section: bool = True,
+    include_crypto_section: bool = True,
+    include_chatter: bool = True,
+    include_qsrec: bool = True,
+    include_source_health: bool = True,
+    include_signal_conflict: bool = True,
+    include_rumor_grade: bool = True,
+    include_rr: bool = True,
+    include_risk_budget: bool = True,
+    include_numeric_investment: bool = True,
+    extra: str = "",
+) -> str:
+    news = ""
+    for i in range(1, news_count + 1):
+        news += f"〔新聞 {i}〕[03/{i:02d} 10:00 UTC+8] 來源\n測試新聞標題 {i} 內容夠長超過十字元\n\n"
+
+    sections = [f"【今日市場模式】 {regime}"]
+    if include_dashboard:
+        sections.append("DXY 104.5 ｜ BTC OI $18.5B ｜ 資金費率 0.01% ｜ RSI 55 ｜ Fear & Greed 45")
+    if include_crypto_trade:
+        sections.append("資金流向與精準操作 (Crypto)\n· $BTC (LONG)｜現價：$95000｜進場：$94500｜目標：$100000｜停損：$91000")
+    if include_ai_trade:
+        sections.append("AI 產業鏈精準操作\n· $NVDA (LONG)｜現價：$890")
+    if include_ai_section:
+        sections.append("AI 市場概覽")
+    if include_crypto_section:
+        sections.append("加密市場核心新聞")
+    if include_chatter:
+        sections.append("呢喃與傳聞掃描")
+    if include_signal_conflict:
+        sections.append("訊號衝突摘要：短期動能與中期結構分歧")
+    if include_rumor_grade:
+        sections.append("可信度：B")
+    if include_rr:
+        sections.append("R:R = 1:2.5\n最大回撤風險：<code>-3.7%</code>\n預期勝率：55%\nSignal Score：72/100")
+    if include_risk_budget:
+        sections.append(f"今日風險預算：{regime} 模式下總倉位上限 15%")
+    if include_numeric_investment:
+        sections.append("投資解讀：BTC 日線 RSI 55，ETF 流入 $120M")
+    if include_source_health:
+        sections.append("【SourceHealth】 5/5 正常\n【SourceErrors】 0 次\n【SourceQuota】 NewsAPI 82%")
+    if include_qsrec:
+        sections.append(
+            '[QSREC_START]\n'
+            '[{"asset":"BTC","direction":"LONG","current_price":95000,"entry":94500,'
+            '"target":100000,"stop":91000,"confidence":4,"category":"CRYPTO",'
+            f'"narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"3d","regime":"{regime}"'
+            '}]\n'
+            '[QSREC_END]'
+        )
+
+    body = news + "\n".join(sections) + "\n" + extra
+    # Pad to requested length
+    if len(body) < length:
+        body += "\n" + "x" * (length - len(body))
+    return body
+
+
+class TestStripHtml(unittest.TestCase):
+    def test_removes_tags(self):
+        self.assertEqual(strip_html("<b>hello</b>"), "hello")
+
+    def test_no_tags(self):
+        self.assertEqual(strip_html("plain text"), "plain text")
+
+
+class TestCountEffectiveNewsItems(unittest.TestCase):
+    def test_tagged_news(self):
+        text = "〔新聞 1〕title\n〔新聞 2〕title\n〔新聞 3〕title"
+        self.assertEqual(_count_effective_news_items(text), 3)
+
+    def test_numbered_dot(self):
+        text = "1. First news\n2. Second news\n3. Third news"
+        self.assertEqual(_count_effective_news_items(text), 3)
+
+    def test_numbered_paren(self):
+        text = "1) First\n2) Second"
+        self.assertEqual(_count_effective_news_items(text), 2)
+
+    def test_empty(self):
+        self.assertEqual(_count_effective_news_items(""), 0)
+
+
+class TestFallbackNewsCount(unittest.TestCase):
+    def test_counts_fallback_markers(self):
+        text = "資料源不足：自動降級補位\n其他\n資料源不足：自動降級補位"
+        self.assertEqual(_fallback_news_count(text), 2)
+
+    def test_no_fallbacks(self):
+        self.assertEqual(_fallback_news_count("normal report"), 0)
+
+
+class TestNormalizeRegimeToken(unittest.TestCase):
+    def test_risk_on(self):
+        self.assertEqual(_normalize_regime_token("risk_on"), "risk_on")
+        self.assertEqual(_normalize_regime_token("Risk On"), "risk_on")
+        self.assertEqual(_normalize_regime_token("RISK-OFF"), "risk_off")
+
+    def test_neutral(self):
+        self.assertEqual(_normalize_regime_token("neutral"), "neutral")
+
+    def test_invalid(self):
+        self.assertIsNone(_normalize_regime_token("bullish"))
+        self.assertIsNone(_normalize_regime_token(""))
+
+
+class TestHasNewsTimezoneUtc8(unittest.TestCase):
+    def test_tagged_with_utc8(self):
+        text = "〔新聞 1〕[03/20 10:00 UTC+8] Source\n〔新聞 2〕[2026/03/20 11:00 UTC+8] Source"
+        self.assertTrue(_has_news_timezone_utc8(text))
+
+    def test_tagged_without_utc8(self):
+        text = "〔新聞 1〕Source\ntitle"
+        self.assertFalse(_has_news_timezone_utc8(text))
+
+    def test_numbered_fallback_accepted(self):
+        text = "1) First news item\n2) Second news"
+        self.assertTrue(_has_news_timezone_utc8(text))
+
+
+class TestMacroOutlier(unittest.TestCase):
+    def test_normal_values(self):
+        self.assertFalse(_has_macro_outlier_values("10Y 4.25%"))
+
+    def test_outlier_rate(self):
+        self.assertTrue(_has_macro_outlier_values("10Y 25.00%"))
+
+    def test_outlier_spread(self):
+        self.assertTrue(_has_macro_outlier_values("利差：+1500bp"))
+
+
+class TestMacroConflicts(unittest.TestCase):
+    def test_no_conflict(self):
+        self.assertFalse(_has_macro_conflicts("美債 2Y 4.25%"))
+
+    def test_2y_na_and_value(self):
+        self.assertTrue(_has_macro_conflicts("美債 2Y N/A\n美債 2Y 4.25%"))
+
+
+class TestRiskOffStarCap(unittest.TestCase):
+    def test_risk_off_with_4_stars(self):
+        text = "【今日市場模式】 risk_off\n信心：⭐️⭐️⭐️⭐️"
+        self.assertTrue(_risk_off_star_cap_violated(text))
+
+    def test_risk_on_with_4_stars(self):
+        text = "【今日市場模式】 risk_on\n信心：⭐️⭐️⭐️⭐️"
+        self.assertFalse(_risk_off_star_cap_violated(text))
+
+    def test_risk_off_with_3_stars(self):
+        text = "【今日市場模式】 risk_off\n信心：⭐️⭐️⭐️"
+        self.assertFalse(_risk_off_star_cap_violated(text))
+
+
+class TestPairTradeUnitConsistent(unittest.TestCase):
+    def test_no_pair_trade(self):
+        self.assertTrue(_pair_trade_unit_consistent("normal text"))
+
+    def test_pair_with_unit(self):
+        text = (
+            "$BTC / $ETH 現價：$95000 / $3200\n"
+            "單位：BTC/ETH 比值\n"
+            "進場：29.69"
+        )
+        self.assertTrue(_pair_trade_unit_consistent(text))
+
+
+class TestValidateReport(unittest.TestCase):
+    """Integration tests for validate_report()."""
+
+    def test_valid_report_passes(self):
+        report = _make_report()
+        result = validate_report(report)
+        # Should have no issues except possibly 呢喃/傳聞 related
+        non_chatter_issues = [i for i in result["issues"] if "呢喃" not in i and "傳聞" not in i]
+        self.assertTrue(result["valid"], f"Unexpected issues: {non_chatter_issues}")
+
+    def test_too_short_report(self):
+        report = _make_report(length=100)
+        result = validate_report(report)
+        self.assertFalse(result["valid"])
+        self.assertTrue(any("報告過短" in i for i in result["issues"]))
+
+    def test_insufficient_news(self):
+        report = _make_report(news_count=2)
+        result = validate_report(report)
+        self.assertTrue(any("新聞數不足" in i for i in result["issues"]))
+
+    def test_missing_regime(self):
+        report = _make_report(regime="unknown_mode")
+        result = validate_report(report)
+        self.assertTrue(any("market_regime" in i for i in result["issues"]))
+
+    def test_missing_dashboard(self):
+        report = _make_report(include_dashboard=False)
+        # Scrub all dashboard-triggering keywords from the report
+        for kw in ("DXY", "BTC OI", "資金費率", "模型排名", "RSI", "Fear", "Greed", "儀表板"):
+            report = report.replace(kw, "___")
+        result = validate_report(report)
+        self.assertTrue(any("數據儀表板" in i for i in result["issues"]))
+
+    def test_missing_qsrec(self):
+        report = _make_report(include_qsrec=False)
+        result = validate_report(report)
+        self.assertTrue(any("QSREC" in i for i in result["issues"]))
+
+    def test_missing_source_health(self):
+        report = _make_report(include_source_health=False)
+        result = validate_report(report)
+        self.assertTrue(any("SourceHealth" in i for i in result["issues"]))
+
+    def test_missing_signal_conflict(self):
+        report = _make_report(include_signal_conflict=False)
+        result = validate_report(report)
+        self.assertTrue(any("訊號衝突" in i for i in result["issues"]))
+
+    def test_missing_rumor_grade(self):
+        report = _make_report(include_rumor_grade=False)
+        result = validate_report(report)
+        self.assertTrue(any("可信度" in i for i in result["issues"]))
+
+    def test_missing_rr_and_drawdown(self):
+        report = _make_report(include_rr=False)
+        result = validate_report(report)
+        self.assertTrue(any("R:R" in i or "回撤" in i for i in result["issues"]))
+
+    def test_missing_risk_budget(self):
+        report = _make_report(include_risk_budget=False)
+        result = validate_report(report)
+        self.assertTrue(any("風險預算" in i for i in result["issues"]))
+
+    def test_risk_off_star_violation(self):
+        report = _make_report(regime="risk_off", extra="信心：⭐️⭐️⭐️⭐️")
+        result = validate_report(report)
+        self.assertTrue(any("信心水準" in i or "star" in i.lower() for i in result["issues"]))
+
+    def test_data_missing_critical(self):
+        report = _make_report(extra="[DATA_MISSING:newsapi] [DATA_MISSING:coinglass_data]")
+        result = validate_report(report)
+        self.assertTrue(result["has_data_missing"])
+        self.assertTrue(any("關鍵資料來源缺失" in i for i in result["issues"]))
+
+    def test_too_many_na_without_tag(self):
+        report = _make_report(extra="N/A N/A N/A N/A N/A")
+        result = validate_report(report)
+        self.assertTrue(any("N/A 過多" in i for i in result["issues"]))
+
+    def test_code_leak_detected(self):
+        report = _make_report(extra="multi_timeframe_tool (arg)")
+        result = validate_report(report)
+        self.assertTrue(any("外洩" in i and "函數" in i for i in result["issues"]))
+
+    def test_macro_outlier_detected(self):
+        report = _make_report(extra="10Y 25.00%")
+        result = validate_report(report)
+        self.assertTrue(result["has_macro_outlier"])
+
+
+if __name__ == "__main__":
+    unittest.main()
