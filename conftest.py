@@ -23,6 +23,16 @@ _STUB_MODULES = [
     "matplotlib.dates",
 ]
 
+# Classes that must exist on each stub module (default: MagicMock)
+_STUB_CLASSES = {
+    "crewai": ["Agent", "Crew", "LLM", "Process", "Task"],
+    "telebot": ["TeleBot"],
+    "google.cloud.bigquery": [
+        "Client", "SchemaField", "LoadJobConfig",
+        "SourceFormat", "WriteDisposition",
+    ],
+}
+
 
 def _ensure_stub(name: str) -> ModuleType:
     if name in sys.modules:
@@ -35,10 +45,14 @@ def _ensure_stub(name: str) -> ModuleType:
 for _mod_name in _STUB_MODULES:
     _ensure_stub(_mod_name)
 
+# Attach required class attributes to stubs
+for _mod_name, _classes in _STUB_CLASSES.items():
+    _mod = _ensure_stub(_mod_name)
+    for _cls_name in _classes:
+        setattr(_mod, _cls_name, MagicMock)
+
+
 # crewai.tools needs a @tool decorator that acts as passthrough
-_crewai_tools = sys.modules["crewai.tools"]
-
-
 def _fake_tool(func=None, **kwargs):
     if func is not None:
         func.run = func
@@ -50,25 +64,8 @@ def _fake_tool(func=None, **kwargs):
     return wrapper
 
 
-_crewai_tools.tool = _fake_tool
+sys.modules["crewai.tools"].tool = _fake_tool
 
-# crewai needs Agent, Crew, LLM, Process, Task
-_crewai = sys.modules["crewai"]
-for _cls_name in ("Agent", "Crew", "LLM", "Process", "Task"):
-    setattr(_crewai, _cls_name, MagicMock)
-
-# telebot needs TeleBot class
-sys.modules["telebot"].TeleBot = type(
-    "TeleBot", (), {"__init__": lambda *a, **kw: None}
-)
-
-# google.cloud.bigquery — ensure SchemaField, Client etc. exist
-_bq = _ensure_stub("google.cloud.bigquery")
-_bq.Client = MagicMock
-_bq.SchemaField = MagicMock
-_bq.LoadJobConfig = MagicMock
-_bq.SourceFormat = MagicMock
-_bq.WriteDisposition = MagicMock
-
+# Wire google.cloud parent to bigquery stub
 _gc = _ensure_stub("google.cloud")
-_gc.bigquery = _bq
+_gc.bigquery = sys.modules["google.cloud.bigquery"]

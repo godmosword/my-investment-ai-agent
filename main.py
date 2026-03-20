@@ -1031,7 +1031,12 @@ def _extract_news_titles(text: str, max_titles: int = 20) -> list[str]:
 
 
 # ── 語義去重（Semantic Deduplication）──────────────────────────────────
-_SBERT_MODEL = None  # lazy singleton
+_SBERT_MODEL: object = None  # None=not loaded, False=unavailable, Model=ready
+
+try:
+    from scipy.spatial.distance import cosine as _cosine_distance
+except ImportError:
+    _cosine_distance = None
 
 
 def _get_sbert_model():
@@ -1043,8 +1048,9 @@ def _get_sbert_model():
             _SBERT_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
             logger.info("Loaded sentence-transformers model: all-MiniLM-L6-v2")
         except ImportError:
+            _SBERT_MODEL = False  # sentinel: don't retry
             logger.warning("sentence-transformers not installed; semantic dedup disabled.")
-    return _SBERT_MODEL
+    return _SBERT_MODEL if _SBERT_MODEL is not False else None
 
 
 def _semantic_dedup_titles(titles: list[str], threshold: float = 0.80) -> list[str]:
@@ -1057,22 +1063,21 @@ def _semantic_dedup_titles(titles: list[str], threshold: float = 0.80) -> list[s
     Returns:
         Deduplicated list preserving original order.
     """
-    if not titles or len(titles) <= 1:
+    if len(titles) <= 1 or _cosine_distance is None:
         return titles
 
     model = _get_sbert_model()
     if model is None:
-        return titles  # graceful fallback: no dedup if model unavailable
+        return titles
 
     try:
-        from scipy.spatial.distance import cosine
         embeddings = model.encode(titles)
 
         kept_indices: list[int] = []
         for i, emb_i in enumerate(embeddings):
             is_dup = False
             for j in kept_indices:
-                sim = 1.0 - cosine(emb_i, embeddings[j])
+                sim = 1.0 - _cosine_distance(emb_i, embeddings[j])
                 if sim > threshold:
                     logger.debug(
                         "Semantic dedup: title %d (%.30s…) %.3f-similar to %d (%.30s…), skipping.",

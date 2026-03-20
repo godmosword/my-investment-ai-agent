@@ -17,11 +17,11 @@ load_dotenv()
 
 st.set_page_config(page_title="Q-Silicon 戰情室", page_icon="🛡️", layout="wide")
 
+_TIMEZONE_TPE = timezone(timedelta(hours=8))
+
 # ── Auto-refresh：每 5 分鐘自動重新載入頁面 ────────────────────────────
 if st_autorefresh is not None:
-    _refresh_count = st_autorefresh(interval=5 * 60 * 1000, key="auto_refresh")
-else:
-    _refresh_count = 0
+    st_autorefresh(interval=5 * 60 * 1000, key="auto_refresh")
 
 # ── 統一色盤 ──────────────────────────────────────────────────────────
 COLORS = {
@@ -122,7 +122,7 @@ with st.sidebar:
     if st.button("Refresh Now", key="manual_refresh"):
         st.cache_data.clear()
         st.rerun()
-    _now_tpe = datetime.now(timezone(timedelta(hours=8)))
+    _now_tpe = datetime.now(_TIMEZONE_TPE)
     st.caption(f"Last refresh: {_now_tpe.strftime('%H:%M:%S')} TPE")
     st.caption("🛡️ Q-Silicon 戰情室 v2")
 
