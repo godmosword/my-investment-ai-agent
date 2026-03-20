@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from google.cloud import bigquery
 import yfinance as yf
 
-from config import PROJECT_ID, METRICS_TABLE
+from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
 from report_output_validator import (
     assert_report_output,
@@ -433,8 +433,21 @@ def _sanitize_macro_outlier_values(text: str) -> str:
     return patched
 
 
+def _is_conditional_regime_line(line: str) -> bool:
+    """判斷該行是否為情境分析條件句（若轉為 risk_off 則…），不應被 regime 統一覆寫。"""
+    return bool(re.search(
+        r'(?:若|如果|假設|when|if)\s*(?:轉為|切換至|shift\s*to|switch\s*to|moves?\s*to)\s*'
+        r'(?:risk[\s_\-]*on|risk[\s_\-]*off|neutral)',
+        line,
+        re.IGNORECASE,
+    ))
+
+
 def _unify_regime_mentions(text: str) -> str:
-    """統一全篇 regime：以第一個【今日市場模式】為準，覆寫後續風險預算中的 regime。"""
+    """統一全篇 regime：以第一個【今日市場模式】為準，覆寫後續風險預算中的 regime。
+
+    情境分析條件句（如「若轉為 risk_off 則…」）保留原文不覆寫。
+    """
     regime_token_re = r'(risk[\s_\-]*on|risk[\s_\-]*off|neutral)'
     m = re.search(
         rf'【今日市場模式】\s*(?:<[^>]*>\s*)*{regime_token_re}(?:\s*</[^>]*>)*',
@@ -472,8 +485,11 @@ def _unify_regime_mentions(text: str) -> str:
         flags=re.IGNORECASE,
     )
     # 兼容英文寫法（Risk Off / Risk-On）在風險預算行中造成的不一致。
+    # 跳過情境分析條件句，避免覆寫「若轉為 risk_off 則…」。
     def _risk_budget_line_repl(m: re.Match) -> str:
         line = m.group(0)
+        if _is_conditional_regime_line(line):
+            return line
         line = re.sub(r'\brisk[\s_-]*on\b', regime, line, flags=re.IGNORECASE)
         line = re.sub(r'\brisk[\s_-]*off\b', regime, line, flags=re.IGNORECASE)
         line = re.sub(r'\bneutral\b', regime, line, flags=re.IGNORECASE)
@@ -855,7 +871,19 @@ def validate_report(text: str) -> dict:
             if rv:
                 qsrec_regimes.append(rv)
     unique_regimes = set(mode_tags + budget_tags + qsrec_regimes)
-    has_mixed_regime = len(unique_regimes) > 1
+    # 情境分析條件句（若轉為 risk_off 則…）不算 mixed regime —— 僅排除條件句中的 regime 提及
+    _conditional_re = re.compile(
+        r'(?:若|如果|假設|when|if)\s*(?:轉為|切換至|shift\s*to|switch\s*to|moves?\s*to)\s*'
+        r'(risk[\s_\-]*on|risk[\s_\-]*off|neutral)',
+        re.IGNORECASE,
+    )
+    conditional_regimes = {
+        _normalize_regime_token(m.group(1))
+        for m in _conditional_re.finditer(text)
+        if _normalize_regime_token(m.group(1))
+    }
+    authoritative_regimes = unique_regimes - conditional_regimes
+    has_mixed_regime = len(authoritative_regimes) > 1
     malformed_invalidation = bool(
         re.search(r'失效條件[：:]\s*(?:<code>)?\s*(?:</code>)?\s*(?:\n|$)', text)
     )
@@ -1000,6 +1028,73 @@ def _extract_news_titles(text: str, max_titles: int = 20) -> list[str]:
                 seen.add(t)
                 titles.append(t)
     return titles[:max_titles]
+
+
+# ── 語義去重（Semantic Deduplication）──────────────────────────────────
+_SBERT_MODEL: object = None  # None=not loaded, False=unavailable, Model=ready
+
+try:
+    from scipy.spatial.distance import cosine as _cosine_distance
+except ImportError:
+    _cosine_distance = None
+
+
+def _get_sbert_model():
+    """Lazy-load sentence-transformers model (first call ~1-2s, cached after)."""
+    global _SBERT_MODEL
+    if _SBERT_MODEL is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            _SBERT_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+            logger.info("Loaded sentence-transformers model: all-MiniLM-L6-v2")
+        except ImportError:
+            _SBERT_MODEL = False  # sentinel: don't retry
+            logger.warning("sentence-transformers not installed; semantic dedup disabled.")
+    return _SBERT_MODEL if _SBERT_MODEL is not False else None
+
+
+def _semantic_dedup_titles(titles: list[str], threshold: float = 0.80) -> list[str]:
+    """Filter semantically duplicate titles using cosine similarity on embeddings.
+
+    Args:
+        titles: List of news title strings.
+        threshold: Cosine similarity above this value is considered a duplicate (0-1).
+
+    Returns:
+        Deduplicated list preserving original order.
+    """
+    if len(titles) <= 1 or _cosine_distance is None:
+        return titles
+
+    model = _get_sbert_model()
+    if model is None:
+        return titles
+
+    try:
+        embeddings = model.encode(titles)
+
+        kept_indices: list[int] = []
+        for i, emb_i in enumerate(embeddings):
+            is_dup = False
+            for j in kept_indices:
+                sim = 1.0 - _cosine_distance(emb_i, embeddings[j])
+                if sim > threshold:
+                    logger.debug(
+                        "Semantic dedup: title %d (%.30s…) %.3f-similar to %d (%.30s…), skipping.",
+                        i, titles[i], sim, j, titles[j],
+                    )
+                    is_dup = True
+                    break
+            if not is_dup:
+                kept_indices.append(i)
+
+        deduped = [titles[i] for i in kept_indices]
+        if len(deduped) < len(titles):
+            logger.info("Semantic dedup removed %d/%d duplicate titles.", len(titles) - len(deduped), len(titles))
+        return deduped
+    except Exception as e:
+        logger.warning("Semantic dedup failed, returning original titles: %s", e)
+        return titles
 
 
 def _safe_chunks(text: str, max_len: int = 4000) -> list[str]:
@@ -1274,12 +1369,19 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
 
     # ── 6. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
     grok_summary = _extract_section(clean_text, "【幣圈新聞】")
-    gpt_summary  = _extract_section(clean_text, "【AI 基建現況】")
+    # AI 區塊 header 隨版本變動，依序嘗試多種可能的 header
+    gpt_summary = (
+        _extract_section(clean_text, "AI 產業新聞")
+        or _extract_section(clean_text, "AI 數據儀表板")
+        or _extract_section(clean_text, "AI 市場")
+        or _extract_section(clean_text, "【AI 基建現況】")
+    )
 
     # ── 6b. 萃取新聞標題供次日去重 ──────────────────
     all_titles = _extract_news_titles(report_text, max_titles=25)
+    all_titles = _semantic_dedup_titles(all_titles, threshold=0.80)
     news_titles_str = "\n".join(f"· {t}" for t in all_titles) if all_titles else None
-    logger.info("Extracted %d news titles for deduplication.", len(all_titles))
+    logger.info("Extracted %d news titles for deduplication (after semantic dedup).", len(all_titles))
 
     # ── Phase 4：從評分卡萃取 regime_score（-6 到 +6）──────────────
     regime_score: float | None = None
@@ -1358,8 +1460,23 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         logger.error("Failed to write metrics to BigQuery: %s", e)
 
 
+def _fetch_recent_recommended_assets(client: bigquery.Client, days: int = 3) -> list[str]:
+    """查詢近 N 天已建議的資產代號，供排除重複標的使用。"""
+    try:
+        rows = list(client.query(f"""
+            SELECT DISTINCT asset
+            FROM `{RECOMMENDATIONS_TABLE}`
+            WHERE report_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
+            ORDER BY asset
+        """).result())
+        return [r["asset"] for r in rows if r.get("asset")]
+    except Exception as e:
+        logger.warning("Failed to fetch recent recommended assets: %s", e)
+        return []
+
+
 def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = METRICS_TABLE) -> str | None:
-    """從 BigQuery 讀取前一日的新聞標題列表，供研究流程排除重複新聞。"""
+    """從 BigQuery 讀取前一日的新聞標題列表與近期已推薦資產，供研究流程排除重複。"""
     try:
         client = bigquery.Client(project=project_id)
         query = f"""
@@ -1385,9 +1502,20 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
                 if val:
                     parts.append(val)
 
+        # 近 3 天已推薦資產排除（強制輪換標的）
+        recent_assets = _fetch_recent_recommended_assets(client, days=3)
+        if recent_assets:
+            asset_list = ", ".join(f"${a}" for a in recent_assets)
+            parts.append(
+                f"過去 3 天已建議的標的（除非有重大新催化劑，否則禁止重複選用）：{asset_list}\n"
+                "必須優先選擇不在此清單中的標的。若該標的有全新重大事件（如 ETF 核准、主網升級、財報超預期），"
+                "可以再次選用，但必須明確說明「重複選用理由：XXX」。"
+            )
+            logger.info("Loaded %d recent recommended assets for exclusion: %s", len(recent_assets), recent_assets)
+
         s = "\n\n".join(parts) if parts else None
-        if s and len(s) > 2000:
-            s = s[:2000] + "\n…[truncated]"
+        if s and len(s) > 2500:
+            s = s[:2500] + "\n…[truncated]"
         return s
     except Exception as e:
         logger.warning("Could not fetch exclusion context from BigQuery: %s", e)
@@ -1525,12 +1653,56 @@ def get_realtime_quotes() -> str:
     return header
 
 
+def _prewarm_tool_caches() -> None:
+    """並行預取所有獨立 tool 數據，填充快取供後續 Crew 使用（省 40-60% 等待時間）。"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from tools import (
+        coinglass_data_tool,
+        fear_greed_tool,
+        etf_flow_tool,
+        econ_calendar_tool,
+        onchain_metrics_tool,
+        ml_quant_tool,
+        regime_scorecard_tool,
+        macro_context_tool,
+    )
+
+    # 定義所有獨立的 tool 呼叫（無互相依賴）
+    tasks: dict[str, callable] = {
+        "coinglass_funding_rate": lambda: coinglass_data_tool.run("funding_rate"),
+        "coinglass_liquidations": lambda: coinglass_data_tool.run("liquidations"),
+        "coinglass_long_short":   lambda: coinglass_data_tool.run("long_short_ratio"),
+        "coinglass_options":      lambda: coinglass_data_tool.run("options_info"),
+        "fear_greed":             lambda: fear_greed_tool.run(),
+        "etf_flow":               lambda: etf_flow_tool.run(),
+        "econ_calendar":          lambda: econ_calendar_tool.run(),
+        "onchain_metrics":        lambda: onchain_metrics_tool.run(),
+        "ml_quant":               lambda: ml_quant_tool.run(),
+        "regime_scorecard":       lambda: regime_scorecard_tool.run(),
+        "macro_context":          lambda: macro_context_tool.run(),
+    }
+
+    logger.info("Pre-warming %d tool caches in parallel...", len(tasks))
+    t0 = time.time()
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures = {pool.submit(fn): name for name, fn in tasks.items()}
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                future.result(timeout=60)
+            except Exception as e:
+                logger.warning("Pre-warm %s failed (non-fatal): %s", name, e)
+    elapsed = time.time() - t0
+    logger.info("Tool cache pre-warm done in %.1fs", elapsed)
+
+
 def _run_pipeline_once(
     exclude_context: str | None,
     use_fallback_llm: bool = False,
 ) -> tuple[str, Exception | None]:
     """使用 ThreadPoolExecutor 讓兩個 Crew 同時執行，回傳合併戰報。use_fallback_llm=True 時全用 GPT 降低靜默失敗。"""
     try:
+        _prewarm_tool_caches()
         price_context = get_realtime_quotes()
         trimmed_exclusion = _truncate_text(exclude_context, MAX_EXCLUSION_CONTEXT_CHARS)
 

@@ -3,14 +3,25 @@ import pandas as pd
 from google.cloud import bigquery
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 from config import PROJECT_ID
 
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ImportError:
+    st_autorefresh = None
+
 load_dotenv()
 
 st.set_page_config(page_title="Q-Silicon 戰情室", page_icon="🛡️", layout="wide")
+
+_TIMEZONE_TPE = timezone(timedelta(hours=8))
+
+# ── Auto-refresh：每 5 分鐘自動重新載入頁面 ────────────────────────────
+if st_autorefresh is not None:
+    st_autorefresh(interval=5 * 60 * 1000, key="auto_refresh")
 
 # ── 統一色盤 ──────────────────────────────────────────────────────────
 COLORS = {
@@ -108,6 +119,11 @@ with st.sidebar:
     selected_range = st.radio("趨勢圖時間範圍", list(RANGE_OPTIONS.keys()), index=2, horizontal=True)
     trend_days = RANGE_OPTIONS[selected_range]
     st.divider()
+    if st.button("Refresh Now", key="manual_refresh"):
+        st.cache_data.clear()
+        st.rerun()
+    _now_tpe = datetime.now(_TIMEZONE_TPE)
+    st.caption(f"Last refresh: {_now_tpe.strftime('%H:%M:%S')} TPE")
     st.caption("🛡️ Q-Silicon 戰情室 v2")
 
 

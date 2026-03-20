@@ -20,8 +20,10 @@ import argparse
 import json
 import logging
 import math
+import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -32,6 +34,10 @@ from google.cloud import bigquery
 from config import PROJECT_ID, METRICS_TABLE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+# ── 權重快取路徑與 TTL ────────────────────────────────────────────────────
+_WEIGHTS_CACHE_PATH = Path(__file__).resolve().parent / ".ml_weights_cache.json"
+_WEIGHTS_TTL_HOURS = int(os.getenv("ML_WEIGHTS_TTL_HOURS", "24"))
 
 # ── 策略參數（可透過 CLI 覆寫）─────────────────────────────────────────────
 DEFAULT_DAYS    = 90     # 回測天數
@@ -510,14 +516,53 @@ def _build_momentum_features(df: pd.DataFrame) -> pd.DataFrame:
     return out.fillna(0)
 
 
-def optimize_ml_weights(df: pd.DataFrame) -> dict[str, Any]:
+def _save_weights_cache(weights: dict[str, float], sharpe: float) -> None:
+    """將最佳化權重寫入本地 JSON 快取。"""
+    try:
+        payload = {
+            "weights": weights,
+            "sharpe": sharpe,
+            "cached_at": datetime.now(timezone.utc).isoformat(),
+        }
+        _WEIGHTS_CACHE_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        logging.info("ML weights cached to %s", _WEIGHTS_CACHE_PATH)
+    except Exception as e:
+        logging.warning("Failed to save weights cache: %s", e)
+
+
+def _load_weights_cache() -> dict[str, Any] | None:
+    """讀取本地權重快取；超過 TTL 或格式異常則回傳 None。"""
+    try:
+        if not _WEIGHTS_CACHE_PATH.exists():
+            return None
+        raw = json.loads(_WEIGHTS_CACHE_PATH.read_text(encoding="utf-8"))
+        cached_at = datetime.fromisoformat(raw["cached_at"])
+        age_hours = (datetime.now(timezone.utc) - cached_at).total_seconds() / 3600
+        if age_hours > _WEIGHTS_TTL_HOURS:
+            logging.info("ML weights cache expired (%.1f h > %d h TTL), will re-optimize.", age_hours, _WEIGHTS_TTL_HOURS)
+            return None
+        logging.info("ML weights cache hit (age %.1f h): sharpe=%.3f, weights=%s", age_hours, raw["sharpe"], raw["weights"])
+        return raw
+    except Exception as e:
+        logging.warning("Failed to load weights cache: %s", e)
+        return None
+
+
+def optimize_ml_weights(df: pd.DataFrame, *, force: bool = False) -> dict[str, Any]:
     """
     動態發現 df 中所有可用的特徵欄位（f_* 前綴），最佳化各指標權重（總和=1，0~1），
     使歷史策略的 Sharpe Ratio 最大化。
     P2：自動納入 sentiment、sopr、exchange_netflow 等新因子（有足夠數據時）。
+    權重快取：24 小時內復用上次結果，避免重複計算。設 force=True 強制重算。
     回傳 {"weights": {dxy, etf_flow, risk, mvrv, [sentiment, sopr, exchange_netflow]}, "sharpe": float}。
     """
     _DEFAULT_WEIGHTS = {"dxy": 0.25, "etf_flow": 0.25, "risk": 0.25, "mvrv": 0.25}
+
+    # 嘗試讀取快取
+    if not force:
+        cached = _load_weights_cache()
+        if cached:
+            return {"weights": cached["weights"], "sharpe": cached["sharpe"]}
 
     if "close" not in df.columns:
         logging.warning("optimize_ml_weights 需要 'close' 欄位，跳過。")
@@ -568,6 +613,7 @@ def optimize_ml_weights(df: pd.DataFrame) -> dict[str, Any]:
     weights = {_FEAT_KEY_MAP[c]: float(wi) for c, wi in zip(cols, w)}
     sharpe = round(-res.fun, 3)
     logging.info("ML 權重最佳化完成（%d 因子）：Sharpe=%.3f，權重=%s", n, sharpe, weights)
+    _save_weights_cache(weights, sharpe)
     return {"weights": weights, "sharpe": sharpe}
 
 
@@ -823,7 +869,8 @@ def main() -> None:
     parser.add_argument("--days",     type=int,   default=DEFAULT_DAYS,    help="回測天數（預設 90）")
     parser.add_argument("--capital",  type=float, default=DEFAULT_CAPITAL, help="初始資金 USD（預設 10000）")
     parser.add_argument("--report",   type=str,   default="console",       help="輸出格式：console / json / html")
-    parser.add_argument("--optimize",      action="store_true", help="執行 scipy 權重最佳化（需較長時間）")
+    parser.add_argument("--optimize",       action="store_true", help="執行 scipy 權重最佳化（需較長時間）")
+    parser.add_argument("--force-optimize", action="store_true", help="強制重新最佳化（忽略 24h 快取）")
     parser.add_argument("--walk-forward",  action="store_true", help="Walk-Forward 滾動優化 + 最後 20% Out-of-Sample 驗證")
     args = parser.parse_args()
 
@@ -877,8 +924,13 @@ def main() -> None:
     # 7. 權重最佳化（可選，非 WF 模式時）
     opt_result = opt_weights if opt_weights else {}
     if args.optimize and not args.walk_forward:
-        logging.info("開始權重最佳化（Monte Carlo 2000 次 + SLSQP 精修）...")
-        opt_result = optimize_weights(merged, initial_capital=args.capital)
+        logging.info("開始 ML 權重最佳化（%s快取）...", "忽略" if args.force_optimize else "使用")
+        opt_result = optimize_ml_weights(merged, force=args.force_optimize)
+        # 也跑傳統 scipy 最佳化供比對
+        legacy = optimize_weights(merged, initial_capital=args.capital)
+        if legacy.get("optimal_weights"):
+            opt_result["legacy_weights"] = legacy["optimal_weights"]
+            opt_result["legacy_sharpe"] = legacy.get("optimal_sharpe", 0)
 
     # 8. 輸出報告
     print_report(
