@@ -475,10 +475,11 @@ _HF_HEADERS = {
 def _hf_fetch_models() -> str | None:
     """HuggingFace 官方 API 取 text-generation 模型排名，失敗回傳 None。
     嘗試順序：trendingScore → likes → downloads，提高成功率。"""
+    # downloads / likes 較穩定；trendingScore 偶爾因 API 參數或空榜失敗
     sort_strategies = [
-        ("trendingScore", "趨勢"),
-        ("likes", "按讚"),
         ("downloads", "下載量"),
+        ("likes", "按讚"),
+        ("trendingScore", "趨勢"),
     ]
     for sort_key, sort_label in sort_strategies:
         try:
@@ -487,7 +488,7 @@ def _hf_fetch_models() -> str | None:
                 params={"sort": sort_key, "direction": -1, "limit": 10,
                         "filter": "text-generation"},
                 headers=_HF_HEADERS,
-                timeout=30,
+                timeout=45,
             )
             if resp.status_code != 200:
                 logger.warning("HuggingFace API HTTP %s (sort=%s)", resp.status_code, sort_key)
@@ -499,15 +500,24 @@ def _hf_fetch_models() -> str | None:
             lines: list[str] = []
             rank = 0
             for m in models:
-                name = m.get("modelId") or m.get("id") or "unknown"
-                downloads = m.get("downloads") or m.get("downloadsAllTime") or 0
-                likes = m.get("likes") or 0
-                if downloads == 0 and likes == 0:
+                if not isinstance(m, dict):
                     continue
+                name = m.get("modelId") or m.get("id") or ""
+                if not name:
+                    continue
+                try:
+                    downloads = int(m.get("downloads") or m.get("downloadsAllTime") or 0)
+                except (TypeError, ValueError):
+                    downloads = 0
+                try:
+                    likes = int(m.get("likes") or 0)
+                except (TypeError, ValueError):
+                    likes = 0
+                # 不再因 0/0 略過：趨勢榜常見新模型下載為 0，略過會導致整榜為空
                 rank += 1
                 lines.append(
                     f"Top{rank}: {name}"
-                    f"（下載 {int(downloads):,}｜按讚 {int(likes):,}）"
+                    f"（下載 {downloads:,}｜按讚 {likes:,}）"
                 )
                 if rank >= 5:
                     break

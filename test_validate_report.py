@@ -109,6 +109,18 @@ class TestCountEffectiveNewsItems(unittest.TestCase):
     def test_empty(self):
         self.assertEqual(_count_effective_news_items(""), 0)
 
+    def test_tagged_wins_over_numbered_lists(self):
+        """辯論區的 1. 2. 不應與〔新聞〕一起被 max() 誤算。"""
+        text = (
+            "〔新聞 1〕[03/01 10:00 UTC+8] <b>A</b>\n"
+            "〔新聞 2〕[03/01 11:00 UTC+8] <b>B</b>\n"
+            "〔新聞 3〕[03/01 12:00 UTC+8] <b>C</b>\n"
+            "1. 反向觀點甲\n"
+            "2. 反向觀點乙\n"
+            "3. 反向觀點丙\n"
+        )
+        self.assertEqual(_count_effective_news_items(text), 3)
+
 
 class TestFallbackNewsCount(unittest.TestCase):
     def test_counts_fallback_markers(self):
