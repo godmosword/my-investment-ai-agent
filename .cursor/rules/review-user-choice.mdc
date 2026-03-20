@@ -1,0 +1,25 @@
+---
+description: 嚴重問題需使用者決策時，用 A/B/C 選項取代 AskUserQuestion（對齊 gstack review 流程）
+alwaysApply: true
+---
+
+# Code review／嚴重發現 — 使用者決策格式
+
+Cursor 無內建 `AskUserQuestion`。當你回報 **CRITICAL、阻擋合併／上線、或需明確授權才改程式** 的問題時：
+
+1. **先列出所有發現**（維持簡短：一行問題、一行建議修復）。
+2. **針對每一個 CRITICAL 問題**，在該則下方用固定選項讓使用者回覆：
+   - **A**：現在就依建議修改程式
+   - **B**：已知悉，暫不修／自行處理
+   - **C**：誤判，略過
+
+格式範例：
+
+```text
+**CRITICAL-1** [file:line] …
+Fix: …
+請回覆：**CRITICAL-1 選 A / B / C**
+```
+
+3. 使用者回覆選項後，再依選擇執行（僅 **A** 才改檔）；若一次多題，可請使用者寫 `1A 2B`。
+4. **不要**在僅有 informational／非阻擋事項時強制套問卷；一般說明與建議可直接給出。

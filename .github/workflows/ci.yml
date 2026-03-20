@@ -1,8 +1,8 @@
 name: CI — Lint & Test
 
+# push→main 不重複觸發：由 deploy.yml 透過 workflow_call 跑即可，避免與本 workflow 雙跑。
+# PR 一律跑 CI（含純文件 PR），方便 Branch protection 永遠有明確檢查結果，不會 skipped。
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_call:
 
