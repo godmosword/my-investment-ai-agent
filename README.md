@@ -24,7 +24,7 @@
 | NewsAPI / GNews / RSS / Apify | 新聞多來源 fallback（含重試、查詢降級、健康分數排序） |
 | Tavily | 傳聞掃描與補充搜尋 |
 | X API | 社群推文與敘事熱度 |
-| CoinGlass | 未平倉、資金費率、清算、多空比 |
+| CoinGlass | 未平倉、資金費率、清算、多空比、選擇權概覽（**v4 API**；部分端點依方案，失敗時見 Binance 等備援） |
 | CryptoQuant | 交易所淨流入/流出、MVRV Z-Score（若訂閱支援） |
 | FRED | M2；DXY 改由 Tavily 即時報價 |
 | yfinance | VIX、SPY/QQQ 成交額 proxy、IBIT 報價 |
@@ -95,6 +95,29 @@
 | `CRYPTOQUANT_API_KEY` | 交易所流量、MVRV（可選） |
 | `FRED_API_KEY` | M2 等宏觀指標 |
 
+### CoinGlass API v4（對照與除錯）
+
+與 [官方認證說明](https://docs.coinglass.com/reference/authentication) 對照：
+
+| 項目 | 說明 |
+|------|------|
+| Base | `https://open-api-v4.coinglass.com`（`tools.py` 中 `_COINGLASS_BASE`） |
+| Header | `CG-API-KEY: <金鑰>`，**不是**舊版 v2 的 `coinglassSecret` |
+| 成功 | 回傳 JSON 中 `code` 為 `"0"` 或 `0` |
+| 常見錯誤 | `code: "401"`, `msg: "Upgrade plan"` → 金鑰有效但**方案不含該端點**，請參考 [定價/方案](https://www.coinglass.com/pricing) |
+| 日誌 | v4 非成功時會 `logger.warning` 打出 `code` / `msg` / metric，便於區分「權限」與「網路」 |
+| 備援 | `coinglass_data_tool` 在 CoinGlass 失敗時對 **BTC** 使用 Binance 公開 API（資金費率、OI、多空比等） |
+
+**注意**：`regime_scorecard_tool` 內仍有一段 **舊 open-api（v2）** 清算端點與 `coinglassSecret`；與 v4 並存，若 v2 淘汰需改為 v4 路徑。
+
+**curl 自測**（須與 `source .env` 同一 shell，否則金鑰不會傳入）：
+
+```bash
+cd /path/to/investment-ai-agent && set -a && . ./.env && set +a
+curl -s "https://open-api-v4.coinglass.com/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d&limit=1" \
+  -H "accept: application/json" -H "CG-API-KEY: $COINGLASS_API_KEY" | python3 -m json.tool
+```
+
 ### Telegram（選填）
 
 | 變數 | 說明 |
@@ -120,6 +143,7 @@
 | `GNEWS_DAILY_CALL_LIMIT` | GNews 每日呼叫上限（預設 120） |
 | `APIFY_DAILY_CALL_LIMIT` | Apify 每日呼叫上限（預設 30） |
 | `DISABLE_SOURCE_HEALTH_BQ` | `1` 時停用來源健康分數 BigQuery 同步（僅用本地檔） |
+| `VERIFY_API_KEYS` | `1` / `true` 時於 `main.py` 啟動後對 NewsAPI、Apify 做輕量 HTTP 探測（其餘見啟動日誌 `API key inventory`） |
 
 ### GCP（部署 / BigQuery）
 

@@ -8,8 +8,11 @@ XAI_API_KEY=
 OPENROUTER_API_KEY=
 GEMINI_API_KEY=
 OPENAI_API_KEY=
+# Anthropic（crew LLM fallback 鏈會用；缺則僅跳過 Claude 備援）
+ANTHROPIC_API_KEY=
 
 # ---------- 資料/搜尋 API（工具會用到，缺則該工具回傳 DATA_MISSING）----------
+# CoinGlass API v4：Base open-api-v4.coinglass.com，Header CG-API-KEY。若 JSON 回 code=401、msg=Upgrade plan＝方案不含該端點（非 URL 錯），見 README / AGENTS.md
 COINGLASS_API_KEY=
 CRYPTOPANIC_API_KEY=
 # NEWSAPI_KEY：newsapi.org — Bloomberg/Reuters/CNBC 主流財經新聞，每月 1000 次免費
@@ -29,6 +32,8 @@ CRYPTOQUANT_API_KEY=
 # 申請：https://glassnode.com/  （免費方案有延遲）
 GLASSNODE_API_KEY=
 # 注意：活躍地址數使用 Blockchain.info 免費 API，無需額外金鑰
+# FRED_API_KEY：美債 DGS2 等 fallback（macro_context_tool）
+FRED_API_KEY=
 
 # ---------- Telegram 推送（選填，不填則不發送）----------
 TELEGRAM_BOT_TOKEN=
@@ -36,6 +41,9 @@ TELEGRAM_CHAT_ID=
 
 # ---------- GCP / BigQuery（選填，預設專案名見下）----------
 GCP_PROJECT_ID=my-investment-ai-agent
+
+# ---------- 資產清單（選填）----------
+# ASSETS_CONFIG_PATH=  # 覆寫 tracker 用 crypto 清單 JSON；未設則用專案根目錄 assets_config.json
 
 # ---------- 選填：除錯與行為 ----------
 # LOG_LEVEL=INFO
@@ -46,3 +54,8 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # MAX_REPORT_RETRIES=2
 # MAX_503_RETRIES=3
 # BACKOFF_BASE_SEC=30
+# VERIFY_API_KEYS=1   # 啟動後對 NewsAPI、Apify 做輕量連線探測；另見日誌「API key inventory」
+# NEWSAPI_DAILY_CALL_LIMIT=120
+# GNEWS_DAILY_CALL_LIMIT=120
+# APIFY_DAILY_CALL_LIMIT=30
+# DISABLE_SOURCE_HEALTH_BQ=1
