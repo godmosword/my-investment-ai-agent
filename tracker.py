@@ -537,13 +537,35 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
     """
     try:
         client = _get_bq_client(project_id)
+        # 同一 report_date + asset 可能有多筆（同日多輪 QSREC / 重跑 pipeline）；
+        # 僅保留一筆：優先 OPEN，否則最新 created_at，避免「上期追蹤」出現同標的多空重複列。
         rows = list(client.query(f"""
-            SELECT asset, direction, entry_price, target_price, stop_price, narrative, report_date
-            FROM `{RECOMMENDATIONS_TABLE}`
-            WHERE report_date = (
-                SELECT MAX(report_date) FROM `{RECOMMENDATIONS_TABLE}`
-                WHERE report_date < CURRENT_DATE()
+            WITH last_day AS (
+              SELECT MAX(report_date) AS d
+              FROM `{RECOMMENDATIONS_TABLE}`
+              WHERE report_date < CURRENT_DATE()
+            ),
+            ranked AS (
+              SELECT
+                asset,
+                direction,
+                entry_price,
+                target_price,
+                stop_price,
+                narrative,
+                report_date,
+                ROW_NUMBER() OVER (
+                  PARTITION BY report_date, asset
+                  ORDER BY
+                    CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END,
+                    COALESCE(created_at, TIMESTAMP(report_date)) DESC
+                ) AS rn
+              FROM `{RECOMMENDATIONS_TABLE}`
+              WHERE report_date = (SELECT d FROM last_day)
             )
+            SELECT asset, direction, entry_price, target_price, stop_price, narrative, report_date
+            FROM ranked
+            WHERE rn = 1
             ORDER BY asset
         """).result())
     except Exception as e:

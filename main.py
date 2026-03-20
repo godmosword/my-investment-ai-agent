@@ -802,6 +802,14 @@ def _postprocess_report_for_resilience(text: str) -> str:
         patched = patched[:pos].rstrip() + f"\n\n{observe_block}\n\n" + patched[pos:]
     else:
         patched = patched.rstrip() + f"\n\n{observe_block}"
+    # 若 LLM 殘留半套 Source 行導致缺欄，再清一次並注入完整三行。
+    if not all(s in patched for s in ("【SourceHealth】", "【SourceErrors】", "【SourceQuota】")):
+        patched = _remove_duplicate_source_observability(patched)
+        pos2 = patched.find(marker)
+        if pos2 != -1:
+            patched = patched[:pos2].rstrip() + f"\n\n{observe_block}\n\n" + patched[pos2:]
+        else:
+            patched = patched.rstrip() + f"\n\n{observe_block}"
     return patched
 
 
@@ -832,6 +840,124 @@ def _collect_stale_data_sources(text: str) -> list[str]:
         if (now - ts).total_seconds() > STALE_DATA_THRESHOLD_SEC:
             stale.append(source_id)
     return stale
+
+
+def _count_news_tags_only(text: str) -> int:
+    """僅統計〔新聞 N〕標籤數（與 _count_effective_news_items 在無標籤時的 fallback 分離）。"""
+    return len(re.findall(r"〔新聞\s*\d+〕", text))
+
+
+def _primary_regime_from_report(text: str) -> str | None:
+    """以第一處【今日市場模式】為準的主 regime。"""
+    m = re.search(
+        r"【今日市場模式】\s*(?:<[^>]*>\s*)*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)",
+        text,
+        re.IGNORECASE,
+    )
+    if not m:
+        return None
+    return _normalize_regime_token(m.group(1)) or None
+
+
+def _risk_off_narrative_violations(text: str) -> list[str]:
+    """
+    主 regime 為 neutral / risk_on 時，交易／倉位段落不得出現「依 risk_off」「高風險環境 risk_off」等矛盾用語。
+    情境句「若轉為 risk_off」除外。
+    """
+    primary = _primary_regime_from_report(text)
+    if primary not in ("neutral", "risk_on"):
+        return []
+    bad_lines: list[str] = []
+    cond_inline = re.compile(
+        r"(?:若|如果|假設|when|if)\s+.{0,48}risk[\s_\-]*off",
+        re.IGNORECASE,
+    )
+    bad_trade = re.compile(
+        r"(?:高風險環境|依)\s*risk[\s_\-]*off|risk[\s_\-]*off\s*(?:減倉|採|模式)|"
+        r"Market\s*Regime\s*:\s*risk[\s_\-]*off|"
+        r"[（(][^）)]*risk[\s_\-]*off[^）)]*(?:減倉|水位|配置)",
+        re.IGNORECASE,
+    )
+    for line in text.splitlines():
+        if "risk" not in line.lower():
+            continue
+        if "【今日市場模式】" in line:
+            continue
+        if _is_conditional_regime_line(line):
+            continue
+        if cond_inline.search(line):
+            continue
+        if "今日風險預算" in line and re.search(r"risk[\s_\-]*off", line, re.IGNORECASE):
+            if not cond_inline.search(line):
+                snippet = line.strip()[:160]
+                if snippet not in bad_lines:
+                    bad_lines.append(snippet)
+            continue
+        tradeish = any(
+            k in line
+            for k in (
+                "倉位建議",
+                "進場：",
+                "停損：",
+                "目標：",
+                "資金流向與精準操作",
+                "精準操作",
+                "AI 產業鏈精準操作",
+            )
+        )
+        if tradeish and bad_trade.search(line):
+            snippet = line.strip()[:160]
+            if snippet not in bad_lines:
+                bad_lines.append(snippet)
+    return bad_lines
+
+
+def _ai_dashboard_hallucination_hits(text: str) -> list[str]:
+    """
+    AI 儀表板常見幻覺欄位（ai_momentum_tool 從未輸出）；僅掃描 🤖 AI 市場 之後至 AI 產業新聞 之前。
+    """
+    start_m = re.search(r"(🤖\s*AI\s*市場|【AI\s*數據儀表板】|AI\s*數據儀表板)", text, re.IGNORECASE)
+    if not start_m:
+        return []
+    start = start_m.start()
+    end_m = re.search(r"【AI\s*產業新聞】|區塊②【AI\s*產業新聞】", text[start:], re.IGNORECASE)
+    span = text[start : start + end_m.start()] if end_m else text[start : start + 6000]
+    span_low = span.lower()
+    forbidden = [
+        "ai token market cap",
+        "openrouter api request rank",
+        "openrouter request vol",
+        "ai sector sentiment",
+        "token market cap",
+        "huggingface trending models n/a",
+    ]
+    hits = []
+    for phrase in forbidden:
+        if phrase in span_low:
+            hits.append(phrase)
+    return hits
+
+
+def _macro_yield_spread_inconsistent(text: str) -> bool:
+    """美債 10Y、2Y 與「利差 %」是否同口徑（利差≈10Y−2Y，容差 0.15%）。"""
+    m10 = re.search(r"美債\s*10Y[：:]\s*([0-9,]+(?:\.[0-9]+)?)\s*%", text, re.IGNORECASE)
+    m2 = re.search(r"美債\s*2Y[：:]\s*([0-9,]+(?:\.[0-9]+)?)\s*%", text, re.IGNORECASE)
+    ms = re.search(
+        r"利差[：:]\s*([+−\-]?[0-9,]+(?:\.[0-9]+)?)\s*%",
+        text,
+        re.IGNORECASE,
+    )
+    if not (m10 and m2 and ms):
+        return False
+    try:
+        y10 = float(m10.group(1).replace(",", ""))
+        y2 = float(m2.group(1).replace(",", ""))
+        raw_s = ms.group(1).replace(",", "").replace("−", "-").replace("\u2212", "-").lstrip("+")
+        spr = float(raw_s)
+    except ValueError:
+        return False
+    expected = y10 - y2
+    return abs(spr - expected) > 0.15
 
 
 def validate_report(text: str) -> dict:
@@ -932,8 +1058,14 @@ def validate_report(text: str) -> dict:
     qsrec_issues = _qsrec_consistency_issues(text, parsed_qsrec) if has_valid_qsrec else []
 
     issues = []
+    tagged_news = _count_news_tags_only(text)
     if len(text) < 3000:
         issues.append(f"報告過短（{len(text)} chars，預期 >3000）")
+    if tagged_news < 6 and not watch_mode:
+        issues.append(
+            f"核心新聞〔新聞 N〕標籤不足（{tagged_news}/6）：須以〔新聞 1〕…〔新聞 6〕標示幣圈 3 + AI 3，"
+            f"禁止僅用 1. 2. 3. 作為新聞編號（避免與辯論列表混淆）。"
+        )
     if news_count < 6 and not watch_mode:
         issues.append(f"新聞數不足（{news_count}/6）且未啟用觀望模式")
     if not has_regime:
@@ -992,6 +1124,20 @@ def validate_report(text: str) -> dict:
         issues.append("戰報外洩 Python 函數名稱（multi_timeframe_tool）")
     if has_impact_leak:
         issues.append("戰報外洩內部 IMPACT 原始標籤")
+    rv_lines = _risk_off_narrative_violations(text)
+    if rv_lines:
+        preview = " | ".join(rv_lines[:3])
+        issues.append(
+            "主 regime 為 neutral/risk_on 但交易／風險預算段誤用 risk_off 敘述（禁用「依 risk_off」「高風險環境 risk_off 減倉」等；"
+            f"情境句「若轉為 risk_off」除外）：{preview}"
+        )
+    ah = _ai_dashboard_hallucination_hits(text)
+    if ah:
+        issues.append(
+            "AI 儀表板含疑似幻覺欄位（非 ai_momentum_tool 輸出）：" + ", ".join(sorted(set(ah)))
+        )
+    if _macro_yield_spread_inconsistent(text):
+        issues.append("宏觀「利差 %」與美債 10Y/2Y 數值不一致（請核對是否同為 10Y−2Y 口徑）")
     issues.extend(qsrec_issues)
     for source_id in _collect_stale_data_sources(text):
         issues.append(f"[STALE_DATA:{source_id}]")

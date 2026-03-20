@@ -106,9 +106,10 @@ _TOOL_TRUTH_RULE = dedent("""\
     【工具輸出與缺數敘述（防幻覺）】
     - CoinGlass／ETF／爆倉／OI：若工具為 `[DATA_MISSING:coinglass_*]` 或含 401／Upgrade plan，僅能表述為「第三方衍生品數據源未回傳或訂閱方案不含該端點」；嚴禁寫成「資料庫 API 連線異常」「內部 API 故障」等未經證實說法。
     - 若儀表板已出現 Binance 備援、資金費率或多空比等數值，不得稱「籌碼面全缺失」；應寫「CoinGlass 不可用，已採備援／近似指標觀察短線情緒」。
-    - AI 儀表板（HuggingFace／OpenRouter）：禁止發明工具未提供的欄位（例如 OpenRouter Request Vol、Error Rate 排行）；每行一個指標；僅能複述 `ai_momentum_tool` 回傳中已出現的名稱與數字；缺資料則單獨一行 <code>N/A</code>，並在段末用一句說明原因（逾時／金鑰／來源不可用），替代觀測可寫 RSS 或 X 熱度—不得捏造數字。""")
+    - AI 儀表板（HuggingFace／OpenRouter）：禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；每行一個指標；僅能複述 `ai_momentum_tool` 回傳中的 **TopN: 模型名（下載｜按讚）** 或 RSS 備援標題；缺資料則單獨一行 <code>N/A</code>，段末一句說明原因—不得捏造數字。""")
 
 _NEWS_FMT = dedent("""\
+    【新聞編號強制】幣圈與 AI 共 6 則新聞，**每一則開頭必須是** `〔新聞 1〕`…`〔新聞 6〕`（全篇連續編號），**嚴禁**僅用 `1.` `2.` `3.` 當新聞編號（易與辯論／呢喃列表混淆）；辯論段落可用自由列表。
     〔新聞 N〕[MM/DD HH:MM UTC+8] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
     <blockquote>摘要：（1 句核心事實，禁止加入主觀評論）</blockquote>
     投資解讀：（將受影響資產、做多做空風險等情報，融合成 1~2 句通順段落；且必須至少引用 1 個當日數據，如資金費率/成交量/基差/RSI/MA/ETF 流向）
@@ -149,7 +150,7 @@ _TRADE_RULE = dedent("""\
     · 觸發模式：具體進場條件（例：「4H 收盤突破 $70.5k 確認」）
     · 建倉邏輯：多時間框架分批建倉（例：「日線確認方向 → 4H 拉回 MA20 → 1H 收針進場 50%，目標位再加 50%」）
     · 失效條件：清倉觸發（例：「日線收盤 < $67k 或 funding rate > 0.08%」）
-    · 倉位建議：佔總資金比例（例：「8%，高風險環境減半至 4%」）
+    · 倉位建議：佔總資金比例（例：「8%；若主 regime 為 neutral，VIX 偏高時減半至 4%」—**主 regime 為 neutral/risk_on 時嚴禁寫「依 risk_off」「高風險環境 risk_off」**）
     · 敘事邏輯：1 句，引用本日新聞
     請確保每個數值都用 <code> 標籤包覆，勿轉換為 Markdown 格式。""")
 
@@ -200,7 +201,7 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
     4) 🏛️ 宏觀框架（取自 macro_context_tool）
     5) 📊 加密市場：
        - 區塊① 儀表板（宏觀/技術/籌碼；嚴格套用儀表板格式）
-       - 區塊② 核心新聞 3 則（套用新聞格式）
+       - 區塊② 核心新聞 3 則（〔新聞 1〕～〔新聞 3〕，套用新聞格式）
        - 區塊②b X 推文精選（無資料可跳過）
        - 區塊③ 市場呢喃與傳聞 2~3 條
        - 區塊④ 資金流向與精準操作：1 單邊 + 1 配對
@@ -217,7 +218,7 @@ _AI_LAYOUT_RULE = dedent("""\
     1) 🏛️ 宏觀框架：本戰報將接在加密戰報之後，前段已含完整宏觀數據；本節僅輸出「承上宏觀」+ 一句主編共識（如 10Y/VIX 對美股影響），勿重複貼上美債/SOFR/利差整段。
     2) 🤖 AI 市場：
        - 區塊① AI 儀表板（HuggingFace / OpenRouter 模型熱度 Top5；缺值 <code>N/A</code>）
-       - 區塊② AI 產業新聞 3 則（基建/投資案/模型各 1）
+       - 區塊② AI 產業新聞 3 則（〔新聞 4〕～〔新聞 6〕，基建/投資案/模型各 1）
        - 區塊②b X 推文精選（無資料可跳過）
        - 區塊③ 產業鏈呢喃 2~3 條
        - 區塊④ AI 精準操作 2 檔：
