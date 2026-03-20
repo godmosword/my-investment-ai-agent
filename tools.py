@@ -923,15 +923,27 @@ _COINGLASS_BASE = "https://open-api-v4.coinglass.com"
 
 
 def _coinglass_endpoints(symbol: str = "BTC") -> dict[str, str]:
-    """依 symbol 產生 CoinGlass API endpoint URL。"""
+    """依 symbol 產生 CoinGlass API v4 endpoint URL（與官方 base + CG-API-KEY 一致）。"""
     pair = f"{symbol}USDT"
     return {
-        "open_interest": f"{_COINGLASS_BASE}/api/futures/open-interest/aggregated-history?symbol={symbol}&interval=1d",
+        # 官方文件：GET open-api-v4.coinglass.com，Header CG-API-KEY；部分端點需較高方案否則回 code=401 msg=Upgrade plan
+        "open_interest": (
+            f"{_COINGLASS_BASE}/api/futures/open-interest/aggregated-history"
+            f"?symbol={symbol}&interval=1d&limit=30"
+        ),
         "funding_rate": f"{_COINGLASS_BASE}/api/futures/funding-rate/history?exchange=Binance&symbol={pair}&interval=8h&limit=1",
         "liquidations": f"{_COINGLASS_BASE}/api/futures/liquidation/history?exchange=Binance&symbol={pair}&interval=1h&limit=24",
         "long_short_ratio": f"{_COINGLASS_BASE}/api/futures/top-long-short-account-ratio/history?exchange=Binance&symbol={pair}&interval=1d&limit=1",
         "options_info": f"{_COINGLASS_BASE}/api/option/info?symbol={symbol}",
     }
+
+
+def _coinglass_success(body: object) -> bool:
+    """CoinGlass v4 成功時 code 為字串 '0' 或整數 0（錯誤時常為字串如 '401'、msg=Upgrade plan）。"""
+    if not isinstance(body, dict):
+        return False
+    c = body.get("code")
+    return c == "0" or c == 0
 
 
 def _parse_coinglass_funding_rate(data: list, symbol: str = "BTC") -> str:
@@ -1137,7 +1149,15 @@ def coinglass_data_tool(metric: str) -> str:
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 body = response.json()
-                if body.get("code") == "0":
+                if not _coinglass_success(body):
+                    logger.warning(
+                        "CoinGlass v4 non-success: code=%r msg=%r metric=%s symbol=%s",
+                        body.get("code"),
+                        body.get("msg"),
+                        metric_lower,
+                        symbol,
+                    )
+                if _coinglass_success(body):
                     data = body.get("data") or []
                     if metric_lower == "open_interest":
                         if data:
@@ -1796,6 +1816,14 @@ def _coinglass_etf_flow() -> str | None:
             if resp.status_code != 200:
                 continue
             payload = resp.json()
+            if isinstance(payload, dict) and not _coinglass_success(payload):
+                logger.warning(
+                    "CoinGlass ETF endpoint non-success: code=%r msg=%r url=%s",
+                    payload.get("code"),
+                    payload.get("msg"),
+                    endpoint,
+                )
+                continue
             data = payload.get("data") if isinstance(payload, dict) else payload
             if not isinstance(data, list) or len(data) < 2:
                 continue
