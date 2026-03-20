@@ -324,7 +324,7 @@ def source_observability_lines() -> str:
 
 def _reason_from_exception(err: Exception | None) -> str:
     if err is None:
-        return "other"
+        return "no_articles"
     if isinstance(err, requests.Timeout):
         return "timeout"
     if isinstance(err, requests.HTTPError):
@@ -336,12 +336,18 @@ def _reason_from_exception(err: Exception | None) -> str:
         if status and 500 <= status < 600:
             return "5xx"
     msg = str(err).lower()
-    if "timeout" in msg:
+    if "timeout" in msg or "timed out" in msg:
         return "timeout"
-    if "429" in msg:
+    if "429" in msg or "rate limit" in msg:
         return "429"
     if "400" in msg:
         return "400"
+    if any(k in msg for k in ("500", "502", "503", "504", "server error")):
+        return "5xx"
+    if "connection" in msg or "dns" in msg or "resolve" in msg:
+        return "conn_err"
+    # 記錄具體錯誤類別以便 debug
+    logger.debug("_reason_from_exception unclassified: %s(%s)", type(err).__name__, msg[:120])
     return "other"
 
 
@@ -467,45 +473,62 @@ _HF_HEADERS = {
 
 
 def _hf_fetch_models() -> str | None:
-    """HuggingFace 官方 API 取 text-generation 模型下載量排名，失敗回傳 None。"""
-    try:
-        resp = requests.get(
-            "https://huggingface.co/api/models",
-            params={"sort": "downloads", "direction": -1, "limit": 10, "filter": "text-generation"},
-            headers=_HF_HEADERS,
-            timeout=20,
-        )
-        if resp.status_code != 200:
-            logger.warning("HuggingFace API HTTP %s", resp.status_code)
-            return None
-        models = resp.json()
-        if not isinstance(models, list) or not models:
-            logger.warning("HuggingFace API returned empty or non-list")
-            return None
-        lines: list[str] = []
-        for i, m in enumerate(models[:5], 1):
-            name = m.get("modelId") or m.get("id") or "unknown"
-            downloads = m.get("downloads") or m.get("downloadsAllTime") or 0
-            likes = m.get("likes") or 0
-            # 過濾掉 downloads=0 的無效條目，改選下一個
-            if downloads == 0 and len(models) > i + 4:
-                continue
-            lines.append(
-                f"Top{i}: {name}"
-                f"（下載 {int(downloads):,}｜按讚 {int(likes):,}）"
+    """HuggingFace 官方 API 取 text-generation 模型排名，失敗回傳 None。
+    嘗試順序：trendingScore → likes → downloads，提高成功率。"""
+    sort_strategies = [
+        ("trendingScore", "趨勢"),
+        ("likes", "按讚"),
+        ("downloads", "下載量"),
+    ]
+    for sort_key, sort_label in sort_strategies:
+        try:
+            resp = requests.get(
+                "https://huggingface.co/api/models",
+                params={"sort": sort_key, "direction": -1, "limit": 10,
+                        "filter": "text-generation"},
+                headers=_HF_HEADERS,
+                timeout=30,
             )
-        if not lines:
-            return None
-        return "【HuggingFace AI 模型熱度 Top5（按下載量）】\n" + "\n".join(lines)
-    except Exception as e:
-        logger.warning("HuggingFace API failed: %s", e)
-        return None
+            if resp.status_code != 200:
+                logger.warning("HuggingFace API HTTP %s (sort=%s)", resp.status_code, sort_key)
+                continue
+            models = resp.json()
+            if not isinstance(models, list) or not models:
+                logger.warning("HuggingFace API empty (sort=%s)", sort_key)
+                continue
+            lines: list[str] = []
+            rank = 0
+            for m in models:
+                name = m.get("modelId") or m.get("id") or "unknown"
+                downloads = m.get("downloads") or m.get("downloadsAllTime") or 0
+                likes = m.get("likes") or 0
+                if downloads == 0 and likes == 0:
+                    continue
+                rank += 1
+                lines.append(
+                    f"Top{rank}: {name}"
+                    f"（下載 {int(downloads):,}｜按讚 {int(likes):,}）"
+                )
+                if rank >= 5:
+                    break
+            if not lines:
+                continue
+            return f"【HuggingFace AI 模型熱度 Top5（按{sort_label}）】\n" + "\n".join(lines)
+        except requests.Timeout:
+            logger.warning("HuggingFace API timeout (sort=%s)", sort_key)
+            continue
+        except Exception as e:
+            logger.warning("HuggingFace API failed (sort=%s): %s", sort_key, e)
+            continue
+    logger.warning("HuggingFace API: all sort strategies exhausted")
+    return None
 
 
 def _openrouter_fetch_models() -> str | None:
     """OpenRouter API 取模型清單（需 OPENROUTER_API_KEY），失敗回傳 None。"""
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if not openrouter_key:
+        logger.warning("OPENROUTER_API_KEY 未設定，跳過 OpenRouter 資料取得")
         return None
     try:
         resp = requests.get(
@@ -1117,7 +1140,20 @@ def coinglass_data_tool(metric: str) -> str:
                 if body.get("code") == "0":
                     data = body.get("data") or []
                     if metric_lower == "open_interest":
-                        result = str(data)[:2000] if data and str(data) != "[]" else ""
+                        if data:
+                            # 解析最新 OI 數據為可讀格式，而非原始 JSON
+                            try:
+                                latest = data[-1] if isinstance(data, list) else data
+                                oi_val = float(latest.get("openInterest", 0) if isinstance(latest, dict) else 0)
+                                if oi_val > 0:
+                                    oi_usd_b = oi_val / 1e9 if oi_val > 1e6 else oi_val
+                                    result = f"BTC 未平倉合約 OI: 約 ${oi_usd_b:.2f}B（來源：CoinGlass）"
+                                else:
+                                    result = ""
+                            except (TypeError, ValueError, IndexError):
+                                result = ""
+                        else:
+                            result = ""
                     elif metric_lower == "funding_rate":
                         result = _parse_coinglass_funding_rate(data, symbol)
                     elif metric_lower == "liquidations":
@@ -1528,10 +1564,11 @@ def regime_scorecard_tool(query: str = "") -> str:
     except Exception:
         pass
 
-    # CoinGlass 爆倉數據（嘗試 CoinGlass API）
+    # CoinGlass 爆倉數據（嘗試 CoinGlass API，失敗時用 v4 端點備援）
     try:
         cg_key = os.getenv("COINGLASS_API_KEY", "")
         if cg_key:
+            # 嘗試 v2 端點
             resp = requests.get(
                 "https://open-api.coinglass.com/public/v2/liquidation_ex",
                 headers={"coinglassSecret": cg_key},
@@ -1543,8 +1580,25 @@ def regime_scorecard_tool(query: str = "") -> str:
                 long_liq = float(liq_data.get("longLiquidationUsd", 0))
                 short_liq = float(liq_data.get("shortLiquidationUsd", 0))
                 values["liq_24h_M"] = (long_liq + short_liq) / 1e6
-    except Exception:
-        pass
+            else:
+                logger.warning("CoinGlass v2 liquidation returned empty, trying v4")
+                # 嘗試 v4 端點
+                resp_v4 = requests.get(
+                    "https://open-api-v4.coinglass.com/api/futures/liquidation/history",
+                    headers={"accept": "application/json", "CG-API-KEY": cg_key},
+                    params={"exchange": "Binance", "symbol": "BTCUSDT",
+                            "interval": "1h", "limit": 24},
+                    timeout=10,
+                )
+                body_v4 = resp_v4.json()
+                if body_v4.get("code") == "0" and body_v4.get("data"):
+                    total_liq = sum(
+                        float(d.get("longLiquidationUsd", 0)) + float(d.get("shortLiquidationUsd", 0))
+                        for d in body_v4["data"]
+                    )
+                    values["liq_24h_M"] = total_liq / 1e6
+    except Exception as e:
+        logger.warning("Regime scorecard: liquidation fetch failed: %s", e)
 
     # ETF 流量從 BigQuery daily_metrics 最近一筆
     try:
