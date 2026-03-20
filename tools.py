@@ -895,21 +895,26 @@ def market_search_tool(query: str) -> str:
 # CoinGlass On-chain Data
 # ═══════════════════════════════════════════════════════════════════
 
-# CoinGlass API V4 endpoints（針對 BTC）
+# CoinGlass API V4 endpoints（支援多幣種，預設 BTC）
 _COINGLASS_BASE = "https://open-api-v4.coinglass.com"
-_COINGLASS_ENDPOINTS = {
-    "open_interest": f"{_COINGLASS_BASE}/api/futures/open-interest/aggregated-history?symbol=BTC&interval=1d",
-    "funding_rate": f"{_COINGLASS_BASE}/api/futures/funding-rate/history?exchange=Binance&symbol=BTCUSDT&interval=8h&limit=1",
-    "liquidations": f"{_COINGLASS_BASE}/api/futures/liquidation/history?exchange=Binance&symbol=BTCUSDT&interval=1h&limit=24",
-    "long_short_ratio": f"{_COINGLASS_BASE}/api/futures/top-long-short-account-ratio/history?exchange=Binance&symbol=BTCUSDT&interval=1d&limit=1",
-    "options_info": f"{_COINGLASS_BASE}/api/option/info?symbol=BTC",
-}
 
 
-def _parse_coinglass_funding_rate(data: list) -> str:
+def _coinglass_endpoints(symbol: str = "BTC") -> dict[str, str]:
+    """依 symbol 產生 CoinGlass API endpoint URL。"""
+    pair = f"{symbol}USDT"
+    return {
+        "open_interest": f"{_COINGLASS_BASE}/api/futures/open-interest/aggregated-history?symbol={symbol}&interval=1d",
+        "funding_rate": f"{_COINGLASS_BASE}/api/futures/funding-rate/history?exchange=Binance&symbol={pair}&interval=8h&limit=1",
+        "liquidations": f"{_COINGLASS_BASE}/api/futures/liquidation/history?exchange=Binance&symbol={pair}&interval=1h&limit=24",
+        "long_short_ratio": f"{_COINGLASS_BASE}/api/futures/top-long-short-account-ratio/history?exchange=Binance&symbol={pair}&interval=1d&limit=1",
+        "options_info": f"{_COINGLASS_BASE}/api/option/info?symbol={symbol}",
+    }
+
+
+def _parse_coinglass_funding_rate(data: list, symbol: str = "BTC") -> str:
     """將資金費率 API 回傳解析為 Agent 友善文字。"""
     if not data or not isinstance(data, list):
-        return "[DATA_MISSING:funding_rate] CoinGlass 無資金費率數據。"
+        return f"[DATA_MISSING:funding_rate] CoinGlass 無 {symbol} 資金費率數據。"
     latest = data[-1] if data else {}
     close_raw = (
         latest.get("close") or latest.get("open") or
@@ -917,20 +922,20 @@ def _parse_coinglass_funding_rate(data: list) -> str:
         latest.get("value")
     )
     if close_raw is None:
-        return "[DATA_MISSING:funding_rate] CoinGlass 無法解析資金費率（欄位不存在）。"
+        return f"[DATA_MISSING:funding_rate] CoinGlass 無法解析 {symbol} 資金費率（欄位不存在）。"
     try:
         rate_pct = float(close_raw) * 100
     except (TypeError, ValueError):
-        return "[DATA_MISSING:funding_rate] CoinGlass 資金費率格式異常。"
+        return f"[DATA_MISSING:funding_rate] CoinGlass {symbol} 資金費率格式異常。"
     hint = "多頭付費給空頭，情緒偏熱" if rate_pct > 0 else "空頭付費給多頭，情緒偏冷"
     level = "🔴 極度過熱" if rate_pct > 0.05 else ("🟡 偏熱" if rate_pct > 0.01 else ("🟢 中性" if rate_pct >= -0.01 else "🔵 偏冷"))
-    return f"BTC 資金費率 {rate_pct:.4f}% {level}，{hint}"
+    return f"{symbol} 資金費率 {rate_pct:.4f}% {level}，{hint}"
 
 
-def _parse_coinglass_liquidations(data: list) -> str:
+def _parse_coinglass_liquidations(data: list, symbol: str = "BTC") -> str:
     """將清算 API 回傳解析為 Agent 友善文字（過去 24h 彙總）。"""
     if not data or not isinstance(data, list):
-        return "[DATA_MISSING:liquidations] CoinGlass 無清算數據。"
+        return f"[DATA_MISSING:liquidations] CoinGlass 無 {symbol} 清算數據。"
     total_long = total_short = 0.0
     for item in data:
         try:
@@ -939,7 +944,7 @@ def _parse_coinglass_liquidations(data: list) -> str:
         except (TypeError, ValueError):
             continue
     total = total_long + total_short
-    return f"過去 24h 總爆倉 ${total/1e6:.2f}M，其中多頭爆倉 ${total_long/1e6:.2f}M，空頭爆倉 ${total_short/1e6:.2f}M"
+    return f"{symbol} 過去 24h 總爆倉 ${total/1e6:.2f}M，其中多頭爆倉 ${total_long/1e6:.2f}M，空頭爆倉 ${total_short/1e6:.2f}M"
 
 
 def _apify_liquidations_fallback() -> str:
@@ -958,10 +963,10 @@ def _apify_liquidations_fallback() -> str:
     return "[DATA_MISSING:liquidations] CoinGlass 與備援來源均無爆倉數據，請以資金費率/OI 代替判讀。"
 
 
-def _parse_coinglass_long_short_ratio(data: list) -> str:
+def _parse_coinglass_long_short_ratio(data: list, symbol: str = "BTC") -> str:
     """將大戶多空比 API 回傳解析為 Agent 友善文字。"""
     if not data or not isinstance(data, list):
-        return "[DATA_MISSING:long_short_ratio] CoinGlass 無多空比數據。"
+        return f"[DATA_MISSING:long_short_ratio] CoinGlass 無 {symbol} 多空比數據。"
     latest = data[-1] if data else {}
     ratio_raw = (
         latest.get("top_account_long_short_ratio") or
@@ -970,13 +975,13 @@ def _parse_coinglass_long_short_ratio(data: list) -> str:
         latest.get("ratio")
     )
     if ratio_raw is None:
-        return "[DATA_MISSING:long_short_ratio] CoinGlass 無法解析大戶多空比（欄位不存在）。"
+        return f"[DATA_MISSING:long_short_ratio] CoinGlass 無法解析 {symbol} 大戶多空比（欄位不存在）。"
     try:
         ratio = float(ratio_raw)
     except (TypeError, ValueError):
-        return "[DATA_MISSING:long_short_ratio] CoinGlass 多空比格式異常。"
+        return f"[DATA_MISSING:long_short_ratio] CoinGlass {symbol} 多空比格式異常。"
     hint = "數值 > 1 代表大戶偏多" if ratio > 1 else "數值 < 1 代表大戶偏空"
-    return f"最新大戶多空比為 {ratio:.2f}，{hint}"
+    return f"{symbol} 最新大戶多空比為 {ratio:.2f}，{hint}"
 
 
 def _parse_coinglass_options_info(data) -> str:
@@ -1076,19 +1081,32 @@ def _binance_long_short_ratio() -> str:
 
 @tool
 def coinglass_data_tool(metric: str) -> str:
-    """獲取幣圈衍生品數據。metric 請輸入 'open_interest'（未平倉）、'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比）、'options_info'（BTC 選擇權 Put/Call Ratio + Max Pain）。"""
-    metric_lower = metric.lower()
+    """獲取幣圈衍生品數據。格式：'metric' 或 'metric:SYMBOL'（預設 BTC）。
+
+    metric 請輸入 'open_interest'（未平倉）、'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比）、'options_info'（選擇權 Put/Call Ratio + Max Pain）。
+    範例：'funding_rate'（預設 BTC）、'funding_rate:ETH'、'liquidations:SOL'。
+    """
+    # 解析 metric:SYMBOL 格式
+    if ":" in metric:
+        metric_part, symbol = metric.split(":", 1)
+        symbol = symbol.strip().upper()
+    else:
+        metric_part = metric
+        symbol = "BTC"
+    metric_lower = metric_part.strip().lower()
+
     supported = {"open_interest", "funding_rate", "liquidations", "long_short_ratio", "options_info"}
     if metric_lower not in supported:
-        return f"CoinGlass Tool Failed：不支援的 metric '{metric}'，僅支援 {', '.join(sorted(supported))}。"
+        return f"CoinGlass Tool Failed：不支援的 metric '{metric_part}'，僅支援 {', '.join(sorted(supported))}。"
 
-    cache_key = ("coinglass", metric_lower)
+    cache_key = ("coinglass", f"{metric_lower}_{symbol}")
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
     api_key = os.getenv("COINGLASS_API_KEY")
-    url = _COINGLASS_ENDPOINTS.get(metric_lower)
+    endpoints = _coinglass_endpoints(symbol)
+    url = endpoints.get(metric_lower)
 
     if api_key and url:
         try:
@@ -1101,31 +1119,33 @@ def coinglass_data_tool(metric: str) -> str:
                     if metric_lower == "open_interest":
                         result = str(data)[:2000] if data and str(data) != "[]" else ""
                     elif metric_lower == "funding_rate":
-                        result = _parse_coinglass_funding_rate(data)
+                        result = _parse_coinglass_funding_rate(data, symbol)
                     elif metric_lower == "liquidations":
-                        result = _parse_coinglass_liquidations(data)
+                        result = _parse_coinglass_liquidations(data, symbol)
                     elif metric_lower == "options_info":
                         result = _parse_coinglass_options_info(data)
                     else:
-                        result = _parse_coinglass_long_short_ratio(data)
+                        result = _parse_coinglass_long_short_ratio(data, symbol)
                     if result:
                         _set_cache(cache_key, result)
                         return _append_data_as_of(result, "coinglass")
         except Exception:
-            # CoinGlass API 失敗，直接回傳暫無回應標記。
             pass
 
-    # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援 ──
-    if metric_lower == "funding_rate":
-        result = _binance_funding_rate()
-    elif metric_lower == "open_interest":
-        result = _binance_open_interest()
-    elif metric_lower == "long_short_ratio":
-        result = _binance_long_short_ratio()
-    elif metric_lower == "liquidations":
-        result = _apify_liquidations_fallback()
+    # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援（僅 BTC 支援）──
+    if symbol == "BTC":
+        if metric_lower == "funding_rate":
+            result = _binance_funding_rate()
+        elif metric_lower == "open_interest":
+            result = _binance_open_interest()
+        elif metric_lower == "long_short_ratio":
+            result = _binance_long_short_ratio()
+        elif metric_lower == "liquidations":
+            result = _apify_liquidations_fallback()
+        else:
+            result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
     else:
-        result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
+        result = f"[DATA_MISSING:coinglass_{metric_lower}_{symbol}] CoinGlass {symbol} {metric_lower} 暫無數據。"
     _set_cache(cache_key, result)
     if result.startswith("[DATA_MISSING:"):
         return result
