@@ -1584,38 +1584,42 @@ def regime_scorecard_tool(query: str = "") -> str:
     except Exception:
         pass
 
-    # CoinGlass 爆倉數據（嘗試 CoinGlass API，失敗時用 v4 端點備援）
+    # 爆倉數據：僅 CoinGlass API v4（Binance BTCUSDT 過去 24h 彙總，與 coinglass_data_tool 一致）
     try:
         cg_key = os.getenv("COINGLASS_API_KEY", "")
         if cg_key:
-            # 嘗試 v2 端點
-            resp = requests.get(
-                "https://open-api.coinglass.com/public/v2/liquidation_ex",
-                headers={"coinglassSecret": cg_key},
-                params={"ex": "Binance", "pair": "BTCUSDT", "interval": "1d"},
+            liq_url = f"{_COINGLASS_BASE}/api/futures/liquidation/history"
+            resp_v4 = requests.get(
+                liq_url,
+                headers={"accept": "application/json", "CG-API-KEY": cg_key},
+                params={
+                    "exchange": "Binance",
+                    "symbol": "BTCUSDT",
+                    "interval": "1h",
+                    "limit": 24,
+                },
                 timeout=10,
             )
-            liq_data = resp.json().get("data", {})
-            if liq_data:
-                long_liq = float(liq_data.get("longLiquidationUsd", 0))
-                short_liq = float(liq_data.get("shortLiquidationUsd", 0))
-                values["liq_24h_M"] = (long_liq + short_liq) / 1e6
-            else:
-                logger.warning("CoinGlass v2 liquidation returned empty, trying v4")
-                # 嘗試 v4 端點
-                resp_v4 = requests.get(
-                    "https://open-api-v4.coinglass.com/api/futures/liquidation/history",
-                    headers={"accept": "application/json", "CG-API-KEY": cg_key},
-                    params={"exchange": "Binance", "symbol": "BTCUSDT",
-                            "interval": "1h", "limit": 24},
-                    timeout=10,
+            body_v4 = resp_v4.json()
+            if isinstance(body_v4, dict) and not _coinglass_success(body_v4):
+                logger.warning(
+                    "Regime scorecard: CoinGlass v4 liquidation non-success: code=%r msg=%r",
+                    body_v4.get("code"),
+                    body_v4.get("msg"),
                 )
-                body_v4 = resp_v4.json()
-                if body_v4.get("code") == "0" and body_v4.get("data"):
-                    total_liq = sum(
-                        float(d.get("longLiquidationUsd", 0)) + float(d.get("shortLiquidationUsd", 0))
-                        for d in body_v4["data"]
-                    )
+            if isinstance(body_v4, dict) and _coinglass_success(body_v4):
+                data = body_v4.get("data") or []
+                if isinstance(data, list) and data:
+                    total_liq = 0.0
+                    for d in data:
+                        if not isinstance(d, dict):
+                            continue
+                        lg = d.get("long_liquidation_usd", d.get("longLiquidationUsd", 0)) or 0
+                        sh = d.get("short_liquidation_usd", d.get("shortLiquidationUsd", 0)) or 0
+                        try:
+                            total_liq += float(lg) + float(sh)
+                        except (TypeError, ValueError):
+                            continue
                     values["liq_24h_M"] = total_liq / 1e6
     except Exception as e:
         logger.warning("Regime scorecard: liquidation fetch failed: %s", e)

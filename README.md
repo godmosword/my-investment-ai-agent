@@ -107,8 +107,7 @@
 | 常見錯誤 | `code: "401"`, `msg: "Upgrade plan"` → 金鑰有效但**方案不含該端點**，請參考 [定價/方案](https://www.coinglass.com/pricing) |
 | 日誌 | v4 非成功時會 `logger.warning` 打出 `code` / `msg` / metric，便於區分「權限」與「網路」 |
 | 備援 | `coinglass_data_tool` 在 CoinGlass 失敗時對 **BTC** 使用 Binance 公開 API（資金費率、OI、多空比等） |
-
-**注意**：`regime_scorecard_tool` 內仍有一段 **舊 open-api（v2）** 清算端點與 `coinglassSecret`；與 v4 並存，若 v2 淘汰需改為 v4 路徑。
+| `regime_scorecard_tool` | 24h 爆倉僅用 **v4** 清算歷史端點 + `CG-API-KEY`（無舊版 v2） |
 
 **curl 自測**（須與 `source .env` 同一 shell，否則金鑰不會傳入）：
 

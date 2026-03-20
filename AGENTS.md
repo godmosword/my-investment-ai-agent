@@ -47,7 +47,7 @@ Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline tha
 - **認證**：Header `CG-API-KEY: <COINGLASS_API_KEY>`（`tools.py` 中 `coinglass_data_tool`、ETF 等 v4 呼叫皆如此）。
 - **成功回應**：JSON 內 `code` 為字串 `"0"` 或整數 `0`；否則為錯誤（常見 `code: "401"`, `msg: "Upgrade plan"`）。
 - **401 / Upgrade plan**：代表金鑰已送出且被辨識，但**目前訂閱方案不含該端點**或需升級，非 URL 拼錯。請對照 [CoinGlass 方案](https://www.coinglass.com/pricing)。失敗時管線會 **warning 日誌**（`code`/`msg`/metric）並對 **BTC** 等指標走 **Binance 公開 API 備援**（見 `tools.py`）。
-- **舊版 v2 殘留**：`regime_scorecard_tool` 內仍可能呼叫 `https://open-api.coinglass.com/public/v2/...`，Header 為 `coinglassSecret`，與 v4 不同；若僅持有 v4 金鑰或 v2 下線，該段可能失效，宜後續改為純 v4。
+- **`regime_scorecard_tool`**：24h 爆倉僅走 **v4** `GET .../api/futures/liquidation/history`（`CG-API-KEY`），與 `coinglass_data_tool` 一致；無 v2 / `coinglassSecret`。
 - **本機測試 curl**（須在同一 shell `source .env`，勿用子 shell 包 `(. ./env)`，否則金鑰傳不進 `curl`）：
   ```bash
   set -a && . ./.env && set +a
