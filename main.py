@@ -1999,7 +1999,19 @@ if __name__ == "__main__":
             if perf_summary:
                 try:
                     import telebot as _tb
-                    _tb.TeleBot(token).send_message(chat_id, perf_summary, parse_mode="HTML", timeout=30)
+
+                    safe_perf = sanitize_telegram_html(perf_summary)
+                    bot = _tb.TeleBot(token)
+                    try:
+                        bot.send_message(chat_id, safe_perf, parse_mode="HTML", timeout=30)
+                    except Exception as send_e:
+                        err_str = str(send_e).lower()
+                        if "can't parse entities" in err_str:
+                            bot.send_message(
+                                chat_id, strip_html(safe_perf), timeout=30
+                            )
+                        else:
+                            raise
                     logger.info("Weekly performance summary sent to Telegram.")
                 except Exception as _e:
                     logger.warning("Failed to send weekly performance summary: %s", _e)
