@@ -9,6 +9,10 @@ from tools import (
     _get_cache,
     _set_cache,
     _CACHE,
+    fear_greed_tool,
+    _binance_funding_rate,
+    _binance_long_short_ratio,
+    _binance_open_interest,
 )
 
 
@@ -67,7 +71,7 @@ class TestParseCoinglassLiquidations(unittest.TestCase):
         ]
         result = _parse_coinglass_liquidations(data, "BTC")
         self.assertIn("BTC", result)
-        self.assertIn("$11.00M", result)  # total = 11M
+        self.assertIn("$11.00M", result)
         self.assertIn("多頭爆倉 $7.00M", result)
         self.assertIn("空頭爆倉 $4.00M", result)
 
@@ -95,9 +99,6 @@ class TestCacheOperations(unittest.TestCase):
     def test_cache_miss(self):
         self.assertIsNone(_get_cache(("nonexistent", "key")))
 
-    def tearDown(self):
-        _CACHE.clear()
-
 
 class TestFearGreedTool(unittest.TestCase):
     """Test fear_greed_tool with mocked HTTP."""
@@ -118,8 +119,6 @@ class TestFearGreedTool(unittest.TestCase):
         }
         mock_get.return_value = mock_resp
 
-        from tools import fear_greed_tool
-        # CrewAI @tool wraps the function; call .run() or invoke directly
         result = fear_greed_tool.run()
         self.assertIn("25/100", result)
         self.assertIn("Extreme Fear", result)
@@ -129,13 +128,9 @@ class TestFearGreedTool(unittest.TestCase):
     def test_api_failure(self, mock_get):
         mock_get.side_effect = Exception("timeout")
 
-        from tools import fear_greed_tool
         _CACHE.clear()
         result = fear_greed_tool.run()
         self.assertIn("DATA_MISSING", result)
-
-    def tearDown(self):
-        _CACHE.clear()
 
 
 class TestBinanceFallbacks(unittest.TestCase):
@@ -150,7 +145,6 @@ class TestBinanceFallbacks(unittest.TestCase):
         mock_resp.json.return_value = [{"fundingRate": "0.0001"}]
         mock_get.return_value = mock_resp
 
-        from tools import _binance_funding_rate
         result = _binance_funding_rate()
         self.assertIn("BTC", result)
         self.assertIn("Binance", result)
@@ -160,7 +154,6 @@ class TestBinanceFallbacks(unittest.TestCase):
     def test_binance_funding_rate_failure(self, mock_get):
         mock_get.side_effect = Exception("network error")
 
-        from tools import _binance_funding_rate
         result = _binance_funding_rate()
         self.assertIn("DATA_MISSING", result)
 
@@ -173,7 +166,6 @@ class TestBinanceFallbacks(unittest.TestCase):
         mock_resp.json.return_value = [{"longShortRatio": "1.25"}]
         mock_get.return_value = mock_resp
 
-        from tools import _binance_long_short_ratio
         result = _binance_long_short_ratio()
         self.assertIn("1.250", result)
         self.assertIn("多方佔優", result)
@@ -189,7 +181,6 @@ class TestBinanceFallbacks(unittest.TestCase):
         responses[1].json.return_value = {"price": "95000"}
         mock_get.side_effect = responses
 
-        from tools import _binance_open_interest
         result = _binance_open_interest()
         self.assertIn("BTC", result)
         self.assertIn("OI", result)
