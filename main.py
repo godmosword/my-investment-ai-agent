@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from google.cloud import bigquery
 import yfinance as yf
 
-from config import PROJECT_ID, METRICS_TABLE
+from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
 from report_output_validator import (
     assert_report_output,
@@ -1302,7 +1302,13 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
 
     # ── 6. 萃取 Agent 情報摘要（幣圈 / AI 區塊各取第一段重點）──────
     grok_summary = _extract_section(clean_text, "【幣圈新聞】")
-    gpt_summary  = _extract_section(clean_text, "【AI 基建現況】")
+    # AI 區塊 header 隨版本變動，依序嘗試多種可能的 header
+    gpt_summary = (
+        _extract_section(clean_text, "AI 產業新聞")
+        or _extract_section(clean_text, "AI 數據儀表板")
+        or _extract_section(clean_text, "AI 市場")
+        or _extract_section(clean_text, "【AI 基建現況】")
+    )
 
     # ── 6b. 萃取新聞標題供次日去重 ──────────────────
     all_titles = _extract_news_titles(report_text, max_titles=25)
@@ -1386,8 +1392,23 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         logger.error("Failed to write metrics to BigQuery: %s", e)
 
 
+def _fetch_recent_recommended_assets(client: bigquery.Client, days: int = 3) -> list[str]:
+    """查詢近 N 天已建議的資產代號，供排除重複標的使用。"""
+    try:
+        rows = list(client.query(f"""
+            SELECT DISTINCT asset
+            FROM `{RECOMMENDATIONS_TABLE}`
+            WHERE report_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
+            ORDER BY asset
+        """).result())
+        return [r["asset"] for r in rows if r.get("asset")]
+    except Exception as e:
+        logger.warning("Failed to fetch recent recommended assets: %s", e)
+        return []
+
+
 def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = METRICS_TABLE) -> str | None:
-    """從 BigQuery 讀取前一日的新聞標題列表，供研究流程排除重複新聞。"""
+    """從 BigQuery 讀取前一日的新聞標題列表與近期已推薦資產，供研究流程排除重複。"""
     try:
         client = bigquery.Client(project=project_id)
         query = f"""
@@ -1413,9 +1434,20 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
                 if val:
                     parts.append(val)
 
+        # 近 3 天已推薦資產排除（強制輪換標的）
+        recent_assets = _fetch_recent_recommended_assets(client, days=3)
+        if recent_assets:
+            asset_list = ", ".join(f"${a}" for a in recent_assets)
+            parts.append(
+                f"過去 3 天已建議的標的（除非有重大新催化劑，否則禁止重複選用）：{asset_list}\n"
+                "必須優先選擇不在此清單中的標的。若該標的有全新重大事件（如 ETF 核准、主網升級、財報超預期），"
+                "可以再次選用，但必須明確說明「重複選用理由：XXX」。"
+            )
+            logger.info("Loaded %d recent recommended assets for exclusion: %s", len(recent_assets), recent_assets)
+
         s = "\n\n".join(parts) if parts else None
-        if s and len(s) > 2000:
-            s = s[:2000] + "\n…[truncated]"
+        if s and len(s) > 2500:
+            s = s[:2500] + "\n…[truncated]"
         return s
     except Exception as e:
         logger.warning("Could not fetch exclusion context from BigQuery: %s", e)

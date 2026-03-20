@@ -307,7 +307,9 @@ class CryptoResearchCrew:
                 {_QUOTE_RULE}
                 {excl}
                 === 數據來源（必須全部呼叫）===
-                · coinglass_data_tool：funding_rate / liquidations / long_short_ratio / options_info
+                · coinglass_data_tool：支援多幣種查詢，格式 'metric:SYMBOL'（預設 BTC）
+                  必查 BTC：funding_rate / liquidations / long_short_ratio / options_info
+                  若新聞涉及 ETH/SOL 等山寨幣，額外查詢該幣衍生品：如 'funding_rate:ETH'、'liquidations:SOL'
                 · fear_greed_tool()（恐懼與貪婪指數）
                 · etf_flow_tool()（BTC Spot ETF 每日資金流，禁止自行猜測 ETF 數據）
                 · econ_calendar_tool()（本週宏觀經濟日曆，禁止自行猜測 FOMC/CPI 日期）
