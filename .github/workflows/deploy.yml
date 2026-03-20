@@ -1,19 +1,9 @@
-name: CI/CD to Cloud Run
+name: Deploy — Cloud Run Job
 
+# 僅手動觸發：避免每次 push main 都建映像與部署。
+# 流程：先跑可重用的 ci.yml（Lint+Test），通過後才 build/push/deploy。
+# 操作：GitHub → Actions → 本 workflow → Run workflow。
 on:
-  push:
-    branches:
-      - main
-    # 僅在會影響映像檔或執行程式時跑完整 CI+部署（純文件 push 省時間）
-    paths:
-      - "**/*.py"
-      - "requirements.txt"
-      - "Dockerfile"
-      - "docker-compose.yml"
-      - ".dockerignore"
-      - "assets_config.json"
-      - ".github/workflows/ci.yml"
-      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 env:
