@@ -295,6 +295,32 @@ class TestValidateReport(unittest.TestCase):
         result = validate_report(report)
         self.assertTrue(result["has_macro_outlier"])
 
+    def test_neutral_regime_forbids_risk_off_trade_language(self):
+        report = _make_report(
+            regime="neutral",
+            extra="\n· 倉位建議：4%（高風險環境 risk_off 減倉至極低水位）\n",
+        )
+        result = validate_report(report)
+        self.assertTrue(any("risk_off 敘述" in i or "誤用 risk_off" in i for i in result["issues"]))
+
+    def test_six_news_tags_required(self):
+        """僅有編號列表、無〔新聞 N〕時應提示格式錯誤。"""
+        report = _make_report(news_count=0, extra="")
+        # 無〔新聞〕，改為 6 條 1. 列表充當新聞（舊 LLM 錯誤模式）
+        news_lines = "\n".join(f"{i}. 假新聞標題 {i} 內容" for i in range(1, 7))
+        report = report.replace("加密市場核心新聞", "加密市場核心新聞\n" + news_lines)
+        result = validate_report(report)
+        self.assertTrue(any("〔新聞 N〕" in i for i in result["issues"]))
+
+    def test_yield_spread_mismatch_flagged(self):
+        macro = (
+            "美債 10Y: 3.55%\n美債 2Y: 4.30%\n"
+            "利差: +0.50% （測試用錯誤口徑）\n"
+        )
+        report = _make_report(extra=macro)
+        result = validate_report(report)
+        self.assertTrue(any("利差" in i and "10Y" in i for i in result["issues"]))
+
 
 class TestHasCryptoTradeSection(unittest.TestCase):
     """避免 LLM 省略 (Crypto) 括號時誤注入觀望區塊。"""
