@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from textwrap import dedent
@@ -25,12 +26,29 @@ from tools import (
     x_search_tool,
 )
 
+logger = logging.getLogger(__name__)
+
 _VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
 
 MODEL_GROK = "xai/grok-4-1-fast-reasoning"
 # 預設改為 gpt-4o-mini 以壓低單次日報成本（約 $0.03～0.05）；可設 OPENAI_MODEL 覆寫，例如 openai/gpt-4o
 MODEL_GPT = os.getenv("OPENAI_MODEL", "openai/gpt-4o-mini")
 MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
+MODEL_CLAUDE = "anthropic/claude-sonnet-4-20250514"
+
+# 每個角色的 LLM fallback chain：主 LLM 失敗時依序嘗試下一個
+_FALLBACK_CHAINS: dict[str, list[str]] = {
+    "grok": [MODEL_GROK, MODEL_CLAUDE, MODEL_GPT],
+    "gpt": [MODEL_GPT, MODEL_CLAUDE, MODEL_GROK],
+    "gemini": [MODEL_GEMINI, MODEL_GPT, MODEL_CLAUDE],
+}
+
+_API_KEY_MAP: dict[str, str] = {
+    MODEL_GROK: "XAI_API_KEY",
+    MODEL_GPT: "OPENAI_API_KEY",
+    MODEL_GEMINI: "GEMINI_API_KEY",
+    MODEL_CLAUDE: "ANTHROPIC_API_KEY",
+}
 
 _TELEGRAM_FMT = dedent("""\
     Telegram HTML：只允許 <b> <i> <u> <s> <code> <blockquote> <a href>
@@ -131,7 +149,8 @@ _TRADE_RULE = dedent("""\
 
 _RISK_MODE_RULE = dedent("""\
     【市場模式聯動風控】
-    - 全文只能有一個 market_regime（risk_on / neutral / risk_off）；嚴禁在不同段落切換 regime。
+    - 全文只能有一個主 market_regime（risk_on / neutral / risk_off）；嚴禁在不同段落切換 regime。
+    - 允許情境分析條件句：可使用「若轉為 risk_off 則…」「若 VIX 突破 25 則切換至…」等 if…then 語句描述替代情境，但主 regime 判定不變。
     - 若今日市場模式為 risk_off：所有交易建議信心水準上限降一級（最高只能 ⭐️⭐️⭐️），並在敘事中明確標註「減倉/輕倉」。
     - 無論訊號是否衝突，必須在交易段落前輸出 1 行「訊號衝突摘要：...」（若無衝突，寫「訊號衝突摘要：無顯著多空訊號衝突，各指標方向一致」；若有衝突，逐項說明衝突原因與影響，例如「RSI 中性但 VIX 倒掛 + 資金費率高企，短線信心受壓」）。
     - 交易段落前必須新增 1 行「今日風險預算：...」（依 Regime 風險預算硬規則）。""")
@@ -199,23 +218,38 @@ _AI_LAYOUT_RULE = dedent("""\
     3) 最後必須輸出 QSREC JSON 區塊""")
 
 
-def _make_llms(*names: str):
-    """建立並回傳指定的 LLM 實例。"""
-    factories = {
-        "grok": lambda: LLM(model=MODEL_GROK, api_key=os.getenv("XAI_API_KEY"), max_retries=3, timeout=120),
-        "gpt": lambda: LLM(model=MODEL_GPT, api_key=os.getenv("OPENAI_API_KEY"), max_retries=3, timeout=120),
-        "gemini": lambda: LLM(model=MODEL_GEMINI, api_key=os.getenv("GEMINI_API_KEY"), max_retries=5, timeout=180),
-    }
-    return tuple(factories[n]() for n in names)
+def _make_llm(model: str, *, max_retries: int = 3, timeout: int = 120) -> LLM:
+    """建立單一 LLM 實例，自動從環境變數取得對應 API key。"""
+    env_key = _API_KEY_MAP.get(model, "")
+    api_key = os.getenv(env_key) if env_key else None
+    return LLM(model=model, api_key=api_key, max_retries=max_retries, timeout=timeout)
+
+
+def _make_llm_with_fallback(role: str, *, max_retries: int = 3, timeout: int = 120) -> LLM:
+    """嘗試 fallback chain 中第一個有 API key 的 model；全部缺 key 則用 chain 首項（讓 runtime 報錯）。"""
+    chain = _FALLBACK_CHAINS.get(role, [])
+    for model in chain:
+        env_key = _API_KEY_MAP.get(model, "")
+        api_key = os.getenv(env_key) if env_key else None
+        if api_key:
+            if model != chain[0]:
+                logger.info("LLM fallback: role=%s, primary=%s unavailable (no key), using %s", role, chain[0], model)
+            return LLM(model=model, api_key=api_key, max_retries=max_retries, timeout=timeout)
+    # 全部都沒有 key，用 primary 讓 runtime 報出有意義的錯誤
+    logger.warning("No API key found for any model in %s fallback chain %s", role, chain)
+    return LLM(model=chain[0] if chain else "openai/gpt-4o-mini", max_retries=max_retries, timeout=timeout)
 
 
 def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
-    """Primary 為 grok/gpt/gemini 各一；fallback 時全用 GPT 降低凌晨靜默失敗。回傳 {grok, gpt, gemini}。"""
+    """Primary 依 fallback chain 選可用 LLM；use_fallback_llm=True 時全用 GPT 降低凌晨靜默失敗。"""
     if use_fallback_llm:
-        g = _make_llms("gpt", "gpt", "gpt")[0]
-        return {"grok": g, "gpt": g, "gemini": g}
-    grok, gpt, gemini = _make_llms("grok", "gpt", "gemini")
-    return {"grok": grok, "gpt": gpt, "gemini": gemini}
+        gpt = _make_llm(MODEL_GPT)
+        return {"grok": gpt, "gpt": gpt, "gemini": gpt}
+    return {
+        "grok": _make_llm_with_fallback("grok"),
+        "gpt": _make_llm_with_fallback("gpt"),
+        "gemini": _make_llm_with_fallback("gemini", max_retries=5, timeout=180),
+    }
 
 
 class CryptoResearchCrew:

@@ -433,8 +433,21 @@ def _sanitize_macro_outlier_values(text: str) -> str:
     return patched
 
 
+def _is_conditional_regime_line(line: str) -> bool:
+    """判斷該行是否為情境分析條件句（若轉為 risk_off 則…），不應被 regime 統一覆寫。"""
+    return bool(re.search(
+        r'(?:若|如果|假設|when|if)\s*(?:轉為|切換至|shift\s*to|switch\s*to|moves?\s*to)\s*'
+        r'(?:risk[\s_\-]*on|risk[\s_\-]*off|neutral)',
+        line,
+        re.IGNORECASE,
+    ))
+
+
 def _unify_regime_mentions(text: str) -> str:
-    """統一全篇 regime：以第一個【今日市場模式】為準，覆寫後續風險預算中的 regime。"""
+    """統一全篇 regime：以第一個【今日市場模式】為準，覆寫後續風險預算中的 regime。
+
+    情境分析條件句（如「若轉為 risk_off 則…」）保留原文不覆寫。
+    """
     regime_token_re = r'(risk[\s_\-]*on|risk[\s_\-]*off|neutral)'
     m = re.search(
         rf'【今日市場模式】\s*(?:<[^>]*>\s*)*{regime_token_re}(?:\s*</[^>]*>)*',
@@ -472,8 +485,11 @@ def _unify_regime_mentions(text: str) -> str:
         flags=re.IGNORECASE,
     )
     # 兼容英文寫法（Risk Off / Risk-On）在風險預算行中造成的不一致。
+    # 跳過情境分析條件句，避免覆寫「若轉為 risk_off 則…」。
     def _risk_budget_line_repl(m: re.Match) -> str:
         line = m.group(0)
+        if _is_conditional_regime_line(line):
+            return line
         line = re.sub(r'\brisk[\s_-]*on\b', regime, line, flags=re.IGNORECASE)
         line = re.sub(r'\brisk[\s_-]*off\b', regime, line, flags=re.IGNORECASE)
         line = re.sub(r'\bneutral\b', regime, line, flags=re.IGNORECASE)
@@ -855,7 +871,19 @@ def validate_report(text: str) -> dict:
             if rv:
                 qsrec_regimes.append(rv)
     unique_regimes = set(mode_tags + budget_tags + qsrec_regimes)
-    has_mixed_regime = len(unique_regimes) > 1
+    # 情境分析條件句（若轉為 risk_off 則…）不算 mixed regime —— 僅排除條件句中的 regime 提及
+    _conditional_re = re.compile(
+        r'(?:若|如果|假設|when|if)\s*(?:轉為|切換至|shift\s*to|switch\s*to|moves?\s*to)\s*'
+        r'(risk[\s_\-]*on|risk[\s_\-]*off|neutral)',
+        re.IGNORECASE,
+    )
+    conditional_regimes = {
+        _normalize_regime_token(m.group(1))
+        for m in _conditional_re.finditer(text)
+        if _normalize_regime_token(m.group(1))
+    }
+    authoritative_regimes = unique_regimes - conditional_regimes
+    has_mixed_regime = len(authoritative_regimes) > 1
     malformed_invalidation = bool(
         re.search(r'失效條件[：:]\s*(?:<code>)?\s*(?:</code>)?\s*(?:\n|$)', text)
     )
