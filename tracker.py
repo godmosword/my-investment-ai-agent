@@ -144,6 +144,55 @@ def _yf_symbol(asset: str) -> str:
     return f"{a}-USD" if a in _get_crypto_assets() else a
 
 
+def _parse_pair_asset(asset: str) -> tuple[str, str] | None:
+    """若 asset 為兩幣比值（如 BTC/SOL、BTC-SOL），回傳 (base, quote) 代號。"""
+    a = asset.upper().strip().replace("$", "").replace(" ", "")
+    for sep in ("/", "-", "／"):
+        if sep in a:
+            left, right = a.split(sep, 1)
+            left, right = left.strip(), right.strip()
+            crypto = _get_crypto_assets()
+            if left in crypto and right in crypto:
+                return left, right
+    return None
+
+
+def _yf_last_close(sym: str) -> float | None:
+    """yfinance 取最近一日收盤。"""
+    try:
+        df = yf.download(sym, period="5d", interval="1d", progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return None
+        close = df["Close"].dropna()
+        if hasattr(close, "ndim") and close.ndim > 1:
+            close = close.iloc[:, 0]
+        return float(close.iloc[-1]) if not close.empty else None
+    except Exception as e:
+        logger.warning("yfinance close failed for %s: %s", sym, e)
+        return None
+
+
+def _pair_ratio_current(asset: str) -> float | None:
+    """BTC/SOL 等比值：現價 = base_USD / quote_USD。"""
+    parsed = _parse_pair_asset(asset)
+    if not parsed:
+        return None
+    left, right = parsed
+    pl = _yf_last_close(_yf_symbol(left))
+    pr = _yf_last_close(_yf_symbol(right))
+    if pl is None or pr is None or pr <= 0:
+        return None
+    return round(pl / pr, 4)
+
+
+def _current_price_for_asset(asset: str) -> float | None:
+    """單幣或比值建議的追蹤用現價。"""
+    ratio = _pair_ratio_current(asset)
+    if ratio is not None:
+        return ratio
+    return _yf_last_close(_yf_symbol(asset))
+
+
 def extract_recommendations_json(report_text: str) -> list[dict]:
     """從報告文字中解析所有 [QSREC_START]…[QSREC_END] 區塊，回傳原始 dict 列表。"""
     recs: list[dict] = []
@@ -241,7 +290,11 @@ def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | 
 
     category = str(raw.get("category", "CRYPTO")).upper()
     if category not in ("CRYPTO", "EQUITY"):
-        category = "CRYPTO" if asset in _get_crypto_assets() else "EQUITY"
+        category = (
+            "CRYPTO"
+            if asset in _get_crypto_assets() or _parse_pair_asset(asset)
+            else "EQUITY"
+        )
 
     confidence = max(1, min(4, int(raw.get("confidence", 3))))
     trigger = str(raw.get("trigger", ""))[:300] or None
@@ -389,19 +442,9 @@ def check_and_update_positions(project_id: str = PROJECT_ID) -> list[dict]:
     assets = {row["asset"] for row in rows}
     prices: dict[str, float | None] = {}
     for asset in assets:
-        sym = _yf_symbol(asset)
-        try:
-            df = yf.download(sym, period="2d", interval="1d", progress=False, auto_adjust=True)
-            if df is None or df.empty:
-                prices[asset] = None
-                continue
-            close = df["Close"].dropna()
-            if hasattr(close, "ndim") and close.ndim > 1:
-                close = close.iloc[:, 0]
-            prices[asset] = float(close.iloc[-1]) if not close.empty else None
-        except Exception as e:
-            logger.warning("Price fetch failed for %s: %s", asset, e)
-            prices[asset] = None
+        prices[asset] = _current_price_for_asset(asset)
+        if prices[asset] is None:
+            logger.warning("Price fetch failed for %s", asset)
 
     today = date.today()
     closed: list[dict] = []
@@ -514,18 +557,7 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
     assets = {row["asset"] for row in rows}
     current_prices: dict[str, float | None] = {}
     for asset in assets:
-        sym = _yf_symbol(asset)
-        try:
-            df = yf.download(sym, period="3d", interval="1d", progress=False, auto_adjust=True)
-            if df is None or df.empty:
-                current_prices[asset] = None
-                continue
-            close = df["Close"].dropna()
-            if hasattr(close, "ndim") and close.ndim > 1:
-                close = close.iloc[:, 0]
-            current_prices[asset] = float(close.iloc[-1]) if not close.empty else None
-        except Exception:
-            current_prices[asset] = None
+        current_prices[asset] = _current_price_for_asset(asset)
 
     lines = ["<b>【上期建議追蹤】</b>"]
     rep_date = str(rows[0]["report_date"])

@@ -700,12 +700,36 @@ def _ensure_signal_conflict_section(text: str) -> str:
     return text
 
 
+def _has_crypto_trade_section(text: str) -> bool:
+    """
+    是否已含加密精準操作段（含 LLM 省略 (Crypto) 括號但已寫進出場的情形）。
+    避免誤判導致在完整建議後又注入「觀望模式」。
+    """
+    if re.search(r'資金流向與精準操作', text):
+        return True
+    return bool(
+        re.search(
+            r'精準操作\s*\(Crypto\)|精準操作[^\n]{0,40}Crypto|區塊④[^\n]*Crypto',
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _has_ai_trade_section(text: str) -> bool:
+    if re.search(r'AI\s*產業鏈精準操作|精準操作\s*\(US\s*Equit', text, re.IGNORECASE):
+        return True
+    if re.search(r'區塊④[^\n]*US\s*Equit', text, re.IGNORECASE):
+        return True
+    return bool(re.search(r'精準操作.*Equit', text, re.IGNORECASE))
+
+
 def _ensure_trade_sections(text: str) -> str:
     """
     當 LLM 漏寫交易段時，注入「觀望模式」區塊（不捏造價格）。
     """
-    has_crypto_trade = bool(re.search(r'資金流向與精準操作\s*\(Crypto\)|精準操作.*Crypto', text, re.IGNORECASE))
-    has_ai_trade = bool(re.search(r'AI\s*產業鏈精準操作|精準操作.*Equit', text, re.IGNORECASE))
+    has_crypto_trade = _has_crypto_trade_section(text)
+    has_ai_trade = _has_ai_trade_section(text)
     if has_crypto_trade and has_ai_trade:
         return text
 
@@ -810,8 +834,8 @@ def validate_report(text: str) -> dict:
     # Accept both old plain regime label and new scorecard format (e.g. "risk_on（+4/6）")
     has_regime    = bool(re.search(r'risk[\s_\-]*on|risk[\s_\-]*off|neutral', text, re.IGNORECASE))
     has_dashboard = bool(re.search(r'DXY|BTC\s*OI|資金費率|模型排名|ML.*權重|RSI|Fear.*Greed|儀表板', text, re.IGNORECASE))
-    has_crypto_trade = bool(re.search(r'資金流向與精準操作\s*\(Crypto\)|精準操作.*Crypto', text, re.IGNORECASE))
-    has_ai_trade  = bool(re.search(r'AI\s*產業鏈精準操作|精準操作.*Equit', text, re.IGNORECASE))
+    has_crypto_trade = _has_crypto_trade_section(text)
+    has_ai_trade = _has_ai_trade_section(text)
     has_ai_section = bool(re.search(r'AI\s*市場|AI\s*產業新聞|AI\s*數據儀表板', text, re.IGNORECASE))
     has_crypto_section = bool(re.search(r'加密市場|核心新聞|數據儀表板', text, re.IGNORECASE))
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
@@ -1848,10 +1872,82 @@ def _validate_required_keys() -> None:
         )
 
 
+def _log_api_key_inventory() -> None:
+    """盤點金鑰是否已設定（不記錄密碼）。MISS 表示該路徑工具會走備援或 N/A。"""
+    groups: list[tuple[str, list[tuple[str, str]]]] = [
+        (
+            "必要",
+            [
+                ("XAI_API_KEY", "Grok"),
+                ("OPENAI_API_KEY", "OpenAI"),
+                ("GEMINI_API_KEY", "Gemini"),
+                ("APIFY_API_TOKEN", "Apify"),
+            ],
+        ),
+        (
+            "建議/備援",
+            [
+                ("ANTHROPIC_API_KEY", "Claude fallback"),
+                ("NEWSAPI_KEY", "NewsAPI"),
+                ("GNEWS_API_KEY", "GNews"),
+                ("COINGLASS_API_KEY", "CoinGlass"),
+                ("CRYPTOPANIC_API_KEY", "CryptoPanic"),
+                ("CRYPTOQUANT_API_KEY", "CryptoQuant"),
+                ("FRED_API_KEY", "FRED"),
+                ("TWITTER_BEARER_TOKEN", "X/Twitter"),
+                ("OPENROUTER_API_KEY", "OpenRouter"),
+                ("FMP_API_KEY", "FMP"),
+                ("GLASSNODE_API_KEY", "Glassnode"),
+            ],
+        ),
+    ]
+    for title, keys in groups:
+        line = " | ".join(
+            f"{label}: {'OK' if (os.getenv(env) or '').strip() else 'MISS'}"
+            for env, label in keys
+        )
+        logger.info("API key inventory [%s] %s", title, line)
+
+
+def _verify_optional_api_keys_light() -> None:
+    """設 VERIFY_API_KEYS=1 時對少數公開端點做輕量探測（不驗證 Grok/Gemini 以節省配額）。"""
+    if os.getenv("VERIFY_API_KEYS", "").lower() not in ("1", "true", "yes"):
+        return
+    try:
+        import requests
+    except ImportError:
+        logger.warning("VERIFY_API_KEYS set but requests not installed; skip probe.")
+        return
+    nk = (os.getenv("NEWSAPI_KEY") or "").strip()
+    if nk:
+        try:
+            r = requests.get(
+                "https://newsapi.org/v2/top-headlines",
+                params={"country": "us", "pageSize": 1, "apiKey": nk},
+                timeout=10,
+            )
+            logger.info("VERIFY_API_KEYS: NewsAPI HTTP %s", r.status_code)
+        except Exception as e:
+            logger.warning("VERIFY_API_KEYS: NewsAPI probe failed: %s", e)
+    apify = (os.getenv("APIFY_API_TOKEN") or "").strip()
+    if apify:
+        try:
+            r = requests.get(
+                "https://api.apify.com/v2/users/me",
+                headers={"Authorization": f"Bearer {apify}"},
+                timeout=10,
+            )
+            logger.info("VERIFY_API_KEYS: Apify user/me HTTP %s", r.status_code)
+        except Exception as e:
+            logger.warning("VERIFY_API_KEYS: Apify probe failed: %s", e)
+
+
 if __name__ == "__main__":
     _install_runtime_noise_filters()
     logger.info("Initializing Q-Silicon Ultimate Agent...")
     _validate_required_keys()
+    _log_api_key_inventory()
+    _verify_optional_api_keys_light()
     generate_quant_chart("daily_chart.png")
     exclusion = fetch_exclusion_context()
     if exclusion:

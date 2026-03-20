@@ -152,6 +152,7 @@ _RISK_MODE_RULE = dedent("""\
     - 全文只能有一個主 market_regime（risk_on / neutral / risk_off）；嚴禁在不同段落切換 regime。
     - 允許情境分析條件句：可使用「若轉為 risk_off 則…」「若 VIX 突破 25 則切換至…」等 if…then 語句描述替代情境，但主 regime 判定不變。
     - 若今日市場模式為 risk_off：所有交易建議信心水準上限降一級（最高只能 ⭐️⭐️⭐️），並在敘事中明確標註「減倉/輕倉」。
+    - 若主判定為 neutral 或 risk_on：嚴禁在敘事中寫「高風險環境 risk_off」「Market Regime: risk_off」「依 risk_off」等與主判定矛盾的 regime 標籤；若要表達謹慎，僅可寫「VIX 偏高、採保守倉位／減碼」，且「今日風險預算」行須與主 regime 一致。
     - 無論訊號是否衝突，必須在交易段落前輸出 1 行「訊號衝突摘要：...」（若無衝突，寫「訊號衝突摘要：無顯著多空訊號衝突，各指標方向一致」；若有衝突，逐項說明衝突原因與影響，例如「RSI 中性但 VIX 倒掛 + 資金費率高企，短線信心受壓」）。
     - 交易段落前必須新增 1 行「今日風險預算：...」（依 Regime 風險預算硬規則）。""")
 
@@ -159,6 +160,10 @@ _PAIR_TRADE_RULE = dedent("""\
     【配對交易單位一致性】
     - 若輸出配對交易（如 $BTC / $SOL），必須明確標註「單位：BTC/SOL 比值」或「單位：價差」。
     - 現價/進場/目標/停損必須使用同一單位，禁止混用單幣現價與比值。""")
+
+_CRYPTO_TRADE_MUTEX_RULE = dedent("""\
+    【加密 精準操作 唯一性】加密市場僅允許一段「資金流向與精準操作」主體（標題可寫或不寫括號內 Crypto，二擇一即可，勿重複兩種標題）。
+    若已輸出含進場/目標/停損數值的可執行建議，嚴禁在同一加密區塊末尾再追加第二個「區塊④」或「觀望模式、暫不開新倉」段落；觀望模式僅能在完全不提供具體進出場價位時單獨使用。""")
 
 # tracker.py 解析用的機器可讀區塊格式（Telegram 不渲染，純文字標記）
 # 欄位：asset=代號大寫不含$, entry/target/stop=純數字, target_pct/stop_pct=百分比數字,
@@ -374,6 +379,7 @@ class CryptoResearchCrew:
                 {_RISK_MODE_RULE}
                 {_REGIME_POSITION_POLICY}
                 {_PAIR_TRADE_RULE}
+                {_CRYPTO_TRADE_MUTEX_RULE}
                 {ctx}
                 {prev_recs_ctx}
 
