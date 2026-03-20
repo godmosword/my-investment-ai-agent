@@ -1030,6 +1030,68 @@ def _extract_news_titles(text: str, max_titles: int = 20) -> list[str]:
     return titles[:max_titles]
 
 
+# ── 語義去重（Semantic Deduplication）──────────────────────────────────
+_SBERT_MODEL = None  # lazy singleton
+
+
+def _get_sbert_model():
+    """Lazy-load sentence-transformers model (first call ~1-2s, cached after)."""
+    global _SBERT_MODEL
+    if _SBERT_MODEL is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            _SBERT_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+            logger.info("Loaded sentence-transformers model: all-MiniLM-L6-v2")
+        except ImportError:
+            logger.warning("sentence-transformers not installed; semantic dedup disabled.")
+    return _SBERT_MODEL
+
+
+def _semantic_dedup_titles(titles: list[str], threshold: float = 0.80) -> list[str]:
+    """Filter semantically duplicate titles using cosine similarity on embeddings.
+
+    Args:
+        titles: List of news title strings.
+        threshold: Cosine similarity above this value is considered a duplicate (0-1).
+
+    Returns:
+        Deduplicated list preserving original order.
+    """
+    if not titles or len(titles) <= 1:
+        return titles
+
+    model = _get_sbert_model()
+    if model is None:
+        return titles  # graceful fallback: no dedup if model unavailable
+
+    try:
+        from scipy.spatial.distance import cosine
+        embeddings = model.encode(titles)
+
+        kept_indices: list[int] = []
+        for i, emb_i in enumerate(embeddings):
+            is_dup = False
+            for j in kept_indices:
+                sim = 1.0 - cosine(emb_i, embeddings[j])
+                if sim > threshold:
+                    logger.debug(
+                        "Semantic dedup: title %d (%.30s…) %.3f-similar to %d (%.30s…), skipping.",
+                        i, titles[i], sim, j, titles[j],
+                    )
+                    is_dup = True
+                    break
+            if not is_dup:
+                kept_indices.append(i)
+
+        deduped = [titles[i] for i in kept_indices]
+        if len(deduped) < len(titles):
+            logger.info("Semantic dedup removed %d/%d duplicate titles.", len(titles) - len(deduped), len(titles))
+        return deduped
+    except Exception as e:
+        logger.warning("Semantic dedup failed, returning original titles: %s", e)
+        return titles
+
+
 def _safe_chunks(text: str, max_len: int = 4000) -> list[str]:
     """切分訊息，優先在區段分隔線處切割，避免切斷新聞/推文條目。"""
     if not text:
@@ -1312,8 +1374,9 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
 
     # ── 6b. 萃取新聞標題供次日去重 ──────────────────
     all_titles = _extract_news_titles(report_text, max_titles=25)
+    all_titles = _semantic_dedup_titles(all_titles, threshold=0.80)
     news_titles_str = "\n".join(f"· {t}" for t in all_titles) if all_titles else None
-    logger.info("Extracted %d news titles for deduplication.", len(all_titles))
+    logger.info("Extracted %d news titles for deduplication (after semantic dedup).", len(all_titles))
 
     # ── Phase 4：從評分卡萃取 regime_score（-6 到 +6）──────────────
     regime_score: float | None = None
