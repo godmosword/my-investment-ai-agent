@@ -2,6 +2,13 @@
 
 本檔案記錄專案重要功能與行為變更。
 
+## 2026-03-15
+
+### Changed（GitHub Actions）
+- **CI**（`ci.yml`）：`pull_request` 仍全跑；`push main` 僅在 `**/*.py`、`requirements.txt`、`Dockerfile`、workflow 等路徑變更時跑 Lint+Test。
+- **部署**（`deploy.yml`）：**移除** `push` 自動觸發，改為僅 **`workflow_dispatch`**（Actions → Run workflow）；執行時仍先 `workflow_call` `ci.yml` 再建映像與 Cloud Run Job 部署。
+- `README.md`：同步說明「push 不自動部署、手動 Deploy workflow」。
+
 ## 2026-03-08
 
 ### Added
