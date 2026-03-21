@@ -6,7 +6,7 @@
 
 1. 標題（含日期）
 2. 【上期建議追蹤】（BQ 權威；LLM 勿改寫）
-3. 【今日市場模式】+ 評分卡明細
+3. 【今日市場模式】+ **極簡**評分呈現（✅❌⬜ + 讀數，避免長算式列）
 4. **· 今日主敘事：** 單句（≤45 字），與主 regime 一致
 5. 🏛️ 宏觀框架
 6. 📊 加密市場：區塊①～④
@@ -36,7 +36,13 @@
 - **多組總風險預算百分比衝突**：`validate_report` 會提示整併。
 - **QSREC 同 category + 同 asset 不得 LONG+SHORT 並存**：否則驗證失敗並觸發重試。
 
-## 6. 相關程式
+## 6. 避險基金極簡閱讀（手機優先）
 
-- 提示詞：`crew.py` → `_BRIEF_V2_RULE`、`_AI_RISK_BRIDGE_RULE`
+- 提示詞：`crew.py` → `_HEDGE_FUND_BRIEF_RULE`（與 Gate 對齊：**保留**「今日風險預算」「訊號衝突摘要」「本日選擇理由」等關鍵字，縮短內文）。
+- 交易欄位：仍須 R:R、最大回撤、勝率、Signal Score、觸發／建倉／失效／敘事—**欄位不刪**，改為單行字數上限。
+- 「本日選擇理由」須滿足 `validate_report` 動態選幣／選股長度與關鍵詞（不可為了極簡而低於門檻）。
+
+## 7. 相關程式
+
+- 提示詞：`crew.py` → `_BRIEF_V2_RULE`、`_AI_RISK_BRIDGE_RULE`、`_HEDGE_FUND_BRIEF_RULE`
 - 後處理：`main.py` → `_fix_glued_na_suffix`、`_postprocess_report_for_resilience`
