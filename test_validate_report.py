@@ -179,6 +179,13 @@ class TestHasNewsTimezoneUtc8(unittest.TestCase):
         text = "〔新聞 1〕[03/20 10:00 UTC+8] Source\n〔新聞 2〕[2026/03/20 11:00 UTC+8] Source"
         self.assertTrue(_has_news_timezone_utc8(text))
 
+    def test_tagged_gmt8_and_fullwidth_plus(self):
+        text = (
+            "〔新聞 1〕[03/20/2026 9:05 GMT+8] A\n"
+            "〔新聞 2〕[2026-03-20 11:00 UTC＋8] B"
+        )
+        self.assertTrue(_has_news_timezone_utc8(text))
+
     def test_tagged_without_utc8(self):
         text = "〔新聞 1〕Source\ntitle"
         self.assertFalse(_has_news_timezone_utc8(text))
@@ -254,6 +261,19 @@ class TestMacroOutlier(unittest.TestCase):
 
     def test_outlier_spread(self):
         self.assertTrue(_has_macro_outlier_values("利差：+1500bp"))
+
+    def test_sofr_line_ignores_distant_percent_not_rates(self):
+        """同列遠端敘事 %（如情緒指標）不應與 SOFR 利率混檢。"""
+        self.assertFalse(
+            _has_macro_outlier_values(
+                "宏觀摘要：VIX 相關敘事 85.0% 投資人悲觀；Fed SOFR 期貨隱含利率：3.81%"
+            )
+        )
+
+    def test_sofr_near_rate_still_outlier(self):
+        self.assertTrue(
+            _has_macro_outlier_values("儀表板｜Fed SOFR 期貨隱含利率：120.5%（錯誤）")
+        )
 
 
 class TestMacroConflicts(unittest.TestCase):
@@ -344,6 +364,14 @@ class TestValidateReport(unittest.TestCase):
         report = _make_report(include_rumor_grade=False)
         result = validate_report(report)
         self.assertTrue(any("可信度" in i for i in result["issues"]))
+
+    def test_rumor_grade_slash_100_passes(self):
+        report = _make_report(include_rumor_grade=False, extra="產業鏈呢喃：供應鏈消息 可信度 72/100\n")
+        result = validate_report(report)
+        self.assertFalse(
+            any("傳聞區缺少可信度" in i for i in result["issues"]),
+            f"expected slash-100 rumor grade accepted, got: {result['issues']}",
+        )
 
     def test_missing_rr_and_drawdown(self):
         report = _make_report(include_rr=False)
