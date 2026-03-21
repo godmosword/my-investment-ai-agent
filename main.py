@@ -23,6 +23,33 @@ from visualizer import generate_quant_chart
 import tracker
 import scratchpad
 from tracker import load_previous_recs_block
+from report_pipeline_compare import compare_validation_results
+from validation_rules import (
+    BUDGET_TAGS_RE,
+    CODE_LEAK_RE,
+    DATA_MISSING_FIELDS_RE,
+    HAS_AI_SECTION_RE,
+    HAS_CRYPTO_SECTION_RE,
+    HAS_DASHBOARD_RE,
+    HAS_DATA_MISSING_RE,
+    HAS_EXPECTED_WIN_RATE_RE,
+    HAS_LOW_CONFIDENCE_RE,
+    HAS_REGIME_RE,
+    HAS_RISK_BUDGET_RE,
+    HAS_RR_RE,
+    HAS_SIGNAL_CONFLICT_RE,
+    HAS_SIGNAL_SCORE_RE,
+    HAS_MAX_DRAWDOWN_RE,
+    IMPACT_LEAK_RE,
+    MALFORMED_INVALIDATION_RE,
+    MODE_TAGS_RE,
+    NA_TOKEN_RE,
+    NUMERIC_INVESTMENT_LINE_RE,
+    NUMERIC_INVESTMENT_MULTI_RE,
+    QSREC_MARKERS_RE,
+    TRADE_WATCH_MODE_RE,
+    UNACTIONABLE_TRADE_RE,
+)
 
 load_dotenv()
 
@@ -97,8 +124,8 @@ MAX_PREV_RECS_CHARS = int(os.getenv("MAX_PREV_RECS_CHARS", "1200"))
 
 # 除錯用環境變數：LOG_LEVEL=DEBUG | DEBUG=1 | CREW_VERBOSE=1（Agent 步驟）| SKIP_TELEGRAM=1 | SKIP_BIGQUERY=1
 
-# Telegram HTML 支援的標籤白名單
-_ALLOWED_TAGS = {"b", "i", "u", "s", "code", "pre", "blockquote", "a"}
+# Telegram HTML 支援的標籤白名單（與專案規範一致，不含 <pre>）
+_ALLOWED_TAGS = {"b", "i", "u", "s", "code", "blockquote", "a"}
 
 
 def _truncate_text(text: str | None, limit: int) -> str:
@@ -182,7 +209,7 @@ def sanitize_telegram_html(text: str) -> str:
     text = re.sub(r'<a\b[^>]*>', _keep_anchor_open, text, flags=re.IGNORECASE)
     text = re.sub(r'</a\s*>', lambda _m: _stash("</a>"), text, flags=re.IGNORECASE)
     text = re.sub(
-        r'</?(?:b|i|u|s|code|pre|blockquote)\s*>',
+        r'</?(?:b|i|u|s|code|blockquote)\s*>',
         lambda m: _stash(m.group(0).lower()),
         text,
         flags=re.IGNORECASE,
@@ -200,7 +227,7 @@ def sanitize_telegram_html(text: str) -> str:
 def _balance_telegram_html_tags(text: str) -> str:
     """移除不合法 closing tag，並為未關閉 tag 自動補齊結尾。"""
     tag_re = re.compile(
-        r'</?(?:b|i|u|s|code|pre|blockquote|a)(?:\s+href="[^"]*")?\s*>',
+        r'</?(?:b|i|u|s|code|blockquote|a)(?:\s+href="[^"]*")?\s*>',
         re.IGNORECASE,
     )
     out: list[str] = []
@@ -1842,66 +1869,41 @@ def validate_report(text: str) -> dict:
     fallback_count = _fallback_news_count(text)
 
     # Accept both old plain regime label and new scorecard format (e.g. "risk_on（+4/6）")
-    has_regime    = bool(re.search(r'risk[\s_\-]*on|risk[\s_\-]*off|neutral', text, re.IGNORECASE))
-    has_dashboard = bool(re.search(r'DXY|BTC\s*OI|資金費率|模型排名|ML.*權重|RSI|Fear.*Greed|儀表板', text, re.IGNORECASE))
+    has_regime = bool(HAS_REGIME_RE.search(text))
+    has_dashboard = bool(HAS_DASHBOARD_RE.search(text))
     has_crypto_trade = _has_crypto_trade_section(text)
     has_ai_trade = _has_ai_trade_section(text)
-    has_ai_section = bool(re.search(r'AI\s*市場|AI\s*產業新聞|AI\s*數據儀表板', text, re.IGNORECASE))
-    has_crypto_section = bool(re.search(r'加密市場|核心新聞|數據儀表板', text, re.IGNORECASE))
+    has_ai_section = bool(HAS_AI_SECTION_RE.search(text))
+    has_crypto_section = bool(HAS_CRYPTO_SECTION_RE.search(text))
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
-    has_data_missing = bool(re.search(r'\[DATA_MISSING:', text))
-    data_missing_fields = sorted(set(re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)))
+    has_data_missing = bool(HAS_DATA_MISSING_RE.search(text))
+    data_missing_fields = sorted(set(DATA_MISSING_FIELDS_RE.findall(text)))
     # 交易觀望：放寬 R:R／勝率等「可執行欄位」檢查（與「新聞不足分段」解耦）
-    trade_watch_mode = bool(
-        re.search(
-            r"觀望模式|資料不足觀望|暫不開新倉|暫不提供股票進出場價格",
-            text,
-        )
-    )
+    trade_watch_mode = bool(TRADE_WATCH_MODE_RE.search(text))
     partial_news_ok = _partial_news_ok(text)
     news_six_relaxed = trade_watch_mode or partial_news_ok
-    has_qsrec_markers = bool(re.search(r'\[QSREC_START\][\s\S]*?\[QSREC_END\]', text))
+    has_qsrec_markers = bool(QSREC_MARKERS_RE.search(text))
     parsed_qsrec = tracker.extract_recommendations_json(text) if has_qsrec_markers else []
     has_valid_qsrec = bool(parsed_qsrec)
-    has_rr = bool(re.search(r'R:R\s*=\s*1:\d+(?:\.\d+)?', text, re.IGNORECASE))
-    has_max_drawdown = bool(re.search(r'最大回撤風險[：:]\s*(?:<code>)?\s*-\d+(?:\.\d+)?%(?:</code>)?', text))
-    has_expected_win_rate = bool(
-        re.search(r'(?:預期勝率|勝率預期)[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?\s*%?(?:</code>)?', text)
-    )
-    has_signal_score = bool(
-        re.search(
-            r'Signal\s*Score[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?(?:\s*/\s*100)?(?:</code>)?',
-            text,
-            re.IGNORECASE,
-        )
-    )
-    has_signal_conflict = bool(re.search(r'[訊信]號衝突(?:摘要|分析)?[：:]', text))
-    has_risk_budget = bool(re.search(r'今日風險預算[：:]', text))
+    has_rr = bool(HAS_RR_RE.search(text))
+    has_max_drawdown = bool(HAS_MAX_DRAWDOWN_RE.search(text))
+    has_expected_win_rate = bool(HAS_EXPECTED_WIN_RATE_RE.search(text))
+    has_signal_score = bool(HAS_SIGNAL_SCORE_RE.search(text))
+    has_signal_conflict = bool(HAS_SIGNAL_CONFLICT_RE.search(text))
+    has_risk_budget = bool(HAS_RISK_BUDGET_RE.search(text))
     has_rumor_grade = _has_rumor_grade_marker(text)
     has_utc8 = _has_news_timezone_utc8(text)
-    too_many_na = len(re.findall(r'\bN/A\b', text)) > 3
-    has_low_confidence_tag = bool(re.search(r'低置信度|低信心', text))
+    too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
+    has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
     has_numeric_in_investment = bool(
-        re.search(r'投資解讀[：:][^\n]*(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)', text)
-        or re.search(
-            r'投資解讀[：:][^\n]*(?:\n[^\n]*){0,5}(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)',
-            text,
-        )
+        NUMERIC_INVESTMENT_LINE_RE.search(text) or NUMERIC_INVESTMENT_MULTI_RE.search(text)
     )
     has_source_health = "【SourceHealth】" in text
     has_source_errors = "【SourceErrors】" in text
     has_source_quota = "【SourceQuota】" in text
-    mode_tags_raw = re.findall(
-        r'【今日市場模式】\s*(?:<[^>]*>\s*)*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)(?:\s*</[^>]*>)*',
-        text,
-        re.IGNORECASE,
-    )
-    budget_tags_raw = re.findall(
-        r'今日風險預算[：:][^\n]*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)',
-        text,
-        re.IGNORECASE,
-    )
+    mode_tags_raw = MODE_TAGS_RE.findall(text)
+    budget_tags_raw = BUDGET_TAGS_RE.findall(text)
     mode_tags = [r for r in (_normalize_regime_token(x) for x in mode_tags_raw) if r]
     budget_tags = [r for r in (_normalize_regime_token(x) for x in budget_tags_raw) if r]
     qsrec_regimes = []
@@ -1924,17 +1926,13 @@ def validate_report(text: str) -> dict:
     }
     authoritative_regimes = unique_regimes - conditional_regimes
     has_mixed_regime = len(authoritative_regimes) > 1
-    malformed_invalidation = bool(
-        re.search(r'失效條件[：:]\s*(?:<code>)?\s*(?:</code>)?\s*(?:\n|$)', text)
-    )
-    has_unactionable_trade = bool(
-        re.search(r'·\s*\$[A-Z0-9/]+[\s\S]*?(?:現價|進場|目標|停損)[：:]\s*(?:<code>)?\s*N/A', text)
-    )
+    malformed_invalidation = bool(MALFORMED_INVALIDATION_RE.search(text))
+    has_unactionable_trade = bool(UNACTIONABLE_TRADE_RE.search(text))
     has_macro_outlier = _has_macro_outlier_values(text)
     has_macro_conflict = _has_macro_conflicts(text)
     has_source_observability_conflict = _has_source_observability_conflicts(text)
-    has_code_leak = bool(re.search(r'multi_timeframe_tool\s*\(', text))
-    has_impact_leak = bool(re.search(r'\[IMPACT:|🎯\s*IMPACT|📍\s*受影響資產|📈\s*做多機會|📉\s*做空風險', text))
+    has_code_leak = bool(CODE_LEAK_RE.search(text))
+    has_impact_leak = bool(IMPACT_LEAK_RE.search(text))
     pair_unit_ok = _pair_trade_unit_consistent(text)
     risk_off_star_ok = not _risk_off_star_cap_violated(text)
     qsrec_issues = _qsrec_consistency_issues(text, parsed_qsrec) if has_valid_qsrec else []
@@ -2090,6 +2088,45 @@ def validate_report(text: str) -> dict:
         "pick_rotation_crypto_ok": pick_crypto_rot_ok,
         "pick_rotation_equity_ok": pick_equity_rot_ok,
     }
+
+
+def _report_compare_mode() -> bool:
+    """Phase 3：雙軌驗證比對（僅 log，不切 Telegram / BQ 決策）。"""
+    return os.getenv("REPORT_COMPARE_MODE", "").lower() in ("1", "true", "yes")
+
+
+def _validate_report_candidate(text: str) -> dict:
+    """
+    Phase 3 候選驗證路徑。
+
+    實作位於 `core/report_validation.py`（延遲 import main，避免循環）。
+    目前與 `validate_report` 等價；日後可改為獨立實作並以 REPORT_COMPARE_MODE 觀測差異。
+    正式管線仍以本模組的 `validate_report` 為唯一權威。
+    """
+    from core.report_validation import validate_report_candidate
+
+    return validate_report_candidate(text)
+
+
+def _log_validation_dual_run(final_report: str, legacy_result: dict) -> None:
+    """若 REPORT_COMPARE_MODE=1，比對 legacy vs candidate 並寫入日誌（不一致為 WARNING）。"""
+    if not _report_compare_mode():
+        return
+    if not (final_report or "").strip():
+        return
+    candidate = _validate_report_candidate(final_report)
+    diff = compare_validation_results(legacy_result, candidate)
+    if diff["identical"]:
+        logger.info("REPORT_COMPARE: legacy vs candidate snapshots identical.")
+        return
+    logger.warning(
+        "REPORT_COMPARE: mismatch legacy vs candidate | legacy_valid=%s candidate_valid=%s | "
+        "only_in_legacy=%s | only_in_candidate=%s",
+        diff["legacy_valid"],
+        diff["candidate_valid"],
+        diff["issues_only_in_legacy"][:8],
+        diff["issues_only_in_candidate"][:8],
+    )
 
 
 _SECTION_RE_CACHE: dict[str, re.Pattern] = {}
@@ -2919,6 +2956,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                 )
 
             result = validate_report(final_report)
+            _log_validation_dual_run(final_report, result)
             last_validation = result
             report_valid = result["valid"]
             scratchpad.append_gate_result(attempt + 1, result)

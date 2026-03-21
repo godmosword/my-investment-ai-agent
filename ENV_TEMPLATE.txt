@@ -58,6 +58,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # CREW_VERBOSE=0
 # SKIP_TELEGRAM=0
 # SKIP_BIGQUERY=0
+# REPORT_COMPARE_MODE=0   # Phase 3：1=每次 validate 後額外跑候選路徑並 log 差異（不切 Telegram/BQ 決策）
 # MAX_REPORT_RETRIES=2
 # MAX_503_RETRIES=3
 # BACKOFF_BASE_SEC=30
