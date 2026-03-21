@@ -480,7 +480,8 @@ def _pick_justification_equity_ok(text: str, recs: list[dict]) -> tuple[bool, st
 
 
 _REPEAT_PICK_REASON_RE = re.compile(
-    r"重複選用理由|連日(?:選(?:用)?|持有|維持)|仍選(?:用)?|同標(?:的)?延續|延續昨|延續上日|與昨日相同標的",
+    r"重複選用理由|重複選股理由|重複持有理由|連日(?:選(?:用)?|持有|維持)|連續(?:兩日|多日)(?:同標|持有|維持)|"
+    r"仍選(?:用)?|同標(?:的)?延續|延續昨|延續上日|與昨日相同標的|維持昨日(?:兩檔|組合|標的)|持續鎖定(?:同組|兩檔)",
     re.IGNORECASE,
 )
 _PICK_SCORE_FIELDS = (
@@ -1640,6 +1641,24 @@ def _ensure_low_confidence_for_many_na(text: str) -> str:
     return text.rstrip() + "\n\n" + block
 
 
+_DATA_MISSING_TOKEN_RE = re.compile(r"\[DATA_MISSING:([^\]]+)\]")
+
+
+def _redact_data_missing_tokens_from_visible_report(text: str) -> str:
+    """
+    LLM 有時把工具回傳的 [DATA_MISSING:...] 貼進戰報正文，validate_report 會記為「資料缺失欄位」並可能 hard fail。
+    改寫為不含該標記的中文短語（來源健康仍見 【SourceHealth】 三行）。
+    """
+    if not text or "[DATA_MISSING:" not in text:
+        return text
+
+    def _repl(m: re.Match) -> str:
+        key = (m.group(1) or "").strip() or "unknown"
+        return f"〔資料源暫缺：{key}〕"
+
+    return _DATA_MISSING_TOKEN_RE.sub(_repl, text)
+
+
 def _postprocess_report_for_resilience(text: str) -> str:
     """修正易失格式：新聞 UTC+8、新聞不足降級補齊、來源可觀測欄位。"""
     if not text:
@@ -1655,6 +1674,7 @@ def _postprocess_report_for_resilience(text: str) -> str:
     patched = _ensure_signal_conflict_section(patched)
     patched = _ensure_min_news_count(patched, min_news=6)
     patched = _ensure_low_confidence_for_many_na(patched)
+    patched = _redact_data_missing_tokens_from_visible_report(patched)
 
     # 原子化來源欄位收斂：只做一次「清理 -> 注入」避免重複殘留。
     patched = _remove_duplicate_source_observability(patched)
