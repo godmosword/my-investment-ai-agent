@@ -59,3 +59,5 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # GNEWS_DAILY_CALL_LIMIT=120
 # APIFY_DAILY_CALL_LIMIT=30
 # DISABLE_SOURCE_HEALTH_BQ=1
+# ALLOW_PARTIAL_NEWS_GATE=1   # 預設開啟：符合「新聞資料不足分段」時允許 3~5 則〔新聞 N〕放行（仍須〔新聞1~3〕+ UTC+8 + 不補虛構宣告）；設 0 強制永遠要 6 則
+# STRICT_PICK_JUSTIFICATION=1 # 預設開啟：驗證「本日選擇理由」是否含足夠催化/鏈上或退階說明並點名 QSREC 標的（幣/股分開）；設 0 關閉

@@ -15,7 +15,12 @@ except ImportError:
 
 load_dotenv()
 
-st.set_page_config(page_title="Q-Silicon 戰情室", page_icon="🛡️", layout="wide")
+st.set_page_config(
+    page_title="Q-Silicon 戰情室",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 _TIMEZONE_TPE = timezone(timedelta(hours=8))
 
@@ -30,14 +35,17 @@ COLORS = {
     "red":        "#ff4b5c",
     "blue":       "#3a86ff",
     "purple":     "#8338ec",
+    "cyan":       "#22d3ee",
     "bg_card":    "rgba(30, 36, 50, 0.55)",
+    "bg_deep":    "#0d1117",
     "border":     "rgba(255,255,255,0.08)",
     "text_muted": "#8e99a4",
+    "glow":       "rgba(58, 134, 255, 0.35)",
 }
 
 PLOTLY_TEMPLATE = dict(
     layout=go.Layout(
-        font=dict(family="Inter, sans-serif", color="#c9d1d9"),
+        font=dict(family="DM Sans, sans-serif", color="#c9d1d9"),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         title_font_color="#e6edf3",
@@ -48,59 +56,166 @@ PLOTLY_TEMPLATE = dict(
 )
 
 # ── 自訂 CSS ──────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-/* KPI 卡片背景 */
+:root {
+  --qs-bg: #0d1117;
+  --qs-surface: rgba(22, 27, 38, 0.92);
+  --qs-blue: %(blue)s;
+  --qs-cyan: %(cyan)s;
+}
+html, body, [class*="css"]  {
+  font-family: 'DM Sans', 'Noto Sans TC', system-ui, sans-serif !important;
+}
+div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+  font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+  letter-spacing: -0.02em;
+}
+/* 頁面背景微漸層 */
+section.main > div {
+  background: radial-gradient(1200px 600px at 10%% -10%%, rgba(58, 134, 255, 0.12), transparent 55%%),
+              radial-gradient(900px 500px at 100%% 0%%, rgba(131, 56, 236, 0.08), transparent 50%%),
+              var(--qs-bg) !important;
+}
+/* KPI 卡片 */
 div[data-testid="stMetric"] {
-    background: %(bg_card)s;
+    background: linear-gradient(145deg, rgba(38, 45, 62, 0.75), rgba(22, 27, 38, 0.85)) !important;
     border: 1px solid %(border)s;
-    border-radius: 12px;
-    padding: 16px 20px;
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+div[data-testid="stMetric"]:hover {
+    border-color: rgba(58, 134, 255, 0.35);
+    box-shadow: 0 0 0 1px rgba(58, 134, 255, 0.12), 0 8px 32px rgba(0,0,0,0.35);
 }
 div[data-testid="stMetric"] label {
     color: %(text_muted)s !important;
-    font-size: 0.82rem !important;
-    letter-spacing: 0.03em;
+    font-size: 0.8rem !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 div[data-testid="stMetric"] [data-testid="stMetricValue"] {
     font-weight: 700;
+    font-size: 1.55rem !important;
 }
 
-/* Section 標題左側色條 */
+/* 頂部 hero 條 */
+.qs-hero {
+    position: relative;
+    padding: 1px;
+    border-radius: 14px;
+    margin-bottom: 0.75rem;
+    background: linear-gradient(120deg, %(blue)s, %(purple)s, %(cyan)s);
+    box-shadow: 0 0 40px %(glow)s;
+}
+.qs-hero-inner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 12px 16px;
+    border-radius: 13px;
+    background: rgba(13, 17, 23, 0.92);
+}
+.qs-pill {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(58, 134, 255, 0.2);
+    color: #c9e0ff;
+    border: 1px solid rgba(58, 134, 255, 0.35);
+}
+.qs-pill-dim {
+    background: rgba(142, 153, 164, 0.12);
+    color: %(text_muted)s;
+    border-color: %(border)s;
+}
+
+/* Section 標題 */
+h1 { letter-spacing: -0.02em; }
 h2, h3 {
     border-left: 4px solid %(blue)s;
     padding-left: 12px;
+    margin-top: 1.25rem;
 }
 
-/* Tab 底線色 */
+/* Tab */
 button[data-baseweb="tab"] {
     font-weight: 600 !important;
 }
 button[data-baseweb="tab"][aria-selected="true"] {
     border-bottom-color: %(blue)s !important;
+    color: #e6edf3 !important;
 }
 
-/* Expander 圓角 */
-details[data-testid="stExpander"] {
-    border-radius: 10px;
+/* Plotly 外框圓角（外層 element） */
+div[data-testid="stPlotlyChart"] {
+    border-radius: 12px;
     border: 1px solid %(border)s;
+    overflow: hidden;
+    background: rgba(0,0,0,0.15);
 }
 
-/* Divider 淡化 */
+details[data-testid="stExpander"] {
+    border-radius: 12px;
+    border: 1px solid %(border)s;
+    background: rgba(0,0,0,0.12);
+}
 hr {
     border-color: %(border)s !important;
-    opacity: 0.5;
+    opacity: 0.45;
 }
-
-/* Sidebar 底部 caption */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, rgba(20, 24, 32, 0.98), rgba(13, 17, 23, 0.98)) !important;
+    border-right: 1px solid %(border)s !important;
+}
 section[data-testid="stSidebar"] .stCaption {
     color: %(text_muted)s;
 }
+/* Agent 摘要區塊 */
+div.qs-agent-wrap {
+    border: 1px solid %(border)s;
+    border-radius: 12px;
+    padding: 1rem 1.15rem;
+    background: linear-gradient(180deg, rgba(32, 38, 52, 0.5), rgba(18, 22, 30, 0.65));
+    margin-top: 0.5rem;
+}
+footer.qs-footer {
+    text-align: center;
+    color: %(text_muted)s;
+    font-size: 0.78rem;
+    margin-top: 2.5rem;
+    padding: 1rem;
+    border-top: 1px solid %(border)s;
+    opacity: 0.85;
+}
 </style>
-""" % COLORS, unsafe_allow_html=True)
+"""
+    % COLORS,
+    unsafe_allow_html=True,
+)
 
 st.title("🛡️ Q-Silicon 終極投資戰情室")
 st.caption("自動化情報聚合 ｜ 巨鯨資金流向 ｜ AI 算力定價")
+st.markdown(
+    """
+<div class="qs-hero"><div class="qs-hero-inner">
+<span class="qs-pill">Live · BigQuery</span>
+<span class="qs-pill qs-pill-dim">Plotly</span>
+<span class="qs-pill qs-pill-dim">Streamlit</span>
+</div></div>
+""",
+    unsafe_allow_html=True,
+)
 
 
 @st.cache_resource
@@ -111,6 +226,29 @@ def _get_bq_client() -> bigquery.Client:
 
 # ── 預先計算 Plotly 佈局 kwargs（避免每次渲染重複序列化）──────────────
 _LAYOUT_KWARGS: dict = PLOTLY_TEMPLATE["layout"].to_plotly_json()
+
+
+def _style_plotly(fig, *, height: int | None = None) -> None:
+    """統一暗色主題、hover、圖例位置。"""
+    fig.update_layout(**_LAYOUT_KWARGS)
+    fig.update_layout(
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor="rgba(16, 20, 28, 0.94)",
+            font_size=13,
+            font_family="DM Sans, sans-serif",
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor="rgba(0,0,0,0)",
+        ),
+    )
+    if height is not None:
+        fig.update_layout(height=height)
 
 # ── Sidebar：全域篩選與設定 ──────────────────────────────────────────
 with st.sidebar:
@@ -124,7 +262,7 @@ with st.sidebar:
         st.rerun()
     _now_tpe = datetime.now(_TIMEZONE_TPE)
     st.caption(f"Last refresh: {_now_tpe.strftime('%H:%M:%S')} TPE")
-    st.caption("🛡️ Q-Silicon 戰情室 v2")
+    st.caption("🛡️ Q-Silicon 戰情室 v3")
 
 
 # ── 讀取每日指標（動態 KPI 來源）─────────────────────────────────────
@@ -200,15 +338,19 @@ avg_risk   = metrics.get("avg_risk_score")
 dxy_val    = metrics.get("dxy")
 etf_val    = metrics.get("etf_flow")
 
-# 根據平均風險分數判斷市場模式
+# 根據平均風險分數判斷市場模式（與日報 neutral / risk_on / risk_off 三態對齊）
 if avg_risk is not None:
     if avg_risk >= 3.5:
         regime_label = "🔴 Risk OFF"
-        regime_delta = "高度警戒"
+        regime_delta = "高度警戒 · 防禦"
         regime_color = "inverse"
+    elif avg_risk >= 2.5:
+        regime_label = "🟡 Neutral"
+        regime_delta = "結構觀望 · 控倉"
+        regime_color = "off"
     else:
         regime_label = "🟢 Risk ON"
-        regime_delta = "尋找機會"
+        regime_delta = "風險可控 · 找催化"
         regime_color = "normal"
 else:
     regime_label = "N/A"
@@ -286,9 +428,9 @@ with gauge_col:
             "bar": {"color": COLORS["blue"]},
             "bgcolor": "rgba(0,0,0,0)",
             "steps": [
-                {"range": [0, 2],   "color": COLORS["green"]},
-                {"range": [2, 3.5], "color": COLORS["yellow"]},
-                {"range": [3.5, 5], "color": COLORS["red"]},
+                {"range": [0, 2.5],   "color": COLORS["green"]},
+                {"range": [2.5, 3.5], "color": COLORS["yellow"]},
+                {"range": [3.5, 5],   "color": COLORS["red"]},
             ],
             "threshold": {
                 "line": {"color": COLORS["red"], "width": 3},
@@ -298,28 +440,24 @@ with gauge_col:
         },
         title={"text": "平均風險分數", "font": {"size": 18, "color": "#e6edf3"}},
     ))
-    fig_gauge.update_layout(
-        height=260,
-        margin={"t": 60, "b": 20, "l": 30, "r": 30},
-        paper_bgcolor="rgba(0,0,0,0)",
-        font_color="#c9d1d9",
-    )
+    _style_plotly(fig_gauge, height=260)
+    fig_gauge.update_layout(margin=dict(t=60, b=20, l=30, r=30))
     st.plotly_chart(fig_gauge, use_container_width=True)
 
 with info_col:
     st.markdown("**風險等級說明**")
     st.markdown(
-        "- 🟢 **0 ~ 2.0**：低風險，市場情緒穩定，可積極尋找機會\n"
-        "- 🟡 **2.0 ~ 3.5**：中等風險，保持警覺，控制倉位\n"
-        "- 🔴 **3.5 ~ 5.0**：高風險，市場 FUD 升溫，建議防禦策略"
+        "- 🟢 **0 ~ 2.5**：Risk ON 區 — 情緒相對穩定，可積極找結構機會\n"
+        "- 🟡 **2.5 ~ 3.5**：Neutral 區 — 多空拉扯，控倉與紀律優先\n"
+        "- 🔴 **3.5 ~ 5.0**：Risk OFF 區 — FUD 升溫，偏防禦與現金管理"
     )
     if avg_risk is not None:
         if avg_risk >= 3.5:
             st.error(f"當前風險 {avg_risk:.1f}/5 — 建議減倉或對沖")
-        elif avg_risk >= 2.0:
-            st.warning(f"當前風險 {avg_risk:.1f}/5 — 謹慎操作")
+        elif avg_risk >= 2.5:
+            st.warning(f"當前風險 {avg_risk:.1f}/5 — 中性觀望，嚴守風險預算")
         else:
-            st.success(f"當前風險 {avg_risk:.1f}/5 — 市場相對安全")
+            st.success(f"當前風險 {avg_risk:.1f}/5 — 市場相對友善（仍須單筆風控）")
 
 st.divider()
 
@@ -356,7 +494,11 @@ else:
             labels={"timestamp": "日期", "dxy": "DXY"},
             markers=True, color_discrete_sequence=[COLORS["blue"]],
         )
-        fig_dxy.update_layout(**_LAYOUT_KWARGS)
+        fig_dxy.update_traces(
+            line=dict(width=2.6, shape="spline", smoothing=0.35),
+            marker=dict(size=8, line=dict(width=0)),
+        )
+        _style_plotly(fig_dxy, height=420)
         st.plotly_chart(fig_dxy, use_container_width=True)
     with tab_etf:
         fig_etf = px.bar(
@@ -364,9 +506,10 @@ else:
             title="BTC ETF 資金流（億，正為流入，負為流出）",
             labels={"timestamp": "日期", "etf_flow_millions": "資金流（億）"},
             color="etf_flow_millions",
-            color_continuous_scale=[COLORS["red"], COLORS["green"]],
+            color_continuous_scale=[COLORS["red"], "#1a1f2e", COLORS["green"]],
         )
-        fig_etf.update_layout(**_LAYOUT_KWARGS)
+        fig_etf.update_traces(marker_line_width=0, opacity=0.92)
+        _style_plotly(fig_etf, height=420)
         st.plotly_chart(fig_etf, use_container_width=True)
     with tab_mvrv:
         fig_mvrv = px.line(
@@ -374,6 +517,10 @@ else:
             title="BTC MVRV Z-Score 鏈上估值趨勢",
             labels={"timestamp": "日期", "mvrv_z_score": "MVRV Z-Score"},
             markers=True, color_discrete_sequence=[COLORS["purple"]],
+        )
+        fig_mvrv.update_traces(
+            line=dict(width=2.6, shape="spline", smoothing=0.35),
+            marker=dict(size=8, line=dict(width=0)),
         )
         fig_mvrv.add_hline(
             y=7, line_dash="dash", line_color=COLORS["red"],
@@ -388,7 +535,7 @@ else:
         fig_mvrv.add_hrect(
             y0=0, y1=3, fillcolor=COLORS["green"], opacity=0.05, line_width=0,
         )
-        fig_mvrv.update_layout(**_LAYOUT_KWARGS)
+        _style_plotly(fig_mvrv, height=440)
         st.plotly_chart(fig_mvrv, use_container_width=True)
         st.caption("MVRV Z-Score > 7：歷史頂部區域 ｜ 3~7：看漲但需留意過熱 ｜ 0~3：健康多頭 ｜ < 0：底部積累")
     with tab_risk:
@@ -398,12 +545,21 @@ else:
             labels={"timestamp": "日期", "avg_risk_score": "影響指數"},
             markers=True, color_discrete_sequence=[COLORS["yellow"]],
         )
+        fig_risk.update_traces(
+            line=dict(width=2.6, shape="spline", smoothing=0.35),
+            marker=dict(size=8, line=dict(width=0)),
+        )
         fig_risk.add_hline(
             y=3.5, line_dash="dash", line_color=COLORS["red"],
             annotation_text="Risk OFF 警戒線 (3.5)",
             annotation_font_color=COLORS["red"],
         )
-        fig_risk.update_layout(**_LAYOUT_KWARGS)
+        fig_risk.add_hline(
+            y=2.5, line_dash="dot", line_color=COLORS["blue"],
+            annotation_text="Neutral 下緣 (2.5)",
+            annotation_font_color=COLORS["blue"],
+        )
+        _style_plotly(fig_risk, height=420)
         st.plotly_chart(fig_risk, use_container_width=True)
 
 st.divider()
@@ -420,14 +576,15 @@ if df_whales.empty:
 else:
     fig = px.bar(
         df_whales,
-        x='timestamp',
-        y='amount',
+        x="timestamp",
+        y="amount",
         title="BTC 巨鯨大額轉帳歷史（單位：BTC）",
-        labels={'timestamp': '時間', 'amount': '轉帳數量 (BTC)'},
-        color='amount',
-        color_continuous_scale=[COLORS["blue"], COLORS["purple"], COLORS["red"]],
+        labels={"timestamp": "時間", "amount": "轉帳數量 (BTC)"},
+        color="amount",
+        color_continuous_scale=[COLORS["cyan"], COLORS["purple"], COLORS["red"]],
     )
-    fig.update_layout(**_LAYOUT_KWARGS)
+    fig.update_traces(marker_line_width=0, opacity=0.9)
+    _style_plotly(fig, height=400)
     st.plotly_chart(fig, use_container_width=True)
 
     with st.expander("查看原始數據"):
@@ -446,14 +603,21 @@ gpt_text  = metrics.get("gpt_summary")
 
 with tab1:
     if grok_text:
+        st.markdown('<div class="qs-agent-wrap">', unsafe_allow_html=True)
         st.markdown(grok_text)
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.info("尚無幣圈情報摘要，等待第一次戰報寫入後自動顯示。")
 
 with tab2:
     if gpt_text:
+        st.markdown('<div class="qs-agent-wrap">', unsafe_allow_html=True)
         st.markdown(gpt_text)
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.info("尚無 AI 產業情報摘要，等待第一次戰報寫入後自動顯示。")
 
-st.caption("Powered by CrewAI & Google Cloud BigQuery")
+st.markdown(
+    '<footer class="qs-footer">Q-Silicon · CrewAI pipeline · BigQuery · Plotly · Streamlit v3</footer>',
+    unsafe_allow_html=True,
+)

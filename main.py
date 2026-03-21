@@ -37,6 +37,16 @@ SKIP_TELEGRAM = os.getenv("SKIP_TELEGRAM", "").lower() in ("1", "true", "yes")
 SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
 STRICT_CONSISTENCY_GATE = os.getenv("STRICT_CONSISTENCY_GATE", "1").lower() in ("1", "true", "yes")
 
+
+def _allow_partial_news_gate() -> bool:
+    """允許「新聞分段」模式：3~5 則〔新聞 N〕+ 宣告不補假新聞時，放寬 6 則硬性要求。ALLOW_PARTIAL_NEWS_GATE=0 關閉。"""
+    return os.getenv("ALLOW_PARTIAL_NEWS_GATE", "1").lower() not in ("0", "false", "no")
+
+
+def _strict_pick_justification() -> bool:
+    """驗證「本日選擇理由」是否連結催化／鏈上或退階邏輯並點名 QSREC 標的。STRICT_PICK_JUSTIFICATION=0 關閉。"""
+    return os.getenv("STRICT_PICK_JUSTIFICATION", "1").lower() not in ("0", "false", "no")
+
 # 重試常數（集中管理，方便調參）
 MAX_REPORT_RETRIES = int(os.getenv("MAX_REPORT_RETRIES", "2"))
 MAX_503_RETRIES = int(os.getenv("MAX_503_RETRIES", "3"))
@@ -193,6 +203,215 @@ def strip_html(text: str) -> str:
     return re.sub(r'<[^>]+>', '', text)
 
 
+# ── 動態選幣／選股：本日選擇理由驗證（與 crew 規則對齊，允許連日同標的但須說清楚依據）────────
+_CRYPTO_PICK_KW: tuple[str, ...] = (
+    "新聞",
+    "催化",
+    "事件",
+    "題材",
+    "ETF",
+    "核准",
+    "升級",
+    "主網",
+    "分叉",
+    "清算",
+    "爆倉",
+    "流入",
+    "流出",
+    "鏈上",
+    "巨鯨",
+    "資金費率",
+    "多空比",
+    "DeFi",
+    "監管",
+    "申請",
+    "上市",
+    "解鎖",
+    "減半",
+    "RWA",
+    "SOPR",
+    "NUPL",
+    "交易所",
+    "淨流",
+    "未平倉",
+    "OI",
+    "現貨",
+    "基差",
+    "期權",
+    "選擇權",
+)
+_CRYPTO_PICK_FALLBACK: tuple[str, ...] = (
+    "大型幣",
+    "主流幣",
+    "龍頭",
+    "流動性",
+    "最後才",
+    "缺乏",
+    "無其他",
+    "不明顯",
+    "退而求其次",
+    "避險",
+    "保守",
+    "催化劑不足",
+)
+_EQUITY_PICK_KW: tuple[str, ...] = (
+    "財報",
+    "合約",
+    "營收",
+    "資本",
+    "支出",
+    "Capex",
+    "回購",
+    "新品",
+    "發布",
+    "上線",
+    "GPU",
+    "資料中心",
+    "雲端",
+    "雲",
+    "生成式",
+    "LLM",
+    "訂單",
+    "拉貨",
+    "晶片",
+    "代工",
+    "新聞",
+    "報導",
+    "法說",
+    "指引",
+    "併購",
+)
+_EQUITY_PICK_FALLBACK: tuple[str, ...] = (
+    "權值",
+    "大型股",
+    "指數",
+    "避險",
+    "流動性",
+    "最後才",
+    "缺乏催化",
+    "通殺",
+    "ETF",
+    "BOTZ",
+    "ARKQ",
+)
+
+
+def _crypto_report_prefix(text: str) -> str:
+    """合併戰報中「加密區」之前綴（🤖 AI 市場 起頭之後視為下半部）。"""
+    best = len(text)
+    for pat in (
+        r"(?m)^────────────\s*\n\s*🤖\s*AI\s*市場",
+        r"\n🤖\s*AI\s*市場",
+        r"🤖\s*AI\s*市場",
+        r"(?m)^\s*AI\s*產業鏈精準操作\s*\(US\s*Equit",
+    ):
+        m = re.search(pat, text, re.IGNORECASE)
+        if m and m.start() < best:
+            best = m.start()
+    return text[:best] if best < len(text) else text
+
+
+def _extract_today_pick_reason(span: str) -> str | None:
+    """自區塊內取出第一處「本日選擇理由」純文字（至風險預算／訊號衝突／交易條目／QSREC／分隔線）。"""
+    m = re.search(
+        r"本日選擇理由[：:]\s*([\s\S]+?)(?=\n\s*(?:今日風險預算|訊號衝突(?:摘要)?)[：:]|\n\s*·\s*\$|\[QSREC_START\]|\n(?:-{4,}|─{4,}))",
+        span,
+        re.IGNORECASE,
+    )
+    if not m:
+        return None
+    return strip_html(m.group(1)).strip()
+
+
+def _normalize_pick_asset_legs(asset: str) -> list[str]:
+    """QSREC asset → 大寫代號列表（比值拆兩腿，供『理由是否點名』檢查）。"""
+    a = str(asset or "").upper().replace("$", "").replace(" ", "").replace("-", "/")
+    if "/" in a:
+        return [p for p in a.split("/") if p]
+    return [a] if a else []
+
+
+def _reason_covers_assets(reason: str, assets: list[str]) -> bool:
+    """理由中須可辨識每一檔標的（代號字串出現於 strip 後大寫比對）。"""
+    u = strip_html(reason).upper()
+    for raw in assets:
+        legs = _normalize_pick_asset_legs(raw)
+        if not legs:
+            return False
+        if len(legs) >= 2:
+            if not all(leg in u for leg in legs):
+                return False
+        else:
+            if legs[0] not in u:
+                return False
+    return True
+
+
+def _score_kw_hits(reason: str, kws: tuple[str, ...]) -> int:
+    return sum(1 for k in kws if k in reason)
+
+
+def _pick_justification_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
+    """
+    加密 QSREC 每檔須在「本日選擇理由」區間內可被合規敘事支持：
+    ≥2 個催化/鏈上關鍵線索；或 1 線索 + 明確大型幣退階語；或 1 線索 + 長文且點名所有標的。
+    """
+    crypto_assets = [
+        str(r.get("asset", ""))
+        for r in recs
+        if str(r.get("category", "CRYPTO")).upper() == "CRYPTO"
+    ]
+    if not crypto_assets:
+        return True, ""
+    cspan = _crypto_report_prefix(text)
+    reason = _extract_today_pick_reason(cspan)
+    if not reason:
+        return False, "加密區缺少「本日選擇理由」，或內容未寫在「今日風險預算／訊號衝突／交易條目」之前（請依動態選幣標準補敘）"
+    if len(reason) < 34:
+        return False, "本日選擇理由（加密）過短：請說明新聞/鏈上依據或明確大型幣退階邏輯，並點名 QSREC 標的"
+    strong = _score_kw_hits(reason, _CRYPTO_PICK_KW)
+    fb = _score_kw_hits(reason, _CRYPTO_PICK_FALLBACK)
+    named = _reason_covers_assets(reason, crypto_assets)
+    ok = (
+        strong >= 2
+        or (strong >= 1 and fb >= 1)
+        or (strong >= 1 and len(reason) >= 72 and named)
+    )
+    if ok:
+        return True, ""
+    return (
+        False,
+        "本日選擇理由（加密）未達動態選幣標準：須（≥2 項催化/鏈上線索）或（1 線索+大型幣退階說明）或（1 線索+長文且點名所有加密 QSREC 標的）；不符則請改選標的或補強敘事",
+    )
+
+
+def _pick_justification_equity_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
+    """美股 QSREC：理由須含足夠基本面/新聞線索並點名各檔股票代號。"""
+    eq_assets = [
+        str(r.get("asset", ""))
+        for r in recs
+        if str(r.get("category", "")).upper() == "EQUITY"
+    ]
+    if not eq_assets:
+        return True, ""
+    ai_span = text[len(_crypto_report_prefix(text)) :]
+    reason = _extract_today_pick_reason(ai_span)
+    if not reason:
+        return False, "AI/美股區缺少「本日選擇理由」，或格式未寫在交易條目前（請依動態選股標準補敘）"
+    if len(reason) < 38:
+        return False, "本日選擇理由（美股）過短：請連結財報/產品/新聞催化並點名 QSREC 標的"
+    strong = _score_kw_hits(reason, _EQUITY_PICK_KW)
+    fb = _score_kw_hits(reason, _EQUITY_PICK_FALLBACK)
+    named = _reason_covers_assets(reason, eq_assets)
+    ok = strong >= 2 or (strong >= 1 and fb >= 1) or (strong >= 1 and len(reason) >= 80 and named)
+    if ok:
+        return True, ""
+    return (
+        False,
+        "本日選擇理由（美股）未達動態選股標準：須（≥2 項基本面/新聞線索）或（1 線索+權值/ETF 退階說明）或（1 線索+長文且點名所有美股 QSREC 標的）；不符則請改選標的或補強敘事",
+    )
+
+
 def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
     """從 regex match 安全萃取 float，失敗回傳 None。"""
     if not m:
@@ -245,14 +464,17 @@ def _has_news_timezone_utc8(text: str) -> bool:
     """新聞時間格式檢查：標籤格式需全數 UTC+8；數字條列格式視為已降級接受。
     支援 [MM/DD HH:MM UTC+8] 及 [YYYY/MM/DD HH:MM UTC+8] 及 [YYYY-MM-DD HH:MM UTC+8]。
     """
-    tagged_total = len(re.findall(r'〔新聞\s*\d+〕', text))
+    t = _strip_lines_for_news_validation(text)
+    tagged_total = len(re.findall(r"〔新聞\s*\d+〕", t))
     if tagged_total > 0:
-        tagged_utc = len(re.findall(
-            r'〔新聞\s*\d+〕\s*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2})\s+\d{2}:\d{2}\s+UTC\+8\]',
-            text,
-        ))
+        tagged_utc = len(
+            re.findall(
+                r"〔新聞\s*\d+〕\s*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2})\s+\d{2}:\d{2}\s+UTC\+8\]",
+                t,
+            )
+        )
         return tagged_utc == tagged_total
-    numbered = len(re.findall(r'(?m)^\s*\d+[.)]\s+.+', text))
+    numbered = len(re.findall(r"(?m)^\s*\d+[.)]\s+.+", t))
     return numbered > 0
 
 
@@ -555,18 +777,54 @@ def _drop_unactionable_trade_blocks(text: str) -> str:
 def _has_macro_outlier_values(text: str) -> bool:
     """
     僅檢查宏觀欄位中的實值是否超出合理範圍：
-    - 10Y/2Y/SOFR 應在 0~20%
-    - 利差應在 +/-1000bp 以內
+    - 美債 10Y/2Y 僅在含「美債」之行解析，避免敘事句中「10Y 殖利率」誤配後文任意 %。
+    - SOFR 僅在含 SOFR 之行解析數值%，且略過同時含 N/A 且無明確數值之句。
+    - 利差 bp 應在 +/-1000bp 以內
     """
-    for m in re.finditer(r'(10Y|2Y|SOFR)[^0-9%\n]{0,24}([0-9,]+(?:\.\d+)?)%', text, re.IGNORECASE):
-        try:
-            val = float(m.group(2).replace(",", ""))
-        except ValueError:
+    for line in text.splitlines():
+        if "美債" not in line:
             continue
-        if not (0.0 <= val <= 20.0):
-            return True
+        for m in re.finditer(
+            r"10Y\s*[:：]\s*([0-9,]+(?:\.\d+)?)\s*%",
+            line,
+            re.IGNORECASE,
+        ):
+            try:
+                val = float(m.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if not (0.0 <= val <= 20.0):
+                return True
+        for m in re.finditer(
+            r"2Y\s*[:：]\s*([0-9,]+(?:\.\d+)?)\s*%",
+            line,
+            re.IGNORECASE,
+        ):
+            try:
+                val = float(m.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if not (0.0 <= val <= 20.0):
+                return True
 
-    for m in re.finditer(r'利差[：:]?\s*([+\-−]?[0-9,]+(?:\.\d+)?)\s*bp', text):
+    for line in text.splitlines():
+        if "SOFR" not in line.upper():
+            continue
+        if "N/A" in line and not re.search(
+            r"SOFR.{0,55}?[0-9][0-9,]*(?:\.[0-9]+)?\s*%",
+            line,
+            re.IGNORECASE | re.DOTALL,
+        ):
+            continue
+        for m in re.finditer(r"([-+]?[0-9,]+(?:\.\d+)?)\s*%", line):
+            try:
+                val = float(m.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if not (-0.5 <= val <= 25.0):
+                return True
+
+    for m in re.finditer(r"利差[：:]?\s*([+\-−]?[0-9,]+(?:\.\d+)?)\s*bp", text):
         raw = m.group(1).replace(",", "").replace("−", "-")
         try:
             val = float(raw)
@@ -637,6 +895,60 @@ def _has_source_observability_conflicts(text: str) -> bool:
     return False
 
 
+_NEWS_VALIDATION_NOISE = re.compile(
+    r"新聞資料狀態|請主編下一版|格式未統一為〔新聞|【新聞資料狀態】"
+)
+
+
+def _strip_lines_for_news_validation(text: str) -> str:
+    """排除系統注入之『新聞資料狀態』等行，避免誤算〔新聞 N〕或 UTC+8。"""
+    lines = [ln for ln in text.splitlines() if not _NEWS_VALIDATION_NOISE.search(ln)]
+    return "\n".join(lines)
+
+
+def _partial_news_ok(text: str) -> bool:
+    """
+    新聞資料不足分段（產品規則）：
+    - 〔新聞 1〕～〔新聞 3〕必須存在，且全篇已標示之〔新聞 N〕須全部帶 UTC+8；
+    - 〔新聞 N〕則數須為 3～5（不足 6 但未完全缺新聞）；
+    - 文內須宣告「資料不足保護／不補虛構新聞」，並有【新聞資料狀態】或 [REPORT_TIER:PARTIAL_NEWS]（後處理會注入）。
+    不影響交易欄位檢查；交易觀望另見 trade_watch_mode。
+    """
+    if not _allow_partial_news_gate():
+        return False
+    tagged = _count_news_tags_only(text)
+    if not (3 <= tagged < 6):
+        return False
+    if not re.search(r"資料不足保護|不補虛構新聞", text):
+        return False
+    if not (
+        re.search(r"【新聞資料狀態】|新聞資料狀態", text)
+        or "[REPORT_TIER:PARTIAL_NEWS]" in text
+    ):
+        return False
+    for i in (1, 2, 3):
+        if not re.search(rf"〔新聞\s*{i}〕", text):
+            return False
+    return _has_news_timezone_utc8(text)
+
+
+def _inject_canonical_prev_recs_block(report_text: str, canonical_html: str) -> str:
+    """
+    以 BigQuery 載入之上期追蹤覆寫 LLM 輸出，避免模型自行膨脹多筆同標的進場價。
+    canonical_html 為空時不修改。
+    """
+    if not (canonical_html or "").strip():
+        return report_text
+    block = canonical_html.strip() + "\n\n"
+    m = re.search(r"【今日市場模式】", report_text)
+    if not m:
+        return block + report_text
+    head, tail = report_text[: m.start()], report_text[m.start() :]
+    head_clean = re.sub(r"【上期建議追蹤】[\s\S]*\Z", "", head, flags=re.MULTILINE).rstrip()
+    sep = "\n\n" if head_clean else ""
+    return f"{head_clean}{sep}{block}{tail}"
+
+
 def _normalize_news_timezone_utc8(text: str) -> str:
     """將新聞時間標籤統一補上 UTC+8。
     支援格式：[MM/DD HH:MM] 及 [YYYY/MM/DD HH:MM] 及 [YYYY-MM-DD HH:MM]。
@@ -661,7 +973,13 @@ def _inject_fallback_news_entries(text: str, min_news: int = 6) -> str:
     if current >= min_news:
         return text
 
+    tagged = _count_news_tags_only(text)
+    tier_line = ""
+    if _allow_partial_news_gate() and 3 <= tagged < min_news:
+        tier_line = "[REPORT_TIER:PARTIAL_NEWS]\n"
+
     block = (
+        f"{tier_line}"
         "【新聞資料狀態】\n"
         f"以〔新聞 N〕標籤計入的新聞為 <code>{current}</code> 則／目標 <code>{min_news}</code> "
         f"則（幣圈 3 + AI 3）。已啟用資料不足保護：不補虛構新聞。"
@@ -844,7 +1162,8 @@ def _collect_stale_data_sources(text: str) -> list[str]:
 
 def _count_news_tags_only(text: str) -> int:
     """僅統計〔新聞 N〕標籤數（與 _count_effective_news_items 在無標籤時的 fallback 分離）。"""
-    return len(re.findall(r"〔新聞\s*\d+〕", text))
+    t = _strip_lines_for_news_validation(text)
+    return len(re.findall(r"〔新聞\s*\d+〕", t))
 
 
 def _primary_regime_from_report(text: str) -> str | None:
@@ -975,9 +1294,15 @@ def validate_report(text: str) -> dict:
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
     has_data_missing = bool(re.search(r'\[DATA_MISSING:', text))
     data_missing_fields = sorted(set(re.findall(r'\[DATA_MISSING:([^\]]+)\]', text)))
-    watch_mode = bool(
-        re.search(r'觀望模式|資料不足觀望|暫不開新倉|暫不提供股票進出場價格|新聞資料狀態|資料不足保護', text)
+    # 交易觀望：放寬 R:R／勝率等「可執行欄位」檢查（與「新聞不足分段」解耦）
+    trade_watch_mode = bool(
+        re.search(
+            r"觀望模式|資料不足觀望|暫不開新倉|暫不提供股票進出場價格",
+            text,
+        )
     )
+    partial_news_ok = _partial_news_ok(text)
+    news_six_relaxed = trade_watch_mode or partial_news_ok
     has_qsrec_markers = bool(re.search(r'\[QSREC_START\][\s\S]*?\[QSREC_END\]', text))
     parsed_qsrec = tracker.extract_recommendations_json(text) if has_qsrec_markers else []
     has_valid_qsrec = bool(parsed_qsrec)
@@ -995,7 +1320,11 @@ def validate_report(text: str) -> dict:
     )
     has_signal_conflict = bool(re.search(r'[訊信]號衝突(?:摘要|分析)?[：:]', text))
     has_risk_budget = bool(re.search(r'今日風險預算[：:]', text))
-    has_rumor_grade = bool(re.search(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})', text, re.IGNORECASE))
+    has_rumor_grade = bool(
+        re.search(r"可信度[：:]\s*(?:A|B|C|[0-9]{1,3})", text, re.IGNORECASE)
+        or re.search(r"來源[：:]\s*[ABC](?:級|等級)?", text, re.IGNORECASE)
+        or re.search(r"可信度\s*[ABC](?:級|等)?", text, re.IGNORECASE)
+    )
     has_utc8 = _has_news_timezone_utc8(text)
     too_many_na = len(re.findall(r'\bN/A\b', text)) > 3
     has_low_confidence_tag = bool(re.search(r'低置信度|低信心', text))
@@ -1057,17 +1386,26 @@ def validate_report(text: str) -> dict:
     risk_off_star_ok = not _risk_off_star_cap_violated(text)
     qsrec_issues = _qsrec_consistency_issues(text, parsed_qsrec) if has_valid_qsrec else []
 
+    pick_crypto_ok, pick_crypto_err = True, ""
+    pick_equity_ok, pick_equity_err = True, ""
+    if _strict_pick_justification() and not trade_watch_mode and has_valid_qsrec:
+        pick_crypto_ok, pick_crypto_err = _pick_justification_crypto_ok(text, parsed_qsrec)
+        pick_equity_ok, pick_equity_err = _pick_justification_equity_ok(text, parsed_qsrec)
+
     issues = []
     tagged_news = _count_news_tags_only(text)
     if len(text) < 3000:
         issues.append(f"報告過短（{len(text)} chars，預期 >3000）")
-    if tagged_news < 6 and not watch_mode:
+    if tagged_news < 6 and not news_six_relaxed:
         issues.append(
             f"核心新聞〔新聞 N〕標籤不足（{tagged_news}/6）：須以〔新聞 1〕…〔新聞 6〕標示幣圈 3 + AI 3，"
             f"禁止僅用 1. 2. 3. 作為新聞編號（避免與辯論列表混淆）。"
+            f"（分段放行：交易觀望／或符合「新聞資料不足分段」— 3~5 則且〔新聞 1~3〕+ UTC+8 + 不補虛構宣告，見 ALLOW_PARTIAL_NEWS_GATE）"
         )
-    if news_count < 6 and not watch_mode:
-        issues.append(f"新聞數不足（{news_count}/6）且未啟用觀望模式")
+    if news_count < 6 and not news_six_relaxed:
+        issues.append(
+            f"新聞數不足（{news_count}/6）且未符合觀望或新聞分段條件（見 validate_report 說明／README）"
+        )
     if not has_regime:
         issues.append("缺少 market_regime 標籤（risk_on/risk_off/neutral）")
     if not has_dashboard:
@@ -1086,19 +1424,24 @@ def validate_report(text: str) -> dict:
         issues.append("缺少系統追蹤載荷區塊（[QSREC_START]...[QSREC_END]）")
     elif not has_valid_qsrec:
         issues.append("QSREC 區塊存在但 JSON 無法解析或為空陣列")
+    if _strict_pick_justification() and not trade_watch_mode and has_valid_qsrec:
+        if not pick_crypto_ok:
+            issues.append(pick_crypto_err)
+        if not pick_equity_ok:
+            issues.append(pick_equity_err)
     if not has_utc8:
         issues.append("新聞時間未統一標示 UTC+8")
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if not has_rumor_grade:
         issues.append("傳聞區缺少可信度分級（A/B/C 或 0~100）")
-    if (not watch_mode) and (not has_rr or not has_max_drawdown):
+    if (not trade_watch_mode) and (not has_rr or not has_max_drawdown):
         issues.append("交易建議缺少 R:R 或最大回撤風險欄位")
-    if (not watch_mode) and (not has_expected_win_rate or not has_signal_score):
+    if (not trade_watch_mode) and (not has_expected_win_rate or not has_signal_score):
         issues.append("交易建議缺少預期勝率或 Signal Score 欄位")
     if not has_risk_budget:
         issues.append("缺少今日風險預算摘要")
-    if (not watch_mode) and (not has_numeric_in_investment):
+    if (not trade_watch_mode) and (not has_numeric_in_investment):
         issues.append("投資解讀缺少當日量化數據引用")
     if not has_source_health or not has_source_errors or not has_source_quota:
         issues.append("缺少來源健康欄位（SourceHealth/SourceErrors/SourceQuota）")
@@ -1173,6 +1516,11 @@ def validate_report(text: str) -> dict:
         "has_macro_outlier": has_macro_outlier,
         "has_macro_conflict": has_macro_conflict,
         "has_source_observability_conflict": has_source_observability_conflict,
+        "trade_watch_mode": trade_watch_mode,
+        "partial_news_ok": partial_news_ok,
+        "news_six_relaxed": news_six_relaxed,
+        "pick_justification_crypto_ok": pick_crypto_ok,
+        "pick_justification_equity_ok": pick_equity_ok,
     }
 
 
@@ -1915,6 +2263,8 @@ def _run_pipeline_once(
             ai_report = future_ai.result()
 
         combined_report = f"{crypto_report}\n\n{ai_report}"
+        if prev_recs:
+            combined_report = _inject_canonical_prev_recs_block(combined_report, prev_recs)
         return combined_report, None
     except Exception as e:
         return "", e

@@ -1,6 +1,8 @@
 """Unit tests for validate_report() and its helper functions in main.py."""
 
+import os
 import unittest
+from unittest.mock import patch
 
 from main import (
     validate_report,
@@ -14,6 +16,8 @@ from main import (
     _risk_off_star_cap_violated,
     _pair_trade_unit_consistent,
     _has_crypto_trade_section,
+    _inject_canonical_prev_recs_block,
+    _partial_news_ok,
 )
 
 
@@ -47,11 +51,19 @@ def _make_report(
     if include_dashboard:
         sections.append("DXY 104.5 ｜ BTC OI $18.5B ｜ 資金費率 0.01% ｜ RSI 55 ｜ Fear & Greed 45")
     if include_crypto_trade:
-        sections.append("資金流向與精準操作 (Crypto)\n· $BTC (LONG)｜現價：$95000｜進場：$94500｜目標：$100000｜停損：$91000")
-    if include_ai_trade:
-        sections.append("AI 產業鏈精準操作\n· $NVDA (LONG)｜現價：$890")
+        sections.append(
+            "區塊④ 資金流向與精準操作 (Crypto)\n"
+            "本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。\n"
+            "· $BTC (LONG)｜現價：$95000｜進場：$94500｜目標：$100000｜停損：$91000"
+        )
     if include_ai_section:
-        sections.append("AI 市場概覽")
+        sections.append("────────────\n🤖 AI 市場\nAI 數據儀表板")
+    if include_ai_trade:
+        sections.append(
+            "AI 產業鏈精準操作 (US Equities)\n"
+            "本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。\n"
+            "· $NVDA (LONG)｜現價：$890"
+        )
     if include_crypto_section:
         sections.append("加密市場核心新聞")
     if include_chatter:
@@ -70,12 +82,17 @@ def _make_report(
         sections.append("【SourceHealth】 5/5 正常\n【SourceErrors】 0 次\n【SourceQuota】 NewsAPI 82%")
     if include_qsrec:
         sections.append(
-            '[QSREC_START]\n'
-            '[{"asset":"BTC","direction":"LONG","current_price":95000,"entry":94500,'
+            "[QSREC_START]\n"
+            "["
+            '{"asset":"BTC","direction":"LONG","current_price":95000,"entry":94500,'
             '"target":100000,"stop":91000,"confidence":4,"category":"CRYPTO",'
             f'"narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"3d","regime":"{regime}"'
-            '}]\n'
-            '[QSREC_END]'
+            "},"
+            '{"asset":"NVDA","direction":"LONG","current_price":890,"entry":885,'
+            '"target":950,"stop":860,"confidence":4,"category":"EQUITY",'
+            f'"narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"5d","regime":"{regime}"'
+            "}]\n"
+            "[QSREC_END]"
         )
 
     body = news + "\n".join(sections) + "\n" + extra
@@ -145,6 +162,18 @@ class TestNormalizeRegimeToken(unittest.TestCase):
         self.assertIsNone(_normalize_regime_token(""))
 
 
+class TestInjectCanonicalPrevRecs(unittest.TestCase):
+    def test_replaces_llm_tracker_block(self):
+        prev = "<b>【上期建議追蹤】</b>\n<i>（2026-03-20）</i>\nONE"
+        report = (
+            "TITLE\n\n【上期建議追蹤】\nFAKE ROW 1\nFAKE ROW 2\n\n【今日市場模式】 neutral"
+        )
+        out = _inject_canonical_prev_recs_block(report, prev)
+        self.assertIn("ONE", out)
+        self.assertNotIn("FAKE ROW", out)
+        self.assertIn("【今日市場模式】", out)
+
+
 class TestHasNewsTimezoneUtc8(unittest.TestCase):
     def test_tagged_with_utc8(self):
         text = "〔新聞 1〕[03/20 10:00 UTC+8] Source\n〔新聞 2〕[2026/03/20 11:00 UTC+8] Source"
@@ -154,17 +183,74 @@ class TestHasNewsTimezoneUtc8(unittest.TestCase):
         text = "〔新聞 1〕Source\ntitle"
         self.assertFalse(_has_news_timezone_utc8(text))
 
+    def test_footer_noise_ignored_for_tag_count(self):
+        """【新聞資料狀態】行內若含範例〔新聞 1〕字樣，不應破壞 UTC+8 全數比對。"""
+        text = (
+            "〔新聞 1〕[03/20 10:00 UTC+8] A\n"
+            "【新聞資料狀態】若〔新聞 1〕格式未統一請主編修正\n"
+        )
+        self.assertTrue(_has_news_timezone_utc8(text))
+
     def test_numbered_fallback_accepted(self):
         text = "1) First news item\n2) Second news"
         self.assertTrue(_has_news_timezone_utc8(text))
 
 
+class TestPickJustification(unittest.TestCase):
+    def test_vague_crypto_reason_fails(self):
+        report = _make_report(news_count=8)
+        report = report.replace(
+            "本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。",
+            "本日選擇理由：技術面偏多。",
+        )
+        r = validate_report(report)
+        self.assertFalse(r["pick_justification_crypto_ok"])
+        self.assertTrue(any("動態選幣" in i or "本日選擇理由（加密）" in i for i in r["issues"]))
+
+
+class TestPartialNewsGate(unittest.TestCase):
+    """新聞資料不足分段 vs 交易觀望解耦。"""
+
+    def test_partial_news_ok_with_footer_and_three_tags(self):
+        report = _make_report(news_count=3)
+        report += "\n【新聞資料狀態】\n已啟用資料不足保護：不補虛構新聞。\n"
+        self.assertTrue(_partial_news_ok(report))
+        result = validate_report(report)
+        self.assertTrue(result["partial_news_ok"])
+        self.assertTrue(result["news_six_relaxed"])
+        self.assertFalse(any("標籤不足" in i for i in result["issues"]))
+
+    def test_partial_news_fails_without_protection_declaration(self):
+        report = _make_report(news_count=3)
+        self.assertFalse(_partial_news_ok(report))
+        result = validate_report(report)
+        self.assertFalse(result["partial_news_ok"])
+        self.assertTrue(any("標籤不足" in i for i in result["issues"]))
+
+    @patch.dict(os.environ, {"ALLOW_PARTIAL_NEWS_GATE": "0"}, clear=False)
+    def test_partial_news_disabled_via_env(self):
+        report = _make_report(news_count=3)
+        report += "\n【新聞資料狀態】\n已啟用資料不足保護：不補虛構新聞。\n"
+        self.assertFalse(_partial_news_ok(report))
+
+    def test_trade_watch_relaxes_rr_not_news_when_partial_off(self):
+        """交易觀望放寬 R:R；若無觀望且無分段，仍要求 R:R。"""
+        report = _make_report(include_rr=False, extra="\n觀望模式\n")
+        result = validate_report(report)
+        self.assertTrue(result["trade_watch_mode"])
+        self.assertFalse(any("R:R" in i and "缺少" in i for i in result["issues"]))
+
+
 class TestMacroOutlier(unittest.TestCase):
     def test_normal_values(self):
-        self.assertFalse(_has_macro_outlier_values("10Y 4.25%"))
+        self.assertFalse(_has_macro_outlier_values("美債 10Y: 4.25% | 2Y: 4.10%"))
+
+    def test_prose_without_treasury_line_not_flagged(self):
+        """敘事句單獨出現 10Y 25%（無美債行）不應觸發誤判。"""
+        self.assertFalse(_has_macro_outlier_values("承上宏觀，10Y 殖利率極端飆升與 VIX 26.78"))
 
     def test_outlier_rate(self):
-        self.assertTrue(_has_macro_outlier_values("10Y 25.00%"))
+        self.assertTrue(_has_macro_outlier_values("美債 10Y: 25.00%"))
 
     def test_outlier_spread(self):
         self.assertTrue(_has_macro_outlier_values("利差：+1500bp"))
@@ -291,7 +377,7 @@ class TestValidateReport(unittest.TestCase):
         self.assertTrue(any("外洩" in i and "函數" in i for i in result["issues"]))
 
     def test_macro_outlier_detected(self):
-        report = _make_report(extra="10Y 25.00%")
+        report = _make_report(extra="美債 10Y: 25.00%")
         result = validate_report(report)
         self.assertTrue(result["has_macro_outlier"])
 

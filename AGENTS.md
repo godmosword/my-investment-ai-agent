@@ -10,7 +10,7 @@ Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline tha
 
 | Service | Command | Notes |
 |---|---|---|
-| Streamlit dashboard | `streamlit run dashboard.py --server.port 8501 --server.headless true` | Runs without API keys; shows N/A values without BigQuery credentials |
+| Streamlit dashboard | `streamlit run dashboard.py --server.port 8501 --server.headless true` | Runs without API keys; shows N/A values without BigQuery credentials. **v3 UI**: dark gradient shell, unified Plotly hover/legend, gauge bands aligned with Risk ON / Neutral / Risk OFF (2.5 / 3.5 thresholds). |
 | Main pipeline | `python main.py` | Requires all LLM + data API keys (see README) |
 | Backtest | `python backtest.py` | Requires BigQuery credentials for indicator data; BTC price from free CoinGecko API |
 
@@ -22,7 +22,7 @@ Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline tha
 
 ### Lint and checks
 
-- No automated test suite exists in this repo. Validation is done via `validate_report()` in `main.py`.
+- No automated test suite exists in this repo. Validation is done via `validate_report()` in `main.py` (6 news tags by default; **partial news** = 3–5 tags with 〔新聞 1–3〕+ UTC+8 + no-fake-news declaration + optional `[REPORT_TIER:PARTIAL_NEWS]`; `ALLOW_PARTIAL_NEWS_GATE=0` disables. **Trade-field** relax (R:R, etc.) only under **trade watch** phrases, not from news footer alone).
 - Linting: `ruff check .` — there are 2 pre-existing minor warnings (unused variable in `backtest.py`, import order in `crew.py`).
 - Python version: the Dockerfile uses 3.11-slim, but the code runs fine on Python 3.12.
 

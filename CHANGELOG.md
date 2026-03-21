@@ -2,6 +2,17 @@
 
 本檔案記錄專案重要功能與行為變更。
 
+## 2026-03-21
+
+### Added
+- **選幣／選股理由驗證**：`validate_report` 檢查加密與美股區「本日選擇理由」是否含足夠關鍵線索（催化/鏈上 vs 財報/新聞等）或退階說明，並是否點名 QSREC 內該類所有標的；**允許連日同標的**。交易觀望時略過；`STRICT_PICK_JUSTIFICATION=0` 關閉。
+- **新聞 Gate 分級**：`validate_report` 將 **交易觀望**（`trade_watch_mode`）與 **新聞資料不足分段**（`partial_news_ok`）解耦；後者須 3~5 則〔新聞 N〕、〔新聞 1~3〕齊備、UTC+8 全過、且文內宣告不補虛構 + 【新聞資料狀態】或 `[REPORT_TIER:PARTIAL_NEWS]`（後處理在 3~5 則時自動注入）。環境變數 **`ALLOW_PARTIAL_NEWS_GATE`**（預設 `1`）可關閉分段。僅 **觀望模式** 等才放寬 R:R／勝率／投資解讀量化；僅分段不再因「出現新聞資料狀態」就放寬交易欄位。
+
+### Changed
+- **上期建議追蹤**：BigQuery 以 **canonical asset**（`$`/空白/`-` 正規化）做 `PARTITION BY`；`save_recommendations` 同日同標的只保留最後一筆；合併戰報後 **`main._inject_canonical_prev_recs_block`** 以 BQ 權威 HTML **覆寫** LLM 產出之【上期建議追蹤】，避免模型自行膨脹多列。
+- **`validate_report`**：宏觀異常改為僅在含 **美債** 之行解析 10Y/2Y 數值%，並縮窄 SOFR 行判斷，降低敘事句誤觸發；新聞 UTC+8 計數前剔除【新聞資料狀態】等噪音行；傳聞可信度接受 **來源：B級** 等格式。
+- **`crew`**：配對比值 LONG 與建倉敘事一致；AI 區強制〔新聞 4〕～〔新聞 6〕+ UTC+8；產業鏈呢喃需含可信度；加密區註明上期區塊後端可覆寫。
+
 ## 2026-03-20
 
 ### Changed
