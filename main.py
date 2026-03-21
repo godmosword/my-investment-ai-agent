@@ -47,6 +47,11 @@ def _strict_pick_justification() -> bool:
     """驗證「本日選擇理由」是否連結催化／鏈上或退階邏輯並點名 QSREC 標的。STRICT_PICK_JUSTIFICATION=0 關閉。"""
     return os.getenv("STRICT_PICK_JUSTIFICATION", "1").lower() not in ("0", "false", "no")
 
+
+def _strict_pick_rotation() -> bool:
+    """與昨日 BQ 已存 QSREC 標的（canonical）完全相同時，須改選或寫「重複選用理由」。STRICT_PICK_ROTATION=0 關閉。"""
+    return os.getenv("STRICT_PICK_ROTATION", "1").lower() not in ("0", "false", "no")
+
 # 重試常數（集中管理，方便調參）
 MAX_REPORT_RETRIES = int(os.getenv("MAX_REPORT_RETRIES", "2"))
 MAX_503_RETRIES = int(os.getenv("MAX_503_RETRIES", "3"))
@@ -409,6 +414,92 @@ def _pick_justification_equity_ok(text: str, recs: list[dict]) -> tuple[bool, st
     return (
         False,
         "本日選擇理由（美股）未達動態選股標準：須（≥2 項基本面/新聞線索）或（1 線索+權值/ETF 退階說明）或（1 線索+長文且點名所有美股 QSREC 標的）；不符則請改選標的或補強敘事",
+    )
+
+
+_REPEAT_PICK_REASON_RE = re.compile(
+    r"重複選用理由|連日(?:選(?:用)?|持有|維持)|仍選(?:用)?|同標(?:的)?延續|延續昨|延續上日|與昨日相同標的",
+    re.IGNORECASE,
+)
+
+
+def _qsrec_canonical_set_for_category(recs: list[dict], category: str) -> set[str]:
+    want = category.upper()
+    out: set[str] = set()
+    for r in recs:
+        if str(r.get("category", "")).upper() != want:
+            continue
+        a = r.get("asset")
+        if a:
+            out.add(tracker.canonical_asset_key(str(a)))
+    return out
+
+
+def _fetch_yesterday_qsrec_canonical_set(category: str) -> set[str] | None:
+    """
+    讀取昨日已寫入 trade_recommendations 的 QSREC 標的（DISTINCT asset → canonical）。
+    SKIP_BIGQUERY 或查詢失敗回傳 None（略過輪動檢查，避免誤擋）。
+    """
+    if SKIP_BIGQUERY:
+        return None
+    cat = category.upper().replace("'", "")
+    if cat not in ("CRYPTO", "EQUITY"):
+        return None
+    try:
+        client = bigquery.Client(project=PROJECT_ID)
+        rows = list(
+            client.query(
+                f"""
+                SELECT DISTINCT asset
+                FROM `{RECOMMENDATIONS_TABLE}`
+                WHERE report_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+                  AND UPPER(COALESCE(category, '')) = '{cat}'
+                """
+            ).result()
+        )
+        if not rows:
+            return set()
+        return {tracker.canonical_asset_key(r["asset"]) for r in rows if r.get("asset")}
+    except Exception as e:
+        logger.warning("pick rotation: yesterday QSREC query failed: %s", e)
+        return None
+
+
+def _pick_rotation_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
+    """今日加密 QSREC canonical 集合若與昨日完全相同，理由須含重複選用說明或請改選。"""
+    if not _strict_pick_rotation():
+        return True, ""
+    y = _fetch_yesterday_qsrec_canonical_set("CRYPTO")
+    if y is None:
+        return True, ""
+    t = _qsrec_canonical_set_for_category(recs, "CRYPTO")
+    if not t or not y or t != y:
+        return True, ""
+    reason = _extract_today_pick_reason(_crypto_report_prefix(text)) or ""
+    if _REPEAT_PICK_REASON_RE.search(reason):
+        return True, ""
+    return (
+        False,
+        "動態選幣／輪動：本日加密 QSREC 標的與昨日 BQ 紀錄完全相同，請至少更換一檔（或配對腿），或在「本日選擇理由」明確寫「重複選用理由：…」（新催化／連日持有依據）。",
+    )
+
+
+def _pick_rotation_equity_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
+    """今日美股 QSREC canonical 集合若與昨日完全相同，理由須含重複選用說明或請改選。"""
+    if not _strict_pick_rotation():
+        return True, ""
+    y = _fetch_yesterday_qsrec_canonical_set("EQUITY")
+    if y is None:
+        return True, ""
+    t = _qsrec_canonical_set_for_category(recs, "EQUITY")
+    if not t or not y or t != y:
+        return True, ""
+    reason = _extract_today_pick_reason(text[len(_crypto_report_prefix(text)) :]) or ""
+    if _REPEAT_PICK_REASON_RE.search(reason):
+        return True, ""
+    return (
+        False,
+        "動態選股／輪動：本日美股 QSREC 標的與昨日 BQ 紀錄完全相同，請至少更換一檔，或在「本日選擇理由」明確寫「重複選用理由：…」。",
     )
 
 
@@ -1561,6 +1652,12 @@ def validate_report(text: str) -> dict:
         pick_crypto_ok, pick_crypto_err = _pick_justification_crypto_ok(text, parsed_qsrec)
         pick_equity_ok, pick_equity_err = _pick_justification_equity_ok(text, parsed_qsrec)
 
+    pick_crypto_rot_ok, pick_crypto_rot_err = True, ""
+    pick_equity_rot_ok, pick_equity_rot_err = True, ""
+    if _strict_pick_rotation() and not trade_watch_mode and has_valid_qsrec:
+        pick_crypto_rot_ok, pick_crypto_rot_err = _pick_rotation_crypto_ok(text, parsed_qsrec)
+        pick_equity_rot_ok, pick_equity_rot_err = _pick_rotation_equity_ok(text, parsed_qsrec)
+
     issues = []
     tagged_news = _count_news_tags_only(text)
     if len(text) < 3000:
@@ -1598,6 +1695,11 @@ def validate_report(text: str) -> dict:
             issues.append(pick_crypto_err)
         if not pick_equity_ok:
             issues.append(pick_equity_err)
+    if _strict_pick_rotation() and not trade_watch_mode and has_valid_qsrec:
+        if not pick_crypto_rot_ok:
+            issues.append(pick_crypto_rot_err)
+        if not pick_equity_rot_ok:
+            issues.append(pick_equity_rot_err)
     if not has_utc8:
         issues.append("新聞時間未統一標示 UTC+8")
     if not has_signal_conflict:
@@ -1690,6 +1792,8 @@ def validate_report(text: str) -> dict:
         "news_six_relaxed": news_six_relaxed,
         "pick_justification_crypto_ok": pick_crypto_ok,
         "pick_justification_equity_ok": pick_equity_ok,
+        "pick_rotation_crypto_ok": pick_crypto_rot_ok,
+        "pick_rotation_equity_ok": pick_equity_rot_ok,
     }
 
 
