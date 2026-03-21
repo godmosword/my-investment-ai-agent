@@ -90,6 +90,7 @@
 | `OPENAI_API_KEY` | GPT（AI 市場）；預設模型為 `gpt-4o-mini`，可設 `OPENAI_MODEL=openai/gpt-4o` 等覆寫 |
 | `OPENROUTER_API_KEY` | Claude（OpenRouter） |
 | `GEMINI_API_KEY` | Gemini（主編定稿） |
+| `OPENAI_MODEL` / `MODEL_GPT`、`MODEL_GROK`、`MODEL_GEMINI`、`MODEL_CLAUDE` | 選填：覆寫 `config.py` 內 LiteLLM 模型字串（預設維持現行 Grok／GPT mini／Gemini／Claude；見 `ENV_TEMPLATE.txt`） |
 
 ### 數據與搜尋
 

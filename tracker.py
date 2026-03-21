@@ -12,9 +12,11 @@ import json
 import logging
 import os
 import re
+from collections.abc import Iterable
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+import pandas as pd
 import yfinance as yf
 from google.cloud import bigquery
 
@@ -164,40 +166,122 @@ def _parse_pair_asset(asset: str) -> tuple[str, str] | None:
     return None
 
 
-def _yf_last_close(sym: str) -> float | None:
-    """yfinance 取最近一日收盤。"""
+def _last_closes_from_yf_df(df: pd.DataFrame | None, symbols: list[str]) -> dict[str, float | None]:
+    """從 yfinance 回傳的 OHLCV DataFrame 萃取各 ticker 最近有效收盤價。"""
+    out: dict[str, float | None] = {s: None for s in symbols}
+    if df is None or df.empty or not symbols:
+        return out
+    close = df.get("Close")
+    if close is None:
+        return out
+    # 新版 yfinance：單檔或多檔常為 MultiIndex，df['Close'] 多為 DataFrame（每欄一 ticker）
+    if isinstance(close, pd.Series):
+        ser = close.dropna()
+        if not ser.empty:
+            out[symbols[0]] = float(ser.iloc[-1])
+        return out
+    if isinstance(close, pd.DataFrame):
+        for sym in symbols:
+            col = sym if sym in close.columns else None
+            if col is None:
+                sup = sym.upper()
+                for c in close.columns:
+                    if str(c).upper() == sup:
+                        col = c
+                        break
+            if col is None:
+                continue
+            ser = close[col].dropna()
+            out[sym] = float(ser.iloc[-1]) if not ser.empty else None
+        return out
+    return out
+
+
+def _yf_last_close_single(sym: str) -> float | None:
+    """單一 yahoo symbol 下載（批次缺值時 fallback，避免整批失敗無價格）。"""
     try:
-        df = yf.download(sym, period="5d", interval="1d", progress=False, auto_adjust=True)
-        if df is None or df.empty:
-            return None
-        close = df["Close"].dropna()
-        if hasattr(close, "ndim") and close.ndim > 1:
-            close = close.iloc[:, 0]
-        return float(close.iloc[-1]) if not close.empty else None
+        df = yf.download(
+            sym,
+            period="5d",
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            threads=False,
+        )
+        m = _last_closes_from_yf_df(df, [sym])
+        return m.get(sym)
     except Exception as e:
         logger.warning("yfinance close failed for %s: %s", sym, e)
         return None
 
 
-def _pair_ratio_current(asset: str) -> float | None:
-    """BTC/SOL 等比值：現價 = base_USD / quote_USD。"""
-    parsed = _parse_pair_asset(asset)
-    if not parsed:
-        return None
-    left, right = parsed
-    pl = _yf_last_close(_yf_symbol(left))
-    pr = _yf_last_close(_yf_symbol(right))
-    if pl is None or pr is None or pr <= 0:
-        return None
-    return round(pl / pr, 4)
+def _yf_last_closes_batch(symbols: list[str]) -> dict[str, float | None]:
+    """
+    一次請求抓取多個 yahoo symbol 的最近收盤，降低 OPEN 建議追蹤時的 N+1 HTTP。
+    批次仍缺之 symbol 再個別 fallback。
+    """
+    syms = list(dict.fromkeys(s.strip() for s in symbols if s and str(s).strip()))
+    out: dict[str, float | None] = {s: None for s in syms}
+    if not syms:
+        return out
+    try:
+        df = yf.download(
+            syms,
+            period="5d",
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            threads=False,
+        )
+        out = _last_closes_from_yf_df(df, syms)
+    except Exception as e:
+        logger.warning("yfinance batch download failed: %s", e)
+
+    for sym in syms:
+        if out.get(sym) is None:
+            out[sym] = _yf_last_close_single(sym)
+    return out
+
+
+def _current_prices_for_assets(assets: Iterable[str]) -> dict[str, float | None]:
+    """為多筆建議資產批次取現價（單幣或 crypto 比值）；內部合併 yahoo symbol 後僅少數次下載。"""
+    ordered = list(dict.fromkeys(assets))
+    legs: list[str] = []
+    pair_legs: dict[str, tuple[str, str]] = {}
+    single_sym: dict[str, str] = {}
+
+    for asset in ordered:
+        parsed = _parse_pair_asset(asset)
+        if parsed:
+            left, right = parsed
+            sl, sr = _yf_symbol(left), _yf_symbol(right)
+            pair_legs[asset] = (sl, sr)
+            legs.extend([sl, sr])
+        else:
+            s = _yf_symbol(asset)
+            single_sym[asset] = s
+            legs.append(s)
+
+    uniq_legs = list(dict.fromkeys(legs))
+    close_by_sym = _yf_last_closes_batch(uniq_legs)
+
+    out: dict[str, float | None] = {}
+    for asset in ordered:
+        if asset in pair_legs:
+            sl, sr = pair_legs[asset]
+            pl, pr = close_by_sym.get(sl), close_by_sym.get(sr)
+            if pl is None or pr is None or pr <= 0:
+                out[asset] = None
+            else:
+                out[asset] = round(pl / pr, 4)
+        else:
+            out[asset] = close_by_sym.get(single_sym[asset])
+    return out
 
 
 def _current_price_for_asset(asset: str) -> float | None:
-    """單幣或比值建議的追蹤用現價。"""
-    ratio = _pair_ratio_current(asset)
-    if ratio is not None:
-        return ratio
-    return _yf_last_close(_yf_symbol(asset))
+    """單幣或比值建議的追蹤用現價（內部仍走批次路徑，僅一檔時一次下載）。"""
+    return _current_prices_for_assets([asset]).get(asset)
 
 
 def extract_recommendations_json(report_text: str) -> list[dict]:
@@ -455,12 +539,11 @@ def check_and_update_positions(project_id: str = PROJECT_ID) -> list[dict]:
         logger.info("No open positions to check today.")
         return []
 
-    # 批次抓取最新收盤價（每個 asset 只下載一次）
-    assets = {row["asset"] for row in rows}
-    prices: dict[str, float | None] = {}
-    for asset in assets:
-        prices[asset] = _current_price_for_asset(asset)
-        if prices[asset] is None:
+    # 批次抓取最新收盤價（合併 yahoo symbol，減少 HTTP 次數）
+    assets = [row["asset"] for row in rows]
+    prices = _current_prices_for_assets(assets)
+    for asset in set(assets):
+        if prices.get(asset) is None:
             logger.warning("Price fetch failed for %s", asset)
 
     today = date.today()
@@ -615,11 +698,9 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
     if not rows:
         return ""
 
-    # 批次取得最新收盤價
-    assets = {row["asset"] for row in rows}
-    current_prices: dict[str, float | None] = {}
-    for asset in assets:
-        current_prices[asset] = _current_price_for_asset(asset)
+    # 批次取得最新收盤價（合併 symbol 一次 yfinance 請求為主）
+    assets = [row["asset"] for row in rows]
+    current_prices = _current_prices_for_assets(assets)
 
     lines = ["<b>【上期建議追蹤】</b>"]
     rep_date = str(rows[0]["report_date"])

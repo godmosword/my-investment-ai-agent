@@ -5,6 +5,7 @@ from textwrap import dedent
 
 from crewai import Agent, Crew, LLM, Process, Task
 
+from config import MODEL_CLAUDE, MODEL_GEMINI, MODEL_GROK, MODEL_GPT
 from tools import (
     ai_momentum_tool,
     coinglass_data_tool,
@@ -29,12 +30,6 @@ from tools import (
 logger = logging.getLogger(__name__)
 
 _VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
-
-MODEL_GROK = "xai/grok-4-1-fast-reasoning"
-# 預設改為 gpt-4o-mini 以壓低單次日報成本（約 $0.03～0.05）；可設 OPENAI_MODEL 覆寫，例如 openai/gpt-4o
-MODEL_GPT = os.getenv("OPENAI_MODEL", "openai/gpt-4o-mini")
-MODEL_GEMINI = "gemini/gemini-3.1-pro-preview"
-MODEL_CLAUDE = "anthropic/claude-sonnet-4-20250514"
 
 # 每個角色的 LLM fallback chain：主 LLM 失敗時依序嘗試下一個
 _FALLBACK_CHAINS: dict[str, list[str]] = {

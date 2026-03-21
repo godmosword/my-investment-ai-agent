@@ -1,12 +1,16 @@
 """Unit tests for tracker System A — JSON-based recommendation parsing."""
 
 import unittest
+from unittest.mock import patch
+
+import pandas as pd
 
 from tracker import (
     extract_recommendations_json,
     strip_tracker_blocks,
     canonical_asset_key,
     _compute_trade_metrics,
+    _current_prices_for_assets,
     _validate_rec,
 )
 
@@ -123,6 +127,36 @@ class TestStripTrackerBlocks(unittest.TestCase):
     def test_no_block_unchanged(self):
         cleaned = strip_tracker_blocks(REPORT_NO_JSON)
         self.assertEqual(cleaned, REPORT_NO_JSON.rstrip())
+
+
+class TestYfinanceBatchPrices(unittest.TestCase):
+    """OPEN／上期追蹤應合併 symbol 批次下載，避免 N+1 yfinance 請求。"""
+
+    def test_current_prices_single_batched_download(self):
+        cols = pd.MultiIndex.from_tuples(
+            [("Close", "BTC-USD"), ("Close", "NVDA")],
+            names=["Price", "Ticker"],
+        )
+        df = pd.DataFrame(
+            [[90000.0, 100.0], [91000.0, 101.0]],
+            index=pd.date_range("2026-01-01", periods=2, freq="D"),
+            columns=cols,
+        )
+        calls: list[tuple] = []
+
+        def fake_download(*args, **kwargs):
+            calls.append(args)
+            return df
+
+        # conftest 在 CI 將 yfinance stub 成空模組，需 create=True 才能掛上 fake download
+        import tracker as tr
+
+        with patch.object(tr.yf, "download", side_effect=fake_download, create=True):
+            prices = _current_prices_for_assets(["BTC", "NVDA", "BTC"])
+
+        self.assertAlmostEqual(prices["BTC"], 91000.0)
+        self.assertAlmostEqual(prices["NVDA"], 101.0)
+        self.assertEqual(len(calls), 1, "expected one batched yf.download for unique legs")
 
 
 class TestRiskControls(unittest.TestCase):
