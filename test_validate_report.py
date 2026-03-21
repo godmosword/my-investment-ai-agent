@@ -27,6 +27,9 @@ from main import (
     _has_rumor_grade_marker,
     _postprocess_report_for_resilience,
     _normalize_news_timezone_utc8,
+    _fix_glued_na_suffix,
+    _conflicting_total_risk_budget_lines,
+    _qsrec_opposing_direction_same_asset,
 )
 
 
@@ -624,6 +627,33 @@ class TestRumorGradePostprocess(unittest.TestCase):
         report = _make_report(extra=macro)
         result = validate_report(report)
         self.assertTrue(any("利差" in i and "10Y" in i for i in result["issues"]))
+
+
+class TestDailyBriefV2Helpers(unittest.TestCase):
+    def test_fix_glued_code_before_word(self):
+        raw = "· 24h爆倉 <code>N/A</code>CoinGlass 不可用"
+        out = _fix_glued_na_suffix(raw)
+        self.assertNotIn("</code>CoinGlass", out)
+        self.assertIn("CoinGlass", out)
+
+    def test_conflicting_total_risk_budget_detected(self):
+        text = "今日風險預算：總風險預算 40%，單筆 10%\n今日風險預算：總風險預算 20%\n"
+        self.assertTrue(_conflicting_total_risk_budget_lines(text))
+
+    def test_conflicting_total_risk_budget_in_validate(self):
+        report = _make_report(
+            extra="\n今日風險預算：總風險預算 40%，單筆 10%\n今日風險預算：總風險預算 20%\n",
+        )
+        result = validate_report(report)
+        self.assertTrue(any("總風險預算" in i for i in result["issues"]))
+
+    def test_qsrec_opposing_same_asset(self):
+        recs = [
+            {"asset": "MSFT", "direction": "LONG", "category": "EQUITY"},
+            {"asset": "MSFT", "direction": "SHORT", "category": "EQUITY"},
+        ]
+        issues = _qsrec_opposing_direction_same_asset(recs)
+        self.assertTrue(any("互斥" in i for i in issues))
 
 
 class TestHasCryptoTradeSection(unittest.TestCase):

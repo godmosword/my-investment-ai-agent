@@ -119,10 +119,7 @@ _DASHBOARD_FMT = dedent("""\
     - 10Y/2Y/SOFR 僅可輸出 0~20% 的數值；超出或不確定一律輸出 <code>N/A</code>。
     - 利差僅可輸出 +/-1000bp 內；超出或口徑不明一律輸出 <code>N/A</code>。
     - 不得混用單位（% / bp），不得把年份、成交量、情緒百分比誤寫成利率。
-    儀表板尾端固定輸出兩行（不可省略）：
-    · <b>SourceHealth</b> <code>newsapi:x.xx | gnews:x.xx | apify:x.xx</code>
-    · <b>SourceErrors</b> <code>newsapi:429=n,400=n,timeout=n,5xx=n,other=n | gnews:... | apify:...</code>
-    · <b>SourceQuota</b> <code>newsapi:used/max | gnews:used/max | apify:used/max</code>
+    【Source 三行】儀表板內勿輸出【SourceHealth】/【SourceErrors】/【SourceQuota】整行（pipeline 會於 QSREC 前統一注入，見【日報 V2】）。
     若關鍵欄位 N/A 超過 3 項，必須在該區塊加註：<b>低置信度</b>，
     並補 1 行「資料缺失原因 + 替代指標」（須符合上方【工具輸出與缺數敘述】，原因只寫工具實際回傳狀態，例如方案權限／逾時；替代指標例：OI 缺失改看 funding／多空比／現貨成交額）。""")
 
@@ -193,7 +190,8 @@ _TRADE_JSON_RULE = dedent("""\
     - alt_candidate_score（同類次佳標的分數）
     - score_gap = selection_score - alt_candidate_score（不得亂填）
     - repeat_days（連續同標天數，當天首次選用可填 0）
-    可附加欄位：rr_ratio、max_drawdown_pct、expected_win_rate、signal_score、regime。""")
+    可附加欄位：rr_ratio、max_drawdown_pct、expected_win_rate、signal_score、regime。
+    【方向唯一】同一 JSON 陣列內，相同 category + 相同 asset（例：兩筆皆 EQUITY+MSFT）不得同時出現 LONG 與 SHORT；若需對沖請改為單筆淨方向或合併敘事，否則 validate_report 失敗。""")
 
 _MTF_CONF_RULE = dedent("""\
     === 交易建議（通用）===
@@ -202,11 +200,28 @@ _MTF_CONF_RULE = dedent("""\
     - 兩同向一中性 → ⭐️⭐️⭐️
     - 分歧 → ⭐️⭐️ 或 ⭐️""")
 
+_BRIEF_V2_RULE = dedent("""\
+    【日報 V2｜決策優先與版面（硬規則）】
+    1) 【今日主敘事】緊接在【今日市場模式】與其評分卡明細之後，必須單獨一行：
+       · 今日主敘事：<b>…</b>（僅 1 句、≤45 字；總結當日最大驅動與對倉位的含義；不得與主 regime 矛盾）
+    2) 【語氣校準】主 regime 為 neutral／risk_on，或關鍵資料為 N/A 導致不確定時：禁止「歷史底部明確」「絕對」「確定暴漲／見頂」「絕佳進場點」「必漲／必跌」；改用「若…則…」「在…條件下」「機率偏…」「證據仍不足」。
+    3) 【儀表板可讀性】區塊①每行僅一個指標；<code>N/A</code> 或數值後若需補充說明（如 CoinGlass 權限），必須換行另起一句，嚴禁黏成同一行（禁止出現 <code>N/A</code> 緊接英文字母）。
+    4) 【Source 三行】區塊①儀表板內禁止輸出整行【SourceHealth】/【SourceErrors】/【SourceQuota】（pipeline 會於 QSREC 前統一注入）；儀表板內若要交代資料健康，僅能用一句自然語言，勿複製三行欄位。
+    """)
+
+_AI_RISK_BRIDGE_RULE = dedent("""\
+    【AI 段風險預算銜接（與加密段一致）】
+    加密戰報上半部已宣告全報「今日風險預算」與主 regime；本 AI 段嚴禁再寫第二組與之衝突的「總風險預算 XX%」整行（避免讀者看到 40% 與 20% 兩套總框）。
+    【覆寫上方「交易段落前今日風險預算」】本段交易區前不要重複輸出「今日風險預算：…」整行；改為在「訊號衝突摘要」之後輸出一行：
+    · <b>美股部位框</b>：兩檔合計建議不超過總資金 <code>10%</code>（主 regime 為 neutral）、<code>15%</code>（risk_on）、<code>4%</code>（risk_off）；單筆仍須遵守【Regime 風險預算】之單筆上限；總組合曝險以上方加密段「今日風險預算」為準。
+    """)
+
 _CRYPTO_LAYOUT_RULE = dedent("""\
     === 排版順序（Crypto）===
     1) <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
     2) 【上期建議追蹤】：若提示區已給 HTML，僅能原樣貼上一段、嚴禁自行增刪列或補寫歷史進場（後端亦會覆寫為 BigQuery 權威版本）。
     3) 【今日市場模式】與評分卡明細（取自 review_task）
+    3b) 【今日主敘事】一行（見【日報 V2】）
     4) 🏛️ 宏觀框架（取自 macro_context_tool）
     5) 📊 加密市場：
        - 區塊① 儀表板（宏觀/技術/籌碼；嚴格套用儀表板格式）
@@ -232,6 +247,7 @@ _AI_LAYOUT_RULE = dedent("""\
        - 區塊②b X 推文精選（無資料可跳過）
        - 區塊③ 產業鏈呢喃 2~3 條（每條必含可信度：可寫「可信度：B」或「來源：B級」或 0~100 分，與加密呢喃／傳聞區格式對齊，供系統驗證）
        - 區塊④ AI 精準操作 2 檔：
+         【新聞格式再確認】區塊②三則必須各以 `〔新聞 4〕`…`〔新聞 6〕` + `[MM/DD HH:MM UTC+8]` 開頭，含 <blockquote> 摘要，嚴禁縮成 `1. 2. 3.` 段落。
          【動態選股規則】禁止固定使用特定股票。必須根據以下優先順序動態選出本日 2 檔：
          (a) 優先選今日 AI 新聞中直接點名且有具體財務/產品事件的美股（如財報、拉貨、合約）
          (b) 次選 ai_momentum_tool 回傳模型排名中，對應的上市公司股票（如 Meta, Google, Microsoft, AMD 等）
@@ -400,6 +416,7 @@ class CryptoResearchCrew:
                 {_REGIME_POSITION_POLICY}
                 {_PAIR_TRADE_RULE}
                 {_CRYPTO_TRADE_MUTEX_RULE}
+                {_BRIEF_V2_RULE}
                 {ctx}
                 {prev_recs_ctx}
 
@@ -525,6 +542,8 @@ class AIResearchCrew:
                 {_RISK_MODE_RULE}
                 {_REGIME_POSITION_POLICY}
                 {_PAIR_TRADE_RULE}
+                {_BRIEF_V2_RULE}
+                {_AI_RISK_BRIDGE_RULE}
                 {ctx}
 
                 {_MTF_CONF_RULE}
