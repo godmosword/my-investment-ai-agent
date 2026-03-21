@@ -183,10 +183,16 @@ _TRADE_JSON_RULE = dedent("""\
     在報告最後輸出 `[QSREC_START]` 與 `[QSREC_END]` 包住的 JSON 陣列：
     [QSREC_START]
     [
-      {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事...", "trigger": "觸發條件", "invalidation": "失效條件", "position_pct": 數字, "timeframe": "持倉週期"}
+      {"asset": "代號", "direction": "LONG/SHORT", "current_price": 數字, "entry": 數字, "target": 數字, "stop": 數字, "confidence": 數字, "category": "CRYPTO/EQUITY", "narrative": "敘事...", "trigger": "觸發條件", "invalidation": "失效條件", "position_pct": 數字, "timeframe": "持倉週期", "selection_score": 數字, "catalyst_score": 數字, "flow_score": 數字, "technical_score": 數字, "risk_fit_score": 數字, "execution_score": 數字, "alt_candidate_score": 數字, "score_gap": 數字, "repeat_days": 整數}
     ]
     [QSREC_END]
     規則：數字欄位不可加引號、asset 不含 $、必須是合法 JSON、所有建議放在同一陣列。
+    評分欄位規則（0~100）：
+    - selection_score（最終總分）
+    - catalyst_score / flow_score / technical_score / risk_fit_score / execution_score（五維拆分）
+    - alt_candidate_score（同類次佳標的分數）
+    - score_gap = selection_score - alt_candidate_score（不得亂填）
+    - repeat_days（連續同標天數，當天首次選用可填 0）
     可附加欄位：rr_ratio、max_drawdown_pct、expected_win_rate、signal_score、regime。""")
 
 _MTF_CONF_RULE = dedent("""\
@@ -213,7 +219,7 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
          (b) 次選鏈上指標異動最顯著的幣種（SOPR 偏離/交易所淨流出/OI 暴增）
          (c) 最後才考慮 BTC/ETH 等大型幣（僅在無其他明顯催化劑時）
          配對交易必須選擇強弱分化最明顯的兩幣，禁止用 BTC/SOL 當預設配對
-         【昨日標的對照】提示區「過去 3 天已建議標的」＋ BigQuery 昨日 QSREC：若本日加密 QSREC 與昨日**完全相同**（同幣種／同配對），必須二選一：(1) 至少更換一檔或一改配對腿；(2) 在「本日選擇理由」首段寫明「重複選用理由：〔全新催化／連日持有依據〕」。否則 validate_report 硬性失敗並整報重試。
+        【昨日標的對照】提示區「過去 3 天已建議標的」＋ BigQuery 昨日 QSREC：若本日加密 QSREC 與昨日**完全相同**（同幣種／同配對），必須二選一：(1) 至少更換一檔或一改配對腿；(2) 在「本日選擇理由」首段寫明「重複選用理由：〔全新催化／連日持有依據〕」，且 QSREC 需填可驗證分差（score_gap，預設需 >= 12）。否則 validate_report 硬性失敗並整報重試。
          每次必須說明「本日選擇理由：XXX 因 [具體事件] 入選」（須寫在今日風險預算／訊號衝突／交易條目之前；validate_report 會檢查催化/鏈上線索或大型幣退階說明，並確認已點名 QSREC 內所有加密標的，不符則整報重試）
     6) 最後必須輸出 QSREC JSON 區塊""")
 
@@ -230,7 +236,7 @@ _AI_LAYOUT_RULE = dedent("""\
          (a) 優先選今日 AI 新聞中直接點名且有具體財務/產品事件的美股（如財報、拉貨、合約）
          (b) 次選 ai_momentum_tool 回傳模型排名中，對應的上市公司股票（如 Meta, Google, Microsoft, AMD 等）
          (c) 最後才考慮 AI 基建通殺標的（如 ETF BOTZ/ARKQ）
-         【昨日標的對照】若本日兩檔美股 QSREC 與昨日 BQ 紀錄**完全相同**，必須更換至少一檔，或在「本日選擇理由」寫明「重複選用理由：…」。否則 validate_report 硬性失敗。
+        【昨日標的對照】若本日兩檔美股 QSREC 與昨日 BQ 紀錄**完全相同**，必須更換至少一檔，或在「本日選擇理由」寫明「重複選用理由：…」，且 QSREC 需填可驗證分差（score_gap，預設需 >= 12）。否則 validate_report 硬性失敗。
          每次必須說明「本日選擇理由：XXX 因 [具體事件] 入選」（須寫在今日風險預算／訊號衝突／交易條目之前；validate_report 會檢查財報/產品/新聞等基本面線索或權值／ETF 退階說明，並確認已點名 QSREC 內所有美股標的，不符則整報重試）
     3) 最後必須輸出 QSREC JSON 區塊""")
 

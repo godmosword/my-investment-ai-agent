@@ -52,6 +52,40 @@ def _strict_pick_rotation() -> bool:
     """與昨日 BQ 已存 QSREC 標的（canonical）完全相同時，須改選或寫「重複選用理由」。STRICT_PICK_ROTATION=0 關閉。"""
     return os.getenv("STRICT_PICK_ROTATION", "1").lower() not in ("0", "false", "no")
 
+
+def _allow_repeat_pick_override() -> bool:
+    """同標延續是否允許以分數優勢覆核放行。ALLOW_REPEAT_PICK_OVERRIDE=0 關閉（改為強制至少換一檔）。"""
+    return os.getenv("ALLOW_REPEAT_PICK_OVERRIDE", "1").lower() not in ("0", "false", "no")
+
+
+def _pick_rotation_override_min_gap() -> float:
+    """同標延續的最低分差門檻（selection_score - alt_candidate_score）。"""
+    try:
+        return float(os.getenv("PICK_ROTATION_OVERRIDE_MIN_GAP", "12"))
+    except ValueError:
+        return 12.0
+
+
+def _strict_pick_scoring() -> bool:
+    """要求 QSREC 內含可量化選標分數欄位。STRICT_PICK_SCORING=0 關閉。"""
+    return os.getenv("STRICT_PICK_SCORING", "1").lower() not in ("0", "false", "no")
+
+
+def _repeat_pick_days_max() -> int:
+    """同標延續放行時，repeat_days 最大容許值。"""
+    try:
+        return int(os.getenv("PICK_REPEAT_DAYS_MAX", "2"))
+    except ValueError:
+        return 2
+
+
+def _repeat_pick_min_score() -> float:
+    """同標延續放行時，selection_score 最低門檻。"""
+    try:
+        return float(os.getenv("PICK_REPEAT_MIN_SELECTION_SCORE", "75"))
+    except ValueError:
+        return 75.0
+
 # 重試常數（集中管理，方便調參）
 MAX_REPORT_RETRIES = int(os.getenv("MAX_REPORT_RETRIES", "2"))
 MAX_503_RETRIES = int(os.getenv("MAX_503_RETRIES", "3"))
@@ -421,6 +455,14 @@ _REPEAT_PICK_REASON_RE = re.compile(
     r"重複選用理由|連日(?:選(?:用)?|持有|維持)|仍選(?:用)?|同標(?:的)?延續|延續昨|延續上日|與昨日相同標的",
     re.IGNORECASE,
 )
+_PICK_SCORE_FIELDS = (
+    "selection_score",
+    "catalyst_score",
+    "flow_score",
+    "technical_score",
+    "risk_fit_score",
+    "execution_score",
+)
 
 
 def _qsrec_canonical_set_for_category(recs: list[dict], category: str) -> set[str]:
@@ -433,6 +475,52 @@ def _qsrec_canonical_set_for_category(recs: list[dict], category: str) -> set[st
         if a:
             out.add(tracker.canonical_asset_key(str(a)))
     return out
+
+
+def _safe_float_val(v) -> float | None:
+    try:
+        if v in (None, "", []):
+            return None
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _best_repeat_score_gap_for_category(recs: list[dict], category: str) -> float | None:
+    """回傳該類別可用的最大 score_gap；若缺失則 None。"""
+    want = category.upper()
+    gaps: list[float] = []
+    for rec in recs:
+        if str(rec.get("category", "")).upper() != want:
+            continue
+        gap = _safe_float_val(rec.get("score_gap"))
+        if gap is None:
+            sel = _safe_float_val(rec.get("selection_score"))
+            alt = _safe_float_val(rec.get("alt_candidate_score"))
+            if sel is not None and alt is not None:
+                gap = sel - alt
+        if gap is not None:
+            gaps.append(gap)
+    if not gaps:
+        return None
+    return max(gaps)
+
+
+def _has_repeat_quality_anchor(recs: list[dict], category: str) -> bool:
+    """同標延續時，至少 1 筆滿足 repeat_days 與 selection_score 品質門檻。"""
+    want = category.upper()
+    max_days = _repeat_pick_days_max()
+    min_score = _repeat_pick_min_score()
+    for rec in recs:
+        if str(rec.get("category", "")).upper() != want:
+            continue
+        repeat_days = _safe_float_val(rec.get("repeat_days"))
+        score = _safe_float_val(rec.get("selection_score"))
+        if repeat_days is None or score is None:
+            continue
+        if repeat_days <= max_days and score >= min_score:
+            return True
+    return False
 
 
 def _fetch_yesterday_qsrec_canonical_set(category: str) -> set[str] | None:
@@ -466,7 +554,7 @@ def _fetch_yesterday_qsrec_canonical_set(category: str) -> set[str] | None:
 
 
 def _pick_rotation_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
-    """今日加密 QSREC canonical 集合若與昨日完全相同，理由須含重複選用說明或請改選。"""
+    """今日加密 QSREC canonical 集合若與昨日完全相同，須改選或達成同標覆核。"""
     if not _strict_pick_rotation():
         return True, ""
     y = _fetch_yesterday_qsrec_canonical_set("CRYPTO")
@@ -475,17 +563,30 @@ def _pick_rotation_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
     t = _qsrec_canonical_set_for_category(recs, "CRYPTO")
     if not t or not y or t != y:
         return True, ""
+    if not _allow_repeat_pick_override():
+        return False, "動態選幣／輪動：與昨日完全相同時不允許同標延續，請至少更換一檔（或配對腿）。"
     reason = _extract_today_pick_reason(_crypto_report_prefix(text)) or ""
-    if _REPEAT_PICK_REASON_RE.search(reason):
-        return True, ""
-    return (
-        False,
-        "動態選幣／輪動：本日加密 QSREC 標的與昨日 BQ 紀錄完全相同，請至少更換一檔（或配對腿），或在「本日選擇理由」明確寫「重複選用理由：…」（新催化／連日持有依據）。",
-    )
+    if not _REPEAT_PICK_REASON_RE.search(reason):
+        return (
+            False,
+            "動態選幣／輪動：本日加密 QSREC 標的與昨日 BQ 紀錄完全相同，請至少更換一檔（或配對腿），或在「本日選擇理由」明確寫「重複選用理由：…」（新催化／連日持有依據）。",
+        )
+    gap = _best_repeat_score_gap_for_category(recs, "CRYPTO")
+    if gap is None:
+        return False, "動態選幣／輪動：同標延續需提供可量化分差（score_gap 或 selection_score/alt_candidate_score）。"
+    min_gap = _pick_rotation_override_min_gap()
+    if gap < min_gap:
+        return False, f"動態選幣／輪動：同標延續分差不足（score_gap={gap:.2f} < {min_gap:.2f}），請改選至少一檔。"
+    if not _has_repeat_quality_anchor(recs, "CRYPTO"):
+        return (
+            False,
+            f"動態選幣／輪動：同標延續需至少 1 筆滿足 repeat_days <= {_repeat_pick_days_max()} 且 selection_score >= {_repeat_pick_min_score():.0f}。",
+        )
+    return True, ""
 
 
 def _pick_rotation_equity_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
-    """今日美股 QSREC canonical 集合若與昨日完全相同，理由須含重複選用說明或請改選。"""
+    """今日美股 QSREC canonical 集合若與昨日完全相同，須改選或達成同標覆核。"""
     if not _strict_pick_rotation():
         return True, ""
     y = _fetch_yesterday_qsrec_canonical_set("EQUITY")
@@ -494,13 +595,26 @@ def _pick_rotation_equity_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
     t = _qsrec_canonical_set_for_category(recs, "EQUITY")
     if not t or not y or t != y:
         return True, ""
+    if not _allow_repeat_pick_override():
+        return False, "動態選股／輪動：與昨日完全相同時不允許同標延續，請至少更換一檔。"
     reason = _extract_today_pick_reason(text[len(_crypto_report_prefix(text)) :]) or ""
-    if _REPEAT_PICK_REASON_RE.search(reason):
-        return True, ""
-    return (
-        False,
-        "動態選股／輪動：本日美股 QSREC 標的與昨日 BQ 紀錄完全相同，請至少更換一檔，或在「本日選擇理由」明確寫「重複選用理由：…」。",
-    )
+    if not _REPEAT_PICK_REASON_RE.search(reason):
+        return (
+            False,
+            "動態選股／輪動：本日美股 QSREC 標的與昨日 BQ 紀錄完全相同，請至少更換一檔，或在「本日選擇理由」明確寫「重複選用理由：…」。",
+        )
+    gap = _best_repeat_score_gap_for_category(recs, "EQUITY")
+    if gap is None:
+        return False, "動態選股／輪動：同標延續需提供可量化分差（score_gap 或 selection_score/alt_candidate_score）。"
+    min_gap = _pick_rotation_override_min_gap()
+    if gap < min_gap:
+        return False, f"動態選股／輪動：同標延續分差不足（score_gap={gap:.2f} < {min_gap:.2f}），請更換至少一檔。"
+    if not _has_repeat_quality_anchor(recs, "EQUITY"):
+        return (
+            False,
+            f"動態選股／輪動：同標延續需至少 1 筆滿足 repeat_days <= {_repeat_pick_days_max()} 且 selection_score >= {_repeat_pick_min_score():.0f}。",
+        )
+    return True, ""
 
 
 def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
@@ -648,6 +762,27 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
                 issues.append(f"QSREC 第 {i} 筆 position_pct 超過 regime 上限（{float(pos):.2f}% > {cap:.2f}%）")
         except (TypeError, ValueError):
             issues.append(f"QSREC 第 {i} 筆 position_pct 非數字")
+
+        if _strict_pick_scoring():
+            for k in _PICK_SCORE_FIELDS:
+                val = _safe_float_val(rec.get(k))
+                if val is None:
+                    issues.append(f"QSREC 第 {i} 筆缺少可量化評分欄位：{k}")
+                    continue
+                if not (0.0 <= val <= 100.0):
+                    issues.append(f"QSREC 第 {i} 筆 {k} 超出範圍（{val:.2f}，應為 0~100）")
+
+            sel = _safe_float_val(rec.get("selection_score"))
+            alt = _safe_float_val(rec.get("alt_candidate_score"))
+            gap = _safe_float_val(rec.get("score_gap"))
+            if sel is None or alt is None:
+                issues.append(f"QSREC 第 {i} 筆缺少 selection_score/alt_candidate_score（無法檢查分差）")
+            elif gap is None:
+                issues.append(f"QSREC 第 {i} 筆缺少 score_gap（建議填 selection_score-alt_candidate_score）")
+            elif abs((sel - alt) - gap) > 1.0:
+                issues.append(
+                    f"QSREC 第 {i} 筆 score_gap 與 selection_score-alt_candidate_score 不一致（{gap:.2f} vs {sel - alt:.2f}）"
+                )
 
     return issues
 
