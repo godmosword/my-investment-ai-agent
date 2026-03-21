@@ -25,6 +25,9 @@ venv/
 .idea/
 .vscode/
 
+# gstack：本機透過 ~/.claude/skills 或專案 .agents/skills 安裝（含機器絕對路徑 symlink，勿提交）
+.agents/
+
 # Test
 .pytest_cache/
 
