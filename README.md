@@ -41,6 +41,7 @@
 ### 穩定性
 
 - **驗證與重試**：`validate_report()` 檢查新聞/推文數量、market_regime、儀表板關鍵字；不合格則重試（預設最多 3 次）。
+- **Gate 擋報時如何除錯**：`STRICT_CONSISTENCY_GATE=1` 時不發正式戰報，但會 (1) 發 Telegram **Gate 告警**（含 `issues_count`、本機 artifacts 路徑）；(2) 預設再發 **1+ 則純文字訊息**列出 `validate_report` **完整 issues**（`GATE_ALERT_FULL_ISSUES=0` 可關閉）；(3) 寫入 **`.qsilicon/last_gate_failure/`**：`draft_report.txt`（當次草稿全文）、`issues.txt`、`validation_summary.json`（`GATE_FAILURE_ARTIFACTS=0` 可關閉；目錄可用 `GATE_FAILURE_ARTIFACT_DIR` 自訂）。
 - **新聞 Gate 分級（資料不足）**：
   - **標準**：全篇 6 則 `〔新聞 1〕`…`〔新聞 6〕`（幣圈 3 + AI 3），且已標之新聞皆須 `[… UTC+8]`。
   - **新聞資料不足分段**（`partial_news_ok`）：允許 **3～5 則** 標籤新聞，但必須 **〔新聞 1〕～〔新聞 3〕** 皆存在、**UTC+8 全過**、文內有 **「資料不足保護／不補虛構新聞」** 並有 **【新聞資料狀態】**（後處理在 3～5 則時會加註 `[REPORT_TIER:PARTIAL_NEWS]`）。**不**放寬 R:R／勝率等交易欄位。
