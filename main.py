@@ -381,7 +381,7 @@ def _crypto_report_prefix(text: str) -> str:
 def _extract_today_pick_reason(span: str) -> str | None:
     """自區塊內取出第一處「本日選擇理由」純文字（至風險預算／訊號衝突／交易條目／QSREC／分隔線）。"""
     m = re.search(
-        r"本日選擇理由[：:]\s*([\s\S]+?)(?=\n\s*(?:今日風險預算|訊號衝突(?:摘要)?)[：:]|\n\s*·\s*\$|\[QSREC_START\]|\n(?:-{4,}|─{4,}))",
+        r"本日選擇理由[：:]\s*([\s\S]+?)(?=\n\s*(?:今日風險預算|訊號衝突(?:摘要)?)[：:]|\n\s*·[^\n]*\$|\[QSREC_START\]|\n(?:-{4,}|─{4,}))",
         span,
         re.IGNORECASE,
     )
