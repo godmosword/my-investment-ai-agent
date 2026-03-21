@@ -19,6 +19,8 @@ from main import (
     _inject_canonical_prev_recs_block,
     _auto_prefix_missing_news_tags,
     _partial_news_ok,
+    _pick_rotation_crypto_ok,
+    _pick_rotation_equity_ok,
 )
 
 
@@ -232,6 +234,52 @@ class TestHasNewsTimezoneUtc8(unittest.TestCase):
     def test_numbered_fallback_accepted(self):
         text = "1) First news item\n2) Second news"
         self.assertTrue(_has_news_timezone_utc8(text))
+
+
+class TestPickRotation(unittest.TestCase):
+    """與昨日 BQ QSREC 標的完全相同時須改選或寫「重複選用理由」。"""
+
+    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    def test_crypto_same_as_yesterday_fails_without_phrase(self, mock_y):
+        mock_y.return_value = {"BTC", "BTC/SOL"}
+        recs = [
+            {"asset": "BTC", "category": "CRYPTO"},
+            {"asset": "BTC/SOL", "category": "CRYPTO"},
+        ]
+        body = (
+            "區塊④\n本日選擇理由：現貨 ETF 與監管敘事支持 BTC，鏈上資金費率與多空比佐證，選 BTC 與 BTC/SOL 比值。\n"
+            "今日風險預算：x"
+        )
+        ok, err = _pick_rotation_crypto_ok(body, recs)
+        self.assertFalse(ok)
+        self.assertIn("輪動", err)
+
+    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    def test_crypto_same_ok_with_repeat_phrase(self, mock_y):
+        mock_y.return_value = {"BTC", "BTC/SOL"}
+        recs = [
+            {"asset": "BTC", "category": "CRYPTO"},
+            {"asset": "BTC/SOL", "category": "CRYPTO"},
+        ]
+        body = (
+            "區塊④\n本日選擇理由：重複選用理由：Hyperliquid ETF 為全新催化；現貨敘事延續。\n"
+            "今日風險預算：x"
+        )
+        ok, _ = _pick_rotation_crypto_ok(body, recs)
+        self.assertTrue(ok)
+
+    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    def test_equity_rotation(self, mock_y):
+        mock_y.return_value = {"NVDA", "MSFT"}
+        recs = [
+            {"asset": "NVDA", "category": "EQUITY"},
+            {"asset": "MSFT", "category": "EQUITY"},
+        ]
+        base = "加密區尾\n\n🤖 AI 市場\n"
+        bad = base + "本日選擇理由：新聞點名 NVDA MSFT 財報產品催化。\n今日風險預算："
+        self.assertFalse(_pick_rotation_equity_ok(bad, recs)[0])
+        good = base + "本日選擇理由：重複選用理由：政策面仍主導故連日維持；\n今日風險預算："
+        self.assertTrue(_pick_rotation_equity_ok(good, recs)[0])
 
 
 class TestPickJustification(unittest.TestCase):
