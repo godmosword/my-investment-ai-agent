@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import sys
@@ -10,6 +11,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from google.cloud import bigquery
 import yfinance as yf
+from pathlib import Path
 
 from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
@@ -2340,15 +2342,99 @@ GATE_CODE_VALIDATION = "GATE_VALIDATION"
 GATE_CODE_UNKNOWN = "GATE_UNKNOWN"
 
 
+def _gate_failure_output_dir() -> Path:
+    raw = (os.getenv("GATE_FAILURE_ARTIFACT_DIR") or "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return Path(__file__).resolve().parent / ".qsilicon" / "last_gate_failure"
+
+
+def _gate_failure_artifacts_enabled() -> bool:
+    return os.getenv("GATE_FAILURE_ARTIFACTS", "1").lower() not in ("0", "false", "no")
+
+
+def _gate_alert_send_full_issues() -> bool:
+    return os.getenv("GATE_ALERT_FULL_ISSUES", "1").lower() not in ("0", "false", "no")
+
+
+def _persist_gate_validation_failure(report_text: str, validation: dict) -> Path | None:
+    """
+    驗證失敗時寫入本機（預設 .qsilicon/last_gate_failure/）：
+    draft_report.txt、issues.txt、validation_summary.json — 方便對照格式與完整問題清單。
+    """
+    if not _gate_failure_artifacts_enabled() or not (report_text or "").strip():
+        return None
+    out_dir = _gate_failure_output_dir()
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.warning("gate failure artifact mkdir failed: %s", e)
+        return None
+    issues = [str(x).strip() for x in (validation.get("issues") or []) if str(x).strip()]
+    try:
+        (out_dir / "draft_report.txt").write_text(report_text, encoding="utf-8")
+        (out_dir / "issues.txt").write_text(
+            "\n".join(f"{i + 1}. {x}" for i, x in enumerate(issues)) if issues else "(no issues list)",
+            encoding="utf-8",
+        )
+        summary = {
+            "valid": validation.get("valid"),
+            "issue_count": len(issues),
+            "report_chars": len(report_text),
+            "written_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "issues": issues,
+        }
+        (out_dir / "validation_summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as e:
+        logger.warning("gate failure artifact write failed: %s", e)
+        return None
+    logger.warning(
+        "validate_report failed — draft + full issues written to %s (count=%d)",
+        out_dir,
+        len(issues),
+    )
+    return out_dir
+
+
+def _format_gate_issues_followup_messages(all_issues: list[str]) -> list[str]:
+    """純文字 follow-up（不用 HTML parse_mode），避免長 issue 炸 Telegram entity。"""
+    if not all_issues:
+        return []
+    header = (
+        f"📋 Q-Silicon 驗證問題清單（共 {len(all_issues)} 項）\n"
+        "下列為 validate_report 完整 issues；正式戰報未推送。\n"
+        "────────────────────────"
+    )
+    chunks: list[str] = []
+    cur = header
+    max_body = 3600
+    for idx, issue in enumerate(all_issues, start=1):
+        line = f"\n{idx}. {issue}"
+        if len(cur) + len(line) > max_body:
+            chunks.append(cur)
+            cur = f"（續）\n{idx}. {issue}"
+        else:
+            cur += line
+    if cur.strip():
+        chunks.append(cur)
+    return chunks
+
+
 def _gate_alert_severity_and_code(
     top_issues: str | None,
     error_text: str | None,
+    *,
+    all_issues_list: list[str] | None = None,
 ) -> tuple[str, str]:
     """依 top_issues 與 error_text 決定 severity 與固定錯誤碼。"""
     issues = (top_issues or "").strip().lower()
     err = (error_text or "").strip().lower()
+    issues_blob = (top_issues or "") + "\n" + "\n".join(all_issues_list or [])
 
-    if "關鍵資料來源缺失" in (top_issues or ""):
+    if "關鍵資料來源缺失" in issues_blob:
         return "CRITICAL", GATE_CODE_CRITICAL_SOURCE
     if err and err != "n/a":
         if "server disconnected" in err or "disconnected without sending" in err:
@@ -2356,7 +2442,7 @@ def _gate_alert_severity_and_code(
         if "503" in err or "unavailable" in err or "rate limit" in err:
             return "WARNING", GATE_CODE_LLM_DISCONNECT
         return "CRITICAL", GATE_CODE_EXECUTION_FAILED
-    if issues and issues != "n/a":
+    if (issues and issues != "n/a") or (all_issues_list and len(all_issues_list) > 0):
         return "WARNING", GATE_CODE_VALIDATION
     return "WARNING", GATE_CODE_UNKNOWN
 
@@ -2366,6 +2452,9 @@ def _send_telegram_gate_alert(
     chat_id: str,
     top_issues: str | None = None,
     error_text: str | None = None,
+    *,
+    all_issues: list[str] | None = None,
+    artifact_rel: str | None = None,
 ) -> None:
     """一致性 gate 阻擋時，發送簡短告警到 Telegram（含 severity 與固定錯誤碼）。"""
     if not token or not chat_id:
@@ -2380,7 +2469,11 @@ def _send_telegram_gate_alert(
     if not err_line:
         err_line = "N/A"
     last_ok = _get_last_success_report_time_utc()
-    severity, code = _gate_alert_severity_and_code(top_issues, error_text)
+    n_issues = len(all_issues) if all_issues else 0
+    severity, code = _gate_alert_severity_and_code(
+        top_issues, error_text, all_issues_list=all_issues
+    )
+    art_line = (artifact_rel or "").strip() or "N/A"
 
     alert_text = (
         "<b>Q-Silicon Gate 告警</b>\n"
@@ -2389,6 +2482,8 @@ def _send_telegram_gate_alert(
         f"<code>STRICT_CONSISTENCY_GATE=1</code> 已阻擋本次正式戰報推送。\n"
         f"<code>time: {ts}</code>\n"
         f"<code>last_success: {last_ok or 'N/A'}</code>\n"
+        f"<code>issues_count: {n_issues}</code>\n"
+        f"<code>artifacts: {art_line}</code>\n"
         f"<code>top_issues: {issue_line}</code>\n"
         f"<code>error: {err_line}</code>"
     )
@@ -2398,6 +2493,19 @@ def _send_telegram_gate_alert(
         logger.info("Gate alert sent to Telegram.")
     except Exception as e:
         logger.warning("Failed to send gate alert to Telegram: %s", e)
+
+    if (
+        _gate_alert_send_full_issues()
+        and all_issues
+        and len(all_issues) > 0
+        and code == GATE_CODE_VALIDATION
+    ):
+        for chunk in _format_gate_issues_followup_messages(all_issues):
+            try:
+                bot.send_message(chat_id, chunk, timeout=60)
+            except Exception as e:
+                logger.warning("Failed to send gate issues follow-up: %s", e)
+                break
 
 
 def _get_last_success_report_time_utc(
@@ -3129,11 +3237,19 @@ if __name__ == "__main__":
         report_valid = False
     logger.info("Pipeline finished (valid=%s, chars=%d).", report_valid, len(final_report or ""))
     invalid_issues_preview = ""
-    if final_report and (not final_report.startswith("🚨")) and not report_valid:
+    gate_issues_full: list[str] = []
+    gate_artifact_rel: str | None = None
+    if not report_valid and final_report and (not final_report.startswith("🚨")):
         try:
-            invalid_result = validation_result or validate_report(final_report)
-            top_issues = [i for i in invalid_result.get("issues", []) if i][:3]
-            invalid_issues_preview = " | ".join(top_issues)
+            inv = validation_result if validation_result is not None else validate_report(final_report)
+            gate_issues_full = [i for i in inv.get("issues", []) if i]
+            invalid_issues_preview = " | ".join(gate_issues_full[:3])
+            art_path = _persist_gate_validation_failure(final_report, inv)
+            if art_path:
+                try:
+                    gate_artifact_rel = str(art_path.relative_to(Path(__file__).resolve().parent))
+                except ValueError:
+                    gate_artifact_rel = str(art_path)
             logger.error(
                 "Report invalid under consistency gate. Top issues: %s",
                 invalid_issues_preview or "N/A",
@@ -3194,6 +3310,8 @@ if __name__ == "__main__":
                     chat_id,
                     top_issues=invalid_issues_preview,
                     error_text=final_report if final_report.startswith("🚨") else None,
+                    all_issues=gate_issues_full if gate_issues_full else None,
+                    artifact_rel=gate_artifact_rel,
                 )
             else:
                 logger.warning("Telegram configuration missing. Skipping gate alert push.")

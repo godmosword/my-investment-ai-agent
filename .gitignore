@@ -37,3 +37,6 @@ daily_chart.png
 
 # Run scratchpad (Phase 1: tool/gate trace JSONL — may contain sensitive snippets)
 .qsilicon/scratchpad/
+# Last gate validation failure (draft report + full issues list)
+.qsilicon/last_gate_failure/
+.pytest_gate_fail_tmp/
