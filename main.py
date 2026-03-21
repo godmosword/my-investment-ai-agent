@@ -465,7 +465,7 @@ def _has_news_timezone_utc8(text: str) -> bool:
     支援 [MM/DD HH:MM]、[MM/DD/YYYY HH:MM]、[YYYY/MM/DD HH:MM]、[YYYY-MM-DD HH:MM]；
     時區允許全形加號、多空格、GMT+8 等 LLM 常見變體。
     """
-    t = _text_for_utc8_validation(text)
+    t = _strip_inline_tags_on_news_lines(_text_for_utc8_validation(text))
     tagged_total = len(re.findall(r"〔新聞\s*\d+〕", t))
     if tagged_total > 0:
         tagged_utc = len(_NEWS_TAGGED_WITH_HK_TZ_RE.findall(t))
@@ -791,8 +791,31 @@ def _has_macro_outlier_values(text: str) -> bool:
                 continue
             if not (0.0 <= val <= 20.0):
                 return True
+        # 「美債 10Y 報 4.25%」等無冒號寫法（仍限含美債之行）
+        for m in re.finditer(
+            r"10Y\D{0,22}([0-9,]+(?:\.\d+)?)\s*%",
+            line,
+            re.IGNORECASE,
+        ):
+            try:
+                val = float(m.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if not (0.0 <= val <= 20.0):
+                return True
         for m in re.finditer(
             r"2Y\s*[:：]\s*([0-9,]+(?:\.\d+)?)\s*%",
+            line,
+            re.IGNORECASE,
+        ):
+            try:
+                val = float(m.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if not (0.0 <= val <= 20.0):
+                return True
+        for m in re.finditer(
+            r"2Y\D{0,22}([0-9,]+(?:\.\d+)?)\s*%",
             line,
             re.IGNORECASE,
         ):
@@ -817,6 +840,12 @@ def _has_macro_outlier_values(text: str) -> bool:
             line,
         )
         if not m:
+            continue
+        sofr_i = line.upper().find("SOFR")
+        if sofr_i >= 0 and re.search(
+            r"(?i)\bVIX\b|恐慌指數|波動率指數|VIX\s*指數",
+            line[sofr_i : m.end()],
+        ):
             continue
         try:
             val = float(m.group(1).replace(",", ""))
@@ -900,13 +929,29 @@ _NEWS_VALIDATION_NOISE = re.compile(
     r"新聞資料狀態|請主編下一版|格式未統一為〔新聞|【新聞資料狀態】"
 )
 
-# 新聞時間戳允許之香港時區字樣（含全形加號、GMT）
-_NEWS_HK_TZ_TOKEN = r"(?:UTC|GMT)\s*[\+\＋]\s*8"
+# 新聞時間戳允許之香港時區字樣（含全形加號、GMT、HKT／中文口語）
+_NEWS_HK_TZ_TOKEN = (
+    r"(?:UTC|GMT)\s*[\+\＋]\s*8|HKT\b|(?:香港|北京|台北)時間"
+)
+# 新聞行內常以 <code> 包住時間戳，驗證／正規化前先剥除該行上行內標籤
+_NEWS_LINE_INLINE_HTML_RE = re.compile(r"</?(?:code|b|i|u|s)(?:\s[^>]*)?>", re.IGNORECASE)
+
 _NEWS_TAGGED_WITH_HK_TZ_RE = re.compile(
-    rf"〔新聞\s*\d+〕\s*\[(?:\d{{4}}[/\-]\d{{1,2}}[/\-]\d{{1,2}}|\d{{1,2}}/\d{{1,2}}(?:/\d{{4}})?)"
+    rf"〔新聞\s*\d+〕[\s\u3000]*\[(?:\d{{4}}[/\-]\d{{1,2}}[/\-]\d{{1,2}}|\d{{1,2}}/\d{{1,2}}(?:/\d{{4}})?)"
     rf"\s+\d{{1,2}}:\d{{2}}(?::\d{{2}})?\s*{_NEWS_HK_TZ_TOKEN}\]",
     re.IGNORECASE,
 )
+
+
+def _strip_inline_tags_on_news_lines(text: str) -> str:
+    """僅在含〔新聞 N〕之行剥除 <code>/<b> 等行內標籤，利於比對時間戳又不動儀表板其他 HTML。"""
+    out: list[str] = []
+    for ln in text.splitlines():
+        if re.search(r"〔新聞\s*\d+〕", ln):
+            out.append(_NEWS_LINE_INLINE_HTML_RE.sub("", ln))
+        else:
+            out.append(ln)
+    return "\n".join(out)
 
 
 def _strip_lines_for_news_validation(text: str) -> str:
@@ -970,24 +1015,31 @@ def _inject_canonical_prev_recs_block(report_text: str, canonical_html: str) -> 
 def _normalize_news_timezone_utc8(text: str) -> str:
     """將新聞時間標籤統一補上 UTC+8。
     支援格式：[MM/DD HH:MM]、[MM/DD/YYYY HH:MM]、[YYYY/MM/DD HH:MM]、[YYYY-MM-DD HH:MM]；
-    已含 UTC+8／GMT+8（含全形加號）者不變。
+    已含 UTC+8／GMT+8／HKT／香港時間等者不變。會先剥除新聞行上 <code> 等行內標籤再比對。
     """
     pattern = re.compile(
-        r"(〔新聞\s*\d+〕\s*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{4})?)"
+        r"(〔新聞\s*\d+〕[\s\u3000]*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{4})?)"
         r"\s+\d{1,2}:\d{2}(?::\d{2})?)"
-        r"(\s+(?:UTC|GMT)\s*[\+\＋]\s*8)?"
-        r"(\])"
+        r"(\s+(?:(?:UTC|GMT)\s*[\+\＋]\s*8|HKT\b|(?:香港|北京|台北)時間))?"
+        r"(\])",
+        re.IGNORECASE,
     )
 
     def _repl(m: re.Match) -> str:
-        left = m.group(1)
-        tz = m.group(2)
-        closing = m.group(3)
-        if tz:
+        left, tz, closing = m.group(1), m.group(2), m.group(3)
+        if tz and tz.strip():
             return m.group(0)
         return f"{left} UTC+8{closing}"
 
-    return pattern.sub(_repl, text)
+    lines = text.splitlines()
+    out: list[str] = []
+    for ln in lines:
+        if not re.search(r"〔新聞\s*\d+〕", ln):
+            out.append(ln)
+            continue
+        ln_flat = _NEWS_LINE_INLINE_HTML_RE.sub("", ln)
+        out.append(pattern.sub(_repl, ln_flat))
+    return "\n".join(out)
 
 
 def _inject_fallback_news_entries(text: str, min_news: int = 6) -> str:
@@ -1356,6 +1408,10 @@ def validate_report(text: str) -> dict:
             text,
             re.IGNORECASE,
         )
+        or re.search(r"可信度\s*等級\s*[：:]\s*(?:A|B|C)\b", text, re.IGNORECASE)
+        or re.search(r"(?:呢喃|傳聞|供應鏈)[^\n]{0,48}可信度\s*[：:]?\s*(?:A|B|C|\d{1,3})\b", text, re.IGNORECASE)
+        or re.search(r"信賴度\s*[：:]\s*(?:A|B|C|\d{1,3})\b", text, re.IGNORECASE)
+        or re.search(r"置信\s*分級\s*[：:]\s*(?:A|B|C|\d{1,3})\b", text, re.IGNORECASE)
     )
     has_utc8 = _has_news_timezone_utc8(text)
     too_many_na = len(re.findall(r'\bN/A\b', text)) > 3
