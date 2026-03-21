@@ -323,6 +323,17 @@ class TestPickRotation(unittest.TestCase):
         self.assertTrue(_pick_rotation_equity_ok(good, recs)[0])
 
     @patch("main._fetch_yesterday_qsrec_canonical_set")
+    def test_equity_same_ok_with_repeat_stock_phrase_synonym(self, mock_y):
+        mock_y.return_value = {"NVDA", "MSFT"}
+        recs = [
+            {"asset": "NVDA", "category": "EQUITY", "selection_score": 82, "alt_candidate_score": 65, "score_gap": 17, "repeat_days": 1},
+            {"asset": "MSFT", "category": "EQUITY", "selection_score": 79, "alt_candidate_score": 63, "score_gap": 16, "repeat_days": 2},
+        ]
+        base = "加密區尾\n\n🤖 AI 市場\n"
+        good = base + "本日選擇理由：重複選股理由：財報週期主導故維持 NVDA／MSFT。\n訊號衝突摘要：無顯著多空衝突。"
+        self.assertTrue(_pick_rotation_equity_ok(good, recs)[0])
+
+    @patch("main._fetch_yesterday_qsrec_canonical_set")
     def test_repeat_requires_min_score_gap(self, mock_y):
         mock_y.return_value = {"BTC"}
         recs = [{"asset": "BTC", "category": "CRYPTO", "selection_score": 72, "alt_candidate_score": 66, "score_gap": 6, "repeat_days": 1}]
@@ -591,6 +602,15 @@ class TestRumorGradePostprocess(unittest.TestCase):
         self.assertFalse(any("N/A 過多" in i for i in result["issues"]))
         self.assertIn("低置信度", out)
         self.assertIn("替代指標", out)
+
+    def test_postprocess_redacts_data_missing_tokens(self):
+        """LLM 誤貼 [DATA_MISSING:...] 時應改寫，避免 validate_report 資料缺失欄位誤判。"""
+        report = _make_report(extra="某段敘述 [DATA_MISSING:x_search] 不應留在正文。\n")
+        out = _postprocess_report_for_resilience(report)
+        self.assertNotIn("[DATA_MISSING:", out)
+        self.assertIn("〔資料源暫缺：x_search〕", out)
+        vr = validate_report(out)
+        self.assertFalse(vr["has_data_missing"])
 
     def test_code_leak_detected(self):
         report = _make_report(extra="multi_timeframe_tool (arg)")
