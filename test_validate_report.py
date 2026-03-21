@@ -25,6 +25,8 @@ from main import (
     _sanitize_macro_outlier_values,
     _ensure_rumor_grade_marker,
     _has_rumor_grade_marker,
+    _postprocess_report_for_resilience,
+    _normalize_news_timezone_utc8,
 )
 
 
@@ -216,6 +218,23 @@ class TestHasNewsTimezoneUtc8(unittest.TestCase):
             "〔新聞 2〕[2026-03-20 11:00 UTC＋8] B"
         )
         self.assertTrue(_has_news_timezone_utc8(text))
+
+    def test_tagged_utc08_colon_accepted(self):
+        text = "〔新聞 1〕[03/20/2026 9:05 UTC+08:00] A\n〔新聞 2〕[2026-03-20 11:00 中國標準時間] B"
+        self.assertTrue(_has_news_timezone_utc8(text))
+
+    def test_fullwidth_brackets_then_normalize(self):
+        raw = "〔新聞 1〕［03/20 10:00］ Src\n"
+        out = _normalize_news_timezone_utc8(raw)
+        self.assertIn("UTC+8", out)
+        self.assertTrue(_has_news_timezone_utc8(out))
+
+    def test_split_line_news_tag_merged(self):
+        raw = "〔新聞 1〕\n[03/20 10:00] headline\n"
+        out = _normalize_news_timezone_utc8(raw)
+        self.assertIn("〔新聞 1〕", out)
+        self.assertIn("UTC+8", out)
+        self.assertTrue(_has_news_timezone_utc8(out))
 
     def test_tagged_hkt_and_code_wrapped_timestamp(self):
         """Telegram 戰報常在時間外層包 <code>；亦接受 HKT／香港時間。"""
@@ -536,6 +555,26 @@ class TestRumorGradePostprocess(unittest.TestCase):
         report = _make_report(extra="N/A N/A N/A N/A N/A")
         result = validate_report(report)
         self.assertTrue(any("N/A 過多" in i for i in result["issues"]))
+
+    def test_too_many_na_multiline_disclosure_passes(self):
+        """資料缺失原因與替代指標跨行時仍應通過 Gate（舊版 . 不匹配換行會誤擋）。"""
+        extra = (
+            "N/A N/A N/A N/A N/A\n"
+            "<b>低置信度</b>：儀表板部分欄位暫缺。\n"
+            "<b>資料缺失原因</b>：API 限流。\n"
+            "<b>替代指標</b>：參考 RSI 與資金費率。\n"
+        )
+        report = _make_report(extra=extra)
+        result = validate_report(report)
+        self.assertFalse(any("N/A 過多" in i for i in result["issues"]))
+
+    def test_postprocess_injects_na_disclosure(self):
+        report = _make_report(extra="N/A N/A N/A N/A N/A")
+        out = _postprocess_report_for_resilience(report)
+        result = validate_report(out)
+        self.assertFalse(any("N/A 過多" in i for i in result["issues"]))
+        self.assertIn("低置信度", out)
+        self.assertIn("替代指標", out)
 
     def test_code_leak_detected(self):
         report = _make_report(extra="multi_timeframe_tool (arg)")

@@ -666,12 +666,49 @@ def _codex_judge_pass(report_text: str) -> bool:
     )
 
 
+def _normalize_fullwidth_news_brackets_on_news_lines(text: str) -> str:
+    """將含〔新聞 N〕行之全形括號 ［］ 轉為半形 []，利於 UTC+8 正規化與 Gate 比對。"""
+    out: list[str] = []
+    for ln in text.splitlines():
+        if re.search(r"〔新聞\s*\d+〕", ln):
+            out.append(ln.replace("［", "[").replace("］", "]"))
+        else:
+            out.append(ln)
+    return "\n".join(out)
+
+
+def _join_news_tag_timestamp_lines(text: str) -> str:
+    """若 LLM 將〔新聞 N〕與 [日期 時間] 拆成兩行，合併為單行以便補齊 UTC+8 與 regex 驗證。"""
+    lines = text.splitlines()
+    if not lines:
+        return text
+    out: list[str] = []
+    i = 0
+    ts_head = re.compile(
+        r"^\s*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{4})?)\s+\d{1,2}:\d{2}(?::\d{2})?"
+    )
+    while i < len(lines):
+        ln = lines[i]
+        if re.search(r"〔新聞\s*\d+〕\s*$", ln.rstrip()) and i + 1 < len(lines):
+            nxt = lines[i + 1]
+            if ts_head.match(nxt):
+                out.append(ln.rstrip() + " " + nxt.lstrip())
+                i += 2
+                continue
+        out.append(ln)
+        i += 1
+    return "\n".join(out)
+
+
 def _has_news_timezone_utc8(text: str) -> bool:
     """新聞時間格式檢查：標籤格式需全數標示香港時區（UTC+8／GMT+8 等）；數字條列格式視為已降級接受。
     支援 [MM/DD HH:MM]、[MM/DD/YYYY HH:MM]、[YYYY/MM/DD HH:MM]、[YYYY-MM-DD HH:MM]；
     時區允許全形加號、多空格、GMT+8 等 LLM 常見變體。
     """
-    t = _strip_inline_tags_on_news_lines(_text_for_utc8_validation(text))
+    t0 = _text_for_utc8_validation(text)
+    t1 = _join_news_tag_timestamp_lines(t0)
+    t2 = _normalize_fullwidth_news_brackets_on_news_lines(t1)
+    t = _strip_inline_tags_on_news_lines(t2)
     tagged_total = len(re.findall(r"〔新聞\s*\d+〕", t))
     if tagged_total > 0:
         tagged_utc = len(_NEWS_TAGGED_WITH_HK_TZ_RE.findall(t))
@@ -1161,9 +1198,17 @@ _NEWS_VALIDATION_NOISE = re.compile(
     r"新聞資料狀態|請主編下一版|格式未統一為〔新聞|【新聞資料狀態】"
 )
 
-# 新聞時間戳允許之香港時區字樣（含全形加號、GMT、HKT／中文口語）
+# 新聞時間戳允許之香港時區字樣（含全形加號、GMT、HKT／中文口語、UTC+08:00 等）
 _NEWS_HK_TZ_TOKEN = (
-    r"(?:UTC|GMT)\s*[\+\＋]\s*8|HKT\b|(?:香港|北京|台北)時間"
+    r"(?:UTC|GMT)\s*[\+\＋]\s*0?8(?::\s*00)?"
+    r"|HKT\b"
+    r"|(?:香港|北京|台北)時間"
+    r"|中國標準時間|東八區"
+)
+# N/A 過多時須同現「資料缺失原因」與「替代指標」（允許跨行，避免 . 不匹配換行誤判）
+_MISSING_REASON_PROXY_RE = re.compile(
+    r"資料缺失原因[\s\S]{0,800}?替代指標|替代指標[\s\S]{0,800}?資料缺失原因",
+    re.IGNORECASE,
 )
 # 新聞行內常以 <code> 包住時間戳，驗證／正規化前先剥除該行上行內標籤
 _NEWS_LINE_INLINE_HTML_RE = re.compile(r"</?(?:code|b|i|u|s)(?:\s[^>]*)?>", re.IGNORECASE)
@@ -1328,10 +1373,12 @@ def _normalize_news_timezone_utc8(text: str) -> str:
     支援格式：[MM/DD HH:MM]、[MM/DD/YYYY HH:MM]、[YYYY/MM/DD HH:MM]、[YYYY-MM-DD HH:MM]；
     已含 UTC+8／GMT+8／HKT／香港時間等者不變。會先剥除新聞行上 <code> 等行內標籤再比對。
     """
+    text = _join_news_tag_timestamp_lines(text)
+    text = _normalize_fullwidth_news_brackets_on_news_lines(text)
     pattern = re.compile(
         r"(〔新聞\s*\d+〕[\s\u3000]*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{4})?)"
         r"\s+\d{1,2}:\d{2}(?::\d{2})?)"
-        r"(\s+(?:(?:UTC|GMT)\s*[\+\＋]\s*8|HKT\b|(?:香港|北京|台北)時間))?"
+        rf"(\s+(?:{_NEWS_HK_TZ_TOKEN}))?"
         r"(\])",
         re.IGNORECASE,
     )
@@ -1485,6 +1532,40 @@ def _ensure_trade_sections(text: str) -> str:
     return text.rstrip() + "\n\n" + block
 
 
+def _ensure_low_confidence_for_many_na(text: str) -> str:
+    """當 <code>N/A</code> 出現次數過多時，validate_report 要求同時具備低置信度字樣與「資料缺失原因／替代指標」說明。"""
+    if len(re.findall(r"\bN/A\b", text)) <= 3:
+        return text
+    has_lc = bool(re.search(r"低置信度|低信心", text))
+    has_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
+    if has_lc and has_proxy:
+        return text
+    # 避免重複注入（與手寫段落區隔：固定片語）
+    if "方案權限回傳暫缺" in text:
+        return text
+    block = (
+        "· <b>低置信度</b>：儀表板若出現多項 <code>N/A</code>，表示第三方 API 或方案權限回傳暫缺，"
+        "敘事仍以已回傳之技術面與新聞催化為準。"
+        "<b>資料缺失原因</b>：與工具欄位空白或 <code>[DATA_MISSING:...]</code> 標記一致；"
+        "<b>替代指標</b>：請交叉比對 DXY、VIX、資金費率、Fear&amp;Greed、RSI、現貨成交與上文核心新聞。"
+    )
+    for anchor in (
+        r"(區塊①[^\n]*\n)",
+        r"(數據儀表板[^\n]*\n)",
+        r"([^\n]*\bDXY\b[^\n]*\n)",
+        r"(【今日市場模式】[^\n]*\n)",
+    ):
+        m = re.search(anchor, text)
+        if m:
+            pos = m.end()
+            return text[:pos] + block + "\n" + text[pos:]
+    marker = "[QSREC_START]"
+    pos = text.find(marker)
+    if pos != -1:
+        return text[:pos].rstrip() + "\n\n" + block + "\n\n" + text[pos:]
+    return text.rstrip() + "\n\n" + block
+
+
 def _postprocess_report_for_resilience(text: str) -> str:
     """修正易失格式：新聞 UTC+8、新聞不足降級補齊、來源可觀測欄位。"""
     if not text:
@@ -1498,6 +1579,7 @@ def _postprocess_report_for_resilience(text: str) -> str:
     patched = _normalize_news_timezone_utc8(patched)
     patched = _ensure_signal_conflict_section(patched)
     patched = _ensure_min_news_count(patched, min_news=6)
+    patched = _ensure_low_confidence_for_many_na(patched)
 
     # 原子化來源欄位收斂：只做一次「清理 -> 注入」避免重複殘留。
     patched = _remove_duplicate_source_observability(patched)
@@ -1751,7 +1833,7 @@ def validate_report(text: str) -> dict:
     has_utc8 = _has_news_timezone_utc8(text)
     too_many_na = len(re.findall(r'\bN/A\b', text)) > 3
     has_low_confidence_tag = bool(re.search(r'低置信度|低信心', text))
-    has_missing_reason_proxy = bool(re.search(r'資料缺失原因.*替代指標|替代指標.*資料缺失原因', text))
+    has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
     has_numeric_in_investment = bool(
         re.search(r'投資解讀[：:][^\n]*(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)', text)
         or re.search(
