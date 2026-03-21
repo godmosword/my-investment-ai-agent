@@ -21,6 +21,7 @@ from main import (
     _partial_news_ok,
     _pick_rotation_crypto_ok,
     _pick_rotation_equity_ok,
+    _pick_rotation_override_min_gap,
     _sanitize_macro_outlier_values,
     _ensure_rumor_grade_marker,
     _has_rumor_grade_marker,
@@ -92,11 +93,13 @@ def _make_report(
             "["
             '{"asset":"BTC","direction":"LONG","current_price":95000,"entry":94500,'
             '"target":100000,"stop":91000,"confidence":4,"category":"CRYPTO",'
-            f'"narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"3d","regime":"{regime}"'
+            f'"narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"3d","regime":"{regime}",'
+            '"selection_score":78,"catalyst_score":80,"flow_score":76,"technical_score":75,"risk_fit_score":74,"execution_score":79,"alt_candidate_score":63,"score_gap":15,"repeat_days":1'
             "},"
             '{"asset":"NVDA","direction":"LONG","current_price":890,"entry":885,'
             '"target":950,"stop":860,"confidence":4,"category":"EQUITY",'
-            f'"narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"5d","regime":"{regime}"'
+            f'"narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"5d","regime":"{regime}",'
+            '"selection_score":81,"catalyst_score":84,"flow_score":78,"technical_score":80,"risk_fit_score":77,"execution_score":82,"alt_candidate_score":65,"score_gap":16,"repeat_days":1'
             "}]\n"
             "[QSREC_END]"
         )
@@ -246,8 +249,8 @@ class TestPickRotation(unittest.TestCase):
     def test_crypto_same_as_yesterday_fails_without_phrase(self, mock_y):
         mock_y.return_value = {"BTC", "BTC/SOL"}
         recs = [
-            {"asset": "BTC", "category": "CRYPTO"},
-            {"asset": "BTC/SOL", "category": "CRYPTO"},
+            {"asset": "BTC", "category": "CRYPTO", "selection_score": 78, "alt_candidate_score": 64, "score_gap": 14, "repeat_days": 1},
+            {"asset": "BTC/SOL", "category": "CRYPTO", "selection_score": 75, "alt_candidate_score": 62, "score_gap": 13, "repeat_days": 2},
         ]
         body = (
             "區塊④\n本日選擇理由：現貨 ETF 與監管敘事支持 BTC，鏈上資金費率與多空比佐證，選 BTC 與 BTC/SOL 比值。\n"
@@ -261,8 +264,8 @@ class TestPickRotation(unittest.TestCase):
     def test_crypto_same_ok_with_repeat_phrase(self, mock_y):
         mock_y.return_value = {"BTC", "BTC/SOL"}
         recs = [
-            {"asset": "BTC", "category": "CRYPTO"},
-            {"asset": "BTC/SOL", "category": "CRYPTO"},
+            {"asset": "BTC", "category": "CRYPTO", "selection_score": 78, "alt_candidate_score": 64, "score_gap": 14, "repeat_days": 1},
+            {"asset": "BTC/SOL", "category": "CRYPTO", "selection_score": 75, "alt_candidate_score": 62, "score_gap": 13, "repeat_days": 2},
         ]
         body = (
             "區塊④\n本日選擇理由：重複選用理由：Hyperliquid ETF 為全新催化；現貨敘事延續。\n"
@@ -275,14 +278,33 @@ class TestPickRotation(unittest.TestCase):
     def test_equity_rotation(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
-            {"asset": "NVDA", "category": "EQUITY"},
-            {"asset": "MSFT", "category": "EQUITY"},
+            {"asset": "NVDA", "category": "EQUITY", "selection_score": 82, "alt_candidate_score": 65, "score_gap": 17, "repeat_days": 1},
+            {"asset": "MSFT", "category": "EQUITY", "selection_score": 79, "alt_candidate_score": 63, "score_gap": 16, "repeat_days": 2},
         ]
         base = "加密區尾\n\n🤖 AI 市場\n"
         bad = base + "本日選擇理由：新聞點名 NVDA MSFT 財報產品催化。\n今日風險預算："
         self.assertFalse(_pick_rotation_equity_ok(bad, recs)[0])
         good = base + "本日選擇理由：重複選用理由：政策面仍主導故連日維持；\n今日風險預算："
         self.assertTrue(_pick_rotation_equity_ok(good, recs)[0])
+
+    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    def test_repeat_requires_min_score_gap(self, mock_y):
+        mock_y.return_value = {"BTC"}
+        recs = [{"asset": "BTC", "category": "CRYPTO", "selection_score": 72, "alt_candidate_score": 66, "score_gap": 6, "repeat_days": 1}]
+        body = "區塊④\n本日選擇理由：重複選用理由：新催化延續。\n今日風險預算：x"
+        ok, err = _pick_rotation_crypto_ok(body, recs)
+        self.assertFalse(ok)
+        self.assertIn("分差不足", err)
+        self.assertGreater(_pick_rotation_override_min_gap(), 0)
+
+    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    def test_repeat_requires_quality_anchor(self, mock_y):
+        mock_y.return_value = {"BTC"}
+        recs = [{"asset": "BTC", "category": "CRYPTO", "selection_score": 74, "alt_candidate_score": 61, "score_gap": 13, "repeat_days": 3}]
+        body = "區塊④\n本日選擇理由：重複選用理由：催化延續。\n今日風險預算：x"
+        ok, err = _pick_rotation_crypto_ok(body, recs)
+        self.assertFalse(ok)
+        self.assertIn("repeat_days", err)
 
 
 class TestPickJustification(unittest.TestCase):

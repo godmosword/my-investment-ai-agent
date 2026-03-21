@@ -45,7 +45,9 @@
   - **交易觀望**（`trade_watch_mode`）：出現「觀望模式／暫不開新倉／暫不提供股票進出場」等才放寬 **R:R、最大回撤、勝率、Signal Score、投資解讀量化** 等檢查。
   - 環境變數 **`ALLOW_PARTIAL_NEWS_GATE=0`**：關閉分段，永遠要求 6 則新聞標籤。
 - **選幣／選股理由驗證**（`STRICT_PICK_JUSTIFICATION`，預設開啟）：加密／美股區的 **「本日選擇理由」** 須達標——足夠的催化或鏈上（幣）／基本面或新聞（股）線索，或明確 **退階**（大型幣、權值、ETF）說明，且理由中須 **點名 QSREC 內該類別所有標的**（含比值兩腿）。不符時 `validate_report` 失敗並觸發重試。交易觀望模式下略過。設 **`STRICT_PICK_JUSTIFICATION=0`** 可關閉。
-- **與昨日 QSREC 輪動**（`STRICT_PICK_ROTATION`，預設開啟）：當 BigQuery **昨日**已寫入之 QSREC，其 **canonical 標的集合**與 **今日**該類（加密／美股）**完全相同**時，對應區塊的「本日選擇理由」須含 **「重複選用理由」**（或驗證器接受之同義片語），否則驗證失敗並重試。**SKIP_BIGQUERY**、查詢失敗或昨日無資料時 **不擋**。設 **`STRICT_PICK_ROTATION=0`** 可關閉。
+- **選標量化評分**（`STRICT_PICK_SCORING`，預設開啟）：QSREC 每筆必須提供 `selection_score`、`catalyst_score`、`flow_score`、`technical_score`、`risk_fit_score`、`execution_score`（皆 0~100），並提供 `alt_candidate_score` 與 `score_gap`（應等於 `selection_score-alt_candidate_score`）。缺漏或不一致將驗證失敗。
+- **與昨日 QSREC 輪動**（`STRICT_PICK_ROTATION`，預設開啟）：當 BigQuery **昨日**已寫入之 QSREC，其 **canonical 標的集合**與 **今日**該類（加密／美股）**完全相同**時，需通過同標覆核：理由含 **「重複選用理由」**，且 `score_gap` 達門檻（`PICK_ROTATION_OVERRIDE_MIN_GAP`，預設 12）。設 `ALLOW_REPEAT_PICK_OVERRIDE=0` 可改為「完全禁止同標延續（強制至少換一檔/一腿）」。**SKIP_BIGQUERY**、查詢失敗或昨日無資料時 **不擋**。設 **`STRICT_PICK_ROTATION=0`** 可關閉。
+- **同標延續品質錨點**：當日若走同標覆核，QSREC 至少 1 筆需同時滿足 `repeat_days <= PICK_REPEAT_DAYS_MAX`（預設 2）與 `selection_score >= PICK_REPEAT_MIN_SELECTION_SCORE`（預設 75），避免低品質連續續抱。
 - **503 退避**：偵測 503/Unavailable 時指數退避重試（可配置次數與基數）。
 - **LLM**：各模型 `max_retries` 3～5、`timeout` 120～180 秒。
 - **來源健康分數**：`market_search_tool` 會根據 `newsapi/gnews/apify` 近期成功率動態排序來源，並採 7 天半衰期避免舊資料長期主導。
