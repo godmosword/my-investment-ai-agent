@@ -13,7 +13,7 @@
 ## 3. Common Commands
 - **Install Dependencies**: `pip install -r requirements.txt` (or `pip3 install -r requirements.txt` / `python3 -m pip install -r requirements.txt`; ensure `~/.local/bin` on PATH for streamlit).
 - **Run Development Server**: `streamlit run dashboard.py --server.port 8501 --server.headless true` (dashboard; no API keys required for startup; BigQuery widgets show fallbacks without credentials).
-- **Run Tests**: No automated test suite. Validation is done via `validate_report()` in `main.py`. For lint only: `ruff check .`
+- **Run Tests**: `pytest`（根目錄 `test_*.py`，約 140+ 案例）。**PR**：CI 跑 `ruff check .` + `pytest -m smoke`（見 `pytest.ini`）。**push main / deploy 重用 ci.yml**：完整 `pytest -v`。產線邏輯仍以 `main.validate_report()` 為準；`REPORT_COMPARE_MODE=1` 可雙軌比對（見 `docs/REPORT_COMPARE_STAGING.md`）。
 - **Build**: No traditional build step. For container: `docker build -f Dockerfile .` (see `Dockerfile` / `docker-compose.yml`). Main pipeline run: `python main.py` (requires LLM + data API keys; takes ~15–30+ minutes).
 
 ## 4. Bug Reporting & Fixing Workflow
