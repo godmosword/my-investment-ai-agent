@@ -775,6 +775,44 @@ def _pair_trade_unit_consistent(text: str) -> bool:
     return abs(entry - implied_ratio) / implied_ratio <= 0.35
 
 
+def _qsrec_opposing_direction_same_asset(recs: list[dict]) -> list[str]:
+    """同一 category + asset 不得同時 LONG 與 SHORT（避免讀者看到互斥觀點）。"""
+    from collections import defaultdict
+
+    buckets: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for rec in recs:
+        asset = str(rec.get("asset") or "").strip().upper().replace("$", "")
+        direction = str(rec.get("direction") or "").strip().upper()
+        cat = str(rec.get("category") or "").strip().upper()
+        if not asset or direction not in ("LONG", "SHORT"):
+            continue
+        buckets[(cat or "UNKNOWN", asset)].add(direction)
+    issues: list[str] = []
+    for (cat, asset), dirs in sorted(buckets.items()):
+        if len(dirs) > 1:
+            issues.append(
+                f"QSREC 同資產方向互斥：{cat} {asset} 同時含 LONG 與 SHORT（請整併為單一淨方向或分拆為明確對沖敘事）"
+            )
+    return issues
+
+
+def _conflicting_total_risk_budget_lines(text: str) -> bool:
+    """若出現多組「今日風險預算」且總風險預算百分比不一致，視為版面/敘事衝突。"""
+    nums = re.findall(r"今日風險預算[：:][^\n]*總風險預算[^\d]*(\d+)\s*%", text)
+    if len(nums) < 2:
+        return False
+    return len(set(nums)) > 1
+
+
+def _fix_glued_na_suffix(text: str) -> str:
+    """修復 <code>N/A</code> 或裸 N/A 與後續中英文字黏連（如 N/ACoinGlass）。"""
+    if not text:
+        return text
+    out = re.sub(r"(N/A)([A-Za-z\u4e00-\u9fff])", r"\1\n\2", text)
+    out = re.sub(r"(</code>)([A-Za-z\u4e00-\u9fff])", r"\1\n\2", out)
+    return out
+
+
 def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
     """檢查 QSREC 載荷的交易欄位完整度與 regime 倉位一致性。"""
     if not recs:
@@ -825,6 +863,7 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
                     f"QSREC 第 {i} 筆 score_gap 與 selection_score-alt_candidate_score 不一致（{gap:.2f} vs {sel - alt:.2f}）"
                 )
 
+    issues.extend(_qsrec_opposing_direction_same_asset(recs))
     return issues
 
 
@@ -1578,7 +1617,8 @@ def _postprocess_report_for_resilience(text: str) -> str:
     """修正易失格式：新聞 UTC+8、新聞不足降級補齊、來源可觀測欄位。"""
     if not text:
         return text
-    patched = _sanitize_macro_outlier_values(text)
+    patched = _fix_glued_na_suffix(text)
+    patched = _sanitize_macro_outlier_values(patched)
     patched = _unify_regime_mentions(patched)
     patched = _drop_unactionable_trade_blocks(patched)
     patched = _ensure_trade_sections(patched)
@@ -1981,6 +2021,8 @@ def validate_report(text: str) -> dict:
         issues.append("宏觀段落前後矛盾（2Y/利差數值不一致）")
     if has_source_observability_conflict:
         issues.append("Source observability 欄位重複或互相矛盾")
+    if _conflicting_total_risk_budget_lines(text):
+        issues.append("今日風險預算出現多組不一致的總風險預算百分比（請整併為單一總框或依【日報 V2】改為美股部位框）")
     if not pair_unit_ok:
         issues.append("配對交易單位不一致或未標註比值/價差單位")
     if not risk_off_star_ok:

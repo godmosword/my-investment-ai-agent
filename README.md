@@ -32,6 +32,7 @@
 
 ### 輸出
 
+- **日報 V2 版面／敘事規格**：見 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)（今日主敘事、AI 段風險銜接、QSREC 方向唯一、N/A 黏連修復）。
 - **Telegram**：HTML 分段推送，retry + 純文字 fallback，僅允許白名單標籤。
 - **BigQuery**：從戰報萃取 DXY、ETF 資金流、平均風險分數、MVRV Z-Score、Grok/GPT 摘要寫入 `daily_metrics`。
 - **Streamlit 戰情室（v3 視覺）**：暗色漸層介面、KPI 卡片、風險 Gauge（Risk ON / Neutral / Risk OFF 三態對齊）、趨勢圖（統一 Plotly hover／圖例）、巨鯨圖、Agent 摘要。
