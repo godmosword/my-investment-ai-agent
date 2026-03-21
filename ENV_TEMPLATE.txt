@@ -74,3 +74,5 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # PICK_ROTATION_OVERRIDE_MIN_GAP=12  # 同標延續最低分差（score_gap）門檻
 # PICK_REPEAT_DAYS_MAX=2   # 同標延續時，至少 1 筆需滿足 repeat_days <= 此值
 # PICK_REPEAT_MIN_SELECTION_SCORE=75  # 同標延續時，至少 1 筆需滿足 selection_score >= 此值
+# SCRATCHPAD_ENABLED=1     # Phase 1：每次產報寫入 .qsilicon/scratchpad/*.jsonl（init/gate/tool）；設 0 關閉
+# SCRATCHPAD_DIR=.qsilicon/scratchpad  # scratchpad 目錄（相對專案根）

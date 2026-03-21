@@ -13,6 +13,7 @@ from crewai.tools import tool
 from google.cloud import bigquery
 
 from config import PROJECT_ID, METRICS_TABLE
+from scratchpad import traced_tool_execution
 
 logger = logging.getLogger(__name__)
 
@@ -885,43 +886,47 @@ def _rss_fetch(category: str = "crypto") -> str:
 @tool
 def market_search_tool(query: str) -> str:
     """搜尋全球即時新聞（NewsAPI → GNews → Apify 三層 fallback）。"""
-    cache_key = ("market_search", query)
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
 
-    # 第一/二層：依來源健康分數動態排序（僅在有 API key 的來源間排序）
-    source_funcs: list[tuple[str, Callable[[str], str]]] = []
-    if os.getenv("NEWSAPI_KEY"):
-        source_funcs.append(("newsapi", _newsapi_fetch))
-    if os.getenv("GNEWS_API_KEY"):
-        source_funcs.append(("gnews", _gnews_fetch))
-    source_funcs.sort(key=lambda x: _source_score(x[0]), reverse=True)
+    def _run() -> str:
+        cache_key = ("market_search", query)
+        cached = _get_cache(cache_key)
+        if cached:
+            return cached
 
-    for _source_name, fn in source_funcs:
-        if not _consume_source_quota(_source_name):
-            logger.info("skip source %s due to quota limit", _source_name)
-            continue
-        result = fn(query)
-        if not result.startswith("[DATA_MISSING"):
+        # 第一/二層：依來源健康分數動態排序（僅在有 API key 的來源間排序）
+        source_funcs: list[tuple[str, Callable[[str], str]]] = []
+        if os.getenv("NEWSAPI_KEY"):
+            source_funcs.append(("newsapi", _newsapi_fetch))
+        if os.getenv("GNEWS_API_KEY"):
+            source_funcs.append(("gnews", _gnews_fetch))
+        source_funcs.sort(key=lambda x: _source_score(x[0]), reverse=True)
+
+        for _source_name, fn in source_funcs:
+            if not _consume_source_quota(_source_name):
+                logger.info("skip source %s due to quota limit", _source_name)
+                continue
+            result = fn(query)
+            if not result.startswith("[DATA_MISSING"):
+                _set_cache(cache_key, result)
+                return result
+
+        # 第三層：Apify（付費，最後手段）
+        if not _consume_source_quota("apify"):
+            return "[DATA_MISSING:market_search] Market Search Failed：免費來源失敗，且 Apify 當日配額已用盡。"
+
+        try:
+            result = _search_with_apify(query, max_items=4)
+            _record_source_outcome("apify", True)
             _set_cache(cache_key, result)
             return result
+        except ValueError as e:
+            _record_source_outcome("apify", False, "other")
+            return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
+        except Exception:
+            _record_source_outcome("apify", False, "other")
+            return "[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。"
 
-    # 第三層：Apify（付費，最後手段）
-    if not _consume_source_quota("apify"):
-        return "[DATA_MISSING:market_search] Market Search Failed：免費來源失敗，且 Apify 當日配額已用盡。"
-
-    try:
-        result = _search_with_apify(query, max_items=4)
-        _record_source_outcome("apify", True)
-        _set_cache(cache_key, result)
-        return result
-    except ValueError as e:
-        _record_source_outcome("apify", False, "other")
-        return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
-    except Exception:
-        _record_source_outcome("apify", False, "other")
-        return "[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。"
+    return traced_tool_execution("market_search_tool", {"query": query}, _run)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1131,91 +1136,95 @@ def coinglass_data_tool(metric: str) -> str:
     metric 請輸入 'open_interest'（未平倉）、'funding_rate'（資金費率）、'liquidations'（24h 爆倉）、'long_short_ratio'（大戶多空比）、'options_info'（選擇權 Put/Call Ratio + Max Pain）。
     範例：'funding_rate'（預設 BTC）、'funding_rate:ETH'、'liquidations:SOL'。
     """
-    # 解析 metric:SYMBOL 格式
-    if ":" in metric:
-        metric_part, symbol = metric.split(":", 1)
-        symbol = symbol.strip().upper()
-    else:
-        metric_part = metric
-        symbol = "BTC"
-    metric_lower = metric_part.strip().lower()
 
-    supported = {"open_interest", "funding_rate", "liquidations", "long_short_ratio", "options_info"}
-    if metric_lower not in supported:
-        return f"CoinGlass Tool Failed：不支援的 metric '{metric_part}'，僅支援 {', '.join(sorted(supported))}。"
-
-    cache_key = ("coinglass", f"{metric_lower}_{symbol}")
-    cached = _get_cache(cache_key)
-    if cached:
-        return cached
-
-    api_key = os.getenv("COINGLASS_API_KEY")
-    endpoints = _coinglass_endpoints(symbol)
-    url = endpoints.get(metric_lower)
-
-    if api_key and url:
-        try:
-            headers = {"accept": "application/json", "CG-API-KEY": api_key}
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                body = response.json()
-                if not _coinglass_success(body):
-                    logger.warning(
-                        "CoinGlass v4 non-success: code=%r msg=%r metric=%s symbol=%s",
-                        body.get("code"),
-                        body.get("msg"),
-                        metric_lower,
-                        symbol,
-                    )
-                if _coinglass_success(body):
-                    data = body.get("data") or []
-                    if metric_lower == "open_interest":
-                        if data:
-                            # 解析最新 OI 數據為可讀格式，而非原始 JSON
-                            try:
-                                latest = data[-1] if isinstance(data, list) else data
-                                oi_val = float(latest.get("openInterest", 0) if isinstance(latest, dict) else 0)
-                                if oi_val > 0:
-                                    oi_usd_b = oi_val / 1e9 if oi_val > 1e6 else oi_val
-                                    result = f"BTC 未平倉合約 OI: 約 ${oi_usd_b:.2f}B（來源：CoinGlass）"
-                                else:
-                                    result = ""
-                            except (TypeError, ValueError, IndexError):
-                                result = ""
-                        else:
-                            result = ""
-                    elif metric_lower == "funding_rate":
-                        result = _parse_coinglass_funding_rate(data, symbol)
-                    elif metric_lower == "liquidations":
-                        result = _parse_coinglass_liquidations(data, symbol)
-                    elif metric_lower == "options_info":
-                        result = _parse_coinglass_options_info(data)
-                    else:
-                        result = _parse_coinglass_long_short_ratio(data, symbol)
-                    if result:
-                        _set_cache(cache_key, result)
-                        return _append_data_as_of(result, "coinglass")
-        except Exception:
-            pass
-
-    # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援（僅 BTC 支援）──
-    if symbol == "BTC":
-        if metric_lower == "funding_rate":
-            result = _binance_funding_rate()
-        elif metric_lower == "open_interest":
-            result = _binance_open_interest()
-        elif metric_lower == "long_short_ratio":
-            result = _binance_long_short_ratio()
-        elif metric_lower == "liquidations":
-            result = _apify_liquidations_fallback()
+    def _run() -> str:
+        # 解析 metric:SYMBOL 格式
+        if ":" in metric:
+            metric_part, symbol = metric.split(":", 1)
+            symbol = symbol.strip().upper()
         else:
-            result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
-    else:
-        result = f"[DATA_MISSING:coinglass_{metric_lower}_{symbol}] CoinGlass {symbol} {metric_lower} 暫無數據。"
-    _set_cache(cache_key, result)
-    if result.startswith("[DATA_MISSING:"):
-        return result
-    return _append_data_as_of(result, "coinglass")
+            metric_part = metric
+            symbol = "BTC"
+        metric_lower = metric_part.strip().lower()
+
+        supported = {"open_interest", "funding_rate", "liquidations", "long_short_ratio", "options_info"}
+        if metric_lower not in supported:
+            return f"CoinGlass Tool Failed：不支援的 metric '{metric_part}'，僅支援 {', '.join(sorted(supported))}。"
+
+        cache_key = ("coinglass", f"{metric_lower}_{symbol}")
+        cached = _get_cache(cache_key)
+        if cached:
+            return cached
+
+        api_key = os.getenv("COINGLASS_API_KEY")
+        endpoints = _coinglass_endpoints(symbol)
+        url = endpoints.get(metric_lower)
+
+        if api_key and url:
+            try:
+                headers = {"accept": "application/json", "CG-API-KEY": api_key}
+                response = requests.get(url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    body = response.json()
+                    if not _coinglass_success(body):
+                        logger.warning(
+                            "CoinGlass v4 non-success: code=%r msg=%r metric=%s symbol=%s",
+                            body.get("code"),
+                            body.get("msg"),
+                            metric_lower,
+                            symbol,
+                        )
+                    if _coinglass_success(body):
+                        data = body.get("data") or []
+                        if metric_lower == "open_interest":
+                            if data:
+                                # 解析最新 OI 數據為可讀格式，而非原始 JSON
+                                try:
+                                    latest = data[-1] if isinstance(data, list) else data
+                                    oi_val = float(latest.get("openInterest", 0) if isinstance(latest, dict) else 0)
+                                    if oi_val > 0:
+                                        oi_usd_b = oi_val / 1e9 if oi_val > 1e6 else oi_val
+                                        result = f"BTC 未平倉合約 OI: 約 ${oi_usd_b:.2f}B（來源：CoinGlass）"
+                                    else:
+                                        result = ""
+                                except (TypeError, ValueError, IndexError):
+                                    result = ""
+                            else:
+                                result = ""
+                        elif metric_lower == "funding_rate":
+                            result = _parse_coinglass_funding_rate(data, symbol)
+                        elif metric_lower == "liquidations":
+                            result = _parse_coinglass_liquidations(data, symbol)
+                        elif metric_lower == "options_info":
+                            result = _parse_coinglass_options_info(data)
+                        else:
+                            result = _parse_coinglass_long_short_ratio(data, symbol)
+                        if result:
+                            _set_cache(cache_key, result)
+                            return _append_data_as_of(result, "coinglass")
+            except Exception:
+                pass
+
+        # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援（僅 BTC 支援）──
+        if symbol == "BTC":
+            if metric_lower == "funding_rate":
+                result = _binance_funding_rate()
+            elif metric_lower == "open_interest":
+                result = _binance_open_interest()
+            elif metric_lower == "long_short_ratio":
+                result = _binance_long_short_ratio()
+            elif metric_lower == "liquidations":
+                result = _apify_liquidations_fallback()
+            else:
+                result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
+        else:
+            result = f"[DATA_MISSING:coinglass_{metric_lower}_{symbol}] CoinGlass {symbol} {metric_lower} 暫無數據。"
+        _set_cache(cache_key, result)
+        if result.startswith("[DATA_MISSING:"):
+            return result
+        return _append_data_as_of(result, "coinglass")
+
+    return traced_tool_execution("coinglass_data_tool", {"metric": metric}, _run)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -2453,145 +2462,151 @@ def macro_context_tool(query: str = "") -> str:
     取得宏觀投資框架數據：美債 10Y/2Y 殖利率、殖利率曲線利差、Fed SOFR 期貨隱含升降息預期、本週重要科技財報。
     數據來源：yfinance（^TNX, 2YY=F, ZQ=F）+ FRED（DGS2 fallback）。
     """
-    cache_key = ("macro_context", "latest")
-    cached = _get_cache(cache_key)
-    if cached:
-        return _append_data_as_of(cached, "macro_context")
 
-    import yfinance as yf  # noqa: PLC0415
+    def _run() -> str:
+        cache_key = ("macro_context", "latest")
+        cached = _get_cache(cache_key)
+        if cached:
+            return _append_data_as_of(cached, "macro_context")
 
-    lines: list[str] = ["【宏觀框架】"]
+        import yfinance as yf  # noqa: PLC0415
 
-    # ── 1. 美債殖利率 ──────────────────────────────────────────────────
-    yield_10y: float | None = None
-    yield_2y: float | None = None
+        lines: list[str] = ["【宏觀框架】"]
 
-    def _fetch_latest_fred_percent(series_id: str) -> float | None:
-        fred_key = (os.getenv("FRED_API_KEY") or "").strip()
-        if not fred_key:
+        # ── 1. 美債殖利率 ──────────────────────────────────────────────────
+        yield_10y: float | None = None
+        yield_2y: float | None = None
+
+        def _fetch_latest_fred_percent(series_id: str) -> float | None:
+            fred_key = (os.getenv("FRED_API_KEY") or "").strip()
+            if not fred_key:
+                return None
+            try:
+                resp = requests.get(
+                    "https://api.stlouisfed.org/fred/series/observations",
+                    params={
+                        "series_id": series_id,
+                        "api_key": fred_key,
+                        "file_type": "json",
+                        "sort_order": "desc",
+                        "limit": 10,
+                    },
+                    timeout=8,
+                )
+                resp.raise_for_status()
+                observations = resp.json().get("observations", [])
+                for obs in observations:
+                    raw = str(obs.get("value", "")).strip()
+                    if not raw or raw == ".":
+                        continue
+                    try:
+                        return round(float(raw), 3)
+                    except ValueError:
+                        continue
+            except Exception:
+                return None
             return None
+
         try:
-            resp = requests.get(
-                "https://api.stlouisfed.org/fred/series/observations",
-                params={
-                    "series_id": series_id,
-                    "api_key": fred_key,
-                    "file_type": "json",
-                    "sort_order": "desc",
-                    "limit": 10,
-                },
-                timeout=8,
-            )
-            resp.raise_for_status()
-            observations = resp.json().get("observations", [])
-            for obs in observations:
-                raw = str(obs.get("value", "")).strip()
-                if not raw or raw == ".":
-                    continue
-                try:
-                    return round(float(raw), 3)
-                except ValueError:
-                    continue
+            df10 = yf.download("^TNX", period="3d", interval="1d", progress=False, auto_adjust=True)
+            if df10 is not None and not df10.empty:
+                c = df10["Close"].dropna()
+                if hasattr(c, "ndim") and c.ndim > 1:
+                    c = c.iloc[:, 0]
+                if not c.empty:
+                    yield_10y = round(float(c.iloc[-1]), 3)
         except Exception:
-            return None
-        return None
-    try:
-        df10 = yf.download("^TNX", period="3d", interval="1d", progress=False, auto_adjust=True)
-        if df10 is not None and not df10.empty:
-            c = df10["Close"].dropna()
-            if hasattr(c, "ndim") and c.ndim > 1:
-                c = c.iloc[:, 0]
-            if not c.empty:
-                yield_10y = round(float(c.iloc[-1]), 3)
-    except Exception:
-        pass
+            pass
 
-    try:
-        df2 = yf.download("2YY=F", period="5d", interval="1d", progress=False, auto_adjust=True)
-        if df2 is not None and not df2.empty:
-            c = df2["Close"].dropna()
-            if hasattr(c, "ndim") and c.ndim > 1:
-                c = c.iloc[:, 0]
-            if not c.empty:
-                yield_2y = round(float(c.iloc[-1]), 3)
-    except Exception:
-        pass
-    if yield_2y is None:
-        yield_2y = _fetch_latest_fred_percent("DGS2")
-
-    y10_str = f"{yield_10y:.3f}%" if yield_10y is not None else "N/A"
-    y2_str = f"{yield_2y:.3f}%" if yield_2y is not None else "N/A"
-    if yield_10y is not None and yield_2y is not None:
-        spread_bp = round((yield_10y - yield_2y) * 100, 1)
-        spread_str = f"{spread_bp:+.1f}bp"
-        # 利差近零時勿稱「正斜率」，避免與「極端正斜率」敘事矛盾
-        if spread_bp < -0.5:
-            curve_signal = "利率倒掛（衰退預警）⚠️"
-        elif spread_bp > 0.5:
-            curve_signal = "正斜率（長端高於短端）"
-        else:
-            curve_signal = "曲線平坦（2Y≈10Y，利差近零）"
-    else:
-        spread_str = "N/A"
-        curve_signal = ""
-
-    lines.append(f"🏛️ 美債 10Y: <code>{y10_str}</code> | 2Y: <code>{y2_str}</code> | 利差: <code>{spread_str}</code> {curve_signal}")
-
-    # ── 2. Fed SOFR 期貨隱含預期 ─────────────────────────────────────
-    try:
-        df_fed = yf.download("ZQ=F", period="3d", interval="1d", progress=False, auto_adjust=True)
-        if df_fed is not None and not df_fed.empty:
-            c = df_fed["Close"].dropna()
-            if hasattr(c, "ndim") and c.ndim > 1:
-                c = c.iloc[:, 0]
-            if not c.empty:
-                implied_rate = round(100 - float(c.iloc[-1]), 3)
-                lines.append(f"🎯 Fed SOFR 期貨隱含利率: <code>{implied_rate:.3f}%</code>")
-    except Exception:
-        lines.append("🎯 Fed SOFR 期貨: <code>N/A</code>")
-
-    # ── 3. 本週重要財報（使用 yfinance 查詢財報日期）─────────────────
-    today = datetime.now(timezone.utc).date()
-    week_end = today + timedelta(days=7)
-    upcoming_earnings: list[str] = []
-
-    for ticker_sym in _EARNINGS_WATCHLIST:
         try:
-            t = yf.Ticker(ticker_sym)
-            cal = t.calendar
-            if cal is None:
-                continue
-            # yfinance calendar 回傳格式多種，嘗試 'Earnings Date' 欄位
-            if hasattr(cal, "get"):
-                ed = cal.get("Earnings Date")
-            elif hasattr(cal, "iloc"):
-                # DataFrame 格式
-                ed = cal.iloc[0].get("Earnings Date") if not cal.empty else None
+            df2 = yf.download("2YY=F", period="5d", interval="1d", progress=False, auto_adjust=True)
+            if df2 is not None and not df2.empty:
+                c = df2["Close"].dropna()
+                if hasattr(c, "ndim") and c.ndim > 1:
+                    c = c.iloc[:, 0]
+                if not c.empty:
+                    yield_2y = round(float(c.iloc[-1]), 3)
+        except Exception:
+            pass
+        if yield_2y is None:
+            yield_2y = _fetch_latest_fred_percent("DGS2")
+
+        y10_str = f"{yield_10y:.3f}%" if yield_10y is not None else "N/A"
+        y2_str = f"{yield_2y:.3f}%" if yield_2y is not None else "N/A"
+        if yield_10y is not None and yield_2y is not None:
+            spread_bp = round((yield_10y - yield_2y) * 100, 1)
+            spread_str = f"{spread_bp:+.1f}bp"
+            # 利差近零時勿稱「正斜率」，避免與「極端正斜率」敘事矛盾
+            if spread_bp < -0.5:
+                curve_signal = "利率倒掛（衰退預警）⚠️"
+            elif spread_bp > 0.5:
+                curve_signal = "正斜率（長端高於短端）"
             else:
-                ed = None
-            if ed is None:
-                continue
-            # 可能是 list 或單一值
-            dates = ed if isinstance(ed, list) else [ed]
-            for d in dates:
-                try:
-                    ed_date = d.date() if hasattr(d, "date") else None
-                    if ed_date and today <= ed_date <= week_end:
-                        upcoming_earnings.append(f"{ticker_sym}({ed_date.strftime('%m/%d')})")
-                        break
-                except Exception:
-                    pass
+                curve_signal = "曲線平坦（2Y≈10Y，利差近零）"
+        else:
+            spread_str = "N/A"
+            curve_signal = ""
+
+        lines.append(f"🏛️ 美債 10Y: <code>{y10_str}</code> | 2Y: <code>{y2_str}</code> | 利差: <code>{spread_str}</code> {curve_signal}")
+
+        # ── 2. Fed SOFR 期貨隱含預期 ─────────────────────────────────────
+        try:
+            df_fed = yf.download("ZQ=F", period="3d", interval="1d", progress=False, auto_adjust=True)
+            if df_fed is not None and not df_fed.empty:
+                c = df_fed["Close"].dropna()
+                if hasattr(c, "ndim") and c.ndim > 1:
+                    c = c.iloc[:, 0]
+                if not c.empty:
+                    implied_rate = round(100 - float(c.iloc[-1]), 3)
+                    lines.append(f"🎯 Fed SOFR 期貨隱含利率: <code>{implied_rate:.3f}%</code>")
         except Exception:
-            continue
+            lines.append("🎯 Fed SOFR 期貨: <code>N/A</code>")
 
-    if upcoming_earnings:
-        lines.append(f"📅 本週財報: <code>{' · '.join(upcoming_earnings)}</code>")
-    else:
-        lines.append("📅 本週財報: <code>本週無主要科技財報</code>")
+        # ── 3. 本週重要財報（使用 yfinance 查詢財報日期）─────────────────
+        today = datetime.now(timezone.utc).date()
+        week_end = today + timedelta(days=7)
+        upcoming_earnings: list[str] = []
 
-    result = "\n".join(lines)
-    _set_cache(cache_key, result)
-    return _append_data_as_of(result, "macro_context")
+        for ticker_sym in _EARNINGS_WATCHLIST:
+            try:
+                t = yf.Ticker(ticker_sym)
+                cal = t.calendar
+                if cal is None:
+                    continue
+                # yfinance calendar 回傳格式多種，嘗試 'Earnings Date' 欄位
+                if hasattr(cal, "get"):
+                    ed = cal.get("Earnings Date")
+                elif hasattr(cal, "iloc"):
+                    # DataFrame 格式
+                    ed = cal.iloc[0].get("Earnings Date") if not cal.empty else None
+                else:
+                    ed = None
+                if ed is None:
+                    continue
+                # 可能是 list 或單一值
+                dates = ed if isinstance(ed, list) else [ed]
+                for d in dates:
+                    try:
+                        ed_date = d.date() if hasattr(d, "date") else None
+                        if ed_date and today <= ed_date <= week_end:
+                            upcoming_earnings.append(f"{ticker_sym}({ed_date.strftime('%m/%d')})")
+                            break
+                    except Exception:
+                        pass
+            except Exception:
+                continue
+
+        if upcoming_earnings:
+            lines.append(f"📅 本週財報: <code>{' · '.join(upcoming_earnings)}</code>")
+        else:
+            lines.append("📅 本週財報: <code>本週無主要科技財報</code>")
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "macro_context")
+
+    q = (query or "").strip()
+    return traced_tool_execution("macro_context_tool", {"query": q or "(default)"}, _run)
 
 
 # ═══════════════════════════════════════════════════════════════════

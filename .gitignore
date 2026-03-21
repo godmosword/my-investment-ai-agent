@@ -31,3 +31,6 @@ venv/
 # Local generated artifacts
 daily_chart.png
 .claude/
+
+# Run scratchpad (Phase 1: tool/gate trace JSONL — may contain sensitive snippets)
+.qsilicon/scratchpad/

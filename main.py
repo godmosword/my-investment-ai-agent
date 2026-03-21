@@ -21,6 +21,7 @@ from report_output_validator import (
 from tools import source_observability_lines
 from visualizer import generate_quant_chart
 import tracker
+import scratchpad
 from tracker import load_previous_recs_block
 
 load_dotenv()
@@ -2709,88 +2710,120 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
     """
     帶 503 退避與驗證重試的產報流程。回傳 (final_report, report_valid)。
     """
+    scratchpad.begin_run(
+        {
+            "pipeline": "run_pipeline_with_retries",
+            "max_report_retries": MAX_REPORT_RETRIES,
+            "max_503_retries": MAX_503_RETRIES,
+            "skip_telegram": SKIP_TELEGRAM,
+            "skip_bigquery": SKIP_BIGQUERY,
+            "strict_consistency_gate": STRICT_CONSISTENCY_GATE,
+        }
+    )
     final_report = ""
     report_valid = False
     last_validation: dict | None = None
-    for attempt in range(MAX_REPORT_RETRIES + 1):
-        last_err: Exception | None = None
-        structural_validation_err: Exception | None = None
-        for step in range(MAX_503_RETRIES + 1):
-            report, err = _run_pipeline_once(exclude_context, use_fallback_llm=False)
-            if err is None:
-                final_report = _postprocess_report_for_resilience(report)
-                # Pydantic + assertion（你要求的順序）
-                output_json = _build_output_json_for_validation(final_report)
-                try:
-                    parsed = parse_report_output(output_json)
-                    assert_report_output(parsed)
-                    assert_sample_output(output_json)
-                    if not _codex_judge_pass(final_report):
-                        raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
-                except Exception as v_err:
-                    structural_validation_err = v_err
+    try:
+        for attempt in range(MAX_REPORT_RETRIES + 1):
+            last_err: Exception | None = None
+            structural_validation_err: Exception | None = None
+            for step in range(MAX_503_RETRIES + 1):
+                report, err = _run_pipeline_once(exclude_context, use_fallback_llm=False)
+                if err is None:
+                    final_report = _postprocess_report_for_resilience(report)
+                    # Pydantic + assertion（你要求的順序）
+                    output_json = _build_output_json_for_validation(final_report)
+                    try:
+                        parsed = parse_report_output(output_json)
+                        assert_report_output(parsed)
+                        assert_sample_output(output_json)
+                        if not _codex_judge_pass(final_report):
+                            raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
+                    except Exception as v_err:
+                        structural_validation_err = v_err
+                        logger.warning(
+                            "輸出結構/內容驗證未通過（不佔 503 重試配額，交由報告驗證重試機制處理）：%s",
+                            v_err,
+                        )
+                    break
+                last_err = err
+                if _is_retriable(err) and step < MAX_503_RETRIES:
+                    wait = BACKOFF_BASE_SEC * (2**step)
                     logger.warning(
-                        "輸出結構/內容驗證未通過（不佔 503 重試配額，交由報告驗證重試機制處理）：%s",
-                        v_err,
+                        "暫時性錯誤（可重試），%ds 後重試 (%d/%d)：%s",
+                        wait,
+                        step + 1,
+                        MAX_503_RETRIES + 1,
+                        err,
                     )
+                    time.sleep(wait)
+                else:
+                    logger.error("Execution failed: %s", err)
+                    final_report = f"{ERROR_PREFIX}{err}"
+                    break
+            # 可重試錯誤時，以 fallback LLM（全 GPT）再跑一次
+            if last_err is not None and _is_retriable(last_err):
+                logger.warning("Primary LLM 失敗，改用 fallback LLM（全 GPT）重試一次：%s", last_err)
+                report, err = _run_pipeline_once(exclude_context, use_fallback_llm=True)
+                if err is None:
+                    final_report = _postprocess_report_for_resilience(report)
+                    output_json = _build_output_json_for_validation(final_report)
+                    try:
+                        parsed = parse_report_output(output_json)
+                        assert_report_output(parsed)
+                        assert_sample_output(output_json)
+                        if not _codex_judge_pass(final_report):
+                            raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
+                    except Exception as v_err:
+                        structural_validation_err = v_err
+                    last_err = None
+            if last_err is not None:
                 break
-            last_err = err
-            if _is_retriable(err) and step < MAX_503_RETRIES:
-                wait = BACKOFF_BASE_SEC * (2**step)
-                logger.warning("暫時性錯誤（可重試），%ds 後重試 (%d/%d)：%s", wait, step + 1, MAX_503_RETRIES + 1, err)
-                time.sleep(wait)
-            else:
-                logger.error("Execution failed: %s", err)
-                final_report = f"{ERROR_PREFIX}{err}"
-                break
-        # 可重試錯誤時，以 fallback LLM（全 GPT）再跑一次
-        if last_err is not None and _is_retriable(last_err):
-            logger.warning("Primary LLM 失敗，改用 fallback LLM（全 GPT）重試一次：%s", last_err)
-            report, err = _run_pipeline_once(exclude_context, use_fallback_llm=True)
-            if err is None:
-                final_report = _postprocess_report_for_resilience(report)
-                output_json = _build_output_json_for_validation(final_report)
-                try:
-                    parsed = parse_report_output(output_json)
-                    assert_report_output(parsed)
-                    assert_sample_output(output_json)
-                    if not _codex_judge_pass(final_report):
-                        raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
-                except Exception as v_err:
-                    structural_validation_err = v_err
-                last_err = None
-        if last_err is not None:
-            break
-        if structural_validation_err is not None:
+            if structural_validation_err is not None:
+                logger.info(
+                    "[Attempt %d] 結構驗證未過，保留可讀報告交由 validate_report 決定是否重試：%s",
+                    attempt + 1,
+                    structural_validation_err,
+                )
+
+            result = validate_report(final_report)
+            last_validation = result
+            report_valid = result["valid"]
+            scratchpad.append_gate_result(attempt + 1, result)
+            fallback_cnt = _fallback_news_count(final_report)
             logger.info(
-                "[Attempt %d] 結構驗證未過，保留可讀報告交由 validate_report 決定是否重試：%s",
+                "[Attempt %d] Validation — news=%d, fallback_news=%d, valid=%s",
                 attempt + 1,
-                structural_validation_err,
+                result["news_count"],
+                fallback_cnt,
+                report_valid,
             )
+            if report_valid:
+                logger.info("Report generation successful.")
+                scratchpad.finalize_run("success", {"finalAttempt": attempt + 1, "valid": True})
+                return final_report, True, result
+            logger.warning("Report incomplete: %s", result["issues"])
+            if logger.isEnabledFor(logging.DEBUG) and final_report:
+                logger.debug("Report snippet (first 500 chars): %s", final_report[:500].replace("\n", " "))
+            if attempt < MAX_REPORT_RETRIES:
+                logger.info("Retrying report generation (%d/%d)...", attempt + 2, MAX_REPORT_RETRIES + 1)
 
-        result = validate_report(final_report)
-        last_validation = result
-        report_valid = result["valid"]
-        fallback_cnt = _fallback_news_count(final_report)
-        logger.info(
-            "[Attempt %d] Validation — news=%d, fallback_news=%d, valid=%s",
-            attempt + 1, result["news_count"], fallback_cnt, report_valid,
+        if final_report and not final_report.startswith("🚨"):
+            if STRICT_CONSISTENCY_GATE:
+                logger.error("Report invalid and STRICT_CONSISTENCY_GATE=1; keep blocked (no forced send).")
+            else:
+                logger.warning("Sending report despite validation issues (retries exhausted).")
+        end_status = "completed_invalid"
+        if final_report.startswith("🚨"):
+            end_status = "execution_error_report"
+        scratchpad.finalize_run(
+            end_status,
+            {"report_valid": report_valid, "strict_consistency_gate": STRICT_CONSISTENCY_GATE},
         )
-        if report_valid:
-            logger.info("Report generation successful.")
-            return final_report, True, result
-        logger.warning("Report incomplete: %s", result["issues"])
-        if logger.isEnabledFor(logging.DEBUG) and final_report:
-            logger.debug("Report snippet (first 500 chars): %s", final_report[:500].replace("\n", " "))
-        if attempt < MAX_REPORT_RETRIES:
-            logger.info("Retrying report generation (%d/%d)...", attempt + 2, MAX_REPORT_RETRIES + 1)
-
-    if final_report and not final_report.startswith("🚨"):
-        if STRICT_CONSISTENCY_GATE:
-            logger.error("Report invalid and STRICT_CONSISTENCY_GATE=1; keep blocked (no forced send).")
-        else:
-            logger.warning("Sending report despite validation issues (retries exhausted).")
-    return final_report, report_valid, last_validation
+        return final_report, report_valid, last_validation
+    finally:
+        if scratchpad.current_run_id():
+            scratchpad.finalize_run("aborted_without_finalize", {"note": "exception_or_broken_flow"})
 
 
 def _validate_required_keys() -> None:
@@ -2901,6 +2934,7 @@ if __name__ == "__main__":
         final_report, report_valid, validation_result = run_pipeline_with_retries(exclusion)
     except Exception as _pipeline_err:
         logger.error("Critical unhandled pipeline error: %s", _pipeline_err, exc_info=True)
+        scratchpad.log_pipeline_error(str(_pipeline_err))
         final_report = f"{ERROR_PREFIX}{_pipeline_err}"
         report_valid = False
     logger.info("Pipeline finished (valid=%s, chars=%d).", report_valid, len(final_report or ""))
