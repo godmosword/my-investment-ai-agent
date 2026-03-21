@@ -1,10 +1,21 @@
 name: Deploy — Cloud Run Job
 
-# 僅手動觸發：避免每次 push main 都建映像與部署。
+# - push main：變更執行相關檔案時自動部署（paths 與 ci.yml 對齊，純文件不觸發）
+# - workflow_dispatch：隨時手動部署（仍先跑 ci.yml）
 # 流程：先跑可重用的 ci.yml（Lint+Test），通過後才 build/push/deploy。
-# 操作：GitHub → Actions → 本 workflow → Run workflow。
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.py"
+      - "requirements.txt"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "assets_config.json"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/deploy.yml"
 
 env:
   GCP_PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
