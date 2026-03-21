@@ -998,18 +998,97 @@ def _partial_news_ok(text: str) -> bool:
 def _inject_canonical_prev_recs_block(report_text: str, canonical_html: str) -> str:
     """
     以 BigQuery 載入之上期追蹤覆寫 LLM 輸出，避免模型自行膨脹多筆同標的進場價。
-    canonical_html 為空時不修改。
+    canonical_html 為空時仍會**剥除** LLM 捏造之【上期建議追蹤】（以免無 BQ 時重複假列）。
     """
-    if not (canonical_html or "").strip():
-        return report_text
-    block = canonical_html.strip() + "\n\n"
+    canonical_html = (canonical_html or "").strip()
     m = re.search(r"【今日市場模式】", report_text)
     if not m:
-        return block + report_text
+        if not canonical_html:
+            return report_text
+        return canonical_html + "\n\n" + report_text
     head, tail = report_text[: m.start()], report_text[m.start() :]
     head_clean = re.sub(r"【上期建議追蹤】[\s\S]*\Z", "", head, flags=re.MULTILINE).rstrip()
     sep = "\n\n" if head_clean else ""
+    if not canonical_html:
+        return f"{head_clean}{sep}{tail}"
+    block = canonical_html + "\n\n"
     return f"{head_clean}{sep}{block}{tail}"
+
+
+def _auto_prefix_missing_news_tags(text: str) -> str:
+    """
+    LLM 常以 [MM/DD HH:MM UTC+8] 起句但漏寫〔新聞 N〕，導致計數與 Gate 失敗。
+    在【核心新聞】內為時間戳行補標籤；在【AI 產業新聞】內為「標題行 + 摘要：」補標籤（接續既有最大編號）。
+    """
+    lines = text.splitlines()
+    if not lines:
+        return text
+
+    def _max_news_tag_num(s: str) -> int:
+        nums = [int(x) for x in re.findall(r"〔新聞\s*(\d+)〕", s)]
+        return max(nums) if nums else 0
+
+    tag_i = _max_news_tag_num(text) + 1
+    section = "out"
+    out: list[str] = []
+    pending_title_idx: int | None = None
+
+    _crypto_header = re.compile(r"【區塊②\s*核心新聞】|區塊②【核心新聞】|^【核心新聞】")
+    _crypto_ts = re.compile(r"^\s*\[\d{1,2}/\d{1,2}(?:/\d{2,4})?\s+\d{1,2}:\d{2}(?::\d{2})?")
+
+    for ln in lines:
+        if _crypto_header.search(ln):
+            section = "crypto"
+            pending_title_idx = None
+            out.append(ln)
+            continue
+        if section == "crypto" and re.search(r"區塊③|【區塊③", ln):
+            section = "out"
+            pending_title_idx = None
+            out.append(ln)
+            continue
+
+        if "【AI 產業新聞】" in ln:
+            section = "ai"
+            pending_title_idx = None
+            out.append(ln)
+            continue
+        if section == "ai" and "【產業鏈呢喃】" in ln:
+            section = "out"
+            pending_title_idx = None
+            out.append(ln)
+            continue
+
+        if section == "crypto":
+            if _crypto_ts.match(ln) and "〔新聞" not in ln:
+                out.append(f"〔新聞 {tag_i}〕{ln.lstrip()}")
+                tag_i += 1
+            else:
+                out.append(ln)
+            continue
+
+        if section == "ai":
+            st = ln.strip()
+            if st.startswith("摘要：") or st.startswith("摘要∶"):
+                if pending_title_idx is not None and "〔新聞" not in out[pending_title_idx]:
+                    out[pending_title_idx] = f"〔新聞 {tag_i}〕{out[pending_title_idx]}"
+                    tag_i += 1
+                pending_title_idx = None
+                out.append(ln)
+            elif st.startswith(
+                ("投資解讀", "💎", "·", "•", "- ", "—", "低置信度", "資料缺失", "HuggingFace", "OpenRouter", "AI Momentum")
+            ):
+                out.append(ln)
+            elif st and (re.search(r"[A-Za-z]{3,}", st) or len(st) > 18):
+                out.append(ln)
+                pending_title_idx = len(out) - 1
+            else:
+                out.append(ln)
+            continue
+
+        out.append(ln)
+
+    return "\n".join(out)
 
 
 def _normalize_news_timezone_utc8(text: str) -> str:
@@ -1182,6 +1261,7 @@ def _postprocess_report_for_resilience(text: str) -> str:
     patched = _unify_regime_mentions(patched)
     patched = _drop_unactionable_trade_blocks(patched)
     patched = _ensure_trade_sections(patched)
+    patched = _auto_prefix_missing_news_tags(patched)
     patched = _normalize_news_timezone_utc8(patched)
     patched = _ensure_signal_conflict_section(patched)
     patched = _ensure_min_news_count(patched, min_news=6)
@@ -1412,6 +1492,7 @@ def validate_report(text: str) -> dict:
         or re.search(r"(?:呢喃|傳聞|供應鏈)[^\n]{0,48}可信度\s*[：:]?\s*(?:A|B|C|\d{1,3})\b", text, re.IGNORECASE)
         or re.search(r"信賴度\s*[：:]\s*(?:A|B|C|\d{1,3})\b", text, re.IGNORECASE)
         or re.search(r"置信\s*分級\s*[：:]\s*(?:A|B|C|\d{1,3})\b", text, re.IGNORECASE)
+        or re.search(r"來源[：:][^\n]{0,160}\(([ABC])級\)", text, re.IGNORECASE)
     )
     has_utc8 = _has_news_timezone_utc8(text)
     too_many_na = len(re.findall(r'\bN/A\b', text)) > 3
@@ -2351,8 +2432,8 @@ def _run_pipeline_once(
             ai_report = future_ai.result()
 
         combined_report = f"{crypto_report}\n\n{ai_report}"
-        if prev_recs:
-            combined_report = _inject_canonical_prev_recs_block(combined_report, prev_recs)
+        # 一律經注入流程：有 BQ 則覆寫上期；無則剥除 LLM 幻覺之多列上期追蹤
+        combined_report = _inject_canonical_prev_recs_block(combined_report, prev_recs or "")
         return combined_report, None
     except Exception as e:
         return "", e
