@@ -637,8 +637,8 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
     """
     try:
         client = _get_bq_client(project_id)
-        # 同一 report_date + asset 可能有多筆（同日多輪 QSREC / 重跑 pipeline）；
-        # 僅保留一筆：優先 OPEN，否則最新 created_at，避免「上期追蹤」出現同標的多空重複列。
+        # 同一 report_date + canonical asset + direction 可能有多筆（同日重跑）；
+        # 僅保留一筆：優先 OPEN，否則最新 created_at，避免同標同方向多進場價洗版。
         rows = list(client.query(f"""
             WITH last_day AS (
               SELECT MAX(report_date) AS d
@@ -664,7 +664,8 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
                   ),
                   '-',
                   '/'
-                ) AS canon_asset
+                ) AS canon_asset,
+                UPPER(COALESCE(direction, '')) AS canon_dir
               FROM `{RECOMMENDATIONS_TABLE}`
               WHERE report_date = (SELECT d FROM last_day)
             ),
@@ -679,7 +680,7 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
                 report_date,
                 canon_asset,
                 ROW_NUMBER() OVER (
-                  PARTITION BY report_date, canon_asset
+                  PARTITION BY report_date, canon_asset, canon_dir
                   ORDER BY
                     CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END,
                     COALESCE(created_at, TIMESTAMP(report_date)) DESC
@@ -689,7 +690,7 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
             SELECT asset, direction, entry_price, target_price, stop_price, narrative, report_date
             FROM ranked
             WHERE rn = 1
-            ORDER BY canon_asset ASC
+            ORDER BY canon_asset ASC, direction ASC
         """).result())
     except Exception as e:
         logger.warning("load_previous_recs_block: BigQuery query failed: %s", e)

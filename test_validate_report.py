@@ -17,6 +17,7 @@ from main import (
     _pair_trade_unit_consistent,
     _has_crypto_trade_section,
     _inject_canonical_prev_recs_block,
+    _auto_prefix_missing_news_tags,
     _partial_news_ok,
 )
 
@@ -172,6 +173,28 @@ class TestInjectCanonicalPrevRecs(unittest.TestCase):
         self.assertIn("ONE", out)
         self.assertNotIn("FAKE ROW", out)
         self.assertIn("【今日市場模式】", out)
+
+    def test_strips_llm_tracker_when_canonical_empty(self):
+        """無 BigQuery 上期資料時仍應移除模型幻覺之多列追蹤。"""
+        report = "H\n\n【上期建議追蹤】\nFAKE\n\n【今日市場模式】 neutral"
+        out = _inject_canonical_prev_recs_block(report, "")
+        self.assertNotIn("FAKE", out)
+        self.assertIn("【今日市場模式】", out)
+
+
+class TestAutoPrefixNewsTags(unittest.TestCase):
+    def test_prefixes_crypto_timestamp_and_ai_summary_blocks(self):
+        raw = (
+            "【區塊② 核心新聞】\n"
+            "[03/21 10:00 UTC+8] Crypto headline\n"
+            "投資解讀：x\n"
+            "【AI 產業新聞】\n"
+            "English AI Title Here Long Enough\n"
+            "摘要：body\n"
+        )
+        out = _auto_prefix_missing_news_tags(raw)
+        self.assertIn("〔新聞 1〕[03/21 10:00 UTC+8]", out)
+        self.assertIn("〔新聞 2〕English AI Title", out)
 
 
 class TestHasNewsTimezoneUtc8(unittest.TestCase):
