@@ -76,6 +76,67 @@ _FINAL_TEMPLATE_AI = dedent("""\
     [QSREC_END]
     """)
 
+
+def build_crypto_final_prompt(*, ctx: str, prev_recs_ctx: str, today_str: str) -> str:
+    """組裝加密最終戰報 prompt（集中管理，降低重複與漏改風險）。"""
+    return dedent(f"""
+        【加密市場戰報排版 — GPT 主編】
+        {_QUOTE_RULE}
+        {_NARRATIVE_CONSISTENCY_RULE}
+        {_EDITOR_RULE}
+        {_TELEGRAM_FMT}
+        {_DASHBOARD_FMT}
+        {_TOOL_TRUTH_RULE}
+        {_CHATTER_FMT}
+        {_RISK_MODE_RULE}
+        {_REGIME_POSITION_POLICY}
+        {_PAIR_TRADE_RULE}
+        {_CRYPTO_TRADE_MUTEX_RULE}
+        {_BRIEF_V2_RULE}
+        {_HEDGE_FUND_BRIEF_RULE}
+        {ctx}
+        {prev_recs_ctx}
+
+        {_MTF_CONF_RULE}
+        {_TRADE_RULE}
+
+        {_CRYPTO_LAYOUT_RULE.format(today_str=today_str)}
+
+        {_TRADE_JSON_RULE}
+
+        {_FINAL_TEMPLATE_CRYPTO}
+    """)
+
+
+def build_ai_final_prompt(*, ctx: str) -> str:
+    """組裝 AI 最終戰報 prompt（集中管理，降低重複與漏改風險）。"""
+    return dedent(f"""
+        【AI 市場戰報排版 — GPT 主編】
+        {_EDITOR_RULE}
+        {_TELEGRAM_FMT}
+        {_DASHBOARD_FMT}
+        {_TOOL_TRUTH_RULE}
+        {_CHATTER_FMT}
+        {_QUOTE_RULE}
+        {_NARRATIVE_CONSISTENCY_RULE}
+        {_RISK_MODE_RULE}
+        {_REGIME_POSITION_POLICY}
+        {_PAIR_TRADE_RULE}
+        {_BRIEF_V2_RULE}
+        {_HEDGE_FUND_BRIEF_RULE}
+        {_AI_RISK_BRIDGE_RULE}
+        {ctx}
+
+        {_MTF_CONF_RULE}
+        {_TRADE_RULE}
+
+        {_AI_LAYOUT_RULE}
+
+        {_TRADE_JSON_RULE}
+
+        {_FINAL_TEMPLATE_AI}
+    """)
+
 _EDITOR_RULE = dedent("""\
     【主編共識與排版紅線】
     1. 【極致洗鍊｜手機優先】避險基金晨報語氣：高信號密度、零贅詞、不寫長篇「內心戲」推演。
@@ -413,33 +474,11 @@ class CryptoResearchCrew:
         )
 
         final_report_task = Task(
-            description=dedent(f"""
-                【加密市場戰報排版 — GPT 主編】
-                {_QUOTE_RULE}
-                {_NARRATIVE_CONSISTENCY_RULE}
-                {_EDITOR_RULE}
-                {_TELEGRAM_FMT}
-                {_DASHBOARD_FMT}
-                {_TOOL_TRUTH_RULE}
-                {_CHATTER_FMT}
-                {_RISK_MODE_RULE}
-                {_REGIME_POSITION_POLICY}
-                {_PAIR_TRADE_RULE}
-                {_CRYPTO_TRADE_MUTEX_RULE}
-                {_BRIEF_V2_RULE}
-                {_HEDGE_FUND_BRIEF_RULE}
-                {ctx}
-                {prev_recs_ctx}
-
-                {_MTF_CONF_RULE}
-                {_TRADE_RULE}
-
-                {_CRYPTO_LAYOUT_RULE.format(today_str=today_str)}
-
-                {_TRADE_JSON_RULE}
-
-                {_FINAL_TEMPLATE_CRYPTO}
-            """),
+            description=build_crypto_final_prompt(
+                ctx=ctx,
+                prev_recs_ctx=prev_recs_ctx,
+                today_str=today_str,
+            ),
             expected_output="一份純淨的 HTML 戰報。報告的最末端必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 陣列。若遺漏 JSON，你的任務將被判定為徹底失敗！",
             agent=self.quant_strategist,
             context=[crypto_task, review_task],
@@ -541,32 +580,7 @@ class AIResearchCrew:
         )
 
         final_report_task = Task(
-            description=dedent(f"""
-                【AI 市場戰報排版 — GPT 主編】
-                {_EDITOR_RULE}
-                {_TELEGRAM_FMT}
-                {_DASHBOARD_FMT}
-                {_TOOL_TRUTH_RULE}
-                {_CHATTER_FMT}
-                {_QUOTE_RULE}
-                {_NARRATIVE_CONSISTENCY_RULE}
-                {_RISK_MODE_RULE}
-                {_REGIME_POSITION_POLICY}
-                {_PAIR_TRADE_RULE}
-                {_BRIEF_V2_RULE}
-                {_HEDGE_FUND_BRIEF_RULE}
-                {_AI_RISK_BRIDGE_RULE}
-                {ctx}
-
-                {_MTF_CONF_RULE}
-                {_TRADE_RULE}
-
-                {_AI_LAYOUT_RULE}
-
-                {_TRADE_JSON_RULE}
-
-                {_FINAL_TEMPLATE_AI}
-            """),
+            description=build_ai_final_prompt(ctx=ctx),
             expected_output="一份純淨的 HTML 戰報。報告的最末端必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 陣列。若遺漏 JSON，你的任務將被判定為徹底失敗！",
             agent=self.quant_strategist,
             context=[ai_task, review_task],

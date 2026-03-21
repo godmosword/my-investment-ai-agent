@@ -56,6 +56,7 @@
 - **來源可觀測欄位**：戰報固定輸出 `SourceHealth`、`SourceErrors`、`SourceQuota`，便於監控資料品質與成本。
 - **持久化策略**：來源健康狀態同時寫入本地 `.source_health.json` 與 BigQuery（可關閉）。
 - **成本保護**：依健康分數動態收斂每日來源配額，並限制 Apify 使用量避免過度消耗付費額度。
+- **Phase 3 雙軌驗證（觀測用）**：`REPORT_COMPARE_MODE=1` 時在每次 `validate_report` 後比對 `core.report_validation` 候選路徑與 legacy 快照；**正式推送仍以 legacy 為準**。詳見 [`docs/REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md)。
 
 ---
 
