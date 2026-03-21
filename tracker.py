@@ -144,6 +144,13 @@ def _yf_symbol(asset: str) -> str:
     return f"{a}-USD" if a in _get_crypto_assets() else a
 
 
+def canonical_asset_key(asset: str) -> str:
+    """BigQuery 去重與 PARTITION BY 用：大寫、去 $、去空白、比值 '-' 統一為 '/'。"""
+    a = str(asset or "").upper().strip().replace("$", "").replace(" ", "")
+    a = a.replace("-", "/")
+    return a or "UNKNOWN"
+
+
 def _parse_pair_asset(asset: str) -> tuple[str, str] | None:
     """若 asset 為兩幣比值（如 BTC/SOL、BTC-SOL），回傳 (base, quote) 代號。"""
     a = asset.upper().strip().replace("$", "").replace(" ", "")
@@ -390,6 +397,16 @@ def save_recommendations(report_text: str,
     raw_recs = extract_recommendations_json(report_text)
     recs = [r for raw in raw_recs if (r := _validate_rec(raw, report_date, regime_at_signal)) is not None]
 
+    # 同日同 canonical asset 只保留最後一筆（避免 QSREC 陣列或重跑造成多進場價）
+    _by_key: dict[str, dict] = {}
+    _order: list[str] = []
+    for row in recs:
+        key = canonical_asset_key(row["asset"])
+        if key not in _by_key:
+            _order.append(key)
+        _by_key[key] = row
+    recs = [_by_key[k] for k in _order]
+
     if not recs:
         logger.info("No valid recommendations found in report (raw_count=%d).", len(raw_recs))
         return 0
@@ -545,6 +562,29 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
               FROM `{RECOMMENDATIONS_TABLE}`
               WHERE report_date < CURRENT_DATE()
             ),
+            normalized AS (
+              SELECT
+                asset,
+                direction,
+                entry_price,
+                target_price,
+                stop_price,
+                narrative,
+                report_date,
+                status,
+                created_at,
+                REGEXP_REPLACE(
+                  REGEXP_REPLACE(
+                    UPPER(TRIM(REGEXP_REPLACE(asset, '^\\\\$+', ''))),
+                    '\\\\s+',
+                    ''
+                  ),
+                  '-',
+                  '/'
+                ) AS canon_asset
+              FROM `{RECOMMENDATIONS_TABLE}`
+              WHERE report_date = (SELECT d FROM last_day)
+            ),
             ranked AS (
               SELECT
                 asset,
@@ -554,19 +594,19 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
                 stop_price,
                 narrative,
                 report_date,
+                canon_asset,
                 ROW_NUMBER() OVER (
-                  PARTITION BY report_date, asset
+                  PARTITION BY report_date, canon_asset
                   ORDER BY
                     CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END,
                     COALESCE(created_at, TIMESTAMP(report_date)) DESC
                 ) AS rn
-              FROM `{RECOMMENDATIONS_TABLE}`
-              WHERE report_date = (SELECT d FROM last_day)
+              FROM normalized
             )
             SELECT asset, direction, entry_price, target_price, stop_price, narrative, report_date
             FROM ranked
             WHERE rn = 1
-            ORDER BY asset
+            ORDER BY canon_asset ASC
         """).result())
     except Exception as e:
         logger.warning("load_previous_recs_block: BigQuery query failed: %s", e)

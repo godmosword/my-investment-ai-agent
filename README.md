@@ -34,11 +34,17 @@
 
 - **Telegram**：HTML 分段推送，retry + 純文字 fallback，僅允許白名單標籤。
 - **BigQuery**：從戰報萃取 DXY、ETF 資金流、平均風險分數、MVRV Z-Score、Grok/GPT 摘要寫入 `daily_metrics`。
-- **Streamlit 戰情室**：KPI 卡片、風險 Gauge、趨勢圖、巨鯨數據、Agent 摘要。
+- **Streamlit 戰情室（v3 視覺）**：暗色漸層介面、KPI 卡片、風險 Gauge（Risk ON / Neutral / Risk OFF 三態對齊）、趨勢圖（統一 Plotly hover／圖例）、巨鯨圖、Agent 摘要。
 
 ### 穩定性
 
 - **驗證與重試**：`validate_report()` 檢查新聞/推文數量、market_regime、儀表板關鍵字；不合格則重試（預設最多 3 次）。
+- **新聞 Gate 分級（資料不足）**：
+  - **標準**：全篇 6 則 `〔新聞 1〕`…`〔新聞 6〕`（幣圈 3 + AI 3），且已標之新聞皆須 `[… UTC+8]`。
+  - **新聞資料不足分段**（`partial_news_ok`）：允許 **3～5 則** 標籤新聞，但必須 **〔新聞 1〕～〔新聞 3〕** 皆存在、**UTC+8 全過**、文內有 **「資料不足保護／不補虛構新聞」** 並有 **【新聞資料狀態】**（後處理在 3～5 則時會加註 `[REPORT_TIER:PARTIAL_NEWS]`）。**不**放寬 R:R／勝率等交易欄位。
+  - **交易觀望**（`trade_watch_mode`）：出現「觀望模式／暫不開新倉／暫不提供股票進出場」等才放寬 **R:R、最大回撤、勝率、Signal Score、投資解讀量化** 等檢查。
+  - 環境變數 **`ALLOW_PARTIAL_NEWS_GATE=0`**：關閉分段，永遠要求 6 則新聞標籤。
+- **選幣／選股理由驗證**（`STRICT_PICK_JUSTIFICATION`，預設開啟）：不要求每日換標的，但加密／美股區的 **「本日選擇理由」** 須達標——足夠的催化或鏈上（幣）／基本面或新聞（股）線索，或明確 **退階**（大型幣、權值、ETF）說明，且理由中須 **點名 QSREC 內該類別所有標的**（含比值兩腿）。不符時 `validate_report` 失敗並觸發重試。交易觀望模式下略過。設 **`STRICT_PICK_JUSTIFICATION=0`** 可關閉。
 - **503 退避**：偵測 503/Unavailable 時指數退避重試（可配置次數與基數）。
 - **LLM**：各模型 `max_retries` 3～5、`timeout` 120～180 秒。
 - **來源健康分數**：`market_search_tool` 會根據 `newsapi/gnews/apify` 近期成功率動態排序來源，並採 7 天半衰期避免舊資料長期主導。
@@ -187,7 +193,7 @@ python main.py
 streamlit run dashboard.py
 ```
 
-可選：`--server.port 8501 --server.headless true`。無 API 金鑰時亦可啟動，BigQuery 相關區塊會顯示 N/A 或友善提示。
+可選：`--server.port 8501 --server.headless true`。無 API 金鑰時亦可啟動，BigQuery 相關區塊會顯示 N/A 或友善提示。戰情室 v3 採 DM Sans／JetBrains Mono、圖表 `hovermode=x unified` 與 Gauge 色階與日報 regime 口徑一致。
 
 ### 乾跑（不推送、不寫庫）
 

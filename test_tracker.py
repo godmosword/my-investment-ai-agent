@@ -5,6 +5,7 @@ import unittest
 from tracker import (
     extract_recommendations_json,
     strip_tracker_blocks,
+    canonical_asset_key,
     _compute_trade_metrics,
     _validate_rec,
 )
@@ -37,6 +38,12 @@ REPORT_NO_JSON = """\
 <b>【資金流向與精準操作 (Crypto)】</b>
 · <b>$BTC (LONG)</b>｜現價：$95,000
 """
+
+
+class TestCanonicalAssetKey(unittest.TestCase):
+    def test_normalizes_pair_and_dollar(self):
+        self.assertEqual(canonical_asset_key("$BTC-SOL"), "BTC/SOL")
+        self.assertEqual(canonical_asset_key(" btc "), "BTC")
 
 REPORT_BAD_JSON = """\
 [QSREC_START]
