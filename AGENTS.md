@@ -22,8 +22,8 @@ Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline tha
 
 ### Lint and checks
 
-- No automated test suite exists in this repo. Validation is done via `validate_report()` in `main.py` (6 news tags by default; **partial news** = 3–5 tags with 〔新聞 1–3〕+ UTC+8 + no-fake-news declaration + optional `[REPORT_TIER:PARTIAL_NEWS]`; `ALLOW_PARTIAL_NEWS_GATE=0` disables. **Trade-field** relax (R:R, etc.) only under **trade watch** phrases, not from news footer alone).
-- Linting: `ruff check .` — there are 2 pre-existing minor warnings (unused variable in `backtest.py`, import order in `crew.py`).
+- **Automated tests**: `pytest` at repo root (`test_*.py`). **PR checks** (`.github/workflows/ci.yml`): `ruff check .` + `pytest -m smoke`. **Full suite** on `push` to `main` (and when `deploy.yml` calls `ci.yml`): `pytest -v`. Runtime validation of daily reports is still `validate_report()` in `main.py` (6 news tags by default; **partial news** = 3–5 tags with 〔新聞 1–3〕+ UTC+8 + no-fake-news declaration + optional `[REPORT_TIER:PARTIAL_NEWS]`; `ALLOW_PARTIAL_NEWS_GATE=0` disables. **Trade-field** relax (R:R, etc.) only under **trade watch** phrases, not from news footer alone).
+- Linting: `ruff check .` — there may be minor pre-existing warnings in some files; fix when touching those files.
 - Python version: the Dockerfile uses 3.11-slim, but the code runs fine on Python 3.12.
 
 ### Gotchas
