@@ -186,6 +186,14 @@ class TestHasNewsTimezoneUtc8(unittest.TestCase):
         )
         self.assertTrue(_has_news_timezone_utc8(text))
 
+    def test_tagged_hkt_and_code_wrapped_timestamp(self):
+        """Telegram 戰報常在時間外層包 <code>；亦接受 HKT／香港時間。"""
+        text = (
+            "〔新聞 1〕[<code>03/20 10:00 HKT</code>] Src\n"
+            "〔新聞 2〕[2026/03/20 11:00 香港時間] Src"
+        )
+        self.assertTrue(_has_news_timezone_utc8(text))
+
     def test_tagged_without_utc8(self):
         text = "〔新聞 1〕Source\ntitle"
         self.assertFalse(_has_news_timezone_utc8(text))
@@ -274,6 +282,17 @@ class TestMacroOutlier(unittest.TestCase):
         self.assertTrue(
             _has_macro_outlier_values("儀表板｜Fed SOFR 期貨隱含利率：120.5%（錯誤）")
         )
+
+    def test_sofr_line_with_vix_percent_not_flagged(self):
+        """同列敘事『SOFR 與 VIX xx%』勿將 VIX 誤當 SOFR 利率。"""
+        self.assertFalse(
+            _has_macro_outlier_values(
+                "宏觀摘要：Fed SOFR 期貨無報價與 VIX 26.78% 同列（僅說明市場情緒）"
+            )
+        )
+
+    def test_treasury_10y_without_colon_on_meizhai_line(self):
+        self.assertFalse(_has_macro_outlier_values("美債 10Y 報 4.25%｜2Y 4.10%"))
 
 
 class TestMacroConflicts(unittest.TestCase):
@@ -372,6 +391,11 @@ class TestValidateReport(unittest.TestCase):
             any("傳聞區缺少可信度" in i for i in result["issues"]),
             f"expected slash-100 rumor grade accepted, got: {result['issues']}",
         )
+
+    def test_rumor_xinlaidu_passes(self):
+        report = _make_report(include_rumor_grade=False, extra="呢喃與傳聞掃描\n信賴度：B\n")
+        result = validate_report(report)
+        self.assertFalse(any("傳聞區缺少可信度" in i for i in result["issues"]))
 
     def test_missing_rr_and_drawdown(self):
         report = _make_report(include_rr=False)
