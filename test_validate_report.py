@@ -236,6 +236,19 @@ class TestHasNewsTimezoneUtc8(unittest.TestCase):
         self.assertIn("UTC+8", out)
         self.assertTrue(_has_news_timezone_utc8(out))
 
+    def test_mixed_tagged_timestamp_and_ai_title_only(self):
+        """AI 標題被補上〔新聞 N〕但未含時間戳時，不應拖累已標示 UTC+8 的時間戳新聞。"""
+        text = (
+            "〔新聞 1〕[03/20 10:00 UTC+8] Crypto\n"
+            "〔新聞 2〕AI Title Only\n"
+            "摘要：something\n"
+        )
+        self.assertTrue(_has_news_timezone_utc8(text))
+
+    def test_tagged_timestamp_without_timezone_still_fails(self):
+        text = "〔新聞 1〕[03/20 10:00] Source\n"
+        self.assertFalse(_has_news_timezone_utc8(text))
+
     def test_tagged_hkt_and_code_wrapped_timestamp(self):
         """Telegram 戰報常在時間外層包 <code>；亦接受 HKT／香港時間。"""
         text = (
