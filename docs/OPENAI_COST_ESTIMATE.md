@@ -19,7 +19,7 @@
 目前 `crew.py` 中**預設**為低成本模型，並可透過環境變數覆寫：
 
 ```text
-MODEL_GPT = os.getenv("OPENAI_MODEL", "openai/gpt-4o-mini")   # 預設
+`MODEL_GPT` 由 `config.py` 讀取（`OPENAI_MODEL` 或 `MODEL_GPT` 環境變數，預設 `openai/gpt-4o-mini`）
 # 若要改用旗艦：export OPENAI_MODEL=openai/gpt-4o 或 openai/gpt-5.2-2025-12-11
 ```
 

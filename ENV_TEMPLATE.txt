@@ -11,6 +11,13 @@ OPENAI_API_KEY=
 # Anthropic（crew LLM fallback 鏈會用；缺則僅跳過 Claude 備援）
 ANTHROPIC_API_KEY=
 
+# ---------- 選填：LiteLLM 模型 ID（見 config.py 預設；改設定免動 crew.py）----------
+# MODEL_GROK=xai/grok-4-1-fast-reasoning
+# OPENAI_MODEL=openai/gpt-4o-mini
+# MODEL_GPT=openai/gpt-4o-mini
+# MODEL_GEMINI=gemini/gemini-3.1-pro-preview
+# MODEL_CLAUDE=anthropic/claude-sonnet-4-20250514
+
 # ---------- 資料/搜尋 API（工具會用到，缺則該工具回傳 DATA_MISSING）----------
 # CoinGlass API v4：Base open-api-v4.coinglass.com，Header CG-API-KEY。若 JSON 回 code=401、msg=Upgrade plan＝方案不含該端點（非 URL 錯），見 README / AGENTS.md
 COINGLASS_API_KEY=
