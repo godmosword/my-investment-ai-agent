@@ -21,6 +21,9 @@ from main import (
     _partial_news_ok,
     _pick_rotation_crypto_ok,
     _pick_rotation_equity_ok,
+    _sanitize_macro_outlier_values,
+    _ensure_rumor_grade_marker,
+    _has_rumor_grade_marker,
 )
 
 
@@ -365,6 +368,11 @@ class TestMacroOutlier(unittest.TestCase):
     def test_treasury_10y_without_colon_on_meizhai_line(self):
         self.assertFalse(_has_macro_outlier_values("美債 10Y 報 4.25%｜2Y 4.10%"))
 
+    def test_sanitize_handles_fullwidth_pipe(self):
+        src = "美債 10Y：25.00%｜2Y：4.10%"
+        out = _sanitize_macro_outlier_values(src)
+        self.assertIn("N/A", out)
+
 
 class TestMacroConflicts(unittest.TestCase):
     def test_no_conflict(self):
@@ -467,6 +475,19 @@ class TestValidateReport(unittest.TestCase):
         report = _make_report(include_rumor_grade=False, extra="呢喃與傳聞掃描\n信賴度：B\n")
         result = validate_report(report)
         self.assertFalse(any("傳聞區缺少可信度" in i for i in result["issues"]))
+
+
+class TestRumorGradePostprocess(unittest.TestCase):
+    def test_injects_marker_when_missing(self):
+        src = "區塊③【市場呢喃與傳聞】\n· 傳聞 A（未確認）\n[QSREC_START]\n[]\n[QSREC_END]"
+        out = _ensure_rumor_grade_marker(src)
+        self.assertTrue(_has_rumor_grade_marker(out))
+        self.assertIn("傳聞可信度", out)
+
+    def test_noop_when_grade_exists(self):
+        src = "區塊③【市場呢喃與傳聞】\n· 傳聞 A（未確認）｜可信度：B\n"
+        out = _ensure_rumor_grade_marker(src)
+        self.assertEqual(src, out)
 
     def test_missing_rr_and_drawdown(self):
         report = _make_report(include_rr=False)
