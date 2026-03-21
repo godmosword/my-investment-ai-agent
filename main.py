@@ -710,9 +710,12 @@ def _has_news_timezone_utc8(text: str) -> bool:
     t2 = _normalize_fullwidth_news_brackets_on_news_lines(t1)
     t = _strip_inline_tags_on_news_lines(t2)
     tagged_total = len(re.findall(r"〔新聞\s*\d+〕", t))
-    if tagged_total > 0:
+    tagged_ts_total = len(_NEWS_TAGGED_WITH_TS_RE.findall(t))
+    if tagged_ts_total > 0:
         tagged_utc = len(_NEWS_TAGGED_WITH_HK_TZ_RE.findall(t))
-        return tagged_utc == tagged_total
+        return tagged_utc == tagged_ts_total
+    if tagged_total > 0:
+        return False
     numbered = len(re.findall(r"(?m)^\s*\d+[.)]\s+.+", t))
     return numbered > 0
 
@@ -1216,6 +1219,11 @@ _NEWS_LINE_INLINE_HTML_RE = re.compile(r"</?(?:code|b|i|u|s)(?:\s[^>]*)?>", re.I
 _NEWS_TAGGED_WITH_HK_TZ_RE = re.compile(
     rf"〔新聞\s*\d+〕[\s\u3000]*\[(?:\d{{4}}[/\-]\d{{1,2}}[/\-]\d{{1,2}}|\d{{1,2}}/\d{{1,2}}(?:/\d{{4}})?)"
     rf"\s+\d{{1,2}}:\d{{2}}(?::\d{{2}})?\s*{_NEWS_HK_TZ_TOKEN}\]",
+    re.IGNORECASE,
+)
+_NEWS_TAGGED_WITH_TS_RE = re.compile(
+    r"〔新聞\s*\d+〕[\s\u3000]*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{4})?)"
+    r"\s+\d{1,2}:\d{2}(?::\d{2})?",
     re.IGNORECASE,
 )
 
