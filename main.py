@@ -49,10 +49,9 @@ from validation_rules import (
     NUMERIC_INVESTMENT_LINE_RE,
     NUMERIC_INVESTMENT_MULTI_RE,
     QSREC_MARKERS_RE,
-    TRADE_WATCH_AI_OP_RE,
-    TRADE_WATCH_CRYPTO_OP_RE,
-    TRADE_WATCH_MODE_RE,
     UNACTIONABLE_TRADE_RE,
+    span_has_positive_trade_watch_declaration,
+    text_has_positive_trade_watch_mode,
 )
 
 load_dotenv()
@@ -1911,8 +1910,9 @@ def _trade_watch_actionable_conflicts(
         op_span = _operation_span(span, is_ai=is_ai)
         if not op_span:
             continue
-        watch_re = TRADE_WATCH_AI_OP_RE if is_ai else TRADE_WATCH_CRYPTO_OP_RE
-        if watch_re.search(op_span) and _has_actionable_params(op_span):
+        if span_has_positive_trade_watch_declaration(
+            op_span, is_ai=is_ai
+        ) and _has_actionable_params(op_span):
             conflicts.append(label)
     return conflicts
 
@@ -1982,7 +1982,7 @@ def validate_report(text: str) -> dict:
     has_data_missing = bool(HAS_DATA_MISSING_RE.search(text))
     data_missing_fields = sorted(set(DATA_MISSING_FIELDS_RE.findall(text)))
     # 交易觀望：放寬 R:R／勝率等「可執行欄位」檢查（與「新聞不足分段」解耦）
-    trade_watch_mode = bool(TRADE_WATCH_MODE_RE.search(text))
+    trade_watch_mode = text_has_positive_trade_watch_mode(text)
     partial_news_ok = _partial_news_ok(text)
     news_six_relaxed = trade_watch_mode or partial_news_ok
     has_qsrec_markers = bool(QSREC_MARKERS_RE.search(text))

@@ -779,6 +779,31 @@ class TestAiBoundaryAndWatchMutex(unittest.TestCase):
             any("觀望模式契約衝突" in i and "加密" in i for i in result["issues"]),
         )
 
+    def test_negated_feiguanwang_mode_no_mutex_with_prices(self):
+        """「非觀望模式」含子字串觀望模式，不應與進場/目標/停損並存時誤判為契約衝突。"""
+        crypto_block = (
+            "區塊④【資金流向與精準操作】\n"
+            "本日選擇理由：測試。\n"
+            "今日風險預算：risk_on 模式下總倉位上限 15%。\n"
+            "訊號衝突摘要：無顯著多空衝突。\n"
+            "· 敘事：本段為非觀望模式，提供可執行參數如下。\n"
+            "· $BTC (LONG)\n"
+            "· 進場：<code>$70000</code>｜目標：<code>$75000</code>｜停損：<code>$68000</code>"
+        )
+        report = self._report_with_crypto_block_before_ai(crypto_block)
+        result = validate_report(report)
+        self.assertFalse(
+            any("觀望模式契約衝突" in i and "加密" in i for i in result["issues"]),
+            result["issues"],
+        )
+
+    def test_negated_watch_does_not_relax_rr_gate(self):
+        """否定觀望（非觀望模式）不應觸發 trade_watch_mode 放寬 R:R。"""
+        report = _make_report(include_rr=False, extra="\n本段為非觀望模式。\n")
+        result = validate_report(report)
+        self.assertFalse(result["trade_watch_mode"])
+        self.assertTrue(any("R:R" in i and "缺少" in i for i in result["issues"]))
+
 
 if __name__ == "__main__":
     unittest.main()
