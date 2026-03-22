@@ -2,7 +2,6 @@
 cache eviction, HTTP session singleton, env validation, and schema guards."""
 
 import os
-import time
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -19,7 +18,6 @@ from tools import (
     _get_cache,
     _CACHE,
     _CACHE_MAX_SIZE,
-    _HTTP_SESSION,
     fear_greed_tool,
 )
 
@@ -90,7 +88,7 @@ class TestTelegramSendRetry(unittest.TestCase):
             sys.modules["telebot"].apihelper = mod
 
     @patch("main.time.sleep")
-    @patch("main.telebot.TeleBot")
+    @patch("telegram_sender.telebot.TeleBot")
     @patch("main.os.path.exists", return_value=False)
     def test_retries_on_send_failure(self, _mock_exists, mock_bot_cls, _mock_sleep):
         mock_bot = MagicMock()
@@ -105,7 +103,7 @@ class TestTelegramSendRetry(unittest.TestCase):
         self.assertEqual(mock_bot.send_message.call_count, 3)
 
     @patch("main.time.sleep")
-    @patch("main.telebot.TeleBot")
+    @patch("telegram_sender.telebot.TeleBot")
     @patch("main.os.path.exists", return_value=False)
     def test_falls_back_to_plain_text_on_html_error(self, _mock_exists, mock_bot_cls, _mock_sleep):
         mock_bot = MagicMock()

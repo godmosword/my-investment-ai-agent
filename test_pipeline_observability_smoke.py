@@ -32,7 +32,7 @@ def test_get_with_retry_503_then_ok():
 def test_send_telegram_report_mock_bot():
     with patch("main.os.path.exists", return_value=False):
         mock_bot = MagicMock()
-        with patch("main.telebot.TeleBot", return_value=mock_bot):
+        with patch("telegram_sender.telebot.TeleBot", return_value=mock_bot):
             main._send_telegram_report("<b>hi</b>", "dummy-token", "12345")
     mock_bot.send_message.assert_called()
 
@@ -73,9 +73,9 @@ def test_extract_and_save_metrics_logs_insert_errors(caplog):
         return SimpleNamespace(name=name)
 
     with (
-        patch("main.bigquery.Client", return_value=fake_client),
-        patch("main.bigquery.SchemaField", side_effect=_schema_field),
-        patch("main.bigquery.Table", return_value=MagicMock()),
+        patch("bigquery_writer.bigquery.Client", return_value=fake_client),
+        patch("bigquery_writer.bigquery.SchemaField", side_effect=_schema_field),
+        patch("bigquery_writer.bigquery.Table", return_value=MagicMock()),
     ):
         main.extract_and_save_metrics(report, project_id="test-project")
 

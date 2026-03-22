@@ -1,19 +1,14 @@
-import json
 import os
 import re
 import sys
 import time
 import logging
 import builtins
-import html
-import telebot
 from datetime import datetime, timezone
 from dotenv import load_dotenv
-from google.cloud import bigquery
 import yfinance as yf
 from pathlib import Path
 
-from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
 from crew import CryptoResearchCrew, AIResearchCrew
 from report_output_validator import (
     assert_report_output,
@@ -22,78 +17,48 @@ from report_output_validator import (
 )
 from telegram_sender import (
     sanitize_telegram_html,
-    _balance_telegram_html_tags,
+    _balance_telegram_html_tags,  # noqa: F401
     strip_html,
-    _safe_chunks,
     _send_telegram_report,
     _send_telegram_gate_alert,
-    _format_gate_issues_followup_messages,
-    _gate_alert_severity_and_code,
-    GATE_CODE_CRITICAL_SOURCE,
-    GATE_CODE_LLM_DISCONNECT,
-    GATE_CODE_EXECUTION_FAILED,
-    GATE_CODE_VALIDATION,
-    GATE_CODE_UNKNOWN,
+    _format_gate_issues_followup_messages,  # noqa: F401
+    _gate_alert_severity_and_code,  # noqa: F401
+    GATE_CODE_CRITICAL_SOURCE,  # noqa: F401
 )
 from bigquery_writer import (
     extract_and_save_metrics,
     fetch_exclusion_context,
     _get_last_success_report_time_utc,
-    _extract_section,
-    _extract_news_titles,
-    _semantic_dedup_titles,
 )
 from report_validator import (
     validate_report,
-    _crypto_report_prefix,
+    _crypto_report_prefix,  # noqa: F401
     _count_effective_news_items,
     _fallback_news_count,
     _normalize_regime_token,
-    _has_news_timezone_utc8,
-    _has_macro_outlier_values,
-    _has_macro_conflicts,
-    _risk_off_star_cap_violated,
-    _pair_trade_unit_consistent,
-    _has_crypto_trade_section,
+    _has_news_timezone_utc8,  # noqa: F401
+    _has_macro_outlier_values,  # noqa: F401
+    _has_macro_conflicts,  # noqa: F401
+    _risk_off_star_cap_violated,  # noqa: F401
+    _pair_trade_unit_consistent,  # noqa: F401
+    _has_crypto_trade_section,  # noqa: F401
     _has_ai_trade_section,
-    _partial_news_ok,
-    _pick_rotation_crypto_ok,
-    _pick_rotation_equity_ok,
-    _has_rumor_grade_marker,
-    _conflicting_total_risk_budget_lines,
-    _qsrec_opposing_direction_same_asset,
-    _fetch_yesterday_qsrec_canonical_set,
-    _pick_justification_crypto_ok,
-    _pick_justification_equity_ok,
-    _pick_rotation_override_min_gap,
-    _has_repeat_quality_anchor,
-    _normalize_pick_asset_legs,
-    _reason_covers_assets,
-    _score_kw_hits,
-    _extract_today_pick_reason,
+    _partial_news_ok,  # noqa: F401
+    _pick_rotation_crypto_ok,  # noqa: F401
+    _pick_rotation_equity_ok,  # noqa: F401
+    _pick_rotation_override_min_gap,  # noqa: F401
+    _has_rumor_grade_marker,  # noqa: F401
+    _conflicting_total_risk_budget_lines,  # noqa: F401
+    _qsrec_opposing_direction_same_asset,  # noqa: F401
     _persist_gate_validation_failure,
     _is_conditional_regime_line,
-    _has_source_observability_conflicts,
     _allow_partial_news_gate,
-    _strict_pick_justification,
-    _strict_pick_rotation,
-    _allow_repeat_pick_override,
-    _strict_pick_scoring,
-    _repeat_pick_days_max,
-    _repeat_pick_min_score,
     _count_news_tags_only,
     _join_news_tag_timestamp_lines,
     _normalize_fullwidth_news_brackets_on_news_lines,
     _NEWS_HK_TZ_TOKEN,
     _NEWS_LINE_INLINE_HTML_RE,
     _MISSING_REASON_PROXY_RE,
-    _REPEAT_PICK_REASON_RE,
-    _PICK_SCORE_FIELDS,
-    _CRYPTO_PICK_KW,
-    _CRYPTO_PICK_FALLBACK,
-    _EQUITY_PICK_KW,
-    _EQUITY_PICK_FALLBACK,
-    _MISSING_REASON_PROXY_RE,  # noqa: F811
 )
 from tools import source_observability_lines
 from visualizer import generate_quant_chart
@@ -101,33 +66,6 @@ import tracker
 import scratchpad
 from tracker import load_previous_recs_block
 from report_pipeline_compare import compare_validation_results
-from validation_rules import (
-    BUDGET_TAGS_RE,
-    CODE_LEAK_RE,
-    DATA_MISSING_FIELDS_RE,
-    HAS_AI_SECTION_RE,
-    HAS_CRYPTO_SECTION_RE,
-    HAS_DASHBOARD_RE,
-    HAS_DATA_MISSING_RE,
-    HAS_EXPECTED_WIN_RATE_RE,
-    HAS_LOW_CONFIDENCE_RE,
-    HAS_REGIME_RE,
-    HAS_RISK_BUDGET_RE,
-    HAS_RR_RE,
-    HAS_SIGNAL_CONFLICT_RE,
-    HAS_SIGNAL_SCORE_RE,
-    HAS_MAX_DRAWDOWN_RE,
-    IMPACT_LEAK_RE,
-    MALFORMED_INVALIDATION_RE,
-    MODE_TAGS_RE,
-    NA_TOKEN_RE,
-    NUMERIC_INVESTMENT_LINE_RE,
-    NUMERIC_INVESTMENT_MULTI_RE,
-    QSREC_MARKERS_RE,
-    UNACTIONABLE_TRADE_RE,
-    span_has_positive_trade_watch_declaration,
-    text_has_positive_trade_watch_mode,
-)
 
 load_dotenv()
 
@@ -630,341 +568,6 @@ def _install_runtime_noise_filters() -> None:
         builtins.print = _quiet_print
 
 
-def sanitize_telegram_html(text: str) -> str:
-    """清洗 LLM 輸出的 HTML，保留 Telegram 支援標籤並修復失衡標籤。"""
-    if not text:
-        return ""
-    text = text.replace("\r\n", "\n")
-    text = re.sub(r'&(?!(?:amp|lt|gt|quot|apos);)', '&amp;', text)
-
-    placeholders: dict[str, str] = {}
-    seq = 0
-
-    def _stash(val: str) -> str:
-        nonlocal seq
-        key = f"__TG_TAG_{seq}__"
-        placeholders[key] = val
-        seq += 1
-        return key
-
-    def _keep_anchor_open(m: re.Match) -> str:
-        href_m = re.search(r'href=["\']([^"\']+)["\']', m.group(0), re.IGNORECASE)
-        if not href_m:
-            return ""
-        href = html.escape(html.unescape(href_m.group(1)), quote=True)
-        return _stash(f'<a href="{href}">')
-
-    text = re.sub(r'<a\b[^>]*>', _keep_anchor_open, text, flags=re.IGNORECASE)
-    text = re.sub(r'</a\s*>', lambda _m: _stash("</a>"), text, flags=re.IGNORECASE)
-    text = re.sub(
-        r'</?(?:b|i|u|s|code|blockquote)\s*>',
-        lambda m: _stash(m.group(0).lower()),
-        text,
-        flags=re.IGNORECASE,
-    )
-
-    # 先把所有殘餘尖括號轉義，避免 `<0.03)</code>` 這類非標籤片段炸掉 Telegram parser。
-    text = text.replace("<", "&lt;").replace(">", "&gt;")
-
-    for key, val in placeholders.items():
-        text = text.replace(key, val)
-
-    return _balance_telegram_html_tags(text)
-
-
-def _balance_telegram_html_tags(text: str) -> str:
-    """移除不合法 closing tag，並為未關閉 tag 自動補齊結尾。"""
-    tag_re = re.compile(
-        r'</?(?:b|i|u|s|code|blockquote|a)(?:\s+href="[^"]*")?\s*>',
-        re.IGNORECASE,
-    )
-    out: list[str] = []
-    stack: list[str] = []
-    last = 0
-    for m in tag_re.finditer(text):
-        out.append(text[last:m.start()])
-        tag = m.group(0)
-        name_m = re.match(r'</?\s*([a-z]+)', tag, re.IGNORECASE)
-        if not name_m:
-            last = m.end()
-            continue
-        name = name_m.group(1).lower()
-        is_close = tag.startswith("</")
-
-        if not is_close:
-            if name == "a":
-                if not re.match(r'<a\s+href="[^"]*">', tag, re.IGNORECASE):
-                    last = m.end()
-                    continue
-                out.append(tag)
-            else:
-                out.append(f"<{name}>")
-            stack.append(name)
-        else:
-            if stack and stack[-1] == name:
-                out.append(f"</{name}>")
-                stack.pop()
-            # unmatched closing tag -> drop
-        last = m.end()
-
-    out.append(text[last:])
-    while stack:
-        out.append(f"</{stack.pop()}>")
-    return "".join(out)
-
-
-def strip_html(text: str) -> str:
-    """完全移除所有 HTML 標籤，回傳純文字。"""
-    return re.sub(r'<[^>]+>', '', text)
-
-
-# ── 動態選幣／選股：本日選擇理由驗證（與 crew 規則對齊，允許連日同標的但須說清楚依據）────────
-_CRYPTO_PICK_KW: tuple[str, ...] = (
-    "新聞",
-    "催化",
-    "事件",
-    "題材",
-    "ETF",
-    "核准",
-    "升級",
-    "主網",
-    "分叉",
-    "清算",
-    "爆倉",
-    "流入",
-    "流出",
-    "鏈上",
-    "巨鯨",
-    "資金費率",
-    "多空比",
-    "DeFi",
-    "監管",
-    "申請",
-    "上市",
-    "解鎖",
-    "減半",
-    "RWA",
-    "SOPR",
-    "NUPL",
-    "交易所",
-    "淨流",
-    "未平倉",
-    "OI",
-    "現貨",
-    "基差",
-    "期權",
-    "選擇權",
-)
-_CRYPTO_PICK_FALLBACK: tuple[str, ...] = (
-    "大型幣",
-    "主流幣",
-    "龍頭",
-    "流動性",
-    "最後才",
-    "缺乏",
-    "無其他",
-    "不明顯",
-    "退而求其次",
-    "避險",
-    "保守",
-    "催化劑不足",
-)
-_EQUITY_PICK_KW: tuple[str, ...] = (
-    "財報",
-    "合約",
-    "營收",
-    "資本",
-    "支出",
-    "Capex",
-    "回購",
-    "新品",
-    "發布",
-    "上線",
-    "GPU",
-    "資料中心",
-    "雲端",
-    "雲",
-    "生成式",
-    "LLM",
-    "訂單",
-    "拉貨",
-    "晶片",
-    "代工",
-    "新聞",
-    "報導",
-    "法說",
-    "指引",
-    "併購",
-)
-_EQUITY_PICK_FALLBACK: tuple[str, ...] = (
-    "權值",
-    "大型股",
-    "指數",
-    "避險",
-    "流動性",
-    "最後才",
-    "缺乏催化",
-    "通殺",
-    "ETF",
-    "BOTZ",
-    "ARKQ",
-)
-
-
-_AI_SECTION_BOUNDARY_PATTERNS: tuple[str, ...] = (
-    r"(?m)^────────────\s*\n\s*🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
-    r"\n🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
-    r"🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
-    r"(?m)^══════\s*🤖\s*AI(?:\s*與\s*美股市場|\s*市場)\s*══════",
-    r"(?m)^\s*AI\s*產業鏈精準操作\s*\(US\s*Equit",
-)
-
-
-def _ai_section_start_index(text: str, cache: dict[str, int] | None = None) -> int:
-    """回傳 AI 主段起始位置；若找不到則回傳 len(text)。"""
-    cache_key = "ai_section_start_index"
-    if cache is not None and cache_key in cache:
-        return cache[cache_key]
-    best = len(text)
-    for pat in _AI_SECTION_BOUNDARY_PATTERNS:
-        m = re.search(pat, text, re.IGNORECASE)
-        if m and m.start() < best:
-            best = m.start()
-    if cache is not None:
-        cache[cache_key] = best
-    return best
-
-
-def _crypto_report_prefix(text: str, *, _cache: dict[str, int] | None = None) -> str:
-    """合併戰報中「加密區」之前綴（🤖 AI 主段起頭後視為下半部）。"""
-    best = _ai_section_start_index(text, cache=_cache)
-    return text[:best] if best < len(text) else text
-
-
-def _extract_today_pick_reason(span: str) -> str | None:
-    """自區塊內取出第一處「本日選擇理由」純文字（至風險預算／訊號衝突／交易條目／QSREC／分隔線）。"""
-    m = re.search(
-        r"本日選擇理由[：:]\s*([\s\S]+?)(?=\n\s*(?:今日風險預算|訊號衝突(?:摘要)?)[：:]|\n\s*·[^\n]*\$|\[QSREC_START\]|\n(?:-{4,}|─{4,}))",
-        span,
-        re.IGNORECASE,
-    )
-    if not m:
-        return None
-    return strip_html(m.group(1)).strip()
-
-
-def _normalize_pick_asset_legs(asset: str) -> list[str]:
-    """QSREC asset → 大寫代號列表（比值拆兩腿，供『理由是否點名』檢查）。"""
-    a = str(asset or "").upper().replace("$", "").replace(" ", "").replace("-", "/")
-    if "/" in a:
-        return [p for p in a.split("/") if p]
-    return [a] if a else []
-
-
-def _reason_covers_assets(reason: str, assets: list[str]) -> bool:
-    """理由中須可辨識每一檔標的（代號字串出現於 strip 後大寫比對）。"""
-    u = strip_html(reason).upper()
-    for raw in assets:
-        legs = _normalize_pick_asset_legs(raw)
-        if not legs:
-            return False
-        if len(legs) >= 2:
-            if not all(leg in u for leg in legs):
-                return False
-        else:
-            if legs[0] not in u:
-                return False
-    return True
-
-
-def _score_kw_hits(reason: str, kws: tuple[str, ...]) -> int:
-    return sum(1 for k in kws if k in reason)
-
-
-def _pick_justification_crypto_ok(
-    text: str,
-    recs: list[dict],
-    *,
-    span_cache: dict[str, int] | None = None,
-) -> tuple[bool, str]:
-    """
-    加密 QSREC 每檔須在「本日選擇理由」區間內可被合規敘事支持：
-    ≥2 個催化/鏈上關鍵線索；或 1 線索 + 明確大型幣退階語；或 1 線索 + 長文且點名所有標的。
-    """
-    crypto_assets = [
-        str(r.get("asset", ""))
-        for r in recs
-        if str(r.get("category", "CRYPTO")).upper() == "CRYPTO"
-    ]
-    if not crypto_assets:
-        return True, ""
-    cspan = _crypto_report_prefix(text, _cache=span_cache)
-    reason = _extract_today_pick_reason(cspan)
-    if not reason:
-        return False, "加密區缺少「本日選擇理由」，或內容未寫在「今日風險預算／訊號衝突／交易條目」之前（請依動態選幣標準補敘）"
-    if len(reason) < 34:
-        return False, "本日選擇理由（加密）過短：請說明新聞/鏈上依據或明確大型幣退階邏輯，並點名 QSREC 標的"
-    strong = _score_kw_hits(reason, _CRYPTO_PICK_KW)
-    fb = _score_kw_hits(reason, _CRYPTO_PICK_FALLBACK)
-    named = _reason_covers_assets(reason, crypto_assets)
-    ok = (
-        strong >= 2
-        or (strong >= 1 and fb >= 1)
-        or (strong >= 1 and len(reason) >= 72 and named)
-    )
-    if ok:
-        return True, ""
-    return (
-        False,
-        "本日選擇理由（加密）未達動態選幣標準：須（≥2 項催化/鏈上線索）或（1 線索+大型幣退階說明）或（1 線索+長文且點名所有加密 QSREC 標的）；不符則請改選標的或補強敘事",
-    )
-
-
-def _pick_justification_equity_ok(
-    text: str,
-    recs: list[dict],
-    *,
-    span_cache: dict[str, int] | None = None,
-) -> tuple[bool, str]:
-    """美股 QSREC：理由須含足夠基本面/新聞線索並點名各檔股票代號。"""
-    eq_assets = [
-        str(r.get("asset", ""))
-        for r in recs
-        if str(r.get("category", "")).upper() == "EQUITY"
-    ]
-    if not eq_assets:
-        return True, ""
-    ai_span = text[_ai_section_start_index(text, cache=span_cache) :]
-    reason = _extract_today_pick_reason(ai_span)
-    if not reason:
-        return False, "AI/美股區缺少「本日選擇理由」，或格式未寫在交易條目前（請依動態選股標準補敘）"
-    if len(reason) < 38:
-        return False, "本日選擇理由（美股）過短：請連結財報/產品/新聞催化並點名 QSREC 標的"
-    strong = _score_kw_hits(reason, _EQUITY_PICK_KW)
-    fb = _score_kw_hits(reason, _EQUITY_PICK_FALLBACK)
-    named = _reason_covers_assets(reason, eq_assets)
-    ok = strong >= 2 or (strong >= 1 and fb >= 1) or (strong >= 1 and len(reason) >= 80 and named)
-    if ok:
-        return True, ""
-    return (
-        False,
-        "本日選擇理由（美股）未達動態選股標準：須（≥2 項基本面/新聞線索）或（1 線索+權值/ETF 退階說明）或（1 線索+長文且點名所有美股 QSREC 標的）；不符則請改選標的或補強敘事",
-    )
-
-
-_REPEAT_PICK_REASON_RE = re.compile(
-    r"重複選用理由|重複選股理由|重複持有理由|連日(?:選(?:用)?|持有|維持)|連續(?:兩日|多日)(?:同標|持有|維持)|"
-    r"仍選(?:用)?|同標(?:的)?延續|延續昨|延續上日|與昨日相同標的|維持昨日(?:兩檔|組合|標的)|持續鎖定(?:同組|兩檔)",
-    re.IGNORECASE,
-)
-_PICK_SCORE_FIELDS = (
-    "selection_score",
-    "catalyst_score",
-    "flow_score",
-    "technical_score",
-    "risk_fit_score",
-    "execution_score",
-)
 
 
 def _qsrec_canonical_set_for_category(recs: list[dict], category: str) -> set[str]:
@@ -1008,129 +611,42 @@ def _best_repeat_score_gap_for_category(recs: list[dict], category: str) -> floa
     return max(gaps)
 
 
-def _has_repeat_quality_anchor(recs: list[dict], category: str) -> bool:
-    """同標延續時，至少 1 筆滿足 repeat_days 與 selection_score 品質門檻。"""
-    want = category.upper()
-    max_days = _repeat_pick_days_max()
-    min_score = _repeat_pick_min_score()
-    for rec in recs:
-        if str(rec.get("category", "")).upper() != want:
-            continue
-        repeat_days = _safe_float_val(rec.get("repeat_days"))
-        score = _safe_float_val(rec.get("selection_score"))
-        if repeat_days is None or score is None:
-            continue
-        if repeat_days <= max_days and score >= min_score:
-            return True
-    return False
+
+def _build_output_json_for_validation(report_text: str) -> dict:
+    """將戰報文字轉成結構化 payload，供 Pydantic 與 assertion 驗證。"""
+    plain = strip_html(report_text).strip()
+    title = "Daily Brief"
+    if plain:
+        first = plain.splitlines()[0].strip()
+        if first:
+            title = first[:120]
+    summary = plain[:800] if plain else ""
+    code_match = re.search(r"(<code>[\s\S]*?</code>)", report_text, re.IGNORECASE)
+    code = code_match.group(1) if code_match else ""
+    news_text = "\n".join(
+        line for line in report_text.splitlines()
+        if ("HTTPError" in line or "[DATA_MISSING" in line or "Traceback" in line)
+    )
+    return {
+        "title": title,
+        "summary": summary,
+        "code": code,
+        "news": news_text,
+    }
 
 
-def _fetch_yesterday_qsrec_canonical_set(category: str) -> set[str] | None:
+def _codex_judge_pass(report_text: str) -> bool:
     """
-    讀取昨日已寫入 trade_recommendations 的 QSREC 標的（DISTINCT asset → canonical）。
-    SKIP_BIGQUERY 或查詢失敗回傳 None（略過輪動檢查，避免誤擋）。
+    以 Codex 裁判提示詞 + 關鍵詞規則做快速審核。
+    若判定含 API 錯誤訊息/無關內容，回傳 False 觸發重試。
     """
-    if SKIP_BIGQUERY:
-        return None
-    cat = category.upper()
-    if cat not in ("CRYPTO", "EQUITY"):
-        return None
-    try:
-        client = bigquery.Client(project=PROJECT_ID)
-        job_cfg = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("cat", "STRING", cat)]
+    return not bool(
+        re.search(
+            r"HTTPError|\[DATA_MISSING:|Traceback|Exception:|API key 未設定|Will be right back",
+            report_text,
+            re.IGNORECASE,
         )
-        rows = list(
-            client.query(
-                f"""
-                SELECT DISTINCT asset
-                FROM `{RECOMMENDATIONS_TABLE}`
-                WHERE report_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
-                  AND UPPER(COALESCE(category, '')) = @cat
-                """,
-                job_config=job_cfg,
-            ).result()
-        )
-        if not rows:
-            return set()
-        return {tracker.canonical_asset_key(r["asset"]) for r in rows if r.get("asset")}
-    except Exception as e:
-        logger.warning("pick rotation: yesterday QSREC query failed: %s", e)
-        return None
-
-
-def _pick_rotation_crypto_ok(
-    text: str,
-    recs: list[dict],
-    *,
-    span_cache: dict[str, int] | None = None,
-) -> tuple[bool, str]:
-    """今日加密 QSREC canonical 集合若與昨日完全相同，須改選或達成同標覆核。"""
-    if not _strict_pick_rotation():
-        return True, ""
-    y = _fetch_yesterday_qsrec_canonical_set("CRYPTO")
-    if y is None:
-        return True, ""
-    t = _qsrec_canonical_set_for_category(recs, "CRYPTO")
-    if not t or not y or t != y:
-        return True, ""
-    if not _allow_repeat_pick_override():
-        return False, "動態選幣／輪動：與昨日完全相同時不允許同標延續，請至少更換一檔（或配對腿）。"
-    reason = _extract_today_pick_reason(_crypto_report_prefix(text, _cache=span_cache)) or ""
-    if not _REPEAT_PICK_REASON_RE.search(reason):
-        return (
-            False,
-            "動態選幣／輪動：本日加密 QSREC 標的與昨日 BQ 紀錄完全相同，請至少更換一檔（或配對腿），或在「本日選擇理由」明確寫「重複選用理由：…」（新催化／連日持有依據）。",
-        )
-    gap = _best_repeat_score_gap_for_category(recs, "CRYPTO")
-    if gap is None:
-        return False, "動態選幣／輪動：同標延續需提供可量化分差（score_gap 或 selection_score/alt_candidate_score）。"
-    min_gap = _pick_rotation_override_min_gap()
-    if gap < min_gap:
-        return False, f"動態選幣／輪動：同標延續分差不足（score_gap={gap:.2f} < {min_gap:.2f}），請改選至少一檔。"
-    if not _has_repeat_quality_anchor(recs, "CRYPTO"):
-        return (
-            False,
-            f"動態選幣／輪動：同標延續需至少 1 筆滿足 repeat_days <= {_repeat_pick_days_max()} 且 selection_score >= {_repeat_pick_min_score():.0f}。",
-        )
-    return True, ""
-
-
-def _pick_rotation_equity_ok(
-    text: str,
-    recs: list[dict],
-    *,
-    span_cache: dict[str, int] | None = None,
-) -> tuple[bool, str]:
-    """今日美股 QSREC canonical 集合若與昨日完全相同，須改選或達成同標覆核。"""
-    if not _strict_pick_rotation():
-        return True, ""
-    y = _fetch_yesterday_qsrec_canonical_set("EQUITY")
-    if y is None:
-        return True, ""
-    t = _qsrec_canonical_set_for_category(recs, "EQUITY")
-    if not t or not y or t != y:
-        return True, ""
-    if not _allow_repeat_pick_override():
-        return False, "動態選股／輪動：與昨日完全相同時不允許同標延續，請至少更換一檔。"
-    reason = _extract_today_pick_reason(text[_ai_section_start_index(text, cache=span_cache) :]) or ""
-    if not _REPEAT_PICK_REASON_RE.search(reason):
-        return (
-            False,
-            "動態選股／輪動：本日美股 QSREC 標的與昨日 BQ 紀錄完全相同，請至少更換一檔，或在「本日選擇理由」明確寫「重複選用理由：…」。",
-        )
-    gap = _best_repeat_score_gap_for_category(recs, "EQUITY")
-    if gap is None:
-        return False, "動態選股／輪動：同標延續需提供可量化分差（score_gap 或 selection_score/alt_candidate_score）。"
-    min_gap = _pick_rotation_override_min_gap()
-    if gap < min_gap:
-        return False, f"動態選股／輪動：同標延續分差不足（score_gap={gap:.2f} < {min_gap:.2f}），請更換至少一檔。"
-    if not _has_repeat_quality_anchor(recs, "EQUITY"):
-        return (
-            False,
-            f"動態選股／輪動：同標延續需至少 1 筆滿足 repeat_days <= {_repeat_pick_days_max()} 且 selection_score >= {_repeat_pick_min_score():.0f}。",
-        )
-    return True, ""
+    )
 
 
 def _report_compare_mode() -> bool:

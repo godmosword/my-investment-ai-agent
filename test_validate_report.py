@@ -281,7 +281,7 @@ class TestHasNewsTimezoneUtc8(unittest.TestCase):
 class TestPickRotation(unittest.TestCase):
     """與昨日 BQ QSREC 標的完全相同時須改選或寫「重複選用理由」。"""
 
-    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
     def test_crypto_same_as_yesterday_fails_without_phrase(self, mock_y):
         mock_y.return_value = {"BTC", "BTC/SOL"}
         recs = [
@@ -296,7 +296,7 @@ class TestPickRotation(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("輪動", err)
 
-    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
     def test_crypto_same_ok_with_repeat_phrase(self, mock_y):
         mock_y.return_value = {"BTC", "BTC/SOL"}
         recs = [
@@ -310,7 +310,7 @@ class TestPickRotation(unittest.TestCase):
         ok, _ = _pick_rotation_crypto_ok(body, recs)
         self.assertTrue(ok)
 
-    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
     def test_equity_rotation(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
@@ -323,7 +323,7 @@ class TestPickRotation(unittest.TestCase):
         good = base + "本日選擇理由：重複選用理由：政策面仍主導故連日維持；\n今日風險預算："
         self.assertTrue(_pick_rotation_equity_ok(good, recs)[0])
 
-    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
     def test_equity_same_ok_with_repeat_stock_phrase_synonym(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
@@ -334,7 +334,7 @@ class TestPickRotation(unittest.TestCase):
         good = base + "本日選擇理由：重複選股理由：財報週期主導故維持 NVDA／MSFT。\n訊號衝突摘要：無顯著多空衝突。"
         self.assertTrue(_pick_rotation_equity_ok(good, recs)[0])
 
-    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
     def test_repeat_requires_min_score_gap(self, mock_y):
         mock_y.return_value = {"BTC"}
         recs = [{"asset": "BTC", "category": "CRYPTO", "selection_score": 72, "alt_candidate_score": 66, "score_gap": 6, "repeat_days": 1}]
@@ -344,7 +344,7 @@ class TestPickRotation(unittest.TestCase):
         self.assertIn("分差不足", err)
         self.assertGreater(_pick_rotation_override_min_gap(), 0)
 
-    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
     def test_repeat_requires_quality_anchor(self, mock_y):
         mock_y.return_value = {"BTC"}
         recs = [{"asset": "BTC", "category": "CRYPTO", "selection_score": 74, "alt_candidate_score": 61, "score_gap": 13, "repeat_days": 3}]
@@ -690,7 +690,7 @@ class TestHasCryptoTradeSection(unittest.TestCase):
 
 
 class TestAiBoundaryAndWatchMutex(unittest.TestCase):
-    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
     def test_equity_rotation_accepts_ai_variant_heading(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
@@ -706,7 +706,7 @@ class TestAiBoundaryAndWatchMutex(unittest.TestCase):
         )
         self.assertTrue(_pick_rotation_equity_ok(report, recs)[0])
 
-    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
     def test_equity_rotation_prefers_first_ai_section_when_duplicated(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
