@@ -17,7 +17,6 @@ from pathlib import Path
 
 from config import PROJECT_ID, RECOMMENDATIONS_TABLE
 from telegram_sender import strip_html
-from tools import source_observability_lines
 from validation_rules import (
     BUDGET_TAGS_RE,
     CODE_LEAK_RE,
@@ -41,7 +40,6 @@ from validation_rules import (
     NUMERIC_INVESTMENT_LINE_RE,
     NUMERIC_INVESTMENT_MULTI_RE,
     QSREC_MARKERS_RE,
-    TRADE_WATCH_MODE_RE,
     UNACTIONABLE_TRADE_RE,
     text_has_positive_trade_watch_mode,
     span_has_positive_trade_watch_declaration,
@@ -128,12 +126,12 @@ _EQUITY_PICK_FALLBACK: tuple[str, ...] = (
 
 
 def _crypto_report_prefix(text: str) -> str:
-    """合併戰報中「加密區」之前綴（🤖 AI 市場 起頭之後視為下半部）。"""
+    """合併戰報中「加密區」之前綴（🤖 AI 主段起頭後視為下半部）。"""
     best = len(text)
     for pat in (
-        r"(?m)^────────────\s*\n\s*🤖\s*AI\s*市場",
-        r"\n🤖\s*AI\s*市場",
-        r"🤖\s*AI\s*市場",
+        r"(?m)^────────────\s*\n\s*🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
+        r"\n🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
+        r"🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
         r"(?m)^\s*AI\s*產業鏈精準操作\s*\(US\s*Equit",
     ):
         m = re.search(pat, text, re.IGNORECASE)
