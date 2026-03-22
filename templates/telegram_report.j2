@@ -1,0 +1,143 @@
+<b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {{ crypto.report_title_date|tg_escape }}</i>
+{% if previous_recs_html %}
+{{ previous_recs_html }}
+{% endif %}
+
+【今日市場模式】<b>{{ crypto.market.regime }}</b>{{ crypto.market.score_suffix|tg_escape }}
+{% for line in crypto.market.scorecard_lines %}
+{{ line|tg_escape }}
+{% endfor %}
+· 今日主敘事：<b>{{ crypto.narrative_of_day|tg_escape }}</b>
+
+🏛️ 宏觀框架
+{% for line in crypto.macro_framework_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+
+────────────
+══════ <b>📊 加密市場</b> ══════
+區塊①【數據儀表板】
+{% for row in crypto.dashboard %}
+{% if row.status_emoji %}· {{ row.status_emoji }} <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
+{% else %}· <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
+{% endif %}
+{% endfor %}
+
+區塊②【核心新聞】
+{% for n in crypto.news %}
+〔新聞 {{ n.index }}〕{{ n.timestamp_line|tg_escape }} <b>{{ n.title|tg_escape }}</b>（{{ n.source_and_nature|tg_escape }}）
+<blockquote>{{ n.summary|tg_escape }}</blockquote>
+投資解讀：{{ n.investment_takeaway|tg_escape }}
+💎主編共識：{{ n.editor_consensus|tg_escape }}
+
+{% endfor %}
+{% if crypto.x_highlights %}
+區塊②b X 推文精選
+{% for x in crypto.x_highlights %}
+· {{ x|tg_escape }}
+{% endfor %}
+{% endif %}
+
+區塊③【市場呢喃與傳聞】
+{% if crypto.chatter %}
+{% for c in crypto.chatter %}
+· {{ c.text|tg_escape }}
+{% endfor %}
+{% else %}
+· 傳聞可信度：B（未確認）｜主流媒體二次驗證：否
+{% endif %}
+
+區塊④【資金流向與精準操作 (Crypto)】
+本日選擇理由：{{ crypto.pick_reason|tg_escape }}
+今日風險預算：{{ crypto.risk_budget_summary|tg_escape }}
+訊號衝突摘要：{{ crypto.signal_conflict_summary|tg_escape }}
+{% if crypto.trade_legs %}
+{% for leg in crypto.trade_legs %}
+· <b>${{ leg.asset|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>{{ leg.current_price|tg_escape }}</code>｜信心水準：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+
+· 進場：<code>{{ leg.entry|tg_escape }}</code>｜目標：<code>{{ leg.target|tg_escape }}</code>｜停損：<code>{{ leg.stop|tg_escape }}</code>
+· 風控：<code>R:R = {{ leg.rr|tg_escape }}</code>｜最大回撤風險：<code>{{ leg.max_drawdown_pct|tg_escape }}</code>｜預期勝率：<code>{{ leg.expected_win_rate|tg_escape }}</code>｜Signal Score：<code>{{ leg.signal_score|tg_escape }}</code>
+· 觸發模式：{{ leg.trigger|tg_escape }}
+· 建倉邏輯：{{ leg.sizing_logic|tg_escape }}
+· 失效條件：<code>{{ leg.invalidation|tg_escape }}</code>
+· 倉位建議：{{ leg.position_pct|tg_escape }}
+· 敘事邏輯：{{ leg.narrative|tg_escape }}
+
+{% endfor %}
+{% else %}
+· <b>觀望模式</b>：資料不足觀望，暫不開新倉（避免捏造現價/進場/目標/停損）。
+· 風險預算：依 <code>{{ crypto.market.regime }}</code> 模式降低風險，僅保留既有倉位管理。
+· 重新進場條件：待下一輪有效新聞、即時報價與多時框訊號齊備後再提供交易參數。
+{% endif %}
+
+🤖 AI 市場
+🏛️ 宏觀框架
+{% for line in ai.macro_bridge_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+
+區塊①【AI 數據儀表板】
+{% for row in ai.dashboard %}
+· <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
+{% endfor %}
+
+區塊②【AI 產業新聞】
+{% for n in ai.news %}
+〔新聞 {{ n.index }}〕{{ n.timestamp_line|tg_escape }} <b>{{ n.title|tg_escape }}</b>（{{ n.source_and_nature|tg_escape }}）
+<blockquote>{{ n.summary|tg_escape }}</blockquote>
+投資解讀：{{ n.investment_takeaway|tg_escape }}
+💎主編共識：{{ n.editor_consensus|tg_escape }}
+
+{% endfor %}
+{% if ai.x_highlights %}
+區塊②b X 推文精選
+{% for x in ai.x_highlights %}
+· {{ x|tg_escape }}
+{% endfor %}
+{% endif %}
+
+區塊③【產業鏈呢喃】
+{% if ai.chatter %}
+{% for c in ai.chatter %}
+· {{ c.text|tg_escape }}
+{% endfor %}
+{% else %}
+· 傳聞可信度：B（未確認）｜主流媒體二次驗證：否
+{% endif %}
+
+區塊④【AI 產業鏈精準操作 (US Equities)】
+本日選擇理由：{{ ai.pick_reason|tg_escape }}
+訊號衝突摘要：{{ ai.signal_conflict_summary|tg_escape }}
+{% if ai.us_equity_allocation_note %}
+· <b>美股部位框</b>：{{ ai.us_equity_allocation_note|tg_escape }}
+{% endif %}
+{% if ai.trade_legs %}
+{% for leg in ai.trade_legs %}
+· <b>${{ leg.asset|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>{{ leg.current_price|tg_escape }}</code>｜信心水準：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+
+· 進場：<code>{{ leg.entry|tg_escape }}</code>｜目標：<code>{{ leg.target|tg_escape }}</code>｜停損：<code>{{ leg.stop|tg_escape }}</code>
+· 風控：<code>R:R = {{ leg.rr|tg_escape }}</code>｜最大回撤風險：<code>{{ leg.max_drawdown_pct|tg_escape }}</code>｜預期勝率：<code>{{ leg.expected_win_rate|tg_escape }}</code>｜Signal Score：<code>{{ leg.signal_score|tg_escape }}</code>
+· 觸發模式：{{ leg.trigger|tg_escape }}
+· 建倉邏輯：{{ leg.sizing_logic|tg_escape }}
+· 失效條件：<code>{{ leg.invalidation|tg_escape }}</code>
+· 倉位建議：{{ leg.position_pct|tg_escape }}
+· 敘事邏輯：{{ leg.narrative|tg_escape }}
+
+{% endfor %}
+{% else %}
+· <b>觀望模式</b>：資料不足觀望，暫不提供股票進出場價格。
+· 風險預算：依 <code>{{ crypto.market.regime }}</code> 模式執行防守配置，避免情緒性追價。
+· 重新進場條件：需補齊產業催化、成交量與多時框確認後再發布可執行建議。
+{% endif %}
+
+{% if report_tier_partial_news %}
+[REPORT_TIER:PARTIAL_NEWS]
+【新聞資料狀態】
+以〔新聞 N〕標籤計入的新聞為 <code>{{ tagged_news_count }}</code> 則／目標 <code>6</code> 則（幣圈 3 + AI 3）。已啟用資料不足保護：不補虛構新聞。若實際已寫滿 6 則但格式未統一為〔新聞 N〕，請主編下一版改為規定格式以便系統計數。
+{% endif %}
+
+{{ source_observability_block }}
+
+[QSREC_START]
+{{ qsrec_json }}
+[QSREC_END]
