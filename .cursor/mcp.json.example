@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ask-user-questions": {
+      "command": "npx",
+      "args": ["-y", "auq-mcp-server", "server"]
+    }
+  }
+}
