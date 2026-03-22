@@ -1,3 +1,4 @@
+import logging
 import streamlit as st
 import pandas as pd
 from google.cloud import bigquery
@@ -14,6 +15,8 @@ except ImportError:
     st_autorefresh = None
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="Q-Silicon 戰情室",
@@ -478,7 +481,8 @@ def load_risk_trend(days: int = 30) -> pd.DataFrame:
             ORDER BY timestamp ASC
         """
         return client.query(query).to_dataframe()
-    except Exception:
+    except Exception as e:
+        logger.warning("load_risk_trend BigQuery failed: %s", e)
         return pd.DataFrame()
 
 df_trend = load_risk_trend(days=trend_days)

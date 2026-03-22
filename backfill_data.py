@@ -210,7 +210,8 @@ def write_to_bigquery(df: pd.DataFrame, dry_run: bool = False) -> None:
                 for row in client.query(existing_ts_query, job_config=job_config).result()
                 if row["d"] is not None
             }
-        except Exception:
+        except Exception as e:
+            logging.warning("backfill existing_ts query failed, assuming empty: %s", e)
             existing = set()
 
     df["_date"] = pd.to_datetime(df["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d")

@@ -10,12 +10,26 @@ from pathlib import Path
 import requests
 from apify_client import ApifyClient
 from crewai.tools import tool
+from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
 
 from config import PROJECT_ID, METRICS_TABLE
 from scratchpad import traced_tool_execution
 
 logger = logging.getLogger(__name__)
+
+_HTTP_SESSION = requests.Session()
+
+
+def _http_get(
+    url: str,
+    *,
+    params: dict | None = None,
+    headers: dict | None = None,
+    timeout: float | int | tuple = 10,
+) -> requests.Response:
+    """模組級 Session 的 GET，供連線重用與統一出口。"""
+    return _HTTP_SESSION.get(url, params=params, headers=headers, timeout=timeout)
 
 # ── 模組級 in-memory cache（同一次執行內避免重複打外部 API）────────────
 # key: (tool_name, query_string)  value: (result_str, expire_timestamp)
@@ -116,7 +130,8 @@ def _merge_source_health_row(source: str, row: dict[str, float | str]) -> None:
             row_updated_at = datetime.fromisoformat(row_updated_at_raw.replace("Z", "+00:00"))
             if row_updated_at <= current_updated_at:
                 return
-        except Exception:
+        except (TypeError, ValueError) as e:
+            logger.warning("merge source health row datetime compare failed: %s", e)
             if row_updated_at_raw <= current_updated_at_raw:
                 return
     _SOURCE_HEALTH[source] = row
@@ -180,8 +195,11 @@ def _save_source_health_to_bigquery() -> None:
         table = bigquery.Table(table_id, schema=schema)
         try:
             client.get_table(table_id)
-        except Exception:
+        except NotFound:
             client.create_table(table, exists_ok=True)
+        except Exception as e:
+            logger.warning("source_health BQ get_table unexpected (table_id=%s): %s", table_id, e)
+            raise
 
         rows = []
         for source in ("newsapi", "gnews", "apify"):
@@ -220,7 +238,8 @@ def _decayed_source_counts(source: str) -> tuple[float, float]:
         updated_at = datetime.fromisoformat(str(updated_at_raw))
         if updated_at.tzinfo is None:
             updated_at = updated_at.replace(tzinfo=timezone.utc)
-    except Exception:
+    except (TypeError, ValueError) as e:
+        logger.warning("decayed_source_counts datetime parse failed: %s", e)
         return ok, fail
 
     now_utc = datetime.now(timezone.utc)
@@ -484,7 +503,7 @@ def _hf_fetch_models() -> str | None:
     ]
     for sort_key, sort_label in sort_strategies:
         try:
-            resp = requests.get(
+            resp = _http_get(
                 "https://huggingface.co/api/models",
                 params={"sort": sort_key, "direction": -1, "limit": 10,
                         "filter": "text-generation"},
@@ -542,7 +561,7 @@ def _openrouter_fetch_models() -> str | None:
         logger.warning("OPENROUTER_API_KEY 未設定，跳過 OpenRouter 資料取得")
         return None
     try:
-        resp = requests.get(
+        resp = _http_get(
             "https://openrouter.ai/api/v1/models",
             headers={"Authorization": f"Bearer {openrouter_key}", **_HF_HEADERS},
             timeout=15,
@@ -550,7 +569,18 @@ def _openrouter_fetch_models() -> str | None:
         if resp.status_code != 200:
             logger.warning("OpenRouter API HTTP %s", resp.status_code)
             return None
-        models = resp.json().get("data", [])
+        try:
+            payload = resp.json()
+        except ValueError as e:
+            logger.warning("OpenRouter JSON parse failed: %s", e)
+            return None
+        if not isinstance(payload, dict):
+            logger.warning("OpenRouter expected JSON object, got %s", type(payload).__name__)
+            return None
+        models = payload.get("data", [])
+        if not isinstance(models, list):
+            logger.warning("OpenRouter 'data' must be list, got %s", type(models).__name__)
+            return None
         if not models:
             return None
         lines: list[str] = []
@@ -642,7 +672,8 @@ def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
         return result
     except ValueError as e:
         return f"[DATA_MISSING:openrouter_rankings] AI Momentum Tool Failed：{e}"
-    except Exception:
+    except Exception as e:
+        logger.warning("ai_momentum apify fallback failed: %s", e)
         return "[DATA_MISSING:openrouter_rankings] AI Momentum Tool Failed：所有來源均無回應。"
 
 
@@ -706,7 +737,7 @@ def _get_with_retry(url: str, *, params: dict, headers: dict | None = None, time
     last_err: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            resp = requests.get(url, params=params, headers=headers, timeout=timeout)
+            resp = _http_get(url, params=params, headers=headers, timeout=timeout)
             if resp.status_code in (429, 500, 502, 503, 504) and attempt < retries:
                 time.sleep(base_sleep * (2 ** attempt))
                 continue
@@ -767,13 +798,26 @@ def _newsapi_fetch(query: str) -> str:
             params["q"] = cand
             try:
                 r = _get_with_retry("https://newsapi.org/v2/everything", params=params, timeout=10, retries=2)
-                data = r.json()
+                try:
+                    data = r.json()
+                except ValueError as e:
+                    logger.warning("_newsapi_fetch JSON parse (query=%r): %s", cand, e)
+                    last_err = e
+                    break
+                if not isinstance(data, dict):
+                    logger.warning("_newsapi_fetch expected object, got %s (query=%r)", type(data).__name__, cand)
+                    last_err = RuntimeError("invalid newsapi JSON shape")
+                    break
                 # NewsAPI 有時回傳 status=error 但 HTTP 200
                 if data.get("status") == "error":
                     logger.warning("_newsapi_fetch API error (query=%r): %s", cand, data.get("message"))
                     last_err = RuntimeError(data.get("message", "newsapi status=error"))
                     break  # 此模板組失敗，跳到下一組 param_template
                 articles = data.get("articles", [])
+                if not isinstance(articles, list):
+                    logger.warning("_newsapi_fetch articles not list (query=%r): %s", cand, type(articles).__name__)
+                    last_err = RuntimeError("invalid newsapi articles type")
+                    break
                 if not articles:
                     continue
                 _record_source_outcome("newsapi", True)
@@ -820,7 +864,21 @@ def _gnews_fetch(query: str) -> str:
             params["max"] = 2
         try:
             r = _get_with_retry("https://gnews.io/api/v4/search", params=params, timeout=10, retries=2)
-            articles = r.json().get("articles", [])
+            try:
+                payload = r.json()
+            except ValueError as e:
+                last_err = e
+                logger.warning("_gnews_fetch JSON parse (query=%r): %s", cand, e)
+                continue
+            if not isinstance(payload, dict):
+                last_err = RuntimeError("invalid gnews JSON shape")
+                logger.warning("_gnews_fetch expected object (query=%r): %s", cand, type(payload).__name__)
+                continue
+            articles = payload.get("articles", [])
+            if not isinstance(articles, list):
+                last_err = RuntimeError("invalid gnews articles type")
+                logger.warning("_gnews_fetch articles not list (query=%r): %s", cand, type(articles).__name__)
+                continue
             if not articles:
                 continue
             _record_source_outcome("gnews", True)
@@ -922,7 +980,8 @@ def market_search_tool(query: str) -> str:
         except ValueError as e:
             _record_source_outcome("apify", False, "other")
             return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
-        except Exception:
+        except Exception as e:
+            logger.warning("market_search Apify failed: %s", e)
             _record_source_outcome("apify", False, "other")
             return "[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。"
 
@@ -1065,7 +1124,7 @@ def _parse_coinglass_options_info(data) -> str:
 def _binance_funding_rate() -> str:
     """從 Binance 公開 API 取得 BTC 最新資金費率（不需 API key）。"""
     try:
-        resp = requests.get(
+        resp = _http_get(
             "https://fapi.binance.com/fapi/v1/fundingRate",
             params={"symbol": "BTCUSDT", "limit": 1},
             timeout=10,
@@ -1090,14 +1149,14 @@ def _binance_funding_rate() -> str:
 def _binance_open_interest() -> str:
     """從 Binance 公開 API 取得 BTC 未平倉合約量（不需 API key）。"""
     try:
-        oi_resp = requests.get(
+        oi_resp = _http_get(
             "https://fapi.binance.com/fapi/v1/openInterest",
             params={"symbol": "BTCUSDT"},
             timeout=10,
         )
         oi_resp.raise_for_status()
         oi = float(oi_resp.json().get("openInterest", 0))
-        price_resp = requests.get(
+        price_resp = _http_get(
             "https://api.binance.com/api/v3/ticker/price",
             params={"symbol": "BTCUSDT"},
             timeout=5,
@@ -1113,7 +1172,7 @@ def _binance_open_interest() -> str:
 def _binance_long_short_ratio() -> str:
     """從 Binance 公開 API 取得 BTC 全球大戶多空比（不需 API key）。"""
     try:
-        resp = requests.get(
+        resp = _http_get(
             "https://fapi.binance.com/futures/data/globalLongShortAccountRatio",
             params={"symbol": "BTCUSDT", "period": "1h", "limit": 1},
             timeout=10,
@@ -1163,9 +1222,22 @@ def coinglass_data_tool(metric: str) -> str:
         if api_key and url:
             try:
                 headers = {"accept": "application/json", "CG-API-KEY": api_key}
-                response = requests.get(url, headers=headers, timeout=10)
+                response = _http_get(url, headers=headers, timeout=10)
                 if response.status_code == 200:
-                    body = response.json()
+                    try:
+                        body = response.json()
+                    except ValueError as e:
+                        logger.warning(
+                            "CoinGlass JSON parse failed metric=%s symbol=%s: %s",
+                            metric_lower, symbol, e,
+                        )
+                        body = {}
+                    if not isinstance(body, dict):
+                        logger.warning(
+                            "CoinGlass body not dict metric=%s symbol=%s type=%s",
+                            metric_lower, symbol, type(body).__name__ if body is not None else "none",
+                        )
+                        body = {}
                     if not _coinglass_success(body):
                         logger.warning(
                             "CoinGlass v4 non-success: code=%r msg=%r metric=%s symbol=%s",
@@ -1202,8 +1274,8 @@ def coinglass_data_tool(metric: str) -> str:
                         if result:
                             _set_cache(cache_key, result)
                             return _append_data_as_of(result, "coinglass")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("CoinGlass primary path failed metric=%s symbol=%s: %s", metric_lower, symbol, e)
 
         # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援（僅 BTC 支援）──
         if symbol == "BTC":
@@ -1257,14 +1329,27 @@ def cryptopanic_tool(topic: str = "bitcoin") -> str:
         params["q"] = topic
 
     try:
-        resp = requests.get("https://cryptopanic.com/api/v1/posts/", params=params, timeout=10)
+        resp = _http_get("https://cryptopanic.com/api/v1/posts/", params=params, timeout=10)
         resp.raise_for_status()
-        posts = resp.json().get("results", [])[:5]
+        try:
+            payload = resp.json()
+        except ValueError as e:
+            return f"[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: invalid JSON ({e})"
+        if not isinstance(payload, dict):
+            logger.warning("cryptopanic: expected JSON object, got %s", type(payload).__name__)
+            return "[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: unexpected payload shape."
+        results = payload.get("results", [])
+        if not isinstance(results, list):
+            logger.warning("cryptopanic: results must be list, got %s", type(results).__name__)
+            return "[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: unexpected results type."
+        posts = results[:5]
         if not posts:
             return "CryptoPanic：目前沒有符合條件的重點新聞。"
 
         lines: list[str] = []
         for p in posts:
+            if not isinstance(p, dict):
+                continue
             title = p.get("title") or ""
             url = p.get("url") or ""
             created_at = p.get("created_at") or ""
@@ -1301,7 +1386,7 @@ def x_search_tool(query: str) -> str:
     bearer = os.getenv("TWITTER_BEARER_TOKEN")
     if bearer:
         try:
-            resp = requests.get(
+            resp = _http_get(
                 "https://api.twitter.com/2/tweets/search/recent",
                 headers={"Authorization": f"Bearer {bearer}"},
                 params={
@@ -1338,7 +1423,7 @@ def x_search_tool(query: str) -> str:
     rapidapi_key = os.getenv("RAPIDAPI_KEY")
     if rapidapi_key:
         try:
-            resp = requests.get(
+            resp = _http_get(
                 "https://twitter154.p.rapidapi.com/search/search",
                 headers={
                     "X-RapidAPI-Key": rapidapi_key,
@@ -1429,7 +1514,8 @@ def ml_quant_tool() -> str:
                 query_parameters=[bigquery.ScalarQueryParameter("cutoff", "DATE", cutoff)]
             )
             df_ind = client.query(query, job_config=job_config).to_dataframe()
-        except Exception:
+        except Exception as e:
+            logger.warning("ml_quant_tool BigQuery history load failed: %s", e)
             return (
                 "ML 模型建置中（BigQuery 無歷史數據，請先執行 backfill_data.py）。"
                 "請在儀表板中寫：ML 模型建置中（需積累歷史數據）｜部位建議：暫不適用"
@@ -1451,9 +1537,15 @@ def ml_quant_tool() -> str:
             f"?vs_currency=usd&days={days}&interval=daily"
         )
         try:
-            resp = requests.get(url, timeout=20)
+            resp = _http_get(url, timeout=20)
             resp.raise_for_status()
-            prices = resp.json().get("prices", [])
+            cg = resp.json()
+            if not isinstance(cg, dict):
+                return f"ML Quant Tool Failed：CoinGecko 回傳非物件（{type(cg).__name__}）。"
+            prices = cg.get("prices", [])
+            if not isinstance(prices, list):
+                logger.warning("ml_quant_tool CoinGecko prices not list: %s", type(prices).__name__)
+                return "ML Quant Tool Failed：CoinGecko 價格欄位格式異常。"
             df_btc = pd.DataFrame(prices, columns=["ts_ms", "close"])
             df_btc["date"] = pd.to_datetime(df_btc["ts_ms"], unit="ms").dt.date
             df_btc = df_btc.drop_duplicates("date").set_index("date")[["close"]].sort_index()
@@ -1562,8 +1654,8 @@ def regime_scorecard_tool(query: str = "") -> str:
             if hasattr(close, "ndim") and close.ndim > 1:
                 close = close.iloc[:, 0]
             values["VIX"] = float(close.iloc[-1]) if not close.empty else None
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("regime_scorecard VIX yfinance failed: %s", e)
 
     # BTC RSI(14) via yfinance
     try:
@@ -1578,37 +1670,45 @@ def regime_scorecard_tool(query: str = "") -> str:
                 loss = (-delta.where(delta < 0, 0.0)).rolling(14).mean()
                 rs = gain.iloc[-1] / loss.iloc[-1] if loss.iloc[-1] != 0 else 100
                 values["BTC_RSI"] = round(float(100 - (100 / (1 + rs))), 1)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("regime_scorecard BTC RSI yfinance failed: %s", e)
 
     # Fear & Greed
     try:
-        resp = requests.get("https://api.alternative.me/fng/?limit=1&format=json", timeout=8)
-        data = resp.json().get("data", [{}])
-        if data:
-            values["fear_greed"] = float(data[0].get("value", 0))
-    except Exception:
-        pass
+        resp = _http_get("https://api.alternative.me/fng/?limit=1&format=json", timeout=8)
+        raw = resp.json()
+        if not isinstance(raw, dict):
+            logger.warning("regime_scorecard fear_greed: expected object, got %s", type(raw).__name__)
+        else:
+            data = raw.get("data", [{}])
+            if not isinstance(data, list) or not data:
+                logger.warning("regime_scorecard fear_greed: data not non-empty list")
+            elif isinstance(data[0], dict):
+                values["fear_greed"] = float(data[0].get("value", 0))
+    except Exception as e:
+        logger.warning("regime_scorecard fear_greed fetch failed: %s", e)
 
     # CoinGlass fallback：從 Binance 抓資金費率
     try:
-        resp = requests.get(
+        resp = _http_get(
             "https://fapi.binance.com/fapi/v1/fundingRate",
             params={"symbol": "BTCUSDT", "limit": 1},
             timeout=8,
         )
         items = resp.json()
-        if items:
+        if not isinstance(items, list):
+            logger.warning("regime_scorecard Binance funding: expected list, got %s", type(items).__name__)
+        elif items:
             values["funding_%"] = float(items[-1].get("fundingRate", 0)) * 100
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("regime_scorecard Binance funding fetch failed: %s", e)
 
     # 爆倉數據：僅 CoinGlass API v4（Binance BTCUSDT 過去 24h 彙總，與 coinglass_data_tool 一致）
     try:
         cg_key = os.getenv("COINGLASS_API_KEY", "")
         if cg_key:
             liq_url = f"{_COINGLASS_BASE}/api/futures/liquidation/history"
-            resp_v4 = requests.get(
+            resp_v4 = _http_get(
                 liq_url,
                 headers={"accept": "application/json", "CG-API-KEY": cg_key},
                 params={
@@ -1653,8 +1753,8 @@ def regime_scorecard_tool(query: str = "") -> str:
         ).result())
         if rows and rows[0]["etf_flow_millions"] is not None:
             values["ETF_flow_M"] = float(rows[0]["etf_flow_millions"])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("regime_scorecard ETF flow BigQuery failed: %s", e)
 
     # ── 2. 計算評分 ────────────────────────────────────────────────────
     scores: dict[str, tuple[int, str]] = {}
@@ -1705,14 +1805,21 @@ def fear_greed_tool() -> str:
         return _append_data_as_of(cached, "fear_greed")
 
     try:
-        resp = requests.get(
+        resp = _http_get(
             "https://api.alternative.me/fng/?limit=2&format=json",
             timeout=10,
         )
         resp.raise_for_status()
-        data = resp.json().get("data", [])
-        if not data:
+        raw = resp.json()
+        if not isinstance(raw, dict):
+            logger.warning("fear_greed_tool: expected JSON object, got %s", type(raw).__name__)
+            return "[DATA_MISSING:fear_greed] Alternative.me 回傳格式異常。"
+        data = raw.get("data", [])
+        if not isinstance(data, list) or not data:
             return "[DATA_MISSING:fear_greed] Alternative.me 無數據。"
+        if not isinstance(data[0], dict):
+            logger.warning("fear_greed_tool: data[0] not object, got %s", type(data[0]).__name__)
+            return "[DATA_MISSING:fear_greed] Alternative.me 資料列格式異常。"
 
         today = data[0]
         today_val = int(today.get("value", 0))
@@ -1720,7 +1827,7 @@ def fear_greed_tool() -> str:
 
         result_parts = [f"Fear & Greed Index: {today_val}/100（{today_label}）"]
 
-        if len(data) > 1:
+        if len(data) > 1 and isinstance(data[1], dict):
             yesterday = data[1]
             yest_val = int(yesterday.get("value", 0))
             delta = today_val - yest_val
@@ -1814,7 +1921,8 @@ def _yfinance_etf_flow_estimate() -> str | None:
                 f"（成交量 {vol_chg:+.0f}% vs 5日均，價格 {price_chg:+.2f}%）"
             )
             available += 1
-        except Exception:
+        except Exception as e:
+            logger.warning("btc_etf_yfinance row %s failed: %s", ticker, e)
             continue
 
     if available == 0:
@@ -1835,7 +1943,7 @@ def _coinglass_etf_flow() -> str | None:
         "https://open-api-v4.coinglass.com/api/etf/bitcoin/fund-list",
     ]:
         try:
-            resp = requests.get(endpoint, headers={"CG-API-KEY": api_key}, timeout=10)
+            resp = _http_get(endpoint, headers={"CG-API-KEY": api_key}, timeout=10)
             if resp.status_code != 200:
                 continue
             payload = resp.json()
@@ -1886,7 +1994,7 @@ def _sosovalue_etf_flow() -> str | None:
         "https://sosovalue.com/api/etf/us-btc-spot",
     ]:
         try:
-            resp = requests.get(url, timeout=10)
+            resp = _http_get(url, timeout=10)
             if resp.status_code != 200:
                 continue
             raw_data = resp.json()
@@ -1997,9 +2105,15 @@ def econ_calendar_tool() -> str:
                 f"https://financialmodelingprep.com/api/v3/economic_calendar"
                 f"?from={from_date}&to={to_date}&apikey={fmp_key}"
             )
-            resp = requests.get(url, timeout=15)
+            resp = _http_get(url, timeout=15)
             resp.raise_for_status()
             events = resp.json()
+            if not isinstance(events, list):
+                logger.warning(
+                    "FMP economic_calendar: expected JSON array, got %s",
+                    type(events).__name__,
+                )
+                events = []
 
             # 篩選高重要性 + 美國
             high_impact = [
@@ -2048,7 +2162,8 @@ def econ_calendar_tool() -> str:
             result = prefix + result
         _set_cache(cache_key, result)
         return result
-    except Exception:
+    except Exception as e:
+        logger.warning("econ_calendar Apify fallback failed: %s", e)
         result = "[DATA_MISSING:econ_calendar] 宏觀日曆工具失敗。"
         _set_cache(cache_key, result)
         return result
@@ -2110,7 +2225,8 @@ def multi_timeframe_tool(symbol: str) -> str:
             ma20 = float(close.iloc[-20:].mean()) if len(close) >= 20 else None
             ma50 = float(close.iloc[-50:].mean()) if len(close) >= 50 else None
             return _trend_by_ma(c, ma20, ma50)
-        except Exception:
+        except Exception as e:
+            logger.warning("multi_timeframe %s %s failed: %s", yf_symbol, interval, e)
             return "N/A"
 
     trend_d = _fetch("1d", "6mo")
@@ -2178,7 +2294,8 @@ def rumor_scanner_tool(topic: str) -> str:
         return result
     except ValueError as e:
         return f"[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：{e}"
-    except Exception:
+    except Exception as e:
+        logger.warning("rumor_scanner Apify failed: %s", e)
         return "[DATA_MISSING:rumor_scanner] Rumor Scanner Failed：所有來源均無法取得資料。"
 
 
@@ -2192,7 +2309,7 @@ def _cryptoquant_fetch(path: str) -> dict | None:
     if not api_key:
         return None
     try:
-        resp = requests.get(
+        resp = _http_get(
             f"https://api.cryptoquant.com/v1{path}",
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=10,
@@ -2249,7 +2366,7 @@ def _cq_exchange_netflow() -> str | None:
 def _blockchain_info_active_addresses() -> str | None:
     """Blockchain.info 免費 API：活躍地址數近 7 日趨勢。"""
     try:
-        resp = requests.get(
+        resp = _http_get(
             "https://api.blockchain.info/charts/n-unique-addresses"
             "?timespan=14days&format=json&cors=true",
             timeout=10,
@@ -2279,7 +2396,7 @@ def _glassnode_nupl() -> str | None:
     if not api_key:
         return None
     try:
-        resp = requests.get(
+        resp = _http_get(
             "https://api.glassnode.com/v1/metrics/indicators/net_unrealized_profit_loss",
             params={"a": "BTC", "i": "24h", "limit": 2, "api_key": api_key},
             timeout=10,
@@ -2482,7 +2599,7 @@ def macro_context_tool(query: str = "") -> str:
             if not fred_key:
                 return None
             try:
-                resp = requests.get(
+                resp = _http_get(
                     "https://api.stlouisfed.org/fred/series/observations",
                     params={
                         "series_id": series_id,
@@ -2494,7 +2611,20 @@ def macro_context_tool(query: str = "") -> str:
                     timeout=8,
                 )
                 resp.raise_for_status()
-                observations = resp.json().get("observations", [])
+                fred_payload = resp.json()
+                if not isinstance(fred_payload, dict):
+                    logger.warning(
+                        "macro_context FRED %s: expected object, got %s",
+                        series_id, type(fred_payload).__name__,
+                    )
+                    return None
+                observations = fred_payload.get("observations", [])
+                if not isinstance(observations, list):
+                    logger.warning(
+                        "macro_context FRED %s: observations not list (%s)",
+                        series_id, type(observations).__name__,
+                    )
+                    return None
                 for obs in observations:
                     raw = str(obs.get("value", "")).strip()
                     if not raw or raw == ".":
@@ -2503,7 +2633,8 @@ def macro_context_tool(query: str = "") -> str:
                         return round(float(raw), 3)
                     except ValueError:
                         continue
-            except Exception:
+            except Exception as e:
+                logger.warning("macro_context FRED series %s fetch failed: %s", series_id, e)
                 return None
             return None
 
@@ -2515,8 +2646,8 @@ def macro_context_tool(query: str = "") -> str:
                     c = c.iloc[:, 0]
                 if not c.empty:
                     yield_10y = round(float(c.iloc[-1]), 3)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("macro_context 10Y yield yfinance failed: %s", e)
 
         try:
             df2 = yf.download("2YY=F", period="5d", interval="1d", progress=False, auto_adjust=True)
@@ -2526,8 +2657,8 @@ def macro_context_tool(query: str = "") -> str:
                     c = c.iloc[:, 0]
                 if not c.empty:
                     yield_2y = round(float(c.iloc[-1]), 3)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("macro_context 2Y yield yfinance failed: %s", e)
         if yield_2y is None:
             yield_2y = _fetch_latest_fred_percent("DGS2")
 
@@ -2559,7 +2690,8 @@ def macro_context_tool(query: str = "") -> str:
                 if not c.empty:
                     implied_rate = round(100 - float(c.iloc[-1]), 3)
                     lines.append(f"🎯 Fed SOFR 期貨隱含利率: <code>{implied_rate:.3f}%</code>")
-        except Exception:
+        except Exception as e:
+            logger.warning("macro_context Fed SOFR futures yfinance failed: %s", e)
             lines.append("🎯 Fed SOFR 期貨: <code>N/A</code>")
 
         # ── 3. 本週重要財報（使用 yfinance 查詢財報日期）─────────────────
@@ -2591,9 +2723,10 @@ def macro_context_tool(query: str = "") -> str:
                         if ed_date and today <= ed_date <= week_end:
                             upcoming_earnings.append(f"{ticker_sym}({ed_date.strftime('%m/%d')})")
                             break
-                    except Exception:
-                        pass
-            except Exception:
+                    except (TypeError, ValueError, AttributeError) as ed_e:
+                        logger.warning("macro_context earnings date parse %s: %s", ticker_sym, ed_e)
+            except Exception as e:
+                logger.warning("macro_context earnings calendar %s: %s", ticker_sym, e)
                 continue
 
         if upcoming_earnings:
