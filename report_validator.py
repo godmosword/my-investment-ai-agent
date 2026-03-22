@@ -86,6 +86,11 @@ def _strict_pick_scoring() -> bool:
     return os.getenv("STRICT_PICK_SCORING", "1").lower() not in ("0", "false", "no")
 
 
+def _allow_qsrec_opposing_directions() -> bool:
+    """允許 QSREC 內同一 category+asset 同時出現 LONG 與 SHORT（對沖／實驗用）。預設關閉。"""
+    return os.getenv("QSREC_ALLOW_OPPOSING_DIRECTIONS", "").lower() in ("1", "true", "yes")
+
+
 def _repeat_pick_days_max() -> int:
     """同標延續放行時，repeat_days 最大容許值。"""
     try:
@@ -548,7 +553,8 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
                     f"QSREC 第 {i} 筆 score_gap 與 selection_score-alt_candidate_score 不一致（{gap:.2f} vs {sel - alt:.2f}）"
                 )
 
-    issues.extend(_qsrec_opposing_direction_same_asset(recs))
+    if not _allow_qsrec_opposing_directions():
+        issues.extend(_qsrec_opposing_direction_same_asset(recs))
     return issues
 
 
