@@ -4,35 +4,39 @@ import os
 import unittest
 from unittest.mock import patch
 
-from report_validator import _qsrec_consistency_issues
+from report_validator import (
+    _count_effective_news_items,
+    _normalize_regime_token,
+    _qsrec_consistency_issues,
+)
 
 from main import (
     validate_report,
     strip_html,
     _crypto_report_prefix,
-    _count_effective_news_items,
     _fallback_news_count,
-    _normalize_regime_token,
     _has_news_timezone_utc8,
     _has_macro_outlier_values,
     _has_macro_conflicts,
     _risk_off_star_cap_violated,
     _pair_trade_unit_consistent,
     _has_crypto_trade_section,
-    _inject_canonical_prev_recs_block,
-    _auto_prefix_missing_news_tags,
     _partial_news_ok,
     _pick_rotation_crypto_ok,
     _pick_rotation_equity_ok,
     _pick_rotation_override_min_gap,
-    _sanitize_macro_outlier_values,
-    _ensure_rumor_grade_marker,
     _has_rumor_grade_marker,
-    _postprocess_report_for_resilience,
-    _normalize_news_timezone_utc8,
-    _fix_glued_na_suffix,
     _conflicting_total_risk_budget_lines,
     _qsrec_opposing_direction_same_asset,
+)
+from report_postprocess_legacy import (
+    _auto_prefix_missing_news_tags,
+    _ensure_rumor_grade_marker,
+    _fix_glued_na_suffix,
+    _inject_canonical_prev_recs_block,
+    _normalize_news_timezone_utc8,
+    _postprocess_report_for_resilience,
+    _sanitize_macro_outlier_values,
 )
 
 

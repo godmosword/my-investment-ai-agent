@@ -6,6 +6,8 @@ from textwrap import dedent
 from crewai import Agent, Crew, LLM, Process, Task
 
 from config import MODEL_CLAUDE, MODEL_GEMINI, MODEL_GROK, MODEL_GPT
+from crew_output_parse import kickoff_to_pydantic
+from schemas import AISection, CryptoSection
 from tools import (
     ai_momentum_tool,
     coinglass_data_tool,
@@ -139,6 +141,81 @@ def build_ai_final_prompt(*, ctx: str) -> str:
         {_FINAL_TEMPLATE_AI}
     """)
 
+
+_STRUCTURED_IO_HEADER = dedent("""\
+    【結構化輸出 — 資料引擎模式】
+    你必須嚴格輸出符合指定 Pydantic schema 的 JSON 物件（系統以 output_pydantic 驗證）。
+    禁止 Markdown、禁止 HTML 標籤、禁止 ``` 程式碼區塊包裝。
+    所有字串為純文字；缺資料用 "N/A" 或 null／空陣列，勿捏造工具未回傳的價格或指標。
+    """)
+
+
+def build_crypto_structured_final_prompt(*, ctx: str, prev_recs_ctx: str, today_str: str) -> str:
+    """最終任務：結構化 CryptoSection（無排版指令）。"""
+    return dedent(f"""
+        {_STRUCTURED_IO_HEADER}
+        【加密 — 最終整合主編】
+        {_QUOTE_RULE}
+        {_NARRATIVE_CONSISTENCY_RULE}
+        {_TOOL_TRUTH_RULE}
+        {_RISK_MODE_RULE}
+        {_REGIME_POSITION_POLICY}
+        {_PAIR_TRADE_RULE}
+        {_CRYPTO_TRADE_MUTEX_RULE}
+        {_BRIEF_V2_RULE}
+        {_GATE_VALIDATE_PICK_RULE}
+        {ctx}
+        {prev_recs_ctx}
+
+        {_MTF_CONF_RULE}
+
+        === 填入 CryptoSection 欄位 ===
+        - report_title_date: 使用 {today_str}
+        - market.regime / score_suffix / scorecard_lines：承接上一任務評分卡，regime 僅 risk_on|risk_off|neutral。
+        - narrative_of_day：今日主敘事一句 ≤45 字。
+        - macro_framework_lines：≤4 行宏觀 bullet。
+        - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。
+        - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據。
+        - chatter：2–3 則呢喃，含可信度與（未確認）。
+        - pick_reason / risk_budget_summary / signal_conflict_summary：供區塊④，順序與 Gate 一致。
+        - trade_legs：若可執行則填 ExecutableTradeLeg（asset 勿含 $ 於欄位內由模板加）；R:R 等放於 rr 等字串欄位。
+          star_rating 1–4。若無法給價則 trade_legs 留空（由管線渲染觀望模式）。
+        - qsrec：與 trade_legs 方向一致；category 僅 CRYPTO；數字欄位為 JSON number；填滿選分與 repeat_days 等 Gate 欄位。
+
+        嚴禁在字串中出現字面 DATA_MISSING 方括號標記（改 N/A 或自然語）；嚴禁函數名 multi_timeframe_tool。
+    """)
+
+
+def build_ai_structured_final_prompt(*, ctx: str) -> str:
+    """最終任務：結構化 AISection（無排版指令）。"""
+    return dedent(f"""
+        {_STRUCTURED_IO_HEADER}
+        【AI 美股 — 最終整合主編】
+        {_QUOTE_RULE}
+        {_NARRATIVE_CONSISTENCY_RULE}
+        {_TOOL_TRUTH_RULE}
+        {_RISK_MODE_RULE}
+        {_REGIME_POSITION_POLICY}
+        {_PAIR_TRADE_RULE}
+        {_BRIEF_V2_RULE}
+        {_GATE_VALIDATE_PICK_RULE}
+        {_AI_RISK_BRIDGE_RULE}
+        {ctx}
+
+        {_MTF_CONF_RULE}
+
+        === 填入 AISection 欄位 ===
+        - macro_bridge_lines：承上宏觀，勿重貼完整美債段。
+        - dashboard：AI 儀表板 MetricLine 列表。
+        - news：3 則 index 4–6，格式同加密新聞欄位語意。
+        - chatter：2–3 產業鏈呢喃含可信度。
+        - pick_reason / signal_conflict_summary / us_equity_allocation_note：遵守 AI 段 Gate（不重複今日風險預算整行）。
+        - trade_legs：兩檔美股為主；star_rating 1–4；留空則渲染觀望。
+        - qsrec：category 僅 EQUITY；與 trade_legs 對齊。
+
+        嚴禁 DATA_MISSING 方括號標記字面；嚴禁 multi_timeframe_tool 字樣。
+    """)
+
 _EDITOR_RULE = dedent("""\
     【主編共識與排版紅線】
     1. 【極致洗鍊｜手機優先】避險基金晨報語氣：高信號密度、零贅詞、不寫長篇「內心戲」推演。
@@ -162,31 +239,30 @@ _DATA_RULES = dedent("""\
 
 _TOOL_TRUTH_RULE = dedent("""\
     【工具輸出與缺數敘述（防幻覺）】
-    - **嚴禁**在戰報任何讀者可見段落貼上工具內部字樣 **`[DATA_MISSING:...]`**（會觸發 Gate「資料缺失欄位」）；請改寫為自然語句或單獨一行 <code>N/A</code> 並簡述原因（≤30 字）。
+    - **嚴禁**在任何可見欄位貼上工具內部字樣 **`[DATA_MISSING:...]`**（會觸發 Gate「資料缺失欄位」）；請改寫為自然語句或以 value=`N/A` 表示，並簡述原因（≤30 字）。
     - CoinGlass／ETF／爆倉／OI：若工具為 `[DATA_MISSING:coinglass_*]` 或含 401／Upgrade plan，僅能表述為「第三方衍生品數據源未回傳或訂閱方案不含該端點」；嚴禁寫成「資料庫 API 連線異常」「內部 API 故障」等未經證實說法。
     - 若儀表板已出現 Binance 備援、資金費率或多空比等數值，不得稱「籌碼面全缺失」；應寫「CoinGlass 不可用，已採備援／近似指標觀察短線情緒」。
-    - AI 儀表板（HuggingFace／OpenRouter）：禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；每行一個指標；僅能複述 `ai_momentum_tool` 回傳中的 **TopN: 模型名（下載｜按讚）** 或 RSS 備援標題；缺資料則單獨一行 <code>N/A</code>，**換行**後一句說明原因（≤45 字）—不得捏造數字。""")
+    - AI 儀表板（HuggingFace／OpenRouter）：禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；每行一個指標；僅能複述 `ai_momentum_tool` 回傳中的 **TopN: 模型名（下載｜按讚）** 或 RSS 備援標題；缺資料則 value=`N/A`，另補一句原因（≤45 字）—不得捏造數字。""")
 
 _NEWS_FMT = dedent("""\
-    【新聞編號強制】幣圈與 AI 共 6 則新聞，**每一則開頭必須是** `〔新聞 1〕`…`〔新聞 6〕`（全篇連續編號），**嚴禁**僅用 `1.` `2.` `3.` 當新聞編號（易與辯論／呢喃列表混淆）；辯論段落可用自由列表。
-    〔新聞 N〕[MM/DD HH:MM UTC+8] <b>新聞標題</b>（來源：xxx｜性質：confirmed / likely / unverified rumor）
-    <blockquote>摘要：（1 句核心事實，≤40 字，禁止主觀評論）</blockquote>
-    投資解讀：（1~2 句、總字數 ≤90；至少嵌入 1 個當日數據 <code>…</code>，如資金費率/RSI/MA/ETF）
-    💎主編共識：（1 句 ≤28 字，必須點名具體標的）
-    【格式紅線】嚴禁在最終戰報中印出「📍 受影響資產」、「📈 做多機會」、「📉 做空風險」、「⏱️ 時效」、「🎯 IMPACT」等原始標籤符號，必須轉化為自然語言！""")
+    【新聞資料欄位規格（純資料，非排版）】
+    - 幣圈與 AI 共 6 則新聞，使用連續索引：1..6（禁止用 1./2./3. 取代欄位）。
+    - 每則需包含：index、timestamp（UTC+8）、title、source_and_nature、summary、investment_takeaway、editor_consensus。
+    - summary：1 句核心事實（≤40 字，禁止主觀評論）。
+    - investment_takeaway：1~2 句（≤90 字），至少引用 1 個當日數據（如 funding/RSI/MA/ETF）。
+    - editor_consensus：1 句（≤28 字）且點名具體標的。
+    - 禁止輸出任何 HTML/Markdown 標籤與排版符號，僅輸出可映射 schema 的純文字欄位值。""")
 
 _DASHBOARD_FMT = dedent("""\
-    儀表板格式：每項獨立一行，數值部分【必須】用 <code> 標籤包覆。
-    · <b>指標名</b> <code>數值</code>（可選 ▲/▼ 幅度於同一 <code> 內，勿冗長解釋）
-    缺資料寫單獨一行 <code>N/A</code>，說明文字**換行**再寫，禁止同一行塞多個指標或 N/A 後黏接英文。
-    【今日市場模式】下之 regime 評分：第一行保留 `【今日市場模式】regime（±n/6）`；第二行起改用**極簡**呈現——每個指標僅 `✅/❌/⬜` + 簡稱 + <code>讀數</code>，**避免**逐條複製長算式如 `數值(>門檻)→±1`（門檻結果已含在 ✅❌⬜）。
-    宏觀利率欄位（10Y/2Y/SOFR/利差）硬規則：
-    - 10Y/2Y/SOFR 僅可輸出 0~20% 的數值；超出或不確定一律輸出 <code>N/A</code>。
-    - 利差僅可輸出 +/-1000bp 內；超出或口徑不明一律輸出 <code>N/A</code>。
-    - 不得混用單位（% / bp），不得把年份、成交量、情緒百分比誤寫成利率。
-    【Source 三行】儀表板內勿輸出【SourceHealth】/【SourceErrors】/【SourceQuota】整行（pipeline 會於 QSREC 前統一注入，見【日報 V2】）。
-    若關鍵欄位 N/A 超過 3 項，必須在該區塊加註：<b>低置信度</b>，
-    並補「資料缺失原因」與「替代指標」（合計 ≤120 字、最多兩行；須符合【工具輸出與缺數敘述】）。""")
+    【儀表板資料欄位規格（純資料，非排版）】
+    - 以一個 MetricLine 對應一個指標：label、value、可選 status_emoji（✅/❌/⬜）。
+    - value 只放讀值或 N/A；不要夾帶 HTML/Markdown。
+    - 缺資料時 value 請填 N/A，必要時在相鄰敘述欄位補充原因，不要同一欄塞多指標。
+    - regime 評分卡：第一行給 market.regime + score_suffix（如（+4/6）），其餘逐行放入 scorecard_lines。
+    - 宏觀利率硬規則：10Y/2Y/SOFR 僅允許 0~20%；利差僅允許 +/-1000bp；超界請填 N/A。
+    - 不得混用單位（% 與 bp），不得把年份/成交量/情緒百分比誤寫成利率。
+    - Source observability（SourceHealth/SourceErrors/SourceQuota）由 pipeline 注入，儀表板資料本身不要重複輸出。
+    - 若 N/A 過多，需在資料欄位中附低置信度與替代指標說明（總長 ≤120 字）。""")
 
 _CHATTER_FMT = dedent("""\
     呢喃/傳聞：僅未確認訊息，排除官方已證實事件
@@ -494,14 +570,15 @@ class CryptoResearchCrew:
         )
 
         final_report_task = Task(
-            description=build_crypto_final_prompt(
+            description=build_crypto_structured_final_prompt(
                 ctx=ctx,
                 prev_recs_ctx=prev_recs_ctx,
                 today_str=today_str,
             ),
-            expected_output="一份純淨的 HTML 戰報。報告的最末端必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 陣列。若遺漏 JSON，你的任務將被判定為徹底失敗！",
+            expected_output="符合 CryptoSection schema 的 JSON 物件；qsrec 為 CRYPTO 建議陣列。",
             agent=self.quant_strategist,
             context=[crypto_task, review_task],
+            output_pydantic=CryptoSection,
         )
 
         crew = Crew(
@@ -509,7 +586,7 @@ class CryptoResearchCrew:
             tasks=[crypto_task, review_task, final_report_task],
             process=Process.sequential,
         )
-        return crew.kickoff()
+        return kickoff_to_pydantic(crew.kickoff(), CryptoSection)
 
 
 class AIResearchCrew:
@@ -600,10 +677,11 @@ class AIResearchCrew:
         )
 
         final_report_task = Task(
-            description=build_ai_final_prompt(ctx=ctx),
-            expected_output="一份純淨的 HTML 戰報。報告的最末端必須、絕對要包含 [QSREC_START] 到 [QSREC_END] 的 JSON 陣列。若遺漏 JSON，你的任務將被判定為徹底失敗！",
+            description=build_ai_structured_final_prompt(ctx=ctx),
+            expected_output="符合 AISection schema 的 JSON 物件；qsrec 為 EQUITY 建議陣列。",
             agent=self.quant_strategist,
             context=[ai_task, review_task],
+            output_pydantic=AISection,
         )
 
         crew = Crew(
@@ -611,5 +689,5 @@ class AIResearchCrew:
             tasks=[ai_task, review_task, final_report_task],
             process=Process.sequential,
         )
-        return crew.kickoff()
+        return kickoff_to_pydantic(crew.kickoff(), AISection)
 

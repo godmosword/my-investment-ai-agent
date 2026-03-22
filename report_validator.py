@@ -1406,3 +1406,76 @@ def validate_report(text: str) -> dict:
         "pick_rotation_crypto_ok": pick_crypto_rot_ok,
         "pick_rotation_equity_ok": pick_equity_rot_ok,
     }
+
+
+def validate_structured_report(report: object) -> dict:
+    """以 Pydantic 組裝結果做屬性級檢查，與 validate_report(HTML) 並行。"""
+    from schemas import DailyBriefReport
+
+    if not isinstance(report, DailyBriefReport):
+        return {"valid": False, "issues": ["report 非 DailyBriefReport"]}
+    issues: list[str] = []
+    cr, ai_sec = report.crypto, report.ai
+    if len(cr.news) < 3:
+        issues.append(f"結構化加密新聞不足（{len(cr.news)}/3）")
+    if len(ai_sec.news) < 3:
+        issues.append(f"結構化 AI 新聞不足（{len(ai_sec.news)}/3）")
+    tagged = len(cr.news) + len(ai_sec.news)
+    if tagged < 6 and not report.report_tier_partial_news:
+        issues.append(f"結構化新聞總數 {tagged}/6 且未標記 partial tier")
+    if report.report_tier_partial_news and not (3 <= tagged <= 5):
+        issues.append(f"partial tier 僅允許 3~5 則新聞，當前為 {tagged}")
+    if not report.all_qsrec():
+        issues.append("結構化 qsrec 為空")
+    if not (cr.pick_reason or "").strip():
+        issues.append("加密本日選擇理由為空")
+    if not (ai_sec.pick_reason or "").strip():
+        issues.append("AI 本日選擇理由為空")
+
+    if len((cr.pick_reason or "").strip()) < 34:
+        issues.append("加密本日選擇理由過短（<34）")
+    if len((ai_sec.pick_reason or "").strip()) < 38:
+        issues.append("AI 本日選擇理由過短（<38）")
+    if cr.market.regime not in (cr.risk_budget_summary or ""):
+        issues.append("加密今日風險預算未包含主 regime token")
+
+    def _norm_asset(a: str) -> str:
+        return str(a or "").upper().replace("$", "").replace("-", "/").replace(" ", "")
+
+    def _check_section_alignment(section, category: str, label: str) -> None:
+        leg_map: dict[str, str] = {}
+        for leg in section.trade_legs:
+            leg_map[_norm_asset(leg.asset)] = str(leg.direction or "").upper()
+
+        seen: dict[str, str] = {}
+        for idx, rec in enumerate(section.qsrec, start=1):
+            cat = str(rec.category or "").upper()
+            if cat != category:
+                issues.append(f"{label} qsrec 第 {idx} 筆 category={cat} 應為 {category}")
+            asset = _norm_asset(rec.asset)
+            direction = str(rec.direction or "").upper()
+            prev = seen.get(asset)
+            if prev and prev != direction:
+                issues.append(f"{label} qsrec 同資產 {asset} 出現相反方向 {prev}/{direction}")
+            seen[asset] = direction
+            if asset in leg_map and leg_map[asset] != direction:
+                issues.append(
+                    f"{label} 交易條目與 qsrec 方向不一致：{asset} leg={leg_map[asset]} qsrec={direction}"
+                )
+
+            for f in (
+                "selection_score",
+                "catalyst_score",
+                "flow_score",
+                "technical_score",
+                "risk_fit_score",
+                "execution_score",
+                "alt_candidate_score",
+                "score_gap",
+            ):
+                if getattr(rec, f) is None:
+                    issues.append(f"{label} qsrec 第 {idx} 筆缺少可量化評分欄位：{f}")
+
+    _check_section_alignment(cr, "CRYPTO", "加密")
+    _check_section_alignment(ai_sec, "EQUITY", "AI")
+    return {"valid": len(issues) == 0, "issues": issues}
