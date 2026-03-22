@@ -257,7 +257,8 @@ _TRADE_JSON_RULE = dedent("""\
     - score_gap = selection_score - alt_candidate_score（不得亂填）
     - repeat_days（連續同標天數，當天首次選用可填 0）
     可附加欄位：rr_ratio、max_drawdown_pct、expected_win_rate、signal_score、regime。
-    【方向唯一】同一 JSON 陣列內，相同 category + 相同 asset（例：兩筆皆 EQUITY+MSFT）不得同時出現 LONG 與 SHORT；若需對沖請改為單筆淨方向或合併敘事，否則 validate_report 失敗。""")
+    【方向唯一｜硬 Gate】同一 JSON 陣列內，每個 (category, asset) 組合**最多一筆**；禁止出現兩筆皆為 EQUITY+NVDA（或任一 ticker）卻一筆 LONG、一筆 SHORT。若盤點後發現兩筆同代號，請刪併為單一淨方向或改正其中一筆的 asset／direction 筆誤。若需多空對沖敘事，請改為**比值／價差**單筆（見【配對交易單位一致性】）或兩檔**不同 ticker**；否則 validate_report 會回報「QSREC 同資產方向互斥」並擋推送。
+    【正文對齊】區塊④內每個 `· $<b>代號</b> (LONG)` 或 `(SHORT)` 交易行，其方向必須與 QSREC 內同 asset、同 category 的 `direction` 一致（加密／美股分開檢視）。""")
 
 _MTF_CONF_RULE = dedent("""\
     === 交易建議（通用）===
@@ -293,6 +294,7 @@ _GATE_VALIDATE_PICK_RULE = dedent("""\
     6) **與昨日 BigQuery QSREC 完全相同時**（加密或美股）：要嘛至少換一檔／一改配對腿；要嘛在**該類別**的「本日選擇理由」開頭寫 **`重複選用理由：…`**（具體新催化或連日持有依據），且 QSREC 內 **`score_gap` ≥ 12**（或 selection_score − alt_candidate_score 可驗證）。否則整報驗證失敗。
     7) **美股輪動（最常漏）**：若【上期建議追蹤】或任務提示顯示「昨日兩檔美股 ticker」與今日 QSREC **完全一致**，**🤖 AI 區塊④** 的 `本日選擇理由：` **整段內**必須含 **`重複選用理由：`**（或 **`重複選股理由：`**／**`連日維持`**／**`維持昨日兩檔`** 等系統認可片語）——**寫在加密段無效**；並確保兩檔 ticker 代號仍出現在理由或緊隨交易行。
     8) **禁止貼工具錯誤碼**：戰報正文嚴禁出現字面 **`[DATA_MISSING:`**（validate_report 會當成「資料缺失欄位」）；缺資料僅能寫 `<code>N/A</code>` 或一句「第三方資料源未回傳」。
+    9) **QSREC 與區塊④方向一致**：JSON 內每一檔 `asset` 的 `LONG`/`SHORT` 須與對應 `· $` 交易行括號內方向相同；同一 category 下同一 ticker 不得在 QSREC 出現兩筆相反方向（機檢硬擋）。
     """)
 
 _HEDGE_FUND_BRIEF_RULE = dedent("""\

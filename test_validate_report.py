@@ -4,6 +4,8 @@ import os
 import unittest
 from unittest.mock import patch
 
+from report_validator import _qsrec_consistency_issues
+
 from main import (
     validate_report,
     strip_html,
@@ -675,6 +677,59 @@ class TestDailyBriefV2Helpers(unittest.TestCase):
         ]
         issues = _qsrec_opposing_direction_same_asset(recs)
         self.assertTrue(any("互斥" in i for i in issues))
+
+    @patch("report_validator._strict_pick_scoring", return_value=False)
+    def test_qsrec_opposing_in_consistency_issues_by_default(self, _mock_scoring):
+        recs = [
+            {
+                "asset": "MSFT",
+                "direction": "LONG",
+                "category": "EQUITY",
+                "trigger": "t",
+                "invalidation": "i",
+                "position_pct": 2.0,
+                "timeframe": "swing",
+            },
+            {
+                "asset": "MSFT",
+                "direction": "SHORT",
+                "category": "EQUITY",
+                "trigger": "t2",
+                "invalidation": "i2",
+                "position_pct": 2.0,
+                "timeframe": "swing",
+            },
+        ]
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("QSREC_ALLOW_OPPOSING_DIRECTIONS", None)
+            issues = _qsrec_consistency_issues("【今日市場模式】risk_on\n", recs)
+        self.assertTrue(any("互斥" in i for i in issues))
+
+    @patch("report_validator._strict_pick_scoring", return_value=False)
+    def test_qsrec_opposing_skipped_when_env_allow(self, _mock_scoring):
+        recs = [
+            {
+                "asset": "NVDA",
+                "direction": "LONG",
+                "category": "EQUITY",
+                "trigger": "t",
+                "invalidation": "i",
+                "position_pct": 2.0,
+                "timeframe": "swing",
+            },
+            {
+                "asset": "NVDA",
+                "direction": "SHORT",
+                "category": "EQUITY",
+                "trigger": "t2",
+                "invalidation": "i2",
+                "position_pct": 2.0,
+                "timeframe": "swing",
+            },
+        ]
+        with patch.dict(os.environ, {"QSREC_ALLOW_OPPOSING_DIRECTIONS": "1"}, clear=False):
+            issues = _qsrec_consistency_issues("【今日市場模式】risk_on\n", recs)
+        self.assertFalse(any("互斥" in i for i in issues))
 
 
 class TestHasCryptoTradeSection(unittest.TestCase):
