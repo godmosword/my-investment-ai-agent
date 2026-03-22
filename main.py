@@ -49,6 +49,8 @@ from validation_rules import (
     NUMERIC_INVESTMENT_LINE_RE,
     NUMERIC_INVESTMENT_MULTI_RE,
     QSREC_MARKERS_RE,
+    TRADE_WATCH_AI_OP_RE,
+    TRADE_WATCH_CRYPTO_OP_RE,
     TRADE_WATCH_MODE_RE,
     UNACTIONABLE_TRADE_RE,
 )
@@ -1909,7 +1911,8 @@ def _trade_watch_actionable_conflicts(
         op_span = _operation_span(span, is_ai=is_ai)
         if not op_span:
             continue
-        if TRADE_WATCH_MODE_RE.search(op_span) and _has_actionable_params(op_span):
+        watch_re = TRADE_WATCH_AI_OP_RE if is_ai else TRADE_WATCH_CRYPTO_OP_RE
+        if watch_re.search(op_span) and _has_actionable_params(op_span):
             conflicts.append(label)
     return conflicts
 
