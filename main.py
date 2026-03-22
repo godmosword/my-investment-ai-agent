@@ -365,18 +365,33 @@ _EQUITY_PICK_FALLBACK: tuple[str, ...] = (
 )
 
 
-def _crypto_report_prefix(text: str) -> str:
-    """合併戰報中「加密區」之前綴（🤖 AI 市場 起頭之後視為下半部）。"""
+_AI_SECTION_BOUNDARY_PATTERNS: tuple[str, ...] = (
+    r"(?m)^────────────\s*\n\s*🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
+    r"\n🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
+    r"🤖\s*AI(?:\s*與\s*美股市場|\s*市場)",
+    r"(?m)^══════\s*🤖\s*AI(?:\s*與\s*美股市場|\s*市場)\s*══════",
+    r"(?m)^\s*AI\s*產業鏈精準操作\s*\(US\s*Equit",
+)
+
+
+def _ai_section_start_index(text: str, cache: dict[str, int] | None = None) -> int:
+    """回傳 AI 主段起始位置；若找不到則回傳 len(text)。"""
+    cache_key = "ai_section_start_index"
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
     best = len(text)
-    for pat in (
-        r"(?m)^────────────\s*\n\s*🤖\s*AI\s*市場",
-        r"\n🤖\s*AI\s*市場",
-        r"🤖\s*AI\s*市場",
-        r"(?m)^\s*AI\s*產業鏈精準操作\s*\(US\s*Equit",
-    ):
+    for pat in _AI_SECTION_BOUNDARY_PATTERNS:
         m = re.search(pat, text, re.IGNORECASE)
         if m and m.start() < best:
             best = m.start()
+    if cache is not None:
+        cache[cache_key] = best
+    return best
+
+
+def _crypto_report_prefix(text: str, *, _cache: dict[str, int] | None = None) -> str:
+    """合併戰報中「加密區」之前綴（🤖 AI 主段起頭後視為下半部）。"""
+    best = _ai_section_start_index(text, cache=_cache)
     return text[:best] if best < len(text) else text
 
 
@@ -420,7 +435,12 @@ def _score_kw_hits(reason: str, kws: tuple[str, ...]) -> int:
     return sum(1 for k in kws if k in reason)
 
 
-def _pick_justification_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
+def _pick_justification_crypto_ok(
+    text: str,
+    recs: list[dict],
+    *,
+    span_cache: dict[str, int] | None = None,
+) -> tuple[bool, str]:
     """
     加密 QSREC 每檔須在「本日選擇理由」區間內可被合規敘事支持：
     ≥2 個催化/鏈上關鍵線索；或 1 線索 + 明確大型幣退階語；或 1 線索 + 長文且點名所有標的。
@@ -432,7 +452,7 @@ def _pick_justification_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, st
     ]
     if not crypto_assets:
         return True, ""
-    cspan = _crypto_report_prefix(text)
+    cspan = _crypto_report_prefix(text, _cache=span_cache)
     reason = _extract_today_pick_reason(cspan)
     if not reason:
         return False, "加密區缺少「本日選擇理由」，或內容未寫在「今日風險預算／訊號衝突／交易條目」之前（請依動態選幣標準補敘）"
@@ -454,7 +474,12 @@ def _pick_justification_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, st
     )
 
 
-def _pick_justification_equity_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
+def _pick_justification_equity_ok(
+    text: str,
+    recs: list[dict],
+    *,
+    span_cache: dict[str, int] | None = None,
+) -> tuple[bool, str]:
     """美股 QSREC：理由須含足夠基本面/新聞線索並點名各檔股票代號。"""
     eq_assets = [
         str(r.get("asset", ""))
@@ -463,7 +488,7 @@ def _pick_justification_equity_ok(text: str, recs: list[dict]) -> tuple[bool, st
     ]
     if not eq_assets:
         return True, ""
-    ai_span = text[len(_crypto_report_prefix(text)) :]
+    ai_span = text[_ai_section_start_index(text, cache=span_cache) :]
     reason = _extract_today_pick_reason(ai_span)
     if not reason:
         return False, "AI/美股區缺少「本日選擇理由」，或格式未寫在交易條目前（請依動態選股標準補敘）"
@@ -584,7 +609,12 @@ def _fetch_yesterday_qsrec_canonical_set(category: str) -> set[str] | None:
         return None
 
 
-def _pick_rotation_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
+def _pick_rotation_crypto_ok(
+    text: str,
+    recs: list[dict],
+    *,
+    span_cache: dict[str, int] | None = None,
+) -> tuple[bool, str]:
     """今日加密 QSREC canonical 集合若與昨日完全相同，須改選或達成同標覆核。"""
     if not _strict_pick_rotation():
         return True, ""
@@ -596,7 +626,7 @@ def _pick_rotation_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
         return True, ""
     if not _allow_repeat_pick_override():
         return False, "動態選幣／輪動：與昨日完全相同時不允許同標延續，請至少更換一檔（或配對腿）。"
-    reason = _extract_today_pick_reason(_crypto_report_prefix(text)) or ""
+    reason = _extract_today_pick_reason(_crypto_report_prefix(text, _cache=span_cache)) or ""
     if not _REPEAT_PICK_REASON_RE.search(reason):
         return (
             False,
@@ -616,7 +646,12 @@ def _pick_rotation_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
     return True, ""
 
 
-def _pick_rotation_equity_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
+def _pick_rotation_equity_ok(
+    text: str,
+    recs: list[dict],
+    *,
+    span_cache: dict[str, int] | None = None,
+) -> tuple[bool, str]:
     """今日美股 QSREC canonical 集合若與昨日完全相同，須改選或達成同標覆核。"""
     if not _strict_pick_rotation():
         return True, ""
@@ -628,7 +663,7 @@ def _pick_rotation_equity_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
         return True, ""
     if not _allow_repeat_pick_override():
         return False, "動態選股／輪動：與昨日完全相同時不允許同標延續，請至少更換一檔。"
-    reason = _extract_today_pick_reason(text[len(_crypto_report_prefix(text)) :]) or ""
+    reason = _extract_today_pick_reason(text[_ai_section_start_index(text, cache=span_cache) :]) or ""
     if not _REPEAT_PICK_REASON_RE.search(reason):
         return (
             False,
@@ -1837,6 +1872,48 @@ def _risk_off_narrative_violations(text: str) -> list[str]:
     return bad_lines
 
 
+def _trade_watch_actionable_conflicts(
+    text: str,
+    *,
+    span_cache: dict[str, int] | None = None,
+) -> list[str]:
+    """
+    交易操作段若宣告「觀望模式」，同段不得同時提供可執行三要素（進場/目標/停損）。
+    僅檢查加密與 AI 各自的操作段，避免誤掃到「上期建議追蹤」。
+    """
+    def _operation_span(span: str, is_ai: bool) -> str:
+        if not span:
+            return ""
+        start_re = (
+            r"區塊④[^\n]*(?:AI\s*產業鏈精準操作|US\s*Equit|資金流向與精準操作)|"
+            r"AI\s*產業鏈精準操作|資金流向與精準操作"
+            if is_ai
+            else r"區塊④[^\n]*資金流向與精準操作|資金流向與精準操作"
+        )
+        m = re.search(start_re, span, re.IGNORECASE)
+        return span[m.start() :] if m else span
+
+    def _has_actionable_params(span: str) -> bool:
+        has_entry = bool(re.search(r"進場[：:]\s*(?:<code>)?\$?\s*[0-9,]+(?:\.[0-9]+)?", span))
+        has_target = bool(re.search(r"目標[：:]\s*(?:<code>)?\$?\s*[0-9,]+(?:\.[0-9]+)?", span))
+        has_stop = bool(re.search(r"停損[：:]\s*(?:<code>)?\$?\s*[0-9,]+(?:\.[0-9]+)?", span))
+        return has_entry and has_target and has_stop
+
+    conflicts: list[str] = []
+    crypto_span = _crypto_report_prefix(text, _cache=span_cache)
+    ai_span = text[len(crypto_span) :]
+    for label, span, is_ai in (
+        ("加密", crypto_span, False),
+        ("AI/美股", ai_span, True),
+    ):
+        op_span = _operation_span(span, is_ai=is_ai)
+        if not op_span:
+            continue
+        if TRADE_WATCH_MODE_RE.search(op_span) and _has_actionable_params(op_span):
+            conflicts.append(label)
+    return conflicts
+
+
 def _ai_dashboard_hallucination_hits(text: str) -> list[str]:
     """
     AI 儀表板常見幻覺欄位（ai_momentum_tool 從未輸出）；僅掃描 🤖 AI 市場 之後至 AI 產業新聞 之前。
@@ -1887,6 +1964,7 @@ def _macro_yield_spread_inconsistent(text: str) -> bool:
 
 def validate_report(text: str) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
+    span_cache: dict[str, int] = {}
     news_count  = _count_effective_news_items(text)
     fallback_count = _fallback_news_count(text)
 
@@ -1953,6 +2031,7 @@ def validate_report(text: str) -> dict:
     has_macro_outlier = _has_macro_outlier_values(text)
     has_macro_conflict = _has_macro_conflicts(text)
     has_source_observability_conflict = _has_source_observability_conflicts(text)
+    watch_trade_conflicts = _trade_watch_actionable_conflicts(text, span_cache=span_cache)
     has_code_leak = bool(CODE_LEAK_RE.search(text))
     has_impact_leak = bool(IMPACT_LEAK_RE.search(text))
     pair_unit_ok = _pair_trade_unit_consistent(text)
@@ -1962,14 +2041,22 @@ def validate_report(text: str) -> dict:
     pick_crypto_ok, pick_crypto_err = True, ""
     pick_equity_ok, pick_equity_err = True, ""
     if _strict_pick_justification() and not trade_watch_mode and has_valid_qsrec:
-        pick_crypto_ok, pick_crypto_err = _pick_justification_crypto_ok(text, parsed_qsrec)
-        pick_equity_ok, pick_equity_err = _pick_justification_equity_ok(text, parsed_qsrec)
+        pick_crypto_ok, pick_crypto_err = _pick_justification_crypto_ok(
+            text, parsed_qsrec, span_cache=span_cache
+        )
+        pick_equity_ok, pick_equity_err = _pick_justification_equity_ok(
+            text, parsed_qsrec, span_cache=span_cache
+        )
 
     pick_crypto_rot_ok, pick_crypto_rot_err = True, ""
     pick_equity_rot_ok, pick_equity_rot_err = True, ""
     if _strict_pick_rotation() and not trade_watch_mode and has_valid_qsrec:
-        pick_crypto_rot_ok, pick_crypto_rot_err = _pick_rotation_crypto_ok(text, parsed_qsrec)
-        pick_equity_rot_ok, pick_equity_rot_err = _pick_rotation_equity_ok(text, parsed_qsrec)
+        pick_crypto_rot_ok, pick_crypto_rot_err = _pick_rotation_crypto_ok(
+            text, parsed_qsrec, span_cache=span_cache
+        )
+        pick_equity_rot_ok, pick_equity_rot_err = _pick_rotation_equity_ok(
+            text, parsed_qsrec, span_cache=span_cache
+        )
 
     issues = []
     tagged_news = _count_news_tags_only(text)
@@ -2041,6 +2128,12 @@ def validate_report(text: str) -> dict:
         issues.append("宏觀段落前後矛盾（2Y/利差數值不一致）")
     if has_source_observability_conflict:
         issues.append("Source observability 欄位重複或互相矛盾")
+    if watch_trade_conflicts:
+        issues.append(
+            "觀望模式契約衝突："
+            + "、".join(watch_trade_conflicts)
+            + "操作段同時出現「觀望模式」與可執行價位（進場/目標/停損），請擇一保留。"
+        )
     if _conflicting_total_risk_budget_lines(text):
         issues.append("今日風險預算出現多組不一致的總風險預算百分比（請整併為單一總框或依【日報 V2】改為美股部位框）")
     if not pair_unit_ok:

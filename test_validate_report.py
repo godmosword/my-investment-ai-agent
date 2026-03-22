@@ -7,6 +7,7 @@ from unittest.mock import patch
 from main import (
     validate_report,
     strip_html,
+    _crypto_report_prefix,
     _count_effective_news_items,
     _fallback_news_count,
     _normalize_regime_token,
@@ -686,6 +687,55 @@ class TestHasCryptoTradeSection(unittest.TestCase):
     def test_detects_classic_crypto_paren(self):
         text = "區塊④【資金流向與精準操作 (Crypto)】"
         self.assertTrue(_has_crypto_trade_section(text))
+
+
+class TestAiBoundaryAndWatchMutex(unittest.TestCase):
+    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    def test_equity_rotation_accepts_ai_variant_heading(self, mock_y):
+        mock_y.return_value = {"NVDA", "MSFT"}
+        recs = [
+            {"asset": "NVDA", "category": "EQUITY", "selection_score": 82, "alt_candidate_score": 65, "score_gap": 17, "repeat_days": 1},
+            {"asset": "MSFT", "category": "EQUITY", "selection_score": 79, "alt_candidate_score": 63, "score_gap": 16, "repeat_days": 2},
+        ]
+        report = (
+            "前言\n────────────\n🤖 AI 與美股市場\n"
+            "AI 產業鏈精準操作 (US Equities)\n"
+            "本日選擇理由：重複選股理由：維持 NVDA 與 MSFT，因為資金面與宏觀條件延續。\n"
+            "訊號衝突摘要：無顯著多空衝突。\n"
+            "· $NVDA (SHORT)\n· $MSFT (SHORT)\n"
+        )
+        self.assertTrue(_pick_rotation_equity_ok(report, recs)[0])
+
+    @patch("main._fetch_yesterday_qsrec_canonical_set")
+    def test_equity_rotation_prefers_first_ai_section_when_duplicated(self, mock_y):
+        mock_y.return_value = {"NVDA", "MSFT"}
+        recs = [
+            {"asset": "NVDA", "category": "EQUITY", "selection_score": 82, "alt_candidate_score": 65, "score_gap": 17, "repeat_days": 1},
+            {"asset": "MSFT", "category": "EQUITY", "selection_score": 79, "alt_candidate_score": 63, "score_gap": 16, "repeat_days": 2},
+        ]
+        report = (
+            "前言\n────────────\n🤖 AI 與美股市場\n"
+            "本日選擇理由：重複選用理由：維持昨日兩檔 NVDA 與 MSFT，等待財報前趨勢確認。\n"
+            "訊號衝突摘要：無顯著多空衝突。\n"
+            "· $NVDA (SHORT)\n· $MSFT (SHORT)\n"
+            "────────────\n🤖 AI 市場\n"
+            "【核心新聞】N/A\n"
+        )
+        self.assertTrue(_pick_rotation_equity_ok(report, recs)[0])
+        prefix = _crypto_report_prefix(report)
+        self.assertNotIn("🤖 AI 與美股市場", prefix)
+
+    def test_watch_mode_and_actionable_prices_conflict(self):
+        report = _make_report(
+            extra=(
+                "\n區塊④【AI 產業鏈精準操作 (US Equities)】\n"
+                "· 觀望模式：資料不足觀望，暫不提供股票進出場價格。\n"
+                "· $NVDA (SHORT)\n"
+                "· 進場：$172.70｜目標：$160.00｜停損：$178.00\n"
+            )
+        )
+        result = validate_report(report)
+        self.assertTrue(any("觀望模式契約衝突" in issue for issue in result["issues"]))
 
 
 if __name__ == "__main__":
