@@ -2901,7 +2901,8 @@ def _quote_of(symbol: str) -> float | None:
         if close_col.empty:
             return None
         return float(close_col.iloc[-1])
-    except Exception:
+    except Exception as e:
+        logger.warning("_quote_of %s failed: %s", symbol, e)
         return None
 
 
@@ -2919,7 +2920,8 @@ def _compute_rsi(closes, period: int = 14) -> float | None:
             return 100.0
         rs = avg_gain / avg_loss
         return round(100 - (100 / (1 + rs)), 1)
-    except Exception:
+    except Exception as e:
+        logger.warning("_compute_rsi failed: %s", e)
         return None
 
 
@@ -2943,8 +2945,8 @@ def _get_extended_price_data(symbol: str, period: str = "60d") -> dict:
             result["ma20"] = round(float(close_col.iloc[-20:].mean()), 2)
         if len(close_col) >= 50:
             result["ma50"] = round(float(close_col.iloc[-50:].mean()), 2)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("_get_extended_price_data %s failed: %s", symbol, e)
     return result
 
 

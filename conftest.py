@@ -28,8 +28,13 @@ _STUB_CLASSES = {
     "crewai": ["Agent", "Crew", "LLM", "Process", "Task"],
     "telebot": ["TeleBot"],
     "google.cloud.bigquery": [
-        "Client", "SchemaField", "LoadJobConfig",
-        "SourceFormat", "WriteDisposition",
+        "Client",
+        "SchemaField",
+        "LoadJobConfig",
+        "ScalarQueryParameter",
+        "SourceFormat",
+        "WriteDisposition",
+        "Table",
     ],
 }
 
@@ -69,3 +74,11 @@ sys.modules["crewai.tools"].tool = _fake_tool
 # Wire google.cloud parent to bigquery stub
 _gc = _ensure_stub("google.cloud")
 _gc.bigquery = sys.modules["google.cloud.bigquery"]
+
+# telebot.apihelper：main._send_telegram_report 會 `from telebot import apihelper`
+_tb_mod = sys.modules.get("telebot")
+if _tb_mod is not None:
+    _ah = ModuleType("telebot.apihelper")
+    _ah.SESSION_TIME_TO_LIVE = 300
+    sys.modules["telebot.apihelper"] = _ah
+    _tb_mod.apihelper = _ah
