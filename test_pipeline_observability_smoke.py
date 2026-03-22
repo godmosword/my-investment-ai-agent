@@ -20,6 +20,7 @@ def test_get_with_retry_503_then_ok():
     good.status_code = 200
     good.raise_for_status = MagicMock()
 
+    tools._get_http_session()  # ensure singleton is initialized before patching
     with patch.object(tools._HTTP_SESSION, "get", side_effect=[bad, good]) as mock_get:
         with patch("tools.time.sleep"):
             resp = tools._get_with_retry("http://example.test", params={}, retries=2)

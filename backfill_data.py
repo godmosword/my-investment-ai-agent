@@ -14,6 +14,8 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+
+logger = logging.getLogger(__name__)
 from datetime import date, timedelta
 
 import pandas as pd
@@ -211,7 +213,7 @@ def write_to_bigquery(df: pd.DataFrame, dry_run: bool = False) -> None:
                 if row["d"] is not None
             }
         except Exception as e:
-            logging.warning("backfill existing_ts query failed, assuming empty: %s", e)
+            logger.warning("backfill existing_ts query failed, assuming empty: %s", e)
             existing = set()
 
     df["_date"] = pd.to_datetime(df["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d")
