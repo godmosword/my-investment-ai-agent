@@ -737,6 +737,48 @@ class TestAiBoundaryAndWatchMutex(unittest.TestCase):
         result = validate_report(report)
         self.assertTrue(any("觀望模式契約衝突" in issue for issue in result["issues"]))
 
+    def _report_with_crypto_block_before_ai(self, crypto_block: str) -> str:
+        """在 🤖 AI 主段之前插入加密精準操作區塊（extra 若在文末不會進入 crypto_span）。"""
+        marker = "────────────\n🤖 AI 市場"
+        base = _make_report(include_crypto_trade=False)
+        idx = base.find(marker)
+        self.assertNotEqual(idx, -1, "template must contain AI section marker")
+        return base[:idx] + crypto_block + "\n" + base[idx:]
+
+    def test_crypto_op_span_stock_watch_phrase_alone_no_mutex_conflict(self):
+        """加密段誤貼「暫不提供股票…」不應觸發加密觀望／價位互斥（該句僅屬美股觀望）。"""
+        crypto_block = (
+            "區塊④【資金流向與精準操作】\n"
+            "本日選擇理由：測試。\n"
+            "今日風險預算：risk_on 模式下總倉位上限 15%。\n"
+            "訊號衝突摘要：無顯著多空衝突。\n"
+            "· 暫不提供股票進出場價格。（誤貼於加密段）\n"
+            "· $BTC (LONG)\n"
+            "· 進場：<code>$70000</code>｜目標：<code>$75000</code>｜停損：<code>$68000</code>"
+        )
+        report = self._report_with_crypto_block_before_ai(crypto_block)
+        result = validate_report(report)
+        self.assertFalse(
+            any("觀望模式契約衝突" in i and "加密" in i for i in result["issues"]),
+            result["issues"],
+        )
+
+    def test_crypto_watch_mode_and_actionable_still_conflicts(self):
+        crypto_block = (
+            "區塊④【資金流向與精準操作】\n"
+            "本日選擇理由：測試。\n"
+            "今日風險預算：risk_on 模式下總倉位上限 15%。\n"
+            "訊號衝突摘要：無顯著多空衝突。\n"
+            "· <b>觀望模式</b>：資料不足觀望，暫不開新倉。\n"
+            "· $BTC (LONG)\n"
+            "· 進場：<code>$70000</code>｜目標：<code>$75000</code>｜停損：<code>$68000</code>"
+        )
+        report = self._report_with_crypto_block_before_ai(crypto_block)
+        result = validate_report(report)
+        self.assertTrue(
+            any("觀望模式契約衝突" in i and "加密" in i for i in result["issues"]),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
