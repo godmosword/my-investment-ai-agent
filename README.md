@@ -66,6 +66,7 @@
 ```
 .
 ├── docs/
+│   ├── MCP_ASK_USER_QUESTION.md     # Cursor／Claude Code 掛載 AskUserQuestion 類 MCP（AUQ）步驟
 │   └── ADOPTION_DEXTER_CONCEPTS.md  # Dexter 式概念分階導入計畫（Phase 0+1 與驗證）
 ├── scratchpad.py        # Phase 1：產報 run 之 JSONL 軌跡（init / gate_result / tool）
 ├── main.py              # 入口：重試產報、驗證、Telegram、BigQuery 指標寫入
