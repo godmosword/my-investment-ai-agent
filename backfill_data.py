@@ -14,8 +14,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-
-logger = logging.getLogger(__name__)
 from datetime import date, timedelta
 
 import pandas as pd
@@ -28,6 +26,7 @@ from config import PROJECT_ID, METRICS_TABLE
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 # BigQuery schema（與 main.py extract_and_save_metrics 一致）
 SCHEMA = [
