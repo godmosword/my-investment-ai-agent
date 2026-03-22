@@ -3,6 +3,7 @@ import os
 import re
 import time
 import json
+import threading
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -18,9 +19,6 @@ from scratchpad import traced_tool_execution
 
 logger = logging.getLogger(__name__)
 
-_HTTP_SESSION = requests.Session()
-
-
 def _http_get(
     url: str,
     *,
@@ -29,12 +27,13 @@ def _http_get(
     timeout: float | int | tuple = 10,
 ) -> requests.Response:
     """模組級 Session 的 GET，供連線重用與統一出口。"""
-    return _HTTP_SESSION.get(url, params=params, headers=headers, timeout=timeout)
+    return _get_http_session().get(url, params=params, headers=headers, timeout=timeout)
 
 # ── 模組級 in-memory cache（同一次執行內避免重複打外部 API）────────────
 # key: (tool_name, query_string)  value: (result_str, expire_timestamp)
 _CACHE: dict[tuple, tuple] = {}
 _CACHE_TTL = 600  # 10 分鐘內相同 query 直接回傳 cache
+_CACHE_MAX_SIZE = 256
 _SOURCE_HEALTH: dict[str, dict[str, float | str]] = {
     "newsapi": {"ok": 0, "fail": 0},
     "gnews": {"ok": 0, "fail": 0},
@@ -55,18 +54,41 @@ _SOURCE_QUOTA_STATE: dict[str, dict[str, float | str]] = {
     "apify": {"day": "", "used": 0.0},
 }
 
+_HTTP_SESSION: requests.Session | None = None
+
+_INIT_LOCK = threading.Lock()   # protects lazy-init singletons
+_CACHE_LOCK = threading.Lock()  # protects _CACHE mutations
+
+
+def _get_http_session() -> requests.Session:
+    global _HTTP_SESSION
+    if _HTTP_SESSION is None:
+        with _INIT_LOCK:
+            if _HTTP_SESSION is None:  # double-check
+                s = requests.Session()
+                s.headers.update({"User-Agent": "Q-Silicon/1.0"})
+                _HTTP_SESSION = s
+    return _HTTP_SESSION
+
 
 def _get_cache(key: tuple) -> str | None:
     if key in _CACHE:
         result, expire = _CACHE[key]
         if time.time() < expire:
             return result
-        del _CACHE[key]
+        with _CACHE_LOCK:
+            _CACHE.pop(key, None)
     return None
 
 
 def _set_cache(key: tuple, value: str) -> None:
-    _CACHE[key] = (value, time.time() + _CACHE_TTL)
+    with _CACHE_LOCK:
+        if len(_CACHE) >= _CACHE_MAX_SIZE:
+            # Evict oldest entries (by expire timestamp)
+            oldest_keys = sorted(_CACHE, key=lambda k: _CACHE[k][1])[:len(_CACHE) // 4]
+            for k in oldest_keys:
+                del _CACHE[k]
+        _CACHE[key] = (value, time.time() + _CACHE_TTL)
 
 
 def _append_data_as_of(body: str, source_id: str) -> str:
@@ -175,9 +197,10 @@ def _save_source_health_to_bigquery() -> None:
     if os.getenv("DISABLE_SOURCE_HEALTH_BQ", "").lower() in ("1", "true", "yes"):
         return
     now = time.time()
-    if now - _LAST_SOURCE_BQ_SYNC_TS < _SOURCE_BQ_SYNC_INTERVAL_SEC:
-        return
-    _LAST_SOURCE_BQ_SYNC_TS = now
+    with _INIT_LOCK:
+        if now - _LAST_SOURCE_BQ_SYNC_TS < _SOURCE_BQ_SYNC_INTERVAL_SEC:
+            return
+        _LAST_SOURCE_BQ_SYNC_TS = now
     try:
         client = _get_bq_client()
         table_id = _source_health_table_id()
@@ -427,7 +450,9 @@ _APIFY_CLIENT: ApifyClient | None = None
 def _get_bq_client() -> bigquery.Client:
     global _BQ_CLIENT
     if _BQ_CLIENT is None:
-        _BQ_CLIENT = bigquery.Client(project=PROJECT_ID)
+        with _INIT_LOCK:
+            if _BQ_CLIENT is None:  # double-check
+                _BQ_CLIENT = bigquery.Client(project=PROJECT_ID)
     return _BQ_CLIENT
 
 
@@ -435,10 +460,12 @@ def _get_apify_client() -> ApifyClient:
     """ApifyClient singleton：同一次執行只初始化一次。"""
     global _APIFY_CLIENT
     if _APIFY_CLIENT is None:
-        token = os.getenv("APIFY_API_TOKEN")
-        if not token:
-            raise ValueError("APIFY_API_TOKEN 未設定。")
-        _APIFY_CLIENT = ApifyClient(token)
+        with _INIT_LOCK:
+            if _APIFY_CLIENT is None:  # double-check
+                token = os.getenv("APIFY_API_TOKEN")
+                if not token:
+                    raise ValueError("APIFY_API_TOKEN 未設定。")
+                _APIFY_CLIENT = ApifyClient(token)
     return _APIFY_CLIENT
 
 
