@@ -53,6 +53,7 @@ from report_validator import (
     _persist_gate_validation_failure,
     _allow_partial_news_gate,
 )
+from crew import _parse_regime_from_scorecard
 from tools import source_observability_lines
 from visualizer import generate_quant_chart
 import tracker
@@ -487,6 +488,19 @@ def _run_pipeline_once(
             except Exception as _e:
                 logger.warning("Could not load previous recs block: %s", _e)
 
+        # Parse agreed regime from pre-warmed scorecard cache to lock regime across both crews.
+        agreed_regime: str | None = None
+        try:
+            from tools import regime_scorecard_tool as _rst  # noqa: PLC0415
+            scorecard_text = _rst.run()
+            agreed_regime = _parse_regime_from_scorecard(scorecard_text)
+            if agreed_regime:
+                logger.info("Pipeline agreed_regime locked: %s", agreed_regime)
+            else:
+                logger.warning("Could not parse regime from scorecard; regime locking disabled.")
+        except Exception as _re:
+            logger.warning("Regime pre-parse failed (non-fatal): %s", _re)
+
         from concurrent.futures import ThreadPoolExecutor
 
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -495,12 +509,14 @@ def _run_pipeline_once(
                     exclude_context=trimmed_exclusion,
                     price_context=price_context,
                     prev_recs_block=prev_recs,
+                    agreed_regime=agreed_regime,
                 )
             )
             future_ai = executor.submit(
                 lambda: AIResearchCrew(use_fallback_llm=use_fallback_llm).run(
                     exclude_context=trimmed_exclusion,
                     price_context=price_context,
+                    agreed_regime=agreed_regime,
                 )
             )
 

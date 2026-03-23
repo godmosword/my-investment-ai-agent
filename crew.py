@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from textwrap import dedent
 
@@ -150,11 +151,20 @@ _STRUCTURED_IO_HEADER = dedent("""\
     """)
 
 
-def build_crypto_structured_final_prompt(*, ctx: str, prev_recs_ctx: str, today_str: str) -> str:
+def build_crypto_structured_final_prompt(
+    *, ctx: str, prev_recs_ctx: str, today_str: str, agreed_regime: str | None = None
+) -> str:
     """最終任務：結構化 CryptoSection（無排版指令）。"""
+    regime_lock = (
+        f"\n【⚠️ Pipeline 鎖定 market_regime = {agreed_regime}】"
+        f" market.regime 欄位與全文所有 regime= token 必須一律使用 {agreed_regime}，"
+        f"嚴禁混用其他 regime 值。\n"
+        if agreed_regime else ""
+    )
     return dedent(f"""
         {_STRUCTURED_IO_HEADER}
         【加密 — 最終整合主編】
+        {regime_lock}
         {_QUOTE_RULE}
         {_NARRATIVE_CONSISTENCY_RULE}
         {_TOOL_TRUTH_RULE}
@@ -186,11 +196,17 @@ def build_crypto_structured_final_prompt(*, ctx: str, prev_recs_ctx: str, today_
     """)
 
 
-def build_ai_structured_final_prompt(*, ctx: str) -> str:
+def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = None) -> str:
     """最終任務：結構化 AISection（無排版指令）。"""
+    regime_lock = (
+        f"\n【⚠️ Pipeline 鎖定 market_regime = {agreed_regime}】"
+        f" QSREC 每筆 regime 欄位必須使用 {agreed_regime}，嚴禁混用其他 regime 值。\n"
+        if agreed_regime else ""
+    )
     return dedent(f"""
         {_STRUCTURED_IO_HEADER}
         【AI 美股 — 最終整合主編】
+        {regime_lock}
         {_QUOTE_RULE}
         {_NARRATIVE_CONSISTENCY_RULE}
         {_TOOL_TRUTH_RULE}
@@ -270,7 +286,36 @@ _CHATTER_FMT = dedent("""\
     並標註是否已被主流媒體二次驗證（是/否），輸出 2~3 條。
     格式範例（至少擇一）：
     - 「...（未確認）｜來源：供應鏈側寫｜可信度：B｜主流媒體二次驗證：否」
-    - 「...（未確認）｜來源：社群截圖｜可信度：72/100｜主流媒體二次驗證：否」""")
+    - 「...（未確認）｜來源：社群截圖｜可信度：72/100｜主流媒體二次驗證：否」
+    ⚠️ 每條必須包含「可信度：A/B/C」或「可信度：數字/100」，缺少此標記將觸發 Gate 驗證失敗。""")
+
+_REGIME_PARSE_RE = re.compile(r'市場機制評分[：:]\s*(risk_on|risk_off|neutral)')
+_CHATTER_CRED_RE = re.compile(
+    r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b'
+    r'|來源[：:]\s*[ABC](?:級|等級)?'
+    r'|可信度\s*[ABC](?:級|等)?'
+    r'|(?:Grade|Credibility)\s*[：:]\s*(?:A|B|C|\d{1,3})\b',
+    re.IGNORECASE,
+)
+
+
+def _parse_regime_from_scorecard(scorecard_text: str) -> str | None:
+    """從 regime_scorecard_tool 輸出中解析 risk_on/risk_off/neutral。"""
+    m = _REGIME_PARSE_RE.search(scorecard_text)
+    return m.group(1) if m else None
+
+
+def _ensure_chatter_credibility(chatter: list) -> list:
+    """Post-process chatter items: auto-append C-grade credibility marker if missing."""
+    result = []
+    for item in chatter:
+        text = item.text
+        if not _CHATTER_CRED_RE.search(text):
+            logger.warning("chatter item missing credibility marker, auto-injecting C grade")
+            text = text.rstrip() + "｜可信度：C（自動補填）"
+            item = item.model_copy(update={"text": text})
+        result.append(item)
+    return result
 
 
 _QUOTE_RULE = dedent("""\
@@ -492,7 +537,7 @@ class CryptoResearchCrew:
         )
 
     def run(self, exclude_context: str | None = None, price_context: str = "",
-            prev_recs_block: str = ""):
+            prev_recs_block: str = "", agreed_regime: str | None = None):
         today_str = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
         excl = (
             f"\n【避免重複】昨日已涵蓋：\n{exclude_context}\n"
@@ -502,6 +547,11 @@ class CryptoResearchCrew:
         prev_recs_ctx = (
             f"\n【上期建議追蹤（必須原文輸出於報告最頂端，排在標題之後）】\n{prev_recs_block}\n"
             if prev_recs_block else ""
+        )
+        regime_lock_notice = (
+            f"\n【⚠️ Pipeline 鎖定 market_regime = {agreed_regime}】"
+            f" 全文 regime 欄位必須一律使用 {agreed_regime}，嚴禁輸出其他 regime 值。\n"
+            if agreed_regime else ""
         )
 
         crypto_task = Task(
@@ -544,7 +594,7 @@ class CryptoResearchCrew:
             description=dedent(f"""
                 【幣圈辯論與風險審計 — GPT】
                 {ctx}
-
+                {regime_lock_notice}
                 {_QUOTE_RULE}
 
                 === Fact-Check ===
@@ -574,6 +624,7 @@ class CryptoResearchCrew:
                 ctx=ctx,
                 prev_recs_ctx=prev_recs_ctx,
                 today_str=today_str,
+                agreed_regime=agreed_regime,
             ),
             expected_output="符合 CryptoSection schema 的 JSON 物件；qsrec 為 CRYPTO 建議陣列。",
             agent=self.quant_strategist,
@@ -586,7 +637,9 @@ class CryptoResearchCrew:
             tasks=[crypto_task, review_task, final_report_task],
             process=Process.sequential,
         )
-        return kickoff_to_pydantic(crew.kickoff(), CryptoSection)
+        section = kickoff_to_pydantic(crew.kickoff(), CryptoSection)
+        section.chatter = _ensure_chatter_credibility(section.chatter)
+        return section
 
 
 class AIResearchCrew:
@@ -622,13 +675,19 @@ class AIResearchCrew:
             verbose=_VERBOSE,
         )
 
-    def run(self, exclude_context: str | None = None, price_context: str = ""):
+    def run(self, exclude_context: str | None = None, price_context: str = "",
+            agreed_regime: str | None = None):
         excl = (
             f"\n【避免重複】昨日已涵蓋：\n{exclude_context}\n"
             if exclude_context else ""
         )
         year = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m")
         ctx = f"\n【系統強制即時報價】\n{price_context}\n"
+        regime_lock_notice = (
+            f"\n【⚠️ Pipeline 鎖定 market_regime = {agreed_regime}】"
+            f" 全文 regime 欄位必須一律使用 {agreed_regime}，嚴禁輸出其他 regime 值。\n"
+            if agreed_regime else ""
+        )
 
         ai_task = Task(
             description=dedent(f"""
@@ -663,7 +722,7 @@ class AIResearchCrew:
                 {_QUOTE_RULE}
                 {_NARRATIVE_CONSISTENCY_RULE}
                 {ctx}
-
+                {regime_lock_notice}
                 === 宏觀框架（美股利率敏感性）===
                 必須呼叫 macro_context_tool()，輸出美債利率、殖利率曲線、Fed 預期、本週財報，
                 分析這些宏觀變數對本日 AI 新聞點名之美股標的的下一步影響。
@@ -677,7 +736,7 @@ class AIResearchCrew:
         )
 
         final_report_task = Task(
-            description=build_ai_structured_final_prompt(ctx=ctx),
+            description=build_ai_structured_final_prompt(ctx=ctx, agreed_regime=agreed_regime),
             expected_output="符合 AISection schema 的 JSON 物件；qsrec 為 EQUITY 建議陣列。",
             agent=self.quant_strategist,
             context=[ai_task, review_task],
@@ -689,5 +748,7 @@ class AIResearchCrew:
             tasks=[ai_task, review_task, final_report_task],
             process=Process.sequential,
         )
-        return kickoff_to_pydantic(crew.kickoff(), AISection)
+        section = kickoff_to_pydantic(crew.kickoff(), AISection)
+        section.chatter = _ensure_chatter_credibility(section.chatter)
+        return section
 

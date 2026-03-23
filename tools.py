@@ -2665,6 +2665,8 @@ def macro_context_tool(query: str = "") -> str:
                 return None
             return None
 
+        _YIELD_MIN, _YIELD_MAX = 0.0, 20.0
+
         try:
             df10 = yf.download("^TNX", period="3d", interval="1d", progress=False, auto_adjust=True)
             if df10 is not None and not df10.empty:
@@ -2672,7 +2674,11 @@ def macro_context_tool(query: str = "") -> str:
                 if hasattr(c, "ndim") and c.ndim > 1:
                     c = c.iloc[:, 0]
                 if not c.empty:
-                    yield_10y = round(float(c.iloc[-1]), 3)
+                    raw_10y = round(float(c.iloc[-1]), 3)
+                    if _YIELD_MIN <= raw_10y <= _YIELD_MAX:
+                        yield_10y = raw_10y
+                    else:
+                        logger.warning("macro_context 10Y yield out of bounds: %.3f%%", raw_10y)
         except Exception as e:
             logger.warning("macro_context 10Y yield yfinance failed: %s", e)
 
@@ -2683,11 +2689,19 @@ def macro_context_tool(query: str = "") -> str:
                 if hasattr(c, "ndim") and c.ndim > 1:
                     c = c.iloc[:, 0]
                 if not c.empty:
-                    yield_2y = round(float(c.iloc[-1]), 3)
+                    raw_2y = round(float(c.iloc[-1]), 3)
+                    if _YIELD_MIN <= raw_2y <= _YIELD_MAX:
+                        yield_2y = raw_2y
+                    else:
+                        logger.warning("macro_context 2Y yield out of bounds: %.3f%%", raw_2y)
         except Exception as e:
             logger.warning("macro_context 2Y yield yfinance failed: %s", e)
         if yield_2y is None:
-            yield_2y = _fetch_latest_fred_percent("DGS2")
+            fred_2y = _fetch_latest_fred_percent("DGS2")
+            if fred_2y is not None and _YIELD_MIN <= fred_2y <= _YIELD_MAX:
+                yield_2y = fred_2y
+            elif fred_2y is not None:
+                logger.warning("macro_context FRED DGS2 out of bounds: %.3f%%", fred_2y)
 
         y10_str = f"{yield_10y:.3f}%" if yield_10y is not None else "N/A"
         y2_str = f"{yield_2y:.3f}%" if yield_2y is not None else "N/A"
@@ -2708,6 +2722,8 @@ def macro_context_tool(query: str = "") -> str:
         lines.append(f"🏛️ 美債 10Y: <code>{y10_str}</code> | 2Y: <code>{y2_str}</code> | 利差: <code>{spread_str}</code> {curve_signal}")
 
         # ── 2. Fed SOFR 期貨隱含預期 ─────────────────────────────────────
+        _SOFR_MIN, _SOFR_MAX = -0.5, 25.0
+        sofr_missing = True
         try:
             df_fed = yf.download("ZQ=F", period="3d", interval="1d", progress=False, auto_adjust=True)
             if df_fed is not None and not df_fed.empty:
@@ -2715,10 +2731,16 @@ def macro_context_tool(query: str = "") -> str:
                 if hasattr(c, "ndim") and c.ndim > 1:
                     c = c.iloc[:, 0]
                 if not c.empty:
-                    implied_rate = round(100 - float(c.iloc[-1]), 3)
-                    lines.append(f"🎯 Fed SOFR 期貨隱含利率: <code>{implied_rate:.3f}%</code>")
+                    raw_sofr = round(100 - float(c.iloc[-1]), 3)
+                    if _SOFR_MIN <= raw_sofr <= _SOFR_MAX:
+                        implied_rate = raw_sofr
+                        lines.append(f"🎯 Fed SOFR 期貨隱含利率: <code>{implied_rate:.3f}%</code>")
+                        sofr_missing = False
+                    else:
+                        logger.warning("macro_context SOFR rate out of bounds: %.3f%%", raw_sofr)
         except Exception as e:
             logger.warning("macro_context Fed SOFR futures yfinance failed: %s", e)
+        if sofr_missing:
             lines.append("🎯 Fed SOFR 期貨: <code>N/A</code>")
 
         # ── 3. 本週重要財報（使用 yfinance 查詢財報日期）─────────────────
@@ -2760,6 +2782,21 @@ def macro_context_tool(query: str = "") -> str:
             lines.append(f"📅 本週財報: <code>{' · '.join(upcoming_earnings)}</code>")
         else:
             lines.append("📅 本週財報: <code>本週無主要科技財報</code>")
+
+        # ── 低置信度聲明（Fix 3）：yield 缺值時自動注入 ────────────────
+        na_yield_fields = []
+        if yield_10y is None:
+            na_yield_fields.append("10Y殖利率")
+        if yield_2y is None:
+            na_yield_fields.append("2Y殖利率")
+        if sofr_missing:
+            na_yield_fields.append("SOFR期貨")
+        if na_yield_fields:
+            missing_str = "、".join(na_yield_fields)
+            lines.append(
+                f"⚠️ 低置信度｜資料缺失原因：{missing_str} yfinance/FRED 均無回應"
+                f"｜替代指標：請參考 CME FedWatch Tool 或 Bloomberg 補充利率數據"
+            )
 
         result = "\n".join(lines)
         _set_cache(cache_key, result)
