@@ -710,6 +710,7 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
             SELECT asset, direction, entry_price, target_price, stop_price, narrative, report_date
             FROM ranked
             WHERE rn = 1
+              AND entry_price > 0
             ORDER BY canon_asset ASC, direction ASC
         """).result())
     except Exception as e:
@@ -733,6 +734,16 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
         entry = float(row["entry_price"])
         target = float(row["target_price"])
         stop = float(row["stop_price"])
+
+        # Guard: skip any historical rows that slipped through with invalid prices
+        if entry <= 0 or target <= 0 or stop <= 0:
+            logger.warning(
+                "Skipping %s %s from previous-recs display: non-positive price "
+                "(entry=%s target=%s stop=%s)",
+                asset, direction, entry, target, stop,
+            )
+            continue
+
         current = current_prices.get(asset)
 
         if current is None:
