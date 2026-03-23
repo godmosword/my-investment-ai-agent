@@ -61,6 +61,7 @@ def _make_report(
     include_risk_budget: bool = True,
     include_numeric_investment: bool = True,
     extra: str = "",
+    inject_before_qsrec: str = "",
 ) -> str:
     news = ""
     for i in range(1, news_count + 1):
@@ -116,7 +117,10 @@ def _make_report(
             "[QSREC_END]"
         )
 
-    body = news + "\n".join(sections) + "\n" + extra
+    joined = "\n".join(sections)
+    if inject_before_qsrec:
+        joined = joined.replace("[QSREC_START]", inject_before_qsrec + "\n[QSREC_START]", 1)
+    body = news + joined + "\n" + extra
     # Pad to requested length
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
@@ -862,6 +866,23 @@ class TestAiBoundaryAndWatchMutex(unittest.TestCase):
         result = validate_report(report)
         self.assertFalse(result["trade_watch_mode"])
         self.assertTrue(any("R:R" in i and "缺少" in i for i in result["issues"]))
+
+
+class TestAiFundamentalsCitationGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_AI_FUNDAMENTALS_CITATION": "1"}, clear=False)
+    def test_blocks_when_reason_claims_fundamentals_without_citation(self):
+        r = _make_report()
+        res = validate_report(r)
+        self.assertFalse(res["ai_fundamentals_citation_ok"])
+        self.assertTrue(any("FinancialDatasets" in i for i in res["issues"]))
+
+    @patch.dict(os.environ, {"STRICT_AI_FUNDAMENTALS_CITATION": "1"}, clear=False)
+    def test_passes_when_financialdatasets_in_ai_span(self):
+        r = _make_report(
+            inject_before_qsrec="· FinancialDatasets NVDA FY 營收摘要（工具注入）",
+        )
+        res = validate_report(r)
+        self.assertTrue(res["ai_fundamentals_citation_ok"])
 
 
 if __name__ == "__main__":

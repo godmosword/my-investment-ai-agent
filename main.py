@@ -32,6 +32,12 @@ from bigquery_writer import (
     fetch_exclusion_context,
     _get_last_success_report_time_utc,
 )
+from report_judge import (
+    hard_pattern_judge_pass,
+    hard_pattern_judge_reason,
+    llm_judge_should_block,
+    llm_quality_judge,
+)
 from report_validator import (
     validate_report,
     validate_structured_report,
@@ -85,6 +91,7 @@ BACKOFF_BASE_SEC = int(os.getenv("BACKOFF_BASE_SEC", "30"))
 ERROR_PREFIX = "🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息："
 MAX_EXCLUSION_CONTEXT_CHARS = int(os.getenv("MAX_EXCLUSION_CONTEXT_CHARS", "1000"))
 MAX_PREV_RECS_CHARS = int(os.getenv("MAX_PREV_RECS_CHARS", "1200"))
+CREW_FUTURE_TIMEOUT_SEC = int(os.getenv("CREW_FUTURE_TIMEOUT_SEC", "2700"))
 
 # 除錯用環境變數：LOG_LEVEL=DEBUG | DEBUG=1 | CREW_VERBOSE=1（Agent 步驟）| SKIP_TELEGRAM=1 | SKIP_BIGQUERY=1
 
@@ -244,16 +251,9 @@ def _best_repeat_score_gap_for_category(recs: list[dict], category: str) -> floa
 
 def _codex_judge_pass(report_text: str) -> bool:
     """
-    以 Codex 裁判提示詞 + 關鍵詞規則做快速審核。
-    若判定含 API 錯誤訊息/無關內容，回傳 False 觸發重試。
+    硬規則快速審核（原 Codex 關鍵詞 gate）；詳見 report_judge.hard_pattern_judge_pass。
     """
-    return not bool(
-        re.search(
-            r"HTTPError|\[DATA_MISSING:|Traceback|Exception:|API key 未設定|Will be right back",
-            report_text,
-            re.IGNORECASE,
-        )
-    )
+    return hard_pattern_judge_pass(report_text)
 
 
 def _validate_pipeline_output(
@@ -276,8 +276,17 @@ def _validate_pipeline_output(
         parsed = parse_report_output(output_json)
         assert_report_output(parsed)
         assert_sample_output(output_json)
-        if not _codex_judge_pass(final_report):
-            raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
+        if not hard_pattern_judge_pass(final_report):
+            hint = hard_pattern_judge_reason(final_report) or "pattern_match"
+            raise AssertionError(f"Hard pattern judge 未通過（{hint}）")
+        if os.getenv("REPORT_LLM_JUDGE", "").lower() in ("1", "true", "yes"):
+            jres = llm_quality_judge(final_report)
+            scratchpad.append_judge_result(jres)
+            if llm_judge_should_block(jres):
+                raise AssertionError(
+                    f"LLM judge 阻擋：score={jres.get('overall_score')} "
+                    f"reasons={jres.get('reasons')}"
+                )
     except Exception as v_err:  # noqa: BLE001
         structural_validation_err = v_err
     return final_report, structural_validation_err
@@ -467,6 +476,7 @@ def _prewarm_tool_caches() -> None:
         ml_quant_tool,
         regime_scorecard_tool,
         macro_context_tool,
+        financial_datasets_tool,
         x_search_tool,
     )
 
@@ -486,6 +496,7 @@ def _prewarm_tool_caches() -> None:
         "macro_context":          lambda: macro_context_tool.run(),
         "x_search_crypto":        lambda: x_search_tool.run("crypto ETF bitcoin ethereum altcoin DeFi liquidation whale"),
         "x_search_ai":            lambda: x_search_tool.run("NVIDIA AI GPU data center OpenAI Anthropic Microsoft"),
+        "financial_datasets":     lambda: financial_datasets_tool.run("watchlist"),
     }
 
     logger.info("Pre-warming %d tool caches in parallel...", len(tasks))
@@ -759,8 +770,8 @@ def _run_pipeline_once(
                 )
             )
 
-            crypto_section = future_crypto.result()
-            ai_section = future_ai.result()
+            crypto_section = future_crypto.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+            ai_section = future_ai.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
 
         tagged = len(crypto_section.news) + len(ai_section.news)
         partial_tier = tagged < 6 and _allow_partial_news_gate() and 3 <= tagged
@@ -1046,6 +1057,7 @@ def _log_api_key_inventory() -> None:
                 ("TWITTER_BEARER_TOKEN", "X/Twitter"),
                 ("OPENROUTER_API_KEY", "OpenRouter"),
                 ("FMP_API_KEY", "FMP"),
+                ("FINANCIAL_DATASETS_API_KEY", "Financial Datasets"),
                 ("GLASSNODE_API_KEY", "Glassnode"),
             ],
         ),
