@@ -29,7 +29,11 @@ except ImportError:
 
 
 def _get_sbert_model():
-    """Lazy-load sentence-transformers model (first call ~1-2s, cached after)."""
+    """Lazy-load sentence-transformers model (first call ~1-2s, cached after).
+
+    Falls back gracefully if the library is missing or the model cannot be
+    loaded (e.g. no HuggingFace network access in Cloud Run, disk quota, etc.).
+    """
     global _SBERT_MODEL
     if _SBERT_MODEL is None:
         try:
@@ -39,6 +43,11 @@ def _get_sbert_model():
         except ImportError:
             _SBERT_MODEL = False  # sentinel: don't retry
             logger.warning("sentence-transformers not installed; semantic dedup disabled.")
+        except Exception as exc:  # noqa: BLE001
+            _SBERT_MODEL = False  # sentinel: don't retry
+            logger.warning(
+                "Failed to load SBERT model (semantic dedup disabled): %s", exc
+            )
     return _SBERT_MODEL if _SBERT_MODEL is not False else None
 
 
