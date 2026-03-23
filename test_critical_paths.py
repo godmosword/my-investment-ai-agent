@@ -272,7 +272,7 @@ class TestBigQueryCredentialsError(unittest.TestCase):
             bigquery_writer.extract_and_save_metrics("dummy report text")
 
         # Must NOT contain any ERROR-level log for this scenario
-        error_logs = [l for l in cm.output if l.startswith("ERROR")]
+        error_logs = [line for line in cm.output if line.startswith("ERROR")]
         self.assertEqual(
             error_logs, [],
             f"Expected no ERROR logs for missing credentials, got: {error_logs}",
