@@ -7,10 +7,57 @@ Use Optional / defaults for sparse tool data so one missing field does not fail 
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
+
+# Keywords that signal a bullish or bearish stance in editor_consensus free text.
+# Used by _warn_consensus_direction_mismatch to detect direction conflicts.
+_BULLISH_KW: frozenset[str] = frozenset({
+    "領頭羊", "增強", "增長", "看漲", "買入", "支撐", "反彈", "上漲",
+    "bullish", "long", "upside", "rally", "surge", "growth", "買", "多",
+})
+_BEARISH_KW: frozenset[str] = frozenset({
+    "看跌", "做空", "拋售", "賣出", "承壓", "疑慮", "下行", "削減",
+    "bearish", "short", "downside", "压力", "空", "賣",
+})
+
+
+def _check_consensus_direction(
+    news_items: "list[NewsItem]",
+    trade_legs: "list[ExecutableTradeLeg]",
+) -> None:
+    """Warn when an editor_consensus mentions a traded ticker with a conflicting stance.
+
+    This is a non-blocking heuristic check. It logs warnings that will surface in CI
+    logs and Telegram gate alerts to help identify LLM self-contradiction before the
+    report reaches users.
+    """
+    if not trade_legs or not news_items:
+        return
+    trade_dir: dict[str, str] = {leg.asset.upper(): leg.direction for leg in trade_legs}
+    for item in news_items:
+        consensus_lower = item.editor_consensus.lower()
+        for asset, direction in trade_dir.items():
+            # Match the ticker or its first 4 chars (e.g. "NVDA" in "NVIDIA")
+            if asset.lower() not in consensus_lower and asset[:4].lower() not in consensus_lower:
+                continue
+            has_bullish = any(kw in consensus_lower for kw in _BULLISH_KW)
+            has_bearish = any(kw in consensus_lower for kw in _BEARISH_KW)
+            if direction == "SHORT" and has_bullish and not has_bearish:
+                logger.warning(
+                    "主編共識方向衝突：%s 倉位 SHORT，但 News %d editor_consensus 含看漲語氣：%r",
+                    asset, item.index, item.editor_consensus,
+                )
+            elif direction == "LONG" and has_bearish and not has_bullish:
+                logger.warning(
+                    "主編共識方向衝突：%s 倉位 LONG，但 News %d editor_consensus 含看跌語氣：%r",
+                    asset, item.index, item.editor_consensus,
+                )
 
 
 class TradeRecommendation(BaseModel):
@@ -116,7 +163,11 @@ class NewsItem(BaseModel):
     )
     editor_consensus: str = Field(
         ...,
-        description="One sentence ≤28 chars naming a concrete ticker.",
+        description=(
+            "One sentence ≤28 chars naming a concrete ticker. "
+            "MUST align with the section's trade direction: if the section trades a ticker SHORT, "
+            "this line must NOT express a bullish stance on that ticker, and vice versa."
+        ),
     )
 
 
@@ -126,12 +177,26 @@ class MetricLine(BaseModel):
     label: str = Field(..., description="Indicator display name.")
     value: str = Field(
         ...,
-        description="Reading or N/A; plain text, templates wrap in <code>.",
+        description="Reading or N/A; plain text, templates wrap in <code>. Must be single-line.",
     )
     status_emoji: str | None = Field(
         default=None,
         description="Optional ✅ ❌ ⬜ prefix for regime scorecard style lines.",
     )
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def _normalize_value_newlines(cls, v: object) -> object:
+        """Replace literal \\n escape sequences and real newlines with a space.
+
+        LLMs occasionally emit value fields containing literal backslash-n (e.g.
+        "N/A\\n第三方資料源未回傳"), which renders as visible \\n in Telegram output.
+        Collapse all variants to a single space so the value stays on one line.
+        """
+        if isinstance(v, str):
+            # Replace literal two-char sequence backslash+n, then real newlines
+            return v.replace("\\n", " ").replace("\n", " ").replace("\r", " ").strip()
+        return v
 
 
 _CHATTER_CRED_INLINE_RE = re.compile(
@@ -143,24 +208,76 @@ _CHATTER_CRED_INLINE_RE = re.compile(
 )
 
 
+_CREDIBILITY_NUMERIC_RE = re.compile(r'^(\d{1,3})(?:/100)?$')
+
+
+def _normalize_credibility_grade(raw: str) -> str:
+    """Convert numeric credibility (e.g. '65' or '65/100') to A/B/C letter grade.
+
+    Score mapping: ≥75 → A, ≥50 → B, <50 → C.
+    Already-letter values pass through unchanged.
+    """
+    m = _CREDIBILITY_NUMERIC_RE.match(raw.strip())
+    if m:
+        score = int(m.group(1))
+        if score >= 75:
+            return "A"
+        if score >= 50:
+            return "B"
+        return "C"
+    return raw  # already a letter grade or unknown
+
+
 class ChatterItem(BaseModel):
     """Rumor / whisper line; must carry credibility for gate."""
 
     text: str = Field(
         ...,
         description=(
-            "Single line ending （未確認） with source tier A/B/C or 0–100 and MSM re-verify yes/no. "
-            "Must contain credibility marker e.g. 可信度：B or Credibility：72/100."
+            "Single line ending （未確認） with source tier A/B/C and MSM re-verify yes/no. "
+            "Must contain credibility marker e.g. 可信度：B. Use ONLY letter grades A/B/C, "
+            "not numeric scores — the pipeline normalizes numeric inputs but letter grades "
+            "are the canonical format."
         ),
     )
     credibility: str | None = Field(
         default=None,
-        description="Credibility grade A/B/C or 0–100. Auto-injected into text if marker is absent.",
+        description=(
+            "Credibility grade A/B/C (canonical) or 0–100 numeric (auto-converted to letter). "
+            "A: high confidence (≥75/100); B: moderate (50–74/100); C: low (<50/100)."
+        ),
     )
+
+    @field_validator("credibility", mode="before")
+    @classmethod
+    def _normalize_credibility(cls, v: object) -> object:
+        """Normalize numeric credibility scores to A/B/C letter grades."""
+        if isinstance(v, str) and v.strip():
+            return _normalize_credibility_grade(v)
+        return v
 
     @model_validator(mode="after")
     def _inject_credibility_into_text(self) -> "ChatterItem":
-        """Ensure text contains a credibility marker; fall back to credibility field or C grade."""
+        """Ensure text contains a credibility marker; fall back to credibility field or C grade.
+
+        Also normalizes any inline numeric marker (e.g. 可信度：65/100) to letter grade.
+        """
+        # Normalize numeric inline markers already present in text
+        def _replace_numeric_cred(m: re.Match) -> str:
+            full = m.group(0)
+            # Extract numeric portion if present
+            num_m = re.search(r'(\d{1,3})(?:/100)?', full)
+            if num_m:
+                grade = _normalize_credibility_grade(num_m.group(0))
+                return re.sub(r'\d{1,3}(?:/100)?', grade, full, count=1)
+            return full
+
+        self.text = re.sub(
+            r'(?:可信度[：:]\s*)(\d{1,3})(?:/100)?',
+            lambda m: m.group(0).split(m.group(1))[0] + _normalize_credibility_grade(m.group(1)),
+            self.text,
+        )
+
         if not _CHATTER_CRED_INLINE_RE.search(self.text):
             grade = self.credibility or "C"
             self.text = self.text.rstrip() + f"｜可信度：{grade}（自動補填）"
@@ -280,6 +397,11 @@ class CryptoSection(BaseModel):
             return _LABEL_PREFIX_RE.sub("", v)
         return v
 
+    @model_validator(mode="after")
+    def _warn_consensus_direction_mismatch(self) -> "CryptoSection":
+        _check_consensus_direction(self.news, self.trade_legs)
+        return self
+
 
 class AISection(BaseModel):
     """AI / US equities crew structured output."""
@@ -336,6 +458,11 @@ class AISection(BaseModel):
         default_factory=list,
         description="EQUITY category rows for QSREC.",
     )
+
+    @model_validator(mode="after")
+    def _warn_consensus_direction_mismatch(self) -> "AISection":
+        _check_consensus_direction(self.news, self.trade_legs)
+        return self
 
 
 class DailyBriefReport(BaseModel):

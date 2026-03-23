@@ -54,6 +54,31 @@ _SOURCE_QUOTA_STATE: dict[str, dict[str, float | str]] = {
     "apify": {"day": "", "used": 0.0},
 }
 
+# Domains known to produce low-quality, tutorial-style, or non-investment-grade content.
+# Articles whose URL or source name matches any of these are silently skipped.
+# Review and extend quarterly; keep lowercase.
+_LOW_QUALITY_DOMAINS: frozenset[str] = frozenset({
+    "c-sharpcorner.com",
+    "geeksforgeeks.org",
+    "medium.com",        # too broad / unvetted; individual premium pubs are OK via NewsAPI sources
+    "dev.to",
+    "hackernoon.com",
+    "towardsdatascience.com",
+    "analyticsvidhya.com",
+    "kdnuggets.com",
+    "dzone.com",
+    "simplilearn.com",
+    "javatpoint.com",
+    "tutorialspoint.com",
+    "w3schools.com",
+})
+
+# Minimum source health score below which a source is treated as degraded and skipped
+# entirely (rather than just having its quota reduced).  Configurable via env var.
+_SOURCE_HEALTH_SKIP_THRESHOLD: float = float(
+    os.getenv("SOURCE_HEALTH_SKIP_THRESHOLD", "0.20")
+)
+
 _HTTP_SESSION: requests.Session | None = None
 
 _INIT_LOCK = threading.Lock()   # protects lazy-init singletons
@@ -398,6 +423,29 @@ def _today_utc() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
+def _is_low_quality_source(url: str, source_name: str = "") -> bool:
+    """Return True if the article URL or source name matches the low-quality domain blacklist."""
+    haystack = (url + " " + source_name).lower()
+    return any(domain in haystack for domain in _LOW_QUALITY_DOMAINS)
+
+
+def _source_is_degraded(source: str) -> bool:
+    """Return True when a source's health score is below the skip threshold.
+
+    Sources at this level have a persistent error rate that makes their results
+    unreliable.  Rather than filling the context with low-quality or empty results,
+    we skip them entirely and let the fallback chain handle the query.
+    """
+    score = _source_score(source)
+    if score < _SOURCE_HEALTH_SKIP_THRESHOLD:
+        logger.warning(
+            "Source '%s' is degraded (health=%.2f < threshold=%.2f) — skipping this call",
+            source, score, _SOURCE_HEALTH_SKIP_THRESHOLD,
+        )
+        return True
+    return False
+
+
 def _effective_source_limit(source: str) -> int:
     base = int(_SOURCE_DAILY_LIMIT_BASE.get(source, 100))
     score = _source_score(source)
@@ -493,6 +541,9 @@ def _search_with_apify(query: str, max_items: int = 8) -> str:
         title = str(item.get("title") or item.get("headline") or item.get("name") or "(無標題)")
         source = str(item.get("source") or item.get("siteName") or item.get("domain") or "unknown")
         url = str(item.get("url") or item.get("link") or "")
+        if _is_low_quality_source(url, source):
+            logger.debug("apify: skipping low-quality source %r (%s)", source, url)
+            continue
         published_at = str(
             item.get("publishedAt")
             or item.get("published_at")
@@ -506,6 +557,8 @@ def _search_with_apify(query: str, max_items: int = 8) -> str:
             f"來源：{source}｜發布：{published_at}\n"
             f"URL: {url}"
         )
+    if not lines:
+        return prefix + "[DATA_MISSING:apify_search] Apify 搜尋結果全部來自低品質來源，已過濾。"
     return prefix + "\n\n".join(lines)
 
 
@@ -850,11 +903,17 @@ def _newsapi_fetch(query: str) -> str:
                 _record_source_outcome("newsapi", True)
                 lines = [f"【NewsAPI｜{cand}】"]
                 for a in articles:
+                    src_name = a.get("source", {}).get("name", "")
+                    url = a.get("url", "")
+                    if _is_low_quality_source(url, src_name):
+                        logger.debug("newsapi: skipping low-quality source %r (%s)", src_name, url)
+                        continue
                     lines.append(
-                        f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
-                        f"{a.get('title', '')}\n{a.get('url', '')}"
+                        f"〔{a.get('publishedAt', '')[:16]}｜{src_name}〕"
+                        f"{a.get('title', '')}\n{url}"
                     )
-                return "\n".join(lines)
+                if len(lines) > 1:  # has at least one article after filtering
+                    return "\n".join(lines)
             except requests.HTTPError as e:
                 last_err = e
                 status = e.response.status_code if e.response is not None else None
@@ -911,11 +970,17 @@ def _gnews_fetch(query: str) -> str:
             _record_source_outcome("gnews", True)
             lines = [f"【GNews｜{cand}】"]
             for a in articles:
+                src_name = a.get("source", {}).get("name", "")
+                url = a.get("url", "")
+                if _is_low_quality_source(url, src_name):
+                    logger.debug("gnews: skipping low-quality source %r (%s)", src_name, url)
+                    continue
                 lines.append(
-                    f"〔{a.get('publishedAt', '')[:16]}｜{a.get('source', {}).get('name', '')}〕"
-                    f"{a.get('title', '')}\n{a.get('url', '')}"
+                    f"〔{a.get('publishedAt', '')[:16]}｜{src_name}〕"
+                    f"{a.get('title', '')}\n{url}"
                 )
-            return "\n".join(lines)
+            if len(lines) > 1:  # has at least one article after filtering
+                return "\n".join(lines)
         except requests.HTTPError as e:
             last_err = e
             status = e.response.status_code if e.response is not None else None
@@ -987,6 +1052,8 @@ def market_search_tool(query: str) -> str:
         source_funcs.sort(key=lambda x: _source_score(x[0]), reverse=True)
 
         for _source_name, fn in source_funcs:
+            if _source_is_degraded(_source_name):
+                continue
             if not _consume_source_quota(_source_name):
                 logger.info("skip source %s due to quota limit", _source_name)
                 continue
@@ -996,6 +1063,8 @@ def market_search_tool(query: str) -> str:
                 return result
 
         # 第三層：Apify（付費，最後手段）
+        if _source_is_degraded("apify"):
+            return "[DATA_MISSING:market_search] Market Search Failed：所有來源已降級或配額耗盡。"
         if not _consume_source_quota("apify"):
             return "[DATA_MISSING:market_search] Market Search Failed：免費來源失敗，且 Apify 當日配額已用盡。"
 
