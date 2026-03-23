@@ -7,9 +7,10 @@ Use Optional / defaults for sparse tool data so one missing field does not fail 
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class TradeRecommendation(BaseModel):
@@ -133,13 +134,37 @@ class MetricLine(BaseModel):
     )
 
 
+_CHATTER_CRED_INLINE_RE = re.compile(
+    r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b'
+    r'|來源[：:]\s*[ABC](?:級|等級)?'
+    r'|可信度\s*[ABC](?:級|等)?'
+    r'|(?:Grade|Credibility)\s*[：:]\s*(?:A|B|C|\d{1,3})\b',
+    re.IGNORECASE,
+)
+
+
 class ChatterItem(BaseModel):
     """Rumor / whisper line; must carry credibility for gate."""
 
     text: str = Field(
         ...,
-        description="Single line ending （未確認） with source tier A/B/C or 0–100 and MSM re-verify yes/no.",
+        description=(
+            "Single line ending （未確認） with source tier A/B/C or 0–100 and MSM re-verify yes/no. "
+            "Must contain credibility marker e.g. 可信度：B or Credibility：72/100."
+        ),
     )
+    credibility: str | None = Field(
+        default=None,
+        description="Credibility grade A/B/C or 0–100. Auto-injected into text if marker is absent.",
+    )
+
+    @model_validator(mode="after")
+    def _inject_credibility_into_text(self) -> "ChatterItem":
+        """Ensure text contains a credibility marker; fall back to credibility field or C grade."""
+        if not _CHATTER_CRED_INLINE_RE.search(self.text):
+            grade = self.credibility or "C"
+            self.text = self.text.rstrip() + f"｜可信度：{grade}（自動補填）"
+        return self
 
 
 class ExecutableTradeLeg(BaseModel):
