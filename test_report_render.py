@@ -201,7 +201,7 @@ def test_render_contains_qsrec_and_passes_structured_gate():
     assert vhtml["valid"], vhtml["issues"]
 
 
-def _minimal_report() -> "DailyBriefReport":
+def _minimal_report():
     from schemas import MarketRegimeBlock, MetricLine
     crypto = CryptoSection(
         report_title_date="2025-03-22",
