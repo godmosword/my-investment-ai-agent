@@ -2665,7 +2665,9 @@ def macro_context_tool(query: str = "") -> str:
                 return None
             return None
 
-        _YIELD_MIN, _YIELD_MAX = 0.0, 20.0
+        # Historical modern-era range; 1980s peak ~15% for 2Y, ±9% covers black-swan.
+        # 20.0% was too wide — 19.84% was passing as valid data.
+        _YIELD_MIN, _YIELD_MAX = 0.1, 9.0
 
         try:
             df10 = yf.download("^TNX", period="3d", interval="1d", progress=False, auto_adjust=True)
