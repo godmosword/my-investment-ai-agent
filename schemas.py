@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class TradeRecommendation(BaseModel):
@@ -167,10 +167,24 @@ class ChatterItem(BaseModel):
         return self
 
 
+_LABEL_PREFIX_RE = re.compile(
+    r'^(?:本日選擇理由|今日風險預算|訊號衝突摘要)[：:]\s*',
+    re.IGNORECASE,
+)
+
+
 class ExecutableTradeLeg(BaseModel):
     """One rendered trade bullet group in block ④ (before QSREC)."""
 
-    asset: str = Field(..., description="Symbol with $ in display e.g. BTC or BTC/SOL.")
+    asset: str = Field(..., description="Ticker symbol WITHOUT leading $, uppercase (e.g. BTC, BTC/SOL, NVDA). The template prepends $ automatically.")
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def _strip_dollar_prefix(cls, v: object) -> object:
+        """Strip accidental leading $ so template doesn't emit $$TICKER."""
+        if isinstance(v, str):
+            return v.lstrip("$")
+        return v
     direction: Literal["LONG", "SHORT"] = Field(...)
     current_price: str = Field(..., description="Display string for spot mark.")
     star_rating: int = Field(..., ge=1, le=4, description="Confidence stars count 1–4.")
@@ -239,15 +253,15 @@ class CryptoSection(BaseModel):
     )
     pick_reason: str = Field(
         ...,
-        description="本日選擇理由 for crypto block ④; before risk budget in rendered order.",
+        description="本日選擇理由 body text ONLY — do NOT include the label '本日選擇理由：' as prefix.",
     )
     risk_budget_summary: str = Field(
         ...,
-        description="今日風險預算 single line including regime= token consistent with market.regime.",
+        description="今日風險預算 body text ONLY — do NOT include the label '今日風險預算：' as prefix.",
     )
     signal_conflict_summary: str = Field(
         ...,
-        description="訊號衝突摘要 one line ≤75 chars.",
+        description="訊號衝突摘要 body text ONLY — do NOT include the label '訊號衝突摘要：' as prefix. ≤75 chars.",
     )
     trade_legs: list[ExecutableTradeLeg] = Field(
         default_factory=list,
@@ -258,13 +272,25 @@ class CryptoSection(BaseModel):
         description="CRYPTO category recommendations for QSREC JSON block.",
     )
 
+    @field_validator("pick_reason", "risk_budget_summary", "signal_conflict_summary", mode="before")
+    @classmethod
+    def _strip_label_prefix(cls, v: object) -> object:
+        """Strip accidental label prefix so template doesn't emit '本日選擇理由：本日選擇理由：...'."""
+        if isinstance(v, str):
+            return _LABEL_PREFIX_RE.sub("", v)
+        return v
+
 
 class AISection(BaseModel):
     """AI / US equities crew structured output."""
 
     macro_bridge_lines: list[str] = Field(
         default_factory=list,
-        description="Short 承上宏觀 lines; do not repeat full UST/SOFR block.",
+        description=(
+            "1–2 lines connecting macro context to AI equities impact. "
+            "Do NOT repeat UST/SOFR/VIX values already shown in 加密宏觀框架. "
+            "Focus on the specific implication for AI growth stocks (e.g. valuation compression, capex outlook)."
+        ),
     )
     dashboard: list[MetricLine] = Field(
         ...,
@@ -284,12 +310,20 @@ class AISection(BaseModel):
     )
     pick_reason: str = Field(
         ...,
-        description="本日選擇理由 for AI US equities section.",
+        description="本日選擇理由 body text ONLY — do NOT include the label '本日選擇理由：' as prefix.",
     )
     signal_conflict_summary: str = Field(
         ...,
-        description="訊號衝突摘要; no second 今日風險預算 line here.",
+        description="訊號衝突摘要 body text ONLY — do NOT include the label '訊號衝突摘要：' as prefix.",
     )
+
+    @field_validator("pick_reason", "signal_conflict_summary", mode="before")
+    @classmethod
+    def _strip_label_prefix(cls, v: object) -> object:
+        """Strip accidental label prefix so template doesn't emit duplicate label."""
+        if isinstance(v, str):
+            return _LABEL_PREFIX_RE.sub("", v)
+        return v
     us_equity_allocation_note: str | None = Field(
         default=None,
         description="Optional 美股部位框 line body text.",
