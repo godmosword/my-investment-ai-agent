@@ -597,9 +597,9 @@ class CryptoResearchCrew:
                 · gnews_tool('Ethereum altcoin DeFi Layer2 crypto market')（多語言 + 山寨幣補充）
                 · rumor_scanner_tool('crypto whale ETF flow OR altcoin catalyst OR DeFi exploit OR Layer2 upgrade')
                 · market_search_tool('crypto market altcoin DeFi Layer2 catalyst liquidity derivatives')
-                · x_search_tool('crypto ETF bitcoin ethereum altcoin DeFi liquidation whale')（取得 X/Twitter 即時情緒推文，供 X 推文精選區塊使用）
+                · x_search_tool('crypto ETF bitcoin ethereum altcoin DeFi liquidation whale')（供 X 推文精選區塊使用）
                 · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
-                · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（P2 社群情緒量化：-1 到 +1）
+                · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（可選 / optional：若時間緊迫可跳過；社群情緒量化 -1 到 +1）
 
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
