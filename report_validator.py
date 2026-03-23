@@ -1382,8 +1382,39 @@ def validate_report(text: str) -> dict:
         if any(f in critical_missing for f in data_missing_fields):
             issues.append("關鍵資料來源缺失（hard fail）")
 
+    # ── Score-based severity classification ──────────────────────────
+    # Blocking: structural failures that make the report undeliverable or dangerous.
+    # Warning:  quality issues — report still has value, should be sent with a banner.
+    _BLOCKING_PREFIXES = (
+        "報告過短",
+        "核心新聞〔新聞 N〕標籤不足",
+        "新聞數不足",
+        "缺少 market_regime",
+        "缺少加密市場操作建議",
+        "缺少 AI 美股操作建議",
+        "缺少 AI 市場段落",
+        "缺少加密市場段落",
+        "缺少系統追蹤載荷區塊",
+        "QSREC 區塊存在但",
+        "交易段含 N/A 關鍵價格",
+        "戰報外洩 Python 函數名稱",
+        "關鍵資料來源缺失",
+        "結構化加密新聞不足",
+        "結構化 AI 新聞不足",
+        "結構化新聞總數",
+        "結構化 qsrec 為空",
+    )
+
+    def _is_blocking(issue: str) -> bool:
+        return any(issue.startswith(p) for p in _BLOCKING_PREFIXES)
+
+    blocking_issues = [i for i in issues if _is_blocking(i)]
+    warning_issues = [i for i in issues if not _is_blocking(i)]
+
     return {
-        "valid": len([i for i in issues if all(k not in i for k in ("呢喃", "傳聞"))]) == 0,
+        "valid": len(issues) == 0,
+        "blocking_issues": blocking_issues,
+        "warning_issues": warning_issues,
         "issues": issues,
         "news_count": news_count,
         "fallback_news_count": fallback_count,
@@ -1478,4 +1509,10 @@ def validate_structured_report(report: object) -> dict:
 
     _check_section_alignment(cr, "CRYPTO", "加密")
     _check_section_alignment(ai_sec, "EQUITY", "AI")
-    return {"valid": len(issues) == 0, "issues": issues}
+    # All structured validation issues are blocking (schema-level integrity).
+    return {
+        "valid": len(issues) == 0,
+        "blocking_issues": issues,
+        "warning_issues": [],
+        "issues": issues,
+    }

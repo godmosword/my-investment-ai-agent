@@ -74,6 +74,9 @@ logger = logging.getLogger(__name__)
 SKIP_TELEGRAM = os.getenv("SKIP_TELEGRAM", "").lower() in ("1", "true", "yes")
 SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
 STRICT_CONSISTENCY_GATE = os.getenv("STRICT_CONSISTENCY_GATE", "1").lower() in ("1", "true", "yes")
+# Score-based gate: send with banner when warning count <= threshold and no blocking issues.
+# Set GATE_WARN_THRESHOLD=0 to revert to strict binary behaviour.
+GATE_WARN_THRESHOLD = int(os.getenv("GATE_WARN_THRESHOLD", "3"))
 
 # 重試常數（集中管理，方便調參）
 MAX_REPORT_RETRIES = int(os.getenv("MAX_REPORT_RETRIES", "2"))
@@ -468,6 +471,28 @@ def _prewarm_tool_caches() -> None:
     logger.info("Tool cache pre-warm done in %.1fs", elapsed)
 
 
+def _inject_gate_warning_banner(html: str, warning_issues: list[str]) -> str:
+    """
+    Prepend a visible ⚠️ banner to the report when gate passes with warnings.
+    Lists the outstanding issues so readers know the report is slightly degraded.
+    The banner is clearly marked so it can be identified in logs.
+    """
+    if not warning_issues:
+        return html
+    issue_lines = "\n".join(f"  • {i}" for i in warning_issues)
+    banner = (
+        "⚠️ <b>【Gate 警示 — 報告已送出，含未滿分項目】</b>\n"
+        f"{issue_lines}\n"
+        "─────────────────────────────\n\n"
+    )
+    logger.warning(
+        "gate_warn_banner: report delivered with %d warning(s): %s",
+        len(warning_issues),
+        "; ".join(warning_issues),
+    )
+    return banner + html
+
+
 # ── Module-level constants for _post_process_html_for_gate ───────────────────
 _PP_CRED_RE = re.compile(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b', re.IGNORECASE)
 _PP_CHATTER_LINE_RE = re.compile(r'^(· [^\n]+?（未確認）)', re.MULTILINE)
@@ -738,42 +763,100 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             if report_model is not None:
                 sres = validate_structured_report(report_model)
                 if not sres["valid"]:
+                    # Merge issues from both validators; structured issues are always blocking.
                     merged_issues = list(result.get("issues") or [])
                     merged_issues.extend(sres.get("issues") or [])
-                    result = {**result, "valid": False, "issues": merged_issues}
+                    merged_blocking = list(result.get("blocking_issues") or [])
+                    merged_blocking.extend(sres.get("blocking_issues") or [])
+                    merged_warnings = list(result.get("warning_issues") or [])
+                    merged_warnings.extend(sres.get("warning_issues") or [])
+                    result = {
+                        **result,
+                        "valid": False,
+                        "issues": merged_issues,
+                        "blocking_issues": merged_blocking,
+                        "warning_issues": merged_warnings,
+                    }
             _log_validation_dual_run(final_report, result)
             last_validation = result
-            report_valid = result["valid"]
+
+            blocking = result.get("blocking_issues") or []
+            warnings = result.get("warning_issues") or []
+            warn_count = len(warnings)
+            report_valid = result["valid"]  # True only when issues == 0
+
             scratchpad.append_gate_result(attempt + 1, result)
             fallback_cnt = _fallback_news_count(final_report)
             logger.info(
-                "[Attempt %d] Validation — news=%d, fallback_news=%d, valid=%s",
+                "[Attempt %d] Validation — news=%d, fallback=%d, blocking=%d, warnings=%d, valid=%s",
                 attempt + 1,
                 result["news_count"],
                 fallback_cnt,
+                len(blocking),
+                warn_count,
                 report_valid,
             )
+
+            # ── Score-based gate decision ─────────────────────────────────
+            # Clean pass: no issues at all.
             if report_valid:
-                logger.info("Report generation successful.")
+                logger.info("Report generation successful (clean pass).")
                 scratchpad.finalize_run("success", {"finalAttempt": attempt + 1, "valid": True})
                 return final_report, True, result
-            logger.warning("Report incomplete: %s", result["issues"])
+
+            # Warn pass: no blocking issues and warnings within threshold.
+            if not blocking and warn_count <= GATE_WARN_THRESHOLD:
+                logger.warning(
+                    "Score-based gate: warn-pass (blocking=0, warnings=%d <= threshold=%d). "
+                    "Delivering with banner.",
+                    warn_count, GATE_WARN_THRESHOLD,
+                )
+                final_report = _inject_gate_warning_banner(final_report, warnings)
+                scratchpad.finalize_run(
+                    "success_warn_pass",
+                    {"finalAttempt": attempt + 1, "warnings": warn_count, "threshold": GATE_WARN_THRESHOLD},
+                )
+                return final_report, True, result
+
+            logger.warning(
+                "Report gate not passed (blocking=%d, warnings=%d): %s",
+                len(blocking), warn_count, result["issues"],
+            )
             if logger.isEnabledFor(logging.DEBUG) and final_report:
                 logger.debug("Report snippet (first 500 chars): %s", final_report[:500].replace("\n", " "))
             if attempt < MAX_REPORT_RETRIES:
                 logger.info("Retrying report generation (%d/%d)...", attempt + 2, MAX_REPORT_RETRIES + 1)
 
+        # All retries exhausted — apply final score-based decision.
+        blocking_final = (last_validation or {}).get("blocking_issues") or []
+        warnings_final = (last_validation or {}).get("warning_issues") or []
         if final_report and not final_report.startswith("🚨"):
-            if STRICT_CONSISTENCY_GATE:
-                logger.error("Report invalid and STRICT_CONSISTENCY_GATE=1; keep blocked (no forced send).")
+            if not blocking_final:
+                # No structural failures: always deliver, even if warnings > threshold.
+                logger.warning(
+                    "Score-based gate: retries exhausted but no blocking issues (%d warnings). "
+                    "Delivering with banner.",
+                    len(warnings_final),
+                )
+                final_report = _inject_gate_warning_banner(final_report, warnings_final)
+                scratchpad.finalize_run(
+                    "success_warn_pass_exhausted",
+                    {"warnings": len(warnings_final), "threshold": GATE_WARN_THRESHOLD},
+                )
+                return final_report, True, last_validation
             else:
-                logger.warning("Sending report despite validation issues (retries exhausted).")
+                # Structural blocking issues remain — truly block.
+                logger.error(
+                    "Report blocked: %d blocking issue(s) remain after all retries: %s",
+                    len(blocking_final), blocking_final,
+                )
+
         end_status = "completed_invalid"
         if final_report.startswith("🚨"):
             end_status = "execution_error_report"
         scratchpad.finalize_run(
             end_status,
-            {"report_valid": report_valid, "strict_consistency_gate": STRICT_CONSISTENCY_GATE},
+            {"report_valid": report_valid, "blocking_count": len(blocking_final)},
         )
         return final_report, report_valid, last_validation
     finally:
