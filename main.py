@@ -256,6 +256,33 @@ def _codex_judge_pass(report_text: str) -> bool:
     )
 
 
+def _validate_pipeline_output(
+    report_html: str,
+    report_model: DailyBriefReport,
+) -> tuple[str, Exception | None]:
+    """Post-process rendered HTML and run structural + codex validation.
+
+    Extracted to deduplicate the identical check in both the primary-LLM path
+    and the fallback-LLM path inside run_pipeline_with_retries.
+
+    Returns:
+        (final_report, structural_validation_err)
+        structural_validation_err is None when all checks pass.
+    """
+    final_report = _postprocess_report_for_resilience(report_html)
+    output_json = _build_output_json_for_validation(final_report, report_model)
+    structural_validation_err: Exception | None = None
+    try:
+        parsed = parse_report_output(output_json)
+        assert_report_output(parsed)
+        assert_sample_output(output_json)
+        if not _codex_judge_pass(final_report):
+            raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
+    except Exception as v_err:  # noqa: BLE001
+        structural_validation_err = v_err
+    return final_report, structural_validation_err
+
+
 def _report_compare_mode() -> bool:
     """Phase 3：雙軌驗證比對（僅 log，不切 Telegram / BQ 決策）。"""
     return os.getenv("REPORT_COMPARE_MODE", "").lower() in ("1", "true", "yes")
@@ -779,19 +806,13 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     if report_model is None:
                         raise RuntimeError("pipeline OK but DailyBriefReport missing")
                     _persist_pipeline_raw_report(report_model)
-                    final_report = _postprocess_report_for_resilience(report_html)
-                    output_json = _build_output_json_for_validation(final_report, report_model)
-                    try:
-                        parsed = parse_report_output(output_json)
-                        assert_report_output(parsed)
-                        assert_sample_output(output_json)
-                        if not _codex_judge_pass(final_report):
-                            raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
-                    except Exception as v_err:
-                        structural_validation_err = v_err
+                    final_report, structural_validation_err = _validate_pipeline_output(
+                        report_html, report_model
+                    )
+                    if structural_validation_err:
                         logger.warning(
                             "輸出結構/內容驗證未通過（不佔 503 重試配額，交由報告驗證重試機制處理）：%s",
-                            v_err,
+                            structural_validation_err,
                         )
                     break
                 last_err = err
@@ -817,16 +838,9 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     if report_model is None:
                         raise RuntimeError("pipeline OK but DailyBriefReport missing")
                     _persist_pipeline_raw_report(report_model)
-                    final_report = _postprocess_report_for_resilience(report_html)
-                    output_json = _build_output_json_for_validation(final_report, report_model)
-                    try:
-                        parsed = parse_report_output(output_json)
-                        assert_report_output(parsed)
-                        assert_sample_output(output_json)
-                        if not _codex_judge_pass(final_report):
-                            raise AssertionError("Codex judge 判定包含 API 錯誤訊息或無關內容")
-                    except Exception as v_err:
-                        structural_validation_err = v_err
+                    final_report, structural_validation_err = _validate_pipeline_output(
+                        report_html, report_model
+                    )
                     last_err = None
             if last_err is not None:
                 break
