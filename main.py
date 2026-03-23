@@ -499,7 +499,7 @@ _PP_CRED_RE = re.compile(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b', re.IGNOREC
 _PP_CRED_EN_RE = re.compile(r'(?:Credibility|Grade)\s*[：:]\s*', re.IGNORECASE)
 _PP_CHATTER_LINE_RE = re.compile(r'^(· [^\n]+?（未確認）)', re.MULTILINE)
 _PP_CHATTER3_RE = re.compile(r'(區塊③【[^】]+】\n)')
-_PP_YIELD_MIN, _PP_YIELD_MAX = 0.0, 20.0
+_PP_YIELD_MIN, _PP_YIELD_MAX = 0.1, 9.0  # matches tools.py; 20.0 was too wide (19.84% was passing)
 _PP_MACRO_YIELD_RES = [
     re.compile(r'(10Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
     re.compile(r'(10Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
