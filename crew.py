@@ -293,7 +293,11 @@ _CHATTER_FMT = dedent("""\
     - 「...（未確認）｜來源：社群截圖｜可信度：72/100｜主流媒體二次驗證：否」
     ⚠️ 每條必須包含「可信度：A/B/C」或「可信度：數字/100」，缺少此標記將觸發 Gate 驗證失敗。""")
 
-_REGIME_PARSE_RE = re.compile(r'市場機制評分[：:]\s*(risk_on|risk_off|neutral)')
+_REGIME_PARSE_RE = re.compile(
+    r'(?:市場機制評分|市場機制|market[\s_]?regime|今日市場模式)[：:\s]*'
+    r'(risk[\s_\-]*on|risk[\s_\-]*off|neutral)',
+    re.IGNORECASE,
+)
 _CHATTER_CRED_RE = re.compile(
     r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b'
     r'|來源[：:]\s*[ABC](?:級|等級)?'
@@ -306,11 +310,23 @@ _CHATTER_CRED_RE = re.compile(
 def _parse_regime_from_scorecard(scorecard_text: str) -> str | None:
     """從 regime_scorecard_tool 輸出中解析 risk_on/risk_off/neutral。"""
     m = _REGIME_PARSE_RE.search(scorecard_text)
-    return m.group(1) if m else None
+    if not m:
+        return None
+    # Normalize variant spellings (risk-on, risk on) to canonical underscore form.
+    raw = m.group(1).lower().replace("-", "_").replace(" ", "_")
+    if raw.startswith("risk_on"):
+        return "risk_on"
+    if raw.startswith("risk_off"):
+        return "risk_off"
+    if raw == "neutral":
+        return "neutral"
+    return None
 
 
 def _ensure_chatter_credibility(chatter: list) -> list:
     """Post-process chatter items: auto-append C-grade credibility marker if missing."""
+    if not chatter:
+        return chatter if chatter is not None else []
     result = []
     for item in chatter:
         text = item.text
