@@ -495,6 +495,8 @@ def _inject_gate_warning_banner(html: str, warning_issues: list[str]) -> str:
 
 # ── Module-level constants for _post_process_html_for_gate ───────────────────
 _PP_CRED_RE = re.compile(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b', re.IGNORECASE)
+# Normalize English "Credibility：X" to "可信度：X" for display consistency.
+_PP_CRED_EN_RE = re.compile(r'(?:Credibility|Grade)\s*[：:]\s*', re.IGNORECASE)
 _PP_CHATTER_LINE_RE = re.compile(r'^(· [^\n]+?（未確認）)', re.MULTILINE)
 _PP_CHATTER3_RE = re.compile(r'(區塊③【[^】]+】\n)')
 _PP_YIELD_MIN, _PP_YIELD_MAX = 0.0, 20.0
@@ -542,6 +544,12 @@ def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> 
     This runs AFTER Jinja2 rendering so it works regardless of LLM output quality.
     It is intentionally minimal: only patches what the gate would reject.
     """
+    # ── 0. Credibility language normalization ────────────────────────
+    # Normalize English "Credibility：X" / "Grade：X" to "可信度：X" for display consistency.
+    if _PP_CRED_EN_RE.search(html):
+        html = _PP_CRED_EN_RE.sub("可信度：", html)
+        logger.info("post_process: normalized English credibility labels to 可信度：")
+
     # ── 1. Chatter credibility ────────────────────────────────────────
     if not _PP_CRED_RE.search(html):
         # Find first chatter bullet line that ends with （未確認） and append credibility.
@@ -608,15 +616,30 @@ def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> 
     # ── 4. Regime normalization ──────────────────────────────────────
     # Replace all authoritative (non-conditional) regime tokens with agreed_regime.
     # Conditional lines like「若轉為 risk_off 則…」are left untouched.
-    if agreed_regime:
+    # Fallback: if agreed_regime was not determined upstream (scorecard failed),
+    # infer it from the 【今日市場模式】 line already rendered in the report.
+    _effective_regime = agreed_regime
+    if not _effective_regime:
+        _mode_m = re.search(
+            r'【今日市場模式】[^(risk_on|risk_off|neutral)]*?(risk_on|risk_off|neutral)',
+            html,
+            re.IGNORECASE,
+        )
+        if _mode_m:
+            _effective_regime = _mode_m.group(1).lower().replace("-", "_").replace(" ", "_")
+            logger.warning(
+                "post_process: agreed_regime was None; inferred fallback regime=%s from 市場模式 line",
+                _effective_regime,
+            )
+    if _effective_regime:
         fixed_lines = []
         for line in html.splitlines():
             if _PP_CONDITIONAL_LINE_RE.search(line):
                 fixed_lines.append(line)
             else:
-                fixed_lines.append(_PP_REGIME_TOKEN_RE.sub(agreed_regime, line))
+                fixed_lines.append(_PP_REGIME_TOKEN_RE.sub(_effective_regime, line))
         html = "\n".join(fixed_lines)
-        logger.info("post_process: regime normalized to %s", agreed_regime)
+        logger.info("post_process: regime normalized to %s", _effective_regime)
 
     # ── 5. UTC+8 timezone injection ───────────────────────────────
     # Append " UTC+8" to news timestamp brackets that lack a HK timezone marker.
