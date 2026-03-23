@@ -440,9 +440,11 @@ def _prewarm_tool_caches() -> None:
         ml_quant_tool,
         regime_scorecard_tool,
         macro_context_tool,
+        x_search_tool,
     )
 
     # 定義所有獨立的 tool 呼叫（無互相依賴）
+    # x_search_tool 以 crew task 使用的相同 query 預熱，讓 agent 命中 cache 而非重新等待
     tasks: dict[str, callable] = {
         "coinglass_funding_rate": lambda: coinglass_data_tool.run("funding_rate"),
         "coinglass_liquidations": lambda: coinglass_data_tool.run("liquidations"),
@@ -455,11 +457,13 @@ def _prewarm_tool_caches() -> None:
         "ml_quant":               lambda: ml_quant_tool.run(),
         "regime_scorecard":       lambda: regime_scorecard_tool.run(),
         "macro_context":          lambda: macro_context_tool.run(),
+        "x_search_crypto":        lambda: x_search_tool.run("crypto ETF bitcoin ethereum altcoin DeFi liquidation whale"),
+        "x_search_ai":            lambda: x_search_tool.run("NVIDIA AI GPU data center OpenAI Anthropic Microsoft"),
     }
 
     logger.info("Pre-warming %d tool caches in parallel...", len(tasks))
     t0 = time.time()
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
         futures = {pool.submit(fn): name for name, fn in tasks.items()}
         for future in as_completed(futures):
             name = futures[future]
