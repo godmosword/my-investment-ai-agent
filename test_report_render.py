@@ -1,5 +1,6 @@
 """Smoke for Jinja Telegram render + structured validation."""
 
+import pytest
 from report_render import assemble_daily_brief_report, render_telegram_daily_brief
 from report_validator import validate_report, validate_structured_report
 from schemas import (
@@ -198,3 +199,65 @@ def test_render_contains_qsrec_and_passes_structured_gate():
     assert sres["valid"], sres["issues"]
     vhtml = validate_report(html)
     assert vhtml["valid"], vhtml["issues"]
+
+
+def _minimal_report() -> "DailyBriefReport":
+    from schemas import MarketRegimeBlock, MetricLine
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="risk_on", score_suffix="（+4/6）"),
+        narrative_of_day="test",
+        macro_framework_lines=["macro"],
+        dashboard=[MetricLine(label="DXY", value="104")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="本日選擇理由：test",
+        risk_budget_summary="test",
+        signal_conflict_summary="test",
+        trade_legs=[],
+        qsrec=[],
+    )
+    ai = AISection(
+        macro_bridge_lines=["bridge"],
+        dashboard=[MetricLine(label="熱度", value="N/A")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="本日選擇理由：test",
+        signal_conflict_summary="test",
+        trade_legs=[],
+        qsrec=[],
+    )
+    return assemble_daily_brief_report(
+        crypto, ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+
+
+def test_render_raises_helpful_error_on_missing_template():
+    """render_telegram_daily_brief should raise RuntimeError (not bare jinja2
+    TemplateNotFound) when the template file is absent."""
+    import jinja2
+    from unittest.mock import patch
+
+    report = _minimal_report()
+    with patch.object(
+        jinja2.Environment, "get_template",
+        side_effect=jinja2.TemplateNotFound("telegram_report.j2"),
+    ):
+        with pytest.raises(RuntimeError, match="telegram_report.j2"):
+            render_telegram_daily_brief(report)
+
+
+def test_render_raises_helpful_error_on_template_syntax_error():
+    """TemplateError during render should surface as RuntimeError with path info."""
+    import jinja2
+    from unittest.mock import patch, MagicMock
+
+    report = _minimal_report()
+    broken_tmpl = MagicMock()
+    broken_tmpl.render.side_effect = jinja2.TemplateError("unexpected end of template")
+    with patch.object(jinja2.Environment, "get_template", return_value=broken_tmpl):
+        with pytest.raises(RuntimeError, match="telegram_report.j2"):
+            render_telegram_daily_brief(report)

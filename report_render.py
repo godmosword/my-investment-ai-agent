@@ -6,7 +6,7 @@ import html
 import json
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
 from schemas import AISection, CryptoSection, DailyBriefReport
 
@@ -46,12 +46,27 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
     env.filters["tg_escape"] = tg_escape
 
     qsrec_list = [r.model_dump(exclude_none=True) for r in report.all_qsrec()]
-    return env.get_template("telegram_report.j2").render(
-        crypto=report.crypto,
-        ai=report.ai,
-        previous_recs_html=report.previous_recs_html,
-        source_observability_block=report.source_observability_block,
-        report_tier_partial_news=report.report_tier_partial_news,
-        tagged_news_count=report.tagged_news_count(),
-        qsrec_json=json.dumps(qsrec_list, ensure_ascii=False),
-    )
+    try:
+        tmpl = env.get_template("telegram_report.j2")
+    except TemplateNotFound as exc:
+        expected = root / "templates" / "telegram_report.j2"
+        raise RuntimeError(
+            f"Jinja2 template not found: telegram_report.j2 "
+            f"(expected at {expected})"
+        ) from exc
+    try:
+        return tmpl.render(
+            crypto=report.crypto,
+            ai=report.ai,
+            previous_recs_html=report.previous_recs_html,
+            source_observability_block=report.source_observability_block,
+            report_tier_partial_news=report.report_tier_partial_news,
+            tagged_news_count=report.tagged_news_count(),
+            qsrec_json=json.dumps(qsrec_list, ensure_ascii=False),
+        )
+    except TemplateError as exc:
+        expected = root / "templates" / "telegram_report.j2"
+        raise RuntimeError(
+            f"Jinja2 template error in telegram_report.j2 "
+            f"(path: {expected}): {exc}"
+        ) from exc
