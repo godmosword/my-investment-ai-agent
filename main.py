@@ -468,30 +468,47 @@ def _prewarm_tool_caches() -> None:
     logger.info("Tool cache pre-warm done in %.1fs", elapsed)
 
 
-def _post_process_html_for_gate(html: str) -> str:
+# ── Module-level constants for _post_process_html_for_gate ───────────────────
+_PP_CRED_RE = re.compile(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b', re.IGNORECASE)
+_PP_CHATTER_LINE_RE = re.compile(r'^(· [^\n]+?（未確認）)', re.MULTILINE)
+_PP_CHATTER3_RE = re.compile(r'(區塊③【[^】]+】\n)')
+_PP_YIELD_MIN, _PP_YIELD_MAX = 0.0, 20.0
+_PP_MACRO_YIELD_RES = [
+    re.compile(r'(10Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
+    re.compile(r'(10Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
+    re.compile(r'(2Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
+    re.compile(r'(2Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
+]
+_PP_REGIME_TOKEN_RE = re.compile(r'\b(risk_on|risk_off|neutral)\b', re.IGNORECASE)
+_PP_CONDITIONAL_LINE_RE = re.compile(
+    r'(?:若|如果|假設|when|if)\s.{0,80}(?:risk_on|risk_off|neutral)',
+    re.IGNORECASE,
+)
+
+
+def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> str:
     """
-    Post-render safety net that patches 3 common gate failures BEFORE validate_report:
+    Post-render safety net that patches 4 common gate failures BEFORE validate_report:
 
     1. 傳聞區缺少可信度分級 — injects credibility marker if none found in rendered text.
     2. 宏觀數值疑似異常     — replaces out-of-range 10Y/2Y values on 美債 lines with N/A.
     3. N/A 過多低置信度     — injects 低置信度 block if N/A count > 3 and markers missing.
+    4. Regime 不一致        — normalizes all authoritative regime tokens to agreed_regime.
 
     This runs AFTER Jinja2 rendering so it works regardless of LLM output quality.
     It is intentionally minimal: only patches what the gate would reject.
     """
     # ── 1. Chatter credibility ────────────────────────────────────────
-    _CRED_RE = re.compile(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b', re.IGNORECASE)
-    if not _CRED_RE.search(html):
-        # Find first chatter bullet line that ends with （未確認） and append credibility
-        _CHATTER_LINE_RE = re.compile(r'(· .+?（未確認）)', re.DOTALL)
-        m = _CHATTER_LINE_RE.search(html)
+    if not _PP_CRED_RE.search(html):
+        # Find first chatter bullet line that ends with （未確認） and append credibility.
+        # Uses MULTILINE (not DOTALL) to avoid crossing section boundaries.
+        m = _PP_CHATTER_LINE_RE.search(html)
         if m:
             html = html[:m.end()] + '｜可信度：C' + html[m.end():]
             logger.warning("post_process: injected missing chatter credibility marker")
         else:
-            # Fallback: inject a minimal chatter entry before QSREC_START
-            _CHATTER3_RE = re.compile(r'(區塊③【[^】]+】\n)')
-            html = _CHATTER3_RE.sub(
+            # Fallback: inject a minimal chatter entry under the chatter section header.
+            html = _PP_CHATTER3_RE.sub(
                 r'\1· 低信噪比，暫無高可信傳聞（未確認）｜可信度：C\n',
                 html, count=1,
             )
@@ -500,31 +517,21 @@ def _post_process_html_for_gate(html: str) -> str:
     # ── 2. Macro outlier values ──────────────────────────────────────
     # Mirror the exact patterns used by _has_macro_outlier_values so we only
     # patch what the validator would reject.
-    _YIELD_MIN, _YIELD_MAX = 0.0, 20.0
-    _MACRO_YIELD_RES = [
-        re.compile(r'(10Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
-        re.compile(r'(10Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
-        re.compile(r'(2Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
-        re.compile(r'(2Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
-    ]
-
     def _fix_yield_match(m: re.Match) -> str:
         try:
             val = float(m.group(2).replace(",", ""))
         except ValueError:
             return m.group(0)
-        if not (_YIELD_MIN <= val <= _YIELD_MAX):
+        if not (_PP_YIELD_MIN <= val <= _PP_YIELD_MAX):
             logger.warning("post_process: replacing out-of-range yield %.3f%% with N/A", val)
-            # Keep the prefix (group 1), replace the value+% with N/A
-            full = m.group(0)
             g2_start = m.start(2) - m.start(0)
-            return full[:g2_start] + "N/A"
+            return m.group(0)[:g2_start] + "N/A"
         return m.group(0)
 
     patched_lines = []
     for line in html.splitlines():
         if "美債" in line:
-            for pat in _MACRO_YIELD_RES:
+            for pat in _PP_MACRO_YIELD_RES:
                 line = pat.sub(_fix_yield_match, line)
         patched_lines.append(line)
     html = "\n".join(patched_lines)
@@ -544,11 +551,28 @@ def _post_process_html_for_gate(html: str) -> str:
             "相關欄位以 N/A 標示。\n"
             "替代指標：N/A 欄位請參考 Binance 備援數據或 CME FedWatch Tool 補充。\n"
         )
-        html = html.replace("[QSREC_START]", injection + "[QSREC_START]", 1)
+        if "[QSREC_START]" in html:
+            html = html.replace("[QSREC_START]", injection + "[QSREC_START]", 1)
+        else:
+            logger.warning("post_process: [QSREC_START] sentinel missing — appending 低置信度 block at end")
+            html += injection
         logger.warning(
             "post_process: injected 低置信度 block (N/A count=%d, had_low_conf=%s, had_proxy=%s)",
             na_count, has_low_conf, has_proxy,
         )
+
+    # ── 4. Regime normalization ──────────────────────────────────────
+    # Replace all authoritative (non-conditional) regime tokens with agreed_regime.
+    # Conditional lines like「若轉為 risk_off 則…」are left untouched.
+    if agreed_regime:
+        fixed_lines = []
+        for line in html.splitlines():
+            if _PP_CONDITIONAL_LINE_RE.search(line):
+                fixed_lines.append(line)
+            else:
+                fixed_lines.append(_PP_REGIME_TOKEN_RE.sub(agreed_regime, line))
+        html = "\n".join(fixed_lines)
+        logger.info("post_process: regime normalized to %s", agreed_regime)
 
     return html
 
@@ -618,7 +642,7 @@ def _run_pipeline_once(
             report_tier_partial_news=partial_tier,
         )
         html = render_telegram_daily_brief(report_model)
-        html = _post_process_html_for_gate(html)
+        html = _post_process_html_for_gate(html, agreed_regime=agreed_regime)
         return html, None, report_model
     except Exception as e:
         return "", e, None
