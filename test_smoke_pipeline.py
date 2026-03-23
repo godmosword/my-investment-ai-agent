@@ -28,6 +28,8 @@ def _minimal_valid_report() -> str:
         "R:R = 1:2.0\n最大回撤風險：<code>-3.0%</code>\n預期勝率：55%\nSignal Score：70/100\n"
         "今日風險預算：risk_on 模式下總倉位上限 60%\n"
         "投資解讀：BTC 日線 RSI 55，ETF 流入 $120M\n"
+        "區塊③【呢喃與傳聞】\n"
+        "· 低信噪比，暫無高可信傳聞（未確認）｜可信度：C\n"
         "【SourceHealth】 ok\n【SourceErrors】 none\n【SourceQuota】 ok\n"
         "[QSREC_START]\n"
         "["
