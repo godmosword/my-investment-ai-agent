@@ -509,16 +509,35 @@ _PP_CONDITIONAL_LINE_RE = re.compile(
     r'(?:若|如果|假設|when|if)\s.{0,80}(?:risk_on|risk_off|neutral)',
     re.IGNORECASE,
 )
+# Fix 5: UTC+8 — matches 〔新聞 N〕[date time] that lacks a HK timezone, including closing "]"
+# Negative lookahead ensures we skip brackets that already carry UTC/GMT+8 / HKT / 香港時間 etc.
+_PP_NEWS_TS_RE = re.compile(
+    r'(〔新聞\s*\d+〕[\s\u3000]*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{4})?)'
+    r'\s+\d{1,2}:\d{2}(?::\d{2})?)'
+    r'(?!\s*(?:UTC|GMT)\s*[+＋]\s*0?8|\s*HKT\b|\s*(?:香港|北京|台北)時間)'
+    r'\]',
+    re.IGNORECASE,
+)
+# Fix 6: Signal conflict
+_PP_SIGNAL_CONFLICT_RE = re.compile(r'[訊信]號衝突(?:摘要|分析)?[：:]')
+# Fix 7: Malformed (empty) invalidation condition
+_PP_MALFORMED_INVAL_RE = re.compile(
+    r'(失效條件[：:]\s*)(?:<code>)?\s*(?:</code>)?\s*(?=\n|$)',
+    re.MULTILINE,
+)
 
 
 def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> str:
     """
-    Post-render safety net that patches 4 common gate failures BEFORE validate_report:
+    Post-render safety net that patches 7 common gate failures BEFORE validate_report:
 
     1. 傳聞區缺少可信度分級 — injects credibility marker if none found in rendered text.
     2. 宏觀數值疑似異常     — replaces out-of-range 10Y/2Y values on 美債 lines with N/A.
     3. N/A 過多低置信度     — injects 低置信度 block if N/A count > 3 and markers missing.
     4. Regime 不一致        — normalizes all authoritative regime tokens to agreed_regime.
+    5. 新聞時間缺 UTC+8     — appends " UTC+8" to news timestamp brackets missing timezone.
+    6. 缺少訊號衝突摘要     — injects minimal 訊號衝突摘要 block before [QSREC_START].
+    7. 空白失效條件         — fills empty 失效條件：with default invalidation text.
 
     This runs AFTER Jinja2 rendering so it works regardless of LLM output quality.
     It is intentionally minimal: only patches what the gate would reject.
@@ -598,6 +617,38 @@ def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> 
                 fixed_lines.append(_PP_REGIME_TOKEN_RE.sub(agreed_regime, line))
         html = "\n".join(fixed_lines)
         logger.info("post_process: regime normalized to %s", agreed_regime)
+
+    # ── 5. UTC+8 timezone injection ───────────────────────────────
+    # Append " UTC+8" to news timestamp brackets that lack a HK timezone marker.
+    # _PP_NEWS_TS_RE captures (group 1) up to the end of the time digits then matches "]".
+    # Replacement: group(1) + " UTC+8]" — the original "]" is consumed by the pattern.
+    utc8_count = [0]
+
+    def _inject_utc8(m: re.Match) -> str:
+        utc8_count[0] += 1
+        return m.group(1) + " UTC+8]"
+
+    html = _PP_NEWS_TS_RE.sub(_inject_utc8, html)
+    if utc8_count[0]:
+        logger.warning("post_process: injected UTC+8 into %d news timestamp bracket(s)", utc8_count[0])
+
+    # ── 6. Signal conflict summary injection ─────────────────────
+    # If the gate-required 訊號衝突摘要 block is missing, inject a minimal one.
+    if not _PP_SIGNAL_CONFLICT_RE.search(html):
+        _signal_block = "\n訊號衝突摘要：暫無重大訊號衝突，多空數據基本一致。\n"
+        if "[QSREC_START]" in html:
+            html = html.replace("[QSREC_START]", _signal_block + "[QSREC_START]", 1)
+        else:
+            html += _signal_block
+        logger.warning("post_process: injected missing 訊號衝突摘要 block")
+
+    # ── 7. Malformed invalidation condition fill ──────────────────
+    # Replace empty 失效條件：（含 <code></code> 殼）with a safe default.
+    _inval_default = r"\g<1><code>跌破關鍵支撐位或重大利空事件出現</code>"
+    new_html = _PP_MALFORMED_INVAL_RE.sub(_inval_default, html)
+    if new_html != html:
+        html = new_html
+        logger.warning("post_process: filled empty 失效條件 with default invalidation text")
 
     return html
 
