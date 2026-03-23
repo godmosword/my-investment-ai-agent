@@ -362,6 +362,14 @@ def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | 
         logger.debug("Skipping rec for %s — missing price fields: %s", asset, e)
         return None
 
+    # 拒絕非正價格（$0.00 / 負值）：LLM 解析比值對或格式錯誤時常見
+    if entry <= 0 or target <= 0 or stop <= 0:
+        logger.warning(
+            "Skipping %s %s: price fields must be positive (entry=%s target=%s stop=%s)",
+            asset, direction, entry, target, stop,
+        )
+        return None
+
     # 驗證進場價格是否在合理範圍內，防止 LLM 輸出單位錯誤（例如比值當 USD）
     if asset in _PRICE_SANITY_RANGES:
         lo, hi = _PRICE_SANITY_RANGES[asset]
@@ -480,6 +488,18 @@ def save_recommendations(report_text: str,
     regime_at_signal = _detect_regime_from_report(report_text)
     raw_recs = extract_recommendations_json(report_text)
     recs = [r for raw in raw_recs if (r := _validate_rec(raw, report_date, regime_at_signal)) is not None]
+
+    # P2 衝突偵測：同日同資產出現 LONG 與 SHORT，記警告（可能是 LLM 輸出矛盾）
+    _direction_seen: dict[str, str] = {}
+    for row in recs:
+        key = canonical_asset_key(row["asset"])
+        prev_dir = _direction_seen.get(key)
+        if prev_dir is not None and prev_dir != row["direction"]:
+            logger.warning(
+                "Conflicting directions for %s on %s: %s vs %s — keeping last entry only",
+                key, report_date, prev_dir, row["direction"],
+            )
+        _direction_seen[key] = row["direction"]
 
     # 同日同 canonical asset 只保留最後一筆（避免 QSREC 陣列或重跑造成多進場價）
     _by_key: dict[str, dict] = {}
@@ -827,15 +847,19 @@ def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -
     profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else None
     expectancy = round(sum(pnl_values) / len(pnl_values), 2) if pnl_values else 0.0
 
-    # 以已平倉單序列近似計算 max drawdown（回測級近似）
-    peak = 0.0
-    equity = 0.0
+    # 以已平倉單序列近似計算 max drawdown（乘法複利曲線，範圍 0–100%）
+    # 原先用加法累加 P&L，導致 peak-to-trough 可超過 -100%，顯示失真。
+    # 改為複利淨值曲線：每筆以 (1 + p/100) 相乘，dd 為相對回撤，上限 100%。
+    equity = 100.0
+    peak = 100.0
     max_dd = 0.0
     for p in pnl_values:
-        equity += p
-        peak = max(peak, equity)
-        dd = peak - equity
-        max_dd = max(max_dd, dd)
+        equity *= (1.0 + p / 100.0)
+        if equity > peak:
+            peak = equity
+        dd = (peak - equity) / peak * 100.0
+        if dd > max_dd:
+            max_dd = dd
     max_dd = round(max_dd, 2)
 
     _STATUS_LABEL = {
