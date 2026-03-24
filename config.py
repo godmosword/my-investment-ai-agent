@@ -16,6 +16,7 @@ METRICS_TABLE = f"{PROJECT_ID}.market_data.daily_metrics"
 WHALE_TABLE = f"{PROJECT_ID}.market_data.btc_whale_transactions"
 RECOMMENDATIONS_TABLE = f"{PROJECT_ID}.market_data.trade_recommendations"
 PAPER_TRADE_TABLE = RECOMMENDATIONS_TABLE
+LLM_RUN_LOG_TABLE = f"{PROJECT_ID}.market_data.llm_run_log"
 
 # LiteLLM 模型字串（crew fallback 鏈與 _API_KEY_MAP 依此比對）
 MODEL_GROK = _env_model("MODEL_GROK", default="xai/grok-4-1-fast-reasoning")
