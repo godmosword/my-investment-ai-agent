@@ -55,11 +55,9 @@ def _rows_to_dicts(rows) -> list[dict[str, Any]]:
     """Convert BigQuery RowIterator rows to JSON-serialisable dicts."""
     result = []
     for row in rows:
-        d = dict(row)
-        for k, v in d.items():
-            if isinstance(v, (datetime, date)):
-                d[k] = v.isoformat()
-        result.append(d)
+        result.append(
+            {k: v.isoformat() if isinstance(v, (datetime, date)) else v for k, v in row.items()}
+        )
     return result
 
 
@@ -86,13 +84,9 @@ def get_metrics_latest() -> dict[str, Any]:
     if not rows:
         raise HTTPException(status_code=404, detail="No metrics data found")
 
-    latest = dict(rows[0])
-    prev = dict(rows[1]) if len(rows) > 1 else None
-
-    # Serialise timestamps
-    for k, v in latest.items():
-        if isinstance(v, (datetime, date)):
-            latest[k] = v.isoformat()
+    serialised = _rows_to_dicts(rows)
+    latest = serialised[0]
+    prev = serialised[1] if len(serialised) > 1 else None
 
     # Compute deltas
     delta_keys = ["dxy", "etf_flow_millions", "avg_risk_score", "mvrv_z_score"]

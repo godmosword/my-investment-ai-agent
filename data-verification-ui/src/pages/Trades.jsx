@@ -63,7 +63,7 @@ export default function Trades() {
         <div className="page-title">交易建議</div>
       </div>
 
-      <PerfStats days={90} />
+      <PerfStats days={days} />
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         {STATUS_TABS.map(({ key, label }) => (

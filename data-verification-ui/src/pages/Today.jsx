@@ -1,13 +1,7 @@
 import { useMetricsLatest, useReport } from "../hooks/useApi";
 import MetricCard from "../components/MetricCard";
 import TradeCard from "../components/TradeCard";
-
-function regimeInfo(score) {
-  if (score == null) return { label: "— 未知", cls: "regime-neutral" };
-  if (score >= 3.5) return { label: "🔴 Risk OFF", cls: "regime-off" };
-  if (score >= 2.5) return { label: "🟡 中性", cls: "regime-neutral" };
-  return { label: "🟢 Risk ON", cls: "regime-on" };
-}
+import { regimeInfo } from "../utils/regime";
 
 export default function Today() {
   const today = new Date().toISOString().slice(0, 10);
