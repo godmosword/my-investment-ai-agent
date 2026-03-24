@@ -34,7 +34,11 @@ class TestWriteLlmRunLog(unittest.TestCase):
 
             with patch("bigquery_writer.bigquery") as mock_bq:
                 mock_bq.Client.return_value = mock_client
-                mock_bq.SchemaField = MagicMock(side_effect=lambda name, typ: MagicMock(name=name))
+                def _make_field(name, typ):
+                    f = MagicMock()
+                    f.name = name
+                    return f
+                mock_bq.SchemaField = MagicMock(side_effect=_make_field)
                 mock_bq.Table = MagicMock()
 
                 bigquery_writer.write_llm_run_log(
@@ -66,7 +70,11 @@ class TestWriteLlmRunLog(unittest.TestCase):
 
             with patch("bigquery_writer.bigquery") as mock_bq:
                 mock_bq.Client.return_value = mock_client
-                mock_bq.SchemaField = MagicMock(side_effect=lambda name, typ: MagicMock(name=name))
+                def _make_field(name, typ):
+                    f = MagicMock()
+                    f.name = name
+                    return f
+                mock_bq.SchemaField = MagicMock(side_effect=_make_field)
                 mock_bq.Table = MagicMock()
 
                 bigquery_writer.write_llm_run_log(

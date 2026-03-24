@@ -363,6 +363,30 @@ class TestPickRotation(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("repeat_days", err)
 
+    # Bug 4: LLM omits `repeat_days` from QSREC JSON — schema default is 0, so
+    # _has_repeat_quality_anchor should treat absence as repeat_days=0 (still fresh).
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    def test_repeat_ok_when_repeat_days_absent_defaults_to_zero(self, mock_y):
+        mock_y.return_value = {"BTC"}
+        # repeat_days intentionally omitted — LLM output may not include optional fields
+        recs = [{"asset": "BTC", "category": "CRYPTO", "selection_score": 80, "alt_candidate_score": 65, "score_gap": 15}]
+        body = "區塊④\n本日選擇理由：重複選用理由：現貨 ETF 首次核准為全新催化。\n今日風險預算：x"
+        ok, err = _pick_rotation_crypto_ok(body, recs)
+        self.assertTrue(ok, f"should pass when repeat_days absent (defaults to 0): {err}")
+
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    def test_equity_repeat_ok_when_repeat_days_absent_defaults_to_zero(self, mock_y):
+        mock_y.return_value = {"NVDA", "MSFT"}
+        # repeat_days intentionally omitted on both records
+        recs = [
+            {"asset": "NVDA", "category": "EQUITY", "selection_score": 85, "alt_candidate_score": 70, "score_gap": 15},
+            {"asset": "MSFT", "category": "EQUITY", "selection_score": 82, "alt_candidate_score": 68, "score_gap": 14},
+        ]
+        base = "加密區尾\n\n🤖 AI 市場\n"
+        good = base + "本日選擇理由：重複選用理由：高利率環境下技術面訊號延續，維持空頭部位。\n今日風險預算："
+        ok, err = _pick_rotation_equity_ok(good, recs)
+        self.assertTrue(ok, f"should pass when repeat_days absent (defaults to 0): {err}")
+
 
 class TestPickJustification(unittest.TestCase):
     def test_vague_crypto_reason_fails(self):
