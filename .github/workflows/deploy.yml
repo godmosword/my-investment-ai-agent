@@ -17,6 +17,10 @@ on:
       - ".github/workflows/ci.yml"
       - ".github/workflows/deploy.yml"
 
+concurrency:
+  group: deploy-main-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   GCP_PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
   GCP_REGION:        asia-east1
