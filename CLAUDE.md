@@ -1,101 +1,68 @@
 # Project Developer Guide for Claude
 
 ## 1. Tooling & Navigation Rules (CRITICAL)
-- **LSP Priority**: You MUST strictly prioritize using the Language Server Protocol (LSP) tool for all code navigation tasks, including finding definitions, finding references, and cross-file refactoring.
-- **Avoid Text Search**: Do NOT use standard text search tools (like Grep, Glob, or Regex) for code navigation unless the LSP tool explicitly fails or is entirely unavailable for the target file type.
-- **Efficiency**: Utilize the sub-50ms search capabilities of LSP to quickly understand project structure before making modifications.
+- **LSP Priority**: Strictly prioritize the LSP tool for all code navigation — finding definitions, references, and cross-file refactoring.
+- **Avoid Text Search**: Do NOT use Grep, Glob, or Regex for code navigation unless LSP explicitly fails.
 
 ## 2. Project Context & Architecture
-- **Tech Stack**: Python 3.11+; CrewAI + LiteLLM (multi-LLM: Grok, GPT, Claude, Gemini); Apify (search); Streamlit (dashboard); Google Cloud BigQuery (metrics & whale data); yfinance, pandas, plotly, matplotlib (data & charts); pyTelegramBotAPI (push); python-dotenv, pydantic. Optional sub-project: `data-verification-ui/` (Vite + React).
-- **Description**: Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline that generates daily crypto & AI investment reports. It runs four specialized agents (crypto researcher, AI researcher, risk critic, quant strategist), fetches real-time data (Apify, CoinGlass, CryptoPanic, BigQuery), validates and retries report generation, then pushes to Telegram, writes metrics to BigQuery, and serves a Streamlit war room plus optional chart generation.
-- **Structure**: Flat Python scripts at repo root: `main.py` (entry, retry, Telegram, BigQuery), `crew.py` (CrewAI agents & tasks), `tools.py` (Apify, CoinGlass, CryptoPanic, ML quant, etc.), `config.py` (PROJECT_ID, METRICS_TABLE, WHALE_TABLE), `dashboard.py` (Streamlit), `visualizer.py` (charts), `backtest.py` (ML backtest), `backfill_data.py` (historical backfill). Config: `requirements.txt`, `.env` / `ENV_TEMPLATE.txt`. CI/CD: `.github/workflows/` (deploy, scheduler). Optional front-end: `data-verification-ui/`.
+- **Description**: Q-Silicon Institutional Research AI Agent — a Python CrewAI pipeline that generates daily crypto & AI investment reports. Runs four agents (crypto researcher, AI researcher, risk critic, quant strategist), fetches real-time data, validates reports, then pushes to Telegram and writes metrics to BigQuery.
+- **Tech Stack**: Python 3.11+; CrewAI + LiteLLM (multi-LLM: Grok, GPT, Claude, Gemini); Apify (search); Streamlit (dashboard); Google Cloud BigQuery; yfinance, pandas, plotly, matplotlib; pyTelegramBotAPI; python-dotenv, pydantic.
+
+### Key Files (flat layout at repo root)
+| File | Role |
+|---|---|
+| `main.py` | Entry point — retry loop, Telegram push, BigQuery write |
+| `crew.py` | CrewAI agents & tasks definition |
+| `tools.py` | Apify, CoinGlass, CryptoPanic, ML quant tools |
+| `schemas.py` | Pydantic v2 schema — `DailyBriefReport`, `CryptoSection`, `AISection` |
+| `config.py` | Constants: `PROJECT_ID`, `METRICS_TABLE`, `WHALE_TABLE`, model names |
+| `report_render.py` | Assembles & renders final report from crew output |
+| `report_validator.py` | Gate validation — blocking quality checks |
+| `report_output_validator.py` | Output parsing & assertion helpers |
+| `validation_rules.py` | Declarative validation rule definitions |
+| `telegram_sender.py` | Telegram HTML sanitizer + send helpers |
+| `bigquery_writer.py` | BigQuery insert helpers |
+| `dashboard.py` | Streamlit war room |
+| `visualizer.py` | Chart generation |
+| `backtest.py` | ML backtesting |
+| `tracker.py` | Signal/position tracker |
+| `api.py` | FastAPI backend for PWA war room |
+| `crew_output_parse.py` | Parses crew `kickoff()` output → Pydantic |
+| `scratchpad.py` | Gate trace / debug JSONL writer |
+
+### Sub-directories
+| Dir | Contents |
+|---|---|
+| `core/` | `report_validation.py` — Phase 3 candidate validator entry point |
+| `templates/` | `telegram_report.j2` — Jinja2 Telegram report template |
+| `docs/` | Internal design docs (PHASE_GATES.md, REPORT_COMPARE_STAGING.md, etc.) |
+| `data-verification-ui/` | Optional Vite + React PWA front-end |
+| `.github/workflows/` | CI/CD: deploy + scheduler workflows |
 
 ## 3. Common Commands
-- **Install Dependencies**: `pip install -r requirements.txt` (or `pip3 install -r requirements.txt` / `python3 -m pip install -r requirements.txt`; ensure `~/.local/bin` on PATH for streamlit).
-- **Run Development Server**: `streamlit run dashboard.py --server.port 8501 --server.headless true` (dashboard; no API keys required for startup; BigQuery widgets show fallbacks without credentials).
-- **Run Tests**: `pytest`（根目錄 `test_*.py`，約 140+ 案例）。**PR**：CI 跑 `ruff check .` + `pytest -m smoke`（見 `pytest.ini`）。**push main / deploy 重用 ci.yml**：完整 `pytest -v`。產線邏輯仍以 `main.validate_report()` 為準；`REPORT_COMPARE_MODE=1` 可雙軌比對（見 `docs/REPORT_COMPARE_STAGING.md`）。
-- **Build**: No traditional build step. For container: `docker build -f Dockerfile .` (see `Dockerfile` / `docker-compose.yml`). Main pipeline run: `python main.py` (requires LLM + data API keys; takes ~15–30+ minutes).
+- **Install deps**: `uv pip install -r requirements.txt --system`
+- **Run tests (smoke, fast)**: `python3 -m pytest -m smoke -v`
+- **Run full test suite**: `python3 -m pytest -v` (~140+ cases in `test_*.py` at root)
+- **Lint**: `ruff check .`
+- **Dashboard**: `streamlit run dashboard.py --server.port 8501 --server.headless true`
+- **Full pipeline** (needs API keys, ~15–30 min): `python main.py`
+- **Docker**: `docker build -f Dockerfile .`
+- **Dual-track comparison**: `REPORT_COMPARE_MODE=1 python main.py` (see `docs/REPORT_COMPARE_STAGING.md`)
 
 ## 4. Bug Reporting & Fixing Workflow
-- **Test-First Bug Fixes**: When a bug is reported, do NOT start by trying to fix it. Instead, first write a test that reproduces the bug. Then, have subagents try to fix the bug and prove it with a passing test.
+- **Test-First**: When a bug is reported, first write a failing test that reproduces it. Then fix the bug and prove it with a passing test. Do NOT jump straight to fixing.
 
-## 5. gstack — Web Browsing & Engineering Workflow Skills
+## 5. Coding Conventions
+- **Style**: Ruff guidelines. Clean, readable, maintainable. Resolve existing warnings.
+- **Naming**: `snake_case` functions/variables; `PascalCase` classes (e.g. `CryptoResearchCrew`); `UPPER_SNAKE_CASE` module constants; `_leading_underscore` for module-private names.
+- **Error Handling**: Never swallow exceptions. Log with `logger.warning` / `logger.error`. Retry with backoff for 503/429. Return `[DATA_MISSING:...]`-style strings from tools when APIs fail.
+- **Comments**: Document the "why", not the "what". Docstrings for public functions. Inline comments for business rules (thresholds, whitelist logic).
 
-### Setup（首次使用，每位隊友都需執行一次）
-```bash
-git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup
-```
-安裝完後重新啟動 Claude Code session，skills 即生效。
+## 6. gstack — Web Browsing & Engineering Skills
+- **Web Browsing**: Use `/browse` from gstack for ALL web browsing. NEVER use `mcp__claude-in-chrome__*` tools.
+- **Setup** (first time per machine): `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`
+- **If skills aren't working**: `cd ~/.claude/skills/gstack && ./setup`
 
-### 使用規則
-- **Web Browsing**: Use the `/browse` skill from gstack for ALL web browsing tasks. NEVER use `mcp__claude-in-chrome__*` tools.
-- **Available skills**:
-  - `/plan-ceo-review` — CEO-level review of a plan or proposal
-  - `/plan-eng-review` — Engineering review of a plan or technical design
-  - `/plan-design-review` — Design review of a plan or UI/UX proposal
-  - `/review` — Code review before merge
-  - `/ship` — Ship / merge a feature / create PR
-  - `/browse` — Headless web browsing (use this instead of Chrome MCP tools)
-  - `/retro` — Retrospective on a completed task or sprint
-  - `/qa` — QA testing / verify a deployment
-  - `/investigate` — Debug errors with evidence
-  - `/codex` — Adversarial second opinion / code review
-  - `/office-hours` — Brainstorm a new idea
-  - `/careful` — Safety mode for production / live systems
-  - `/freeze` — Scope edits to one module/directory
-  - `/guard` — Maximum safety mode (destructive warnings + edit restrictions)
-  - `/unfreeze` — Remove edit restrictions
-  - `/gstack-upgrade` — Upgrade gstack to the latest version
+Available skills: `/browse`, `/review`, `/ship`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/design-consultation`, `/qa`, `/qa-only`, `/investigate`, `/retro`, `/codex`, `/office-hours`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/gstack-upgrade`, `/document-release`, `/setup-browser-cookies`.
 
-## 6. Pipeline Architecture Detail
-- **Entry**: `crew.py` → 主要 pipeline 入口
-- **Agents**: `agents/` → 各 agent 定義
-- **Tools**: `tools/` → 自訂工具
-- **Schema**: `models/` → Pydantic schema（JSON output 驗證，Agent output 必須符合 `ReportSchema`，見 `models/schema.py`）
-- **Delivery**: `delivery/telegram.py` → Telegram 推送
-- **Tests**: `tests/` → pytest smoke tests（`pytest tests/smoke_test.py -v`）
-- **Env**: `.env`（參考 `.env.example`）
-
-## 7. Claude Code Session 使用技巧
-
-### 控制 context 範圍
-每次對話開頭明確指定範圍，避免 agent 亂讀：
-```
-只看 agents/research_agent.py 和 models/schema.py，
-幫我 debug 為何 output 缺少 `news` 欄位。
-不需要讀其他檔案。
-```
-
-### 善用 `.claudeignore` 排除不必要的檔案
-```
-# .claudeignore
-node_modules/
-.venv/
-__pycache__/
-*.log
-data/raw/
-*.csv
-```
-
-### 拆分成小型 focused sessions
-與其每次開啟整個 repo，用 subagent / task 分工：
-```
-# 這次 session 只負責 schema validation
-Context: models/schema.py, tests/test_schema.py
-Task: 新增 `sentiment_score` 欄位並更新測試
-```
-
-## 8. Coding Conventions
-- **Style**: Follow standard Ruff guidelines (`ruff check .`). Prefer clean, readable, maintainable code; resolve or document any existing warnings (e.g. unused variables, import order).
-- **Naming**: Use `snake_case` for functions and variables; `PascalCase` for classes (e.g. `CryptoResearchCrew`, `AIResearchCrew`); `UPPER_SNAKE_CASE` for module-level constants; leading underscore for module-private names (e.g. `_get_cache`, `_CACHE`, `_is_retriable`).
-- **Error Handling**: Implement robust error handling. Do not swallow exceptions; log them with `logging` (e.g. `logger.warning`, `logger.error`). Use retries and backoff for transient failures (503, 429, rate limits); return clear `[DATA_MISSING:...]`-style messages from tools when APIs fail.
-- **Comments**: Document complex logic and the "why" behind decisions. Keep docstrings for public functions and non-obvious helpers; use inline comments for business rules (e.g. thresholds, Telegram tag whitelist).
-## gstack
-Use /browse from gstack for all web browsing. Never use mcp__claude-in-chrome__* tools.
-Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review,
-/design-consultation, /review, /ship, /browse, /qa, /qa-only, /design-review,
-/setup-browser-cookies, /retro, /investigate, /document-release, /codex, /careful,
-/freeze, /guard, /unfreeze, /gstack-upgrade.
-If gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
-
-專案內補充說明見根目錄 [`gstack.md`](gstack.md)。
+See [`gstack.md`](gstack.md) for project-specific notes.

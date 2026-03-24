@@ -34,12 +34,10 @@ venv/
 # Local generated artifacts
 logs/
 daily_chart.png
-
-# .claude/ 機器相關部分忽略；team config（rules/commands/agents）可提交
-.claude/worktrees/
-.claude/skills/
-.claude/settings.local.json
-.claude/projects/
+.claude/
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/*
 
 # Run scratchpad (Phase 1: tool/gate trace JSONL — may contain sensitive snippets)
 .qsilicon/scratchpad/
