@@ -1,12 +1,6 @@
 import { Link } from "react-router-dom";
 import { useReports } from "../hooks/useApi";
-
-function regimeLabel(score) {
-  if (score == null) return null;
-  if (score >= 3.5) return { text: "Risk OFF", color: "var(--red)" };
-  if (score >= 2.5) return { text: "中性", color: "var(--yellow)" };
-  return { text: "Risk ON", color: "var(--green)" };
-}
+import { regimeInfo } from "../utils/regime";
 
 export default function Archive() {
   const { data: reports, isLoading, error } = useReports(60);
@@ -23,13 +17,13 @@ export default function Archive() {
       </div>
 
       {reports.map((r, i) => {
-        const regime = regimeLabel(r.avg_risk_score);
+        const regime = regimeInfo(r.avg_risk_score);
         const date = r.report_date ?? r.timestamp?.slice(0, 10) ?? "—";
         return (
           <Link key={i} to={`/report/${date}`} className="archive-item">
             <div className="archive-date">{date}</div>
             <div className="archive-meta">
-              {regime && (
+              {r.avg_risk_score != null && (
                 <span>
                   市場模式 <strong style={{ color: regime.color }}>{regime.text}</strong>
                 </span>

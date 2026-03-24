@@ -138,7 +138,6 @@ class TradeRecommendation(BaseModel):
         default=None,
         description="Optional regime tag echo risk_on/risk_off/neutral for this leg.",
     )
-    # ── P4：三情境分析（選填；信心 ≥ 3 星時強制填入）─────────────────────
     bull_scenario: str | None = Field(
         default=None,
         description=(

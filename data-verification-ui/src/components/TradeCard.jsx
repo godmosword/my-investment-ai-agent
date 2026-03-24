@@ -42,8 +42,7 @@ function ScoreBar({ label, value }) {
   );
 }
 
-function Scorecard({ trade }) {
-  const hasDims = SCORE_DIMS.some(({ key }) => trade[key] != null);
+function Scorecard({ trade, hasDims }) {
   if (!hasDims && trade.selection_score == null) return null;
 
   return (
@@ -111,7 +110,8 @@ export default function TradeCard({ trade }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = trade.direction?.toUpperCase() === "LONG";
   const pnlColor = trade.pnl_pct > 0 ? "delta-up" : trade.pnl_pct < 0 ? "delta-down" : "delta-flat";
-  const hasScorecard = SCORE_DIMS.some(({ key }) => trade[key] != null) || trade.selection_score != null;
+  const hasDims = SCORE_DIMS.some(({ key }) => trade[key] != null);
+  const hasScorecard = hasDims || trade.selection_score != null;
   const hasScenarios = !!(trade.bull_scenario || trade.base_scenario || trade.bear_scenario);
 
   return (
@@ -205,7 +205,7 @@ export default function TradeCard({ trade }) {
 
       {expanded && (
         <>
-          <Scorecard trade={trade} />
+          <Scorecard trade={trade} hasDims={hasDims} />
           <Scenarios trade={trade} />
         </>
       )}
