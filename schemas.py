@@ -138,6 +138,28 @@ class TradeRecommendation(BaseModel):
         default=None,
         description="Optional regime tag echo risk_on/risk_off/neutral for this leg.",
     )
+    # ── P4：三情境分析（選填；信心 ≥ 3 星時強制填入）─────────────────────
+    bull_scenario: str | None = Field(
+        default=None,
+        description=(
+            "Bull scenario one line ≤40 chars: target price + trigger condition. "
+            "Required when confidence ≥ 3."
+        ),
+    )
+    base_scenario: str | None = Field(
+        default=None,
+        description=(
+            "Base scenario one line ≤40 chars: expected outcome + estimated probability %. "
+            "Required when confidence ≥ 3."
+        ),
+    )
+    bear_scenario: str | None = Field(
+        default=None,
+        description=(
+            "Bear scenario one line ≤40 chars: invalidation level + trigger. "
+            "Required when confidence ≥ 3."
+        ),
+    )
 
 
 class NewsItem(BaseModel):
@@ -378,7 +400,11 @@ class CryptoSection(BaseModel):
     )
     signal_conflict_summary: str = Field(
         ...,
-        description="訊號衝突摘要 body text ONLY — do NOT include the label '訊號衝突摘要：' as prefix. ≤75 chars.",
+        description=(
+            "訊號衝突摘要 body text ONLY — do NOT include the label '訊號衝突摘要：' as prefix. ≤75 chars. "
+            "P4: include the two-line ╌辯論摘要╌ from Risk Critic verbatim if available "
+            "(最強空方論點 + 多方反駁核心), keeping total ≤120 chars."
+        ),
     )
     trade_legs: list[ExecutableTradeLeg] = Field(
         default_factory=list,
@@ -436,7 +462,10 @@ class AISection(BaseModel):
     )
     signal_conflict_summary: str = Field(
         ...,
-        description="訊號衝突摘要 body text ONLY — do NOT include the label '訊號衝突摘要：' as prefix.",
+        description=(
+            "訊號衝突摘要 body text ONLY — do NOT include the label '訊號衝突摘要：' as prefix. "
+            "P4: include ╌辯論摘要╌ two-line block from Risk Critic when available."
+        ),
     )
 
     @field_validator("pick_reason", "signal_conflict_summary", mode="before")

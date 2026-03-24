@@ -286,3 +286,134 @@ CrewAI 四核 Agent 產出戰報
 - `.gitignore` 排除 `.env`、Service Account JSON 等敏感檔。
 
 更細的維運與已知問題見 **AGENTS.md**。
+
+---
+
+## Q-Silicon War Room PWA（手機版戰情室）
+
+### 架構概覽
+
+```
+FastAPI 後端 (api.py)  ←─  BigQuery (daily_metrics + trade_recommendations)
+        ↓
+React PWA (data-verification-ui/)
+        ↓ 安裝至手機主畫面
+  📊 今日  /  📈 圖表  /  💼 交易  /  🗄 存檔
+```
+
+Telegram 繼續作為 **推播通知** 入口，PWA 作為 **閱讀與互動** 主平台（兩者互補，不互斥）。
+
+---
+
+### 本機啟動
+
+**1. 啟動 FastAPI 後端**
+
+```bash
+# 安裝依賴（已含 fastapi + uvicorn）
+pip install -r requirements.txt
+
+# 啟動 API（需要 GCP credentials / BigQuery 連線）
+uvicorn api:app --reload --port 8000
+```
+
+無 BigQuery 時 API 回傳 503，前端顯示 "無法連線至 API"，不影響開發。
+
+**2. 啟動前端開發伺服器**
+
+```bash
+cd data-verification-ui
+npm install
+npm run dev
+# → http://localhost:5173（自動 proxy /api → localhost:8000）
+```
+
+---
+
+### 頁面功能說明
+
+| 頁面 | 功能 |
+|------|------|
+| 📊 **今日** | 市場模式 badge（Risk ON/OFF/中性）、DXY/ETF流/MVRV/風險評分 KPI cards、Grok 幣圈情報、AI 產業摘要、今日 QSREC 建議卡片 |
+| 📈 **圖表** | DXY / ETF 資金流 / MVRV Z-Score / 風險評分 互動折線圖，支援 30 / 60 / 90 天切換 |
+| 💼 **交易** | 勝率 / 平均 R:R / 平均 P&L 統計、全部/持倉中/達標/停損篩選、QSREC 建議卡片含 **評分維度 bar chart + 三情境分析** |
+| 🗄 **存檔** | 歷史報告清單（60 天），點入查看單日完整數據 + QSREC |
+
+---
+
+### 交易卡片進階功能（P4）
+
+每張 QSREC 建議卡片可展開「**評分 & 情境分析**」：
+
+**五維評分雷達（0–100）**
+
+| 維度 | 說明 |
+|------|------|
+| 催化（Catalyst） | 新聞事件 / ETF / 監管催化強度 |
+| 資金（Flow） | ETF 流入 / 鏈上淨流向 / 資金費率訊號 |
+| 技術（Technical） | 多時框一致性、均線結構、RSI/OI |
+| 風控（Risk Fit） | 與當日 regime 的倉位契合度 |
+| 執行（Execution） | 流動性、進場區間實用性 |
+
+**三情境分析**（信心 ≥ 3 星時填入）
+
+| 情境 | 說明 |
+|------|------|
+| 🐂 Bull | 樂觀目標價 + 觸發條件 |
+| ⚖️ Base | 基準預期 + 機率估算 |
+| 🐻 Bear | 失效位 + 風險觸發條件 |
+
+---
+
+### 手機安裝（PWA）
+
+**iOS（Safari）**
+
+1. 瀏覽器開啟 PWA 網址
+2. 點擊底部 **分享** 按鈕
+3. 選擇「**加入主畫面**」
+4. 確認後桌面出現「Q-Silicon War Room」app 圖示
+
+**Android（Chrome）**
+
+1. 瀏覽器開啟 PWA 網址
+2. 瀏覽器提示「**安裝應用程式**」→ 點安裝
+3. 或：選單 → 「**加入主畫面**」
+
+安裝後以全螢幕深色介面開啟，無瀏覽器工具列。
+
+---
+
+### 部署（生產環境）
+
+**前端 Build**
+
+```bash
+cd data-verification-ui
+npm run build        # 輸出 dist/
+# 部署至 Firebase Hosting / Vercel / Cloud Run (nginx)
+```
+
+**API 環境變數**
+
+| 變數 | 說明 | 預設 |
+|------|------|------|
+| `GCP_PROJECT_ID` | BigQuery 專案 ID | `my-investment-ai-agent` |
+| `CORS_ORIGINS` | 前端 origin 清單（逗號分隔） | `http://localhost:5173,...` |
+
+```bash
+# 生產啟動
+uvicorn api:app --host 0.0.0.0 --port 8000 --workers 2
+```
+
+**API 端點一覽**
+
+```
+GET /api/metrics/latest          最新 KPI + 日環比
+GET /api/metrics/history?days=30 歷史趨勢（7–180天）
+GET /api/reports?limit=30        報告清單
+GET /api/reports/{YYYY-MM-DD}    單日報告 + QSREC 建議
+GET /api/trades?status=OPEN      交易建議（可篩 status/days）
+GET /api/trades/performance      勝率/R:R/P&L 統計
+GET /healthz                     健康檢查
+```
