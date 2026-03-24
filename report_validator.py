@@ -1673,7 +1673,9 @@ def validate_structured_report(report: object) -> dict:
         issues.append("加密本日選擇理由過短（<34）")
     if len((ai_sec.pick_reason or "").strip()) < 38:
         issues.append("AI 本日選擇理由過短（<38）")
-    if cr.market.regime not in (cr.risk_budget_summary or ""):
+    # Allow surface variants: "risk_on", "risk on", "risk-on", "Risk On", "RISK_ON", etc.
+    _regime_pattern = re.escape(cr.market.regime).replace(r"_", r"[\s_\-]+")
+    if not re.search(_regime_pattern, cr.risk_budget_summary or "", re.IGNORECASE):
         issues.append("加密今日風險預算未包含主 regime token")
 
     def _norm_asset(a: str) -> str:
