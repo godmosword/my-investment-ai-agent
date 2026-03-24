@@ -864,5 +864,249 @@ class TestAiBoundaryAndWatchMutex(unittest.TestCase):
         self.assertTrue(any("R:R" in i and "缺少" in i for i in result["issues"]))
 
 
+class TestBlockingPrefixesCoverage(unittest.TestCase):
+    """Verify every _BLOCKING_PREFIXES entry produces a correctly-classified blocking issue."""
+
+    # ── 1. 核心新聞〔新聞 N〕標籤不足 ──────────────────────────────────────────
+    def test_blocking_core_news_tags_insufficient(self):
+        report = _make_report(news_count=0)
+        news_lines = "\n".join(f"{i}. 假新聞標題 {i} 內容超過十字" for i in range(1, 7))
+        report = report.replace("加密市場核心新聞", "加密市場核心新聞\n" + news_lines)
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("核心新聞〔新聞 N〕標籤不足") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 2. 缺少 market_regime ────────────────────────────────────────────────
+    def test_blocking_missing_market_regime(self):
+        report = _make_report(regime="totally_invalid_mode")
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("缺少 market_regime") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 3. 缺少加密市場操作建議 ──────────────────────────────────────────────
+    def test_blocking_missing_crypto_trading_advice(self):
+        report = _make_report(include_crypto_trade=False)
+        # remove any residual "精準操作 Crypto" keyword that might have leaked in
+        report = report.replace("精準操作 Crypto", "___")
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("缺少加密市場操作建議") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 4. 缺少 AI 美股操作建議 ──────────────────────────────────────────────
+    def test_blocking_missing_ai_equity_advice(self):
+        report = _make_report(include_ai_trade=False)
+        report = report.replace("精準操作 US Equities", "___")
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("缺少 AI 美股操作建議") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 5. 缺少 AI 市場段落 ──────────────────────────────────────────────────
+    def test_blocking_missing_ai_section(self):
+        report = _make_report(include_ai_section=False)
+        for kw in ("🤖 AI", "AI 市場", "AI 產業"):
+            report = report.replace(kw, "___")
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("缺少 AI 市場段落") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 6. 缺少加密市場段落 ──────────────────────────────────────────────────
+    def test_blocking_missing_crypto_section(self):
+        # HAS_CRYPTO_SECTION_RE = re.compile(r"加密市場|核心新聞|數據儀表板")
+        # "AI 數據儀表板" would otherwise keep has_crypto_section=True, so scrub all triggers.
+        report = _make_report(include_crypto_section=False)
+        for kw in ("加密市場", "核心新聞", "數據儀表板"):
+            report = report.replace(kw, "___")
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("缺少加密市場段落") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 7. 缺少系統追蹤載荷區塊 ─────────────────────────────────────────────
+    def test_blocking_missing_tracking_payload(self):
+        report = _make_report(include_qsrec=False)
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("缺少系統追蹤載荷區塊") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 8. QSREC 區塊存在但（JSON 無法解析） ─────────────────────────────────
+    def test_blocking_qsrec_invalid_json(self):
+        # Build a report without the valid QSREC, then inject a broken one
+        report = _make_report(include_qsrec=False)
+        report += "\n[QSREC_START]\n{broken_json: [\n[QSREC_END]"
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("QSREC 區塊存在但") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 9. 交易段含 N/A 關鍵價格 ────────────────────────────────────────────
+    def test_blocking_trade_na_price(self):
+        report = _make_report(extra="· $ETH (LONG)｜現價：N/A｜進場：$3000｜目標：$3500｜停損：$2800")
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("交易段含 N/A 關鍵價格") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 10. 關鍵資料來源缺失 ─────────────────────────────────────────────────
+    def test_blocking_critical_data_source_missing(self):
+        report = _make_report(extra="[DATA_MISSING:newsapi]")
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("關鍵資料來源缺失") for i in result["blocking_issues"]),
+            result["blocking_issues"],
+        )
+
+    # ── 11–14. 結構化驗證（via validate_structured_report） ─────────────────
+
+    def _make_minimal_structured_report(
+        self,
+        *,
+        crypto_news: int = 3,
+        ai_news: int = 3,
+        has_qsrec_recs: bool = True,
+        partial_tier: bool = False,
+    ):
+        from schemas import (
+            AISection,
+            CryptoSection,
+            DailyBriefReport,
+            MarketRegimeBlock,
+            MetricLine,
+            NewsItem,
+            TradeRecommendation,
+        )
+
+        def _ni(idx: int) -> NewsItem:
+            return NewsItem(
+                index=idx,
+                timestamp_line=f"[03/{idx:02d} 10:00 UTC+8]",
+                title=f"Headline {idx}",
+                source_and_nature="Source confirmed",
+                summary=f"Summary line {idx}.",
+                investment_takeaway=f"BTC RSI 55, takeaway {idx}.",
+                editor_consensus="Positive on BTC.",
+            )
+
+        qsrec = (
+            [
+                TradeRecommendation(
+                    asset="BTC",
+                    direction="LONG",
+                    current_price=95000,
+                    entry=94500,
+                    target=100000,
+                    stop=91000,
+                    confidence=4,
+                    category="CRYPTO",
+                )
+            ]
+            if has_qsrec_recs
+            else []
+        )
+        crypto = CryptoSection(
+            report_title_date="2026-03-24",
+            market=MarketRegimeBlock(regime="risk_on"),
+            narrative_of_day="BTC 上漲",
+            dashboard=[MetricLine(label="BTC", value="$95000")],
+            news=[_ni(i) for i in range(1, crypto_news + 1)],
+            pick_reason="ETF 淨流入超過 1.2B，鏈上 SOPR 回升",
+            risk_budget_summary="risk_on 模式下總倉位 15%",
+            signal_conflict_summary="無顯著衝突",
+            qsrec=qsrec,
+        )
+        ai_sec = AISection(
+            dashboard=[MetricLine(label="NVDA", value="$890")],
+            news=[_ni(i) for i in range(4, 4 + ai_news)],
+            pick_reason="NVDA 財報前瞻 GPU 拉貨新聞強化",
+            signal_conflict_summary="無衝突",
+        )
+        return DailyBriefReport(
+            crypto=crypto,
+            ai=ai_sec,
+            report_tier_partial_news=partial_tier,
+        )
+
+    def test_structured_crypto_news_insufficient(self):
+        from report_validator import validate_structured_report
+
+        report = self._make_minimal_structured_report(crypto_news=1, ai_news=3)
+        result = validate_structured_report(report)
+        self.assertTrue(
+            any(i.startswith("結構化加密新聞不足") for i in result["issues"]),
+            result["issues"],
+        )
+
+    def test_structured_ai_news_insufficient(self):
+        from report_validator import validate_structured_report
+
+        report = self._make_minimal_structured_report(crypto_news=3, ai_news=1)
+        result = validate_structured_report(report)
+        self.assertTrue(
+            any(i.startswith("結構化 AI 新聞不足") for i in result["issues"]),
+            result["issues"],
+        )
+
+    def test_structured_news_total_insufficient(self):
+        from report_validator import validate_structured_report
+
+        report = self._make_minimal_structured_report(crypto_news=2, ai_news=2, partial_tier=False)
+        result = validate_structured_report(report)
+        self.assertTrue(
+            any(i.startswith("結構化新聞總數") for i in result["issues"]),
+            result["issues"],
+        )
+
+    def test_structured_qsrec_empty(self):
+        from report_validator import validate_structured_report
+
+        report = self._make_minimal_structured_report(has_qsrec_recs=False)
+        result = validate_structured_report(report)
+        self.assertTrue(
+            any(i.startswith("結構化 qsrec 為空") for i in result["issues"]),
+            result["issues"],
+        )
+
+    # ── 15. AI 段「本日選擇理由」含基本面用語（第 18 項） ──────────────────
+    def test_blocking_ai_pick_reason_fundamental_only(self):
+        """AI pick reason using only '基本面' with no specific catalyst hits → blocking (18th prefix)."""
+        report = _make_report()
+        report = report.replace(
+            "本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+            "本日選擇理由：NVDA 基本面穩健，估值相對合理，選擇持有。",
+        )
+        result = validate_report(report)
+        self.assertTrue(
+            any(i.startswith("AI 段「本日選擇理由」含基本面用語") for i in result["blocking_issues"]),
+            f"Expected 18th blocking issue, got: {result['blocking_issues']}",
+        )
+
+    def test_blocking_ai_pick_reason_fundamental_with_catalysts_passes(self):
+        """'基本面' in AI reason is allowed when ≥ 2 specific catalyst hits are also present."""
+        report = _make_report()
+        report = report.replace(
+            "本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+            "本日選擇理由：NVDA 基本面強化加財報超預期，GPU 拉貨見於主流新聞，故選 NVDA。",
+        )
+        result = validate_report(report)
+        self.assertFalse(
+            any(i.startswith("AI 段「本日選擇理由」含基本面用語") for i in result["blocking_issues"]),
+            f"Should not block when catalysts ≥ 2: {result['blocking_issues']}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
