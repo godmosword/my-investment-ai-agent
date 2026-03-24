@@ -1,0 +1,51 @@
+name: Monitor — Intraday BTC/VIX Anomaly
+
+# Runs every hour to check BTC 1h price change and VIX for anomalies.
+# Pushes a Telegram alert and logs to BigQuery when thresholds are breached,
+# subject to a configurable silence period (default 4h) to avoid duplicate alerts.
+on:
+  schedule:
+    - cron: '0 * * * *'   # every hour at :00
+  workflow_dispatch:       # allow manual trigger for testing
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    env:
+      GCP_PROJECT_ID:             ${{ secrets.GCP_PROJECT_ID }}
+      TELEGRAM_BOT_TOKEN:         ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID:           ${{ secrets.TELEGRAM_CHAT_ID }}
+      XAI_API_KEY:                ${{ secrets.XAI_API_KEY }}
+      OPENAI_API_KEY:             ${{ secrets.OPENAI_API_KEY }}
+      OPENROUTER_API_KEY:         ${{ secrets.OPENROUTER_API_KEY }}
+      GEMINI_API_KEY:             ${{ secrets.GEMINI_API_KEY }}
+      APIFY_API_TOKEN:            ${{ secrets.APIFY_API_TOKEN }}
+      COINGLASS_API_KEY:          ${{ secrets.COINGLASS_API_KEY }}
+      GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GCP_SA_KEY }}
+      # Tunable via repository variables or secrets
+      INTRADAY_SILENCE_HOURS:     ${{ vars.INTRADAY_SILENCE_HOURS || '4' }}
+      INTRADAY_BTC_PCT_THRESHOLD: ${{ vars.INTRADAY_BTC_PCT_THRESHOLD || '5.0' }}
+      INTRADAY_VIX_THRESHOLD:     ${{ vars.INTRADAY_VIX_THRESHOLD || '30.0' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: uv pip install -r requirements.txt --system
+
+      - name: Write GCP credentials file
+        if: ${{ env.GOOGLE_APPLICATION_CREDENTIALS_JSON != '' }}
+        run: |
+          echo "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > /tmp/gcp_sa_key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp_sa_key.json" >> "$GITHUB_ENV"
+
+      - name: Run intraday monitor
+        run: python monitor_intraday.py
