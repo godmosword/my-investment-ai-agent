@@ -418,3 +418,73 @@ def _get_last_success_report_time_utc(
     except Exception as e:
         logger.warning("Could not fetch last successful report time from BigQuery: %s", e)
         return None
+
+
+def write_llm_run_log(
+    model_name: str,
+    used_fallback: bool,
+    retry_count: int,
+    gate_passed: bool,
+    gate_issues: list[str] | None = None,
+    project_id: str = PROJECT_ID,
+) -> None:
+    """Write LLM run metadata to BigQuery llm_run_log table.
+
+    Tracks which model was used, whether fallback was triggered, how many retries
+    were needed, and whether the Gate passed — enabling data-driven LLM selection.
+    """
+    if SKIP_BIGQUERY:
+        logger.info("SKIP_BIGQUERY=1 — skipping LLM run log write.")
+        return
+    llm_run_log_table = f"{project_id}.market_data.llm_run_log"
+    try:
+        client = bigquery.Client(project=project_id)
+        schema = [
+            bigquery.SchemaField("timestamp", "TIMESTAMP"),
+            bigquery.SchemaField("model_name", "STRING"),
+            bigquery.SchemaField("used_fallback", "BOOL"),
+            bigquery.SchemaField("retry_count", "INTEGER"),
+            bigquery.SchemaField("gate_passed", "BOOL"),
+            bigquery.SchemaField("gate_issues_count", "INTEGER"),
+            bigquery.SchemaField("gate_issues_preview", "STRING"),
+        ]
+        table_ref = bigquery.Table(llm_run_log_table, schema=schema)
+        client.create_table(table_ref, exists_ok=True)
+
+        # Migrate any missing columns on an existing table.
+        table = client.get_table(llm_run_log_table)
+        existing_columns = {field.name for field in table.schema}
+        missing_fields = [f for f in schema if f.name not in existing_columns]
+        if missing_fields:
+            table.schema = list(table.schema) + missing_fields
+            client.update_table(table, ["schema"])
+            logger.info(
+                "Added missing LLM run log columns: %s",
+                ", ".join(f.name for f in missing_fields),
+            )
+
+        issues = gate_issues or []
+        row = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "model_name": model_name,
+            "used_fallback": used_fallback,
+            "retry_count": retry_count,
+            "gate_passed": gate_passed,
+            "gate_issues_count": len(issues),
+            "gate_issues_preview": " | ".join(issues[:3]) if issues else None,
+        }
+        errors = client.insert_rows_json(llm_run_log_table, [row])
+        if errors:
+            logger.error("BigQuery LLM run log insert errors: %s", errors)
+        else:
+            logger.info(
+                "LLM run log written (model=%s, fallback=%s, retries=%d, gate=%s).",
+                model_name,
+                used_fallback,
+                retry_count,
+                gate_passed,
+            )
+    except DefaultCredentialsError as e:
+        logger.warning("BigQuery credentials not configured (LLM run log skipped): %s", e)
+    except Exception as e:
+        logger.error("Failed to write LLM run log to BigQuery: %s", e)
