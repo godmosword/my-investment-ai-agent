@@ -48,16 +48,4 @@ git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~
   - `/gstack-upgrade` — Upgrade gstack to the latest version
 
 ## 6. Coding Conventions
-- **Style**: Follow standard Ruff guidelines (`ruff check .`). Prefer clean, readable, maintainable code; resolve or document any existing warnings (e.g. unused variables, import order).
-- **Naming**: Use `snake_case` for functions and variables; `PascalCase` for classes (e.g. `CryptoResearchCrew`, `AIResearchCrew`); `UPPER_SNAKE_CASE` for module-level constants; leading underscore for module-private names (e.g. `_get_cache`, `_CACHE`, `_is_retriable`).
-- **Error Handling**: Implement robust error handling. Do not swallow exceptions; log them with `logging` (e.g. `logger.warning`, `logger.error`). Use retries and backoff for transient failures (503, 429, rate limits); return clear `[DATA_MISSING:...]`-style messages from tools when APIs fail.
-- **Comments**: Document complex logic and the "why" behind decisions. Keep docstrings for public functions and non-obvious helpers; use inline comments for business rules (e.g. thresholds, Telegram tag whitelist).
-## gstack
-Use /browse from gstack for all web browsing. Never use mcp__claude-in-chrome__* tools.
-Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review,
-/design-consultation, /review, /ship, /browse, /qa, /qa-only, /design-review,
-/setup-browser-cookies, /retro, /investigate, /document-release, /codex, /careful,
-/freeze, /guard, /unfreeze, /gstack-upgrade.
-If gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
-
-專案內補充說明見根目錄 [`gstack.md`](gstack.md)。
+See `.claude/rules/coding-style.md` for full conventions (style, naming, error handling, comments).

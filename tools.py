@@ -2662,6 +2662,175 @@ def sentiment_score_tool(news_and_tweets: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Financial Datasets API（美股損益／資產負債／現金流 — financialdatasets.ai）
+# ═══════════════════════════════════════════════════════════════════
+
+_FD_API_BASE = (os.getenv("FINANCIAL_DATASETS_API_BASE") or "https://api.financialdatasets.ai").rstrip("/")
+
+
+def _fd_fmt_money(n: object) -> str:
+    if n is None:
+        return "N/A"
+    try:
+        v = float(n)
+    except (TypeError, ValueError):
+        return "N/A"
+    av = abs(v)
+    if av >= 1e12:
+        return f"${v / 1e12:.2f}T"
+    if av >= 1e9:
+        return f"${v / 1e9:.2f}B"
+    if av >= 1e6:
+        return f"${v / 1e6:.2f}M"
+    return f"${v:,.0f}"
+
+
+def _fd_http_get_json(path: str, params: dict[str, str | int]) -> dict | None:
+    api_key = (os.getenv("FINANCIAL_DATASETS_API_KEY") or "").strip()
+    headers: dict[str, str] = {"User-Agent": "Q-Silicon/1.0 (financial-datasets-tool)"}
+    if api_key:
+        headers["X-API-KEY"] = api_key
+    url = f"{_FD_API_BASE}{path}"
+    try:
+        resp = _http_get(url, params=params, headers=headers, timeout=25)
+        resp.raise_for_status()
+        data = resp.json()
+        return data if isinstance(data, dict) else None
+    except Exception as e:
+        logger.warning("financial_datasets GET %s failed: %s", path, e)
+        return None
+
+
+def _fd_rows(data: dict | None, list_key: str) -> list[dict]:
+    if not data or not isinstance(data, dict):
+        return []
+    rows = data.get(list_key)
+    if not isinstance(rows, list):
+        return []
+    return [r for r in rows[:3] if isinstance(r, dict)]
+
+
+def _fd_yoy_pct(cur: object, prev: object) -> str:
+    try:
+        c = float(cur)  # type: ignore[arg-type]
+        p = float(prev)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "N/A"
+    if p == 0:
+        return "N/A"
+    return f"{(c - p) / abs(p) * 100:+.1f}%"
+
+
+def _fd_summarize_ticker(sym: str, period: str) -> list[str]:
+    """Build human-readable lines for one ticker (income + balance + cash flow)."""
+    lines: list[str] = []
+    p = period if period in ("annual", "quarterly") else "annual"
+    inc = _fd_http_get_json(
+        "/financials/income-statements/",
+        {"ticker": sym, "period": p, "limit": 2},
+    )
+    bal = _fd_http_get_json(
+        "/financials/balance-sheets/",
+        {"ticker": sym, "period": p, "limit": 1},
+    )
+    cf = _fd_http_get_json(
+        "/financials/cash-flow-statements/",
+        {"ticker": sym, "period": p, "limit": 1},
+    )
+    ir = _fd_rows(inc, "income_statements")
+    if not ir:
+        lines.append(f"· {sym}：損益表 API 無資料或請求失敗（可檢查代號或 FINANCIAL_DATASETS_API_KEY）")
+        return lines
+    latest = ir[0]
+    prev = ir[1] if len(ir) > 1 else None
+    rev = latest.get("revenue")
+    ni = latest.get("net_income")
+    gp = latest.get("gross_profit")
+    op_inc = latest.get("operating_income")
+    eps_dil = latest.get("earnings_per_share_diluted") or latest.get("earnings_per_share")
+    fiscal = latest.get("fiscal_period") or latest.get("report_period") or "N/A"
+    yoy_rev = _fd_yoy_pct(rev, prev.get("revenue")) if prev else "N/A"
+    lines.append(
+        f"· <b>{sym}</b> 損益（{p}｜{fiscal}）：營收 <code>{_fd_fmt_money(rev)}</code> "
+        f"（同比 <code>{yoy_rev}</code>）｜淨利 <code>{_fd_fmt_money(ni)}</code>｜"
+        f"毛利 <code>{_fd_fmt_money(gp)}</code>｜營業利益 <code>{_fd_fmt_money(op_inc)}</code>"
+        + (f"｜EPS(dil) <code>{eps_dil}</code>" if eps_dil not in (None, "") else "")
+    )
+    br = _fd_rows(bal, "balance_sheets")
+    if br:
+        b0 = br[0]
+        td = b0.get("total_debt")
+        debt_part = f"｜總負債 <code>{_fd_fmt_money(td)}</code>" if td is not None else ""
+        lines.append(
+            f"  └ 資產負債：總資產 <code>{_fd_fmt_money(b0.get('total_assets'))}</code>｜"
+            f"現金 <code>{_fd_fmt_money(b0.get('cash_and_equivalents'))}</code>{debt_part}"
+        )
+    cr = _fd_rows(cf, "cash_flow_statements")
+    if cr:
+        c0 = cr[0]
+        lines.append(
+            f"  └ 現金流：營運現金流 <code>{_fd_fmt_money(c0.get('net_cash_flow_from_operations'))}</code>｜"
+            f"自由現金流 <code>{_fd_fmt_money(c0.get('free_cash_flow'))}</code>"
+        )
+    lines.append(
+        f"  └ <i>儀表板請加一行 MetricLine：label 含 <code>FinancialDatasets</code> 與 <code>{sym}</code>，"
+        f"value 摘要營收或 FCF（勿捏造工具未回傳數字）</i>"
+    )
+    return lines
+
+
+@tool
+def financial_datasets_tool(query: str) -> str:
+    """
+    從 Financial Datasets API（financialdatasets.ai）取得美股損益表、資產負債表、現金流摘要。
+    query：留空或 \"watchlist\"＝一次查 NVDA、MSFT、AAPL（免費層常開放）；
+    或單一代號如 \"NVDA\"；或 \"NVDA:quarterly\" 指定季報。
+    需將回傳中的營收／現金流等數字寫入 AI 儀表板 MetricLine，且 label 须含 FinancialDatasets 字樣。
+    """
+
+    def _run() -> str:
+        raw = (query or "").strip()
+        low = raw.lower()
+        if not low or low == "watchlist":
+            tickers = ["NVDA", "MSFT", "AAPL"]
+            period = "annual"
+        elif ":" in raw:
+            sym, per = raw.split(":", 1)
+            tickers = [sym.strip().upper()[:12]]
+            p2 = per.strip().lower()
+            period = "quarterly" if p2.startswith("q") or "quarter" in p2 else "annual"
+        else:
+            tickers = [raw.upper()[:12]]
+            period = "annual"
+        cache_key = ("financial_datasets", ",".join(tickers), period)
+        cached = _get_cache(cache_key)
+        if cached:
+            return _append_data_as_of(cached, "financial_datasets")
+        header = (
+            "【美股基本面｜Financial Datasets API】\n"
+            "（以下數字僅能複述本工具輸出；若寫入戰報儀表板，每檔至少一行 label 含 FinancialDatasets）\n"
+        )
+        body_lines: list[str] = []
+        for sym in tickers:
+            if not sym or not sym.isalnum():
+                continue
+            body_lines.extend(_fd_summarize_ticker(sym, period))
+        if not body_lines:
+            msg = (
+                "[DATA_MISSING:financial_datasets] 無有效 ticker 或 API 全失敗。"
+                " 可設 FINANCIAL_DATASETS_API_KEY；免費層常含 AAPL/NVDA/MSFT。"
+            )
+            return msg
+        result = header + "\n".join(body_lines)
+        if not result.startswith("[DATA_MISSING"):
+            _set_cache(cache_key, result)
+        return _append_data_as_of(result, "financial_datasets")
+
+    q = (query or "").strip()
+    return traced_tool_execution("financial_datasets_tool", {"query": q or "watchlist"}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Macro Context Tool（美債利率、殖利率曲線、Fed 期貨、本週財報）
 # ═══════════════════════════════════════════════════════════════════
 

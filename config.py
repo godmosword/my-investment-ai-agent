@@ -21,5 +21,5 @@ PAPER_TRADE_TABLE = RECOMMENDATIONS_TABLE
 MODEL_GROK = _env_model("MODEL_GROK", default="xai/grok-4-1-fast-reasoning")
 # 相容舊慣例：OPENAI_MODEL 優先，其次 MODEL_GPT
 MODEL_GPT = _env_model("OPENAI_MODEL", "MODEL_GPT", default="openai/gpt-4o-mini")
-MODEL_GEMINI = _env_model("MODEL_GEMINI", default="gemini/gemini-3.1-pro-preview")
+MODEL_GEMINI = _env_model("MODEL_GEMINI", default="gemini/gemini-2.5-pro")
 MODEL_CLAUDE = _env_model("MODEL_CLAUDE", default="anthropic/claude-sonnet-4-20250514")
