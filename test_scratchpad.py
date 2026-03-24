@@ -74,6 +74,50 @@ class TestScratchpad(unittest.TestCase):
             scratchpad.begin_run({})
             self.assertIsNone(scratchpad.current_scratchpad_path())
 
+    def test_append_judge_result(self):
+        with mock.patch.dict(os.environ, {"SCRATCHPAD_DIR": str(self._path / "spj"), "SCRATCHPAD_ENABLED": "1"}):
+            scratchpad.begin_run({})
+            p = scratchpad.current_scratchpad_path()
+            assert p is not None
+            scratchpad.append_judge_result({"pass": True, "overall_score": 88.0})
+            lines = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines()]
+            self.assertTrue(any(x.get("type") == "judge_result" for x in lines))
+            scratchpad.finalize_run("ok")
+
+    def test_tool_guard_max_calls(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SCRATCHPAD_DIR": str(self._path / "spg"),
+                "SCRATCHPAD_ENABLED": "1",
+                "MAX_TOOL_CALLS_PER_RUN": "2",
+                "REPEATED_CALL_THRESHOLD": "0",
+            },
+        ):
+            scratchpad.begin_run({})
+            scratchpad.traced_tool_execution("t1", {}, lambda: "a")
+            scratchpad.traced_tool_execution("t2", {}, lambda: "b")
+            with self.assertRaises(RuntimeError):
+                scratchpad.traced_tool_execution("t3", {}, lambda: "c")
+            scratchpad.finalize_run("aborted")
+
+    def test_tool_guard_repeated_args(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SCRATCHPAD_DIR": str(self._path / "spr"),
+                "SCRATCHPAD_ENABLED": "1",
+                "MAX_TOOL_CALLS_PER_RUN": "0",
+                "REPEATED_CALL_THRESHOLD": "3",
+            },
+        ):
+            scratchpad.begin_run({})
+            scratchpad.traced_tool_execution("same", {"q": "x"}, lambda: "1")
+            scratchpad.traced_tool_execution("same", {"q": "x"}, lambda: "2")
+            with self.assertRaises(RuntimeError):
+                scratchpad.traced_tool_execution("same", {"q": "x"}, lambda: "3")
+            scratchpad.finalize_run("aborted")
+
 
 if __name__ == "__main__":
     unittest.main()

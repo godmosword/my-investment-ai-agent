@@ -245,5 +245,56 @@ class TestSchemaGuards(unittest.TestCase):
         self.assertIn("DATA_MISSING", result)
 
 
+# ── 7. BigQuery DefaultCredentialsError handling ──────────────────────
+
+class TestBigQueryCredentialsError(unittest.TestCase):
+    """extract_and_save_metrics and fetch_exclusion_context must not crash or
+    log ERROR-level noise when GCP credentials are absent (local dev)."""
+
+    def _make_creds_error(self):
+        try:
+            from google.auth.exceptions import DefaultCredentialsError
+            return DefaultCredentialsError("no credentials")
+        except ImportError:
+            return Exception("Could not automatically determine credentials")
+
+    @patch("bigquery_writer.SKIP_BIGQUERY", False)
+    @patch("bigquery_writer.bigquery.Client")
+    def test_extract_metrics_logs_warning_not_error_on_missing_creds(
+        self, mock_client_cls
+    ):
+        """DefaultCredentialsError should be logged at WARNING, not ERROR."""
+        import bigquery_writer
+        mock_client_cls.side_effect = self._make_creds_error()
+
+        with self.assertLogs("bigquery_writer", level="WARNING") as cm:
+            # Should not raise
+            bigquery_writer.extract_and_save_metrics("dummy report text")
+
+        # Must NOT contain any ERROR-level log for this scenario
+        error_logs = [line for line in cm.output if line.startswith("ERROR")]
+        self.assertEqual(
+            error_logs, [],
+            f"Expected no ERROR logs for missing credentials, got: {error_logs}",
+        )
+
+    @patch("bigquery_writer.SKIP_BIGQUERY", True)
+    @patch("bigquery_writer.bigquery.Client")
+    def test_extract_metrics_skips_bigquery_when_flag_set(self, mock_client_cls):
+        """SKIP_BIGQUERY=True must cause early return before any BQ calls."""
+        import bigquery_writer
+        bigquery_writer.extract_and_save_metrics("dummy report text")
+        mock_client_cls.assert_not_called()
+
+    @patch("bigquery_writer.SKIP_BIGQUERY", True)
+    @patch("bigquery_writer.bigquery.Client")
+    def test_fetch_exclusion_context_skips_when_flag_set(self, mock_client_cls):
+        """SKIP_BIGQUERY=True must cause early return before any BQ calls."""
+        import bigquery_writer
+        result = bigquery_writer.fetch_exclusion_context()
+        self.assertIsNone(result)
+        mock_client_cls.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
