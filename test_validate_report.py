@@ -77,7 +77,7 @@ def _make_report(
             "· $BTC (LONG)｜現價：$95000｜進場：$94500｜目標：$100000｜停損：$91000"
         )
     if include_ai_section:
-        sections.append("────────────\n🤖 AI 市場\nAI 數據儀表板")
+        sections.append("────────────\n🤖 AI 市場\nAI 數據儀表板\n· FinancialDatasets NVDA 年度損益：營收 $61B")
     if include_ai_trade:
         sections.append(
             "AI 產業鏈精準操作 (US Equities)\n"
