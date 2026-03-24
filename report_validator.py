@@ -193,8 +193,8 @@ def _strict_pick_scoring() -> bool:
 
 
 def _strict_ai_fundamentals_citation() -> bool:
-    """AI 段理由若含基本面用語，須在 AI 區塊內出現 FinancialDatasets 標記。預設開啟。"""
-    return os.getenv("STRICT_AI_FUNDAMENTALS_CITATION", "1").lower() not in ("0", "false", "no")
+    """AI 段理由若含基本面用語，須在 AI 區塊內出現 FinancialDatasets 標記。預設關閉（與 README／ENV_TEMPLATE 一致）。"""
+    return os.getenv("STRICT_AI_FUNDAMENTALS_CITATION", "0").lower() in ("1", "true", "yes")
 
 
 _AI_FUNDAMENTAL_CLAIM_IN_REASON_RE = re.compile(
