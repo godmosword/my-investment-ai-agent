@@ -31,6 +31,7 @@ from bigquery_writer import (
     extract_and_save_metrics,
     fetch_exclusion_context,
     _get_last_success_report_time_utc,
+    write_llm_run_log,
 )
 from report_judge import (
     hard_pattern_judge_pass,
@@ -806,6 +807,9 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
     final_report = ""
     report_valid = False
     last_validation: dict | None = None
+    # LLM run tracking — populated as the pipeline runs, written to BQ at the end.
+    _used_fallback = False
+    _total_retries = 0
     try:
         for attempt in range(MAX_REPORT_RETRIES + 1):
             last_err: Exception | None = None
@@ -828,6 +832,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     break
                 last_err = err
                 if _is_retriable(err) and step < MAX_503_RETRIES:
+                    _total_retries += 1
                     wait = BACKOFF_BASE_SEC * (2**step)
                     logger.warning(
                         "暫時性錯誤（可重試），%ds 後重試 (%d/%d)：%s",
@@ -844,6 +849,8 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             # 可重試錯誤時，以 fallback LLM（全 GPT）再跑一次
             if last_err is not None and _is_retriable(last_err):
                 logger.warning("Primary LLM 失敗，改用 fallback LLM（全 GPT）重試一次：%s", last_err)
+                _used_fallback = True
+                _total_retries += 1
                 report_html, err, report_model = _run_pipeline_once(exclude_context, use_fallback_llm=True)
                 if err is None:
                     if report_model is None:
@@ -928,6 +935,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             if logger.isEnabledFor(logging.DEBUG) and final_report:
                 logger.debug("Report snippet (first 500 chars): %s", final_report[:500].replace("\n", " "))
             if attempt < MAX_REPORT_RETRIES:
+                _total_retries += 1
                 logger.info("Retrying report generation (%d/%d)...", attempt + 2, MAX_REPORT_RETRIES + 1)
 
         # All retries exhausted — apply final score-based decision.
@@ -965,6 +973,20 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
     finally:
         if scratchpad.current_run_id():
             scratchpad.finalize_run("aborted_without_finalize", {"note": "exception_or_broken_flow"})
+        # Write LLM run metadata to BigQuery for cost and reliability tracking.
+        try:
+            from config import MODEL_GROK, MODEL_GPT  # noqa: PLC0415
+            _model = MODEL_GPT if _used_fallback else MODEL_GROK
+            _gate_issues = list((last_validation or {}).get("issues") or [])
+            write_llm_run_log(
+                model_name=_model,
+                used_fallback=_used_fallback,
+                retry_count=_total_retries,
+                gate_passed=report_valid,
+                gate_issues=_gate_issues,
+            )
+        except Exception as _llm_log_err:
+            logger.warning("LLM run log write failed (non-fatal): %s", _llm_log_err)
 
 
 def _validate_required_keys() -> None:
@@ -1002,6 +1024,17 @@ def _validate_required_keys() -> None:
         if not (os.getenv("GCP_PROJECT_ID") or "").strip():
             logger.warning(
                 "GCP_PROJECT_ID is not set; BigQuery metrics will be skipped. "
+                "Set SKIP_BIGQUERY=1 to suppress this warning.",
+            )
+        # GCP credentials: either a service account key JSON path or ADC via workload identity.
+        has_sa_key = bool(
+            (os.getenv("GCP_SA_KEY") or "").strip()
+            or (os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "").strip()
+        )
+        if not has_sa_key:
+            logger.warning(
+                "Neither GCP_SA_KEY nor GOOGLE_APPLICATION_CREDENTIALS is set; "
+                "BigQuery writes will fail unless Application Default Credentials are configured. "
                 "Set SKIP_BIGQUERY=1 to suppress this warning.",
             )
 
