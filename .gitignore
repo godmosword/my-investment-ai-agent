@@ -35,6 +35,9 @@ venv/
 logs/
 daily_chart.png
 .claude/
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/*
 
 # Run scratchpad (Phase 1: tool/gate trace JSONL — may contain sensitive snippets)
 .qsilicon/scratchpad/
