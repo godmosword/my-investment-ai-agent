@@ -555,7 +555,7 @@ def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
 class CryptoResearchCrew:
     def __init__(self, use_fallback_llm: bool = False):
         llms = _get_llms_for_crew(use_fallback_llm)
-        grok, gpt, gemini = llms["grok"], llms["gpt"], llms["gemini"]
+        grok, gemini = llms["grok"], llms["gemini"]
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -570,7 +570,7 @@ class CryptoResearchCrew:
             role="首席幣圈風險審計員",
             goal="對幣圈新聞做反向辯論，以評分卡判定 market_regime。",
             backstory="反身性風險審計者，負責挑錯、驗證與量化機制判斷。",
-            llm=gpt,
+            llm=gemini,
             allow_delegation=False,
             tools=[regime_scorecard_tool, macro_context_tool],
             verbose=_VERBOSE,
@@ -696,13 +696,13 @@ class CryptoResearchCrew:
 class AIResearchCrew:
     def __init__(self, use_fallback_llm: bool = False):
         llms = _get_llms_for_crew(use_fallback_llm)
-        gpt, grok, gemini = llms["gpt"], llms["grok"], llms["gemini"]
+        grok, gemini = llms["grok"], llms["gemini"]
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
             goal="收集 AI 市場核心資訊並輸出 3 則可交易新聞。",
             backstory="科技產業鏈研究員，聚焦可驗證催化。",
-            llm=gpt,
+            llm=grok,
             tools=[
                 market_search_tool,
                 newsapi_tool,
@@ -720,7 +720,7 @@ class AIResearchCrew:
             role="首席 AI 市場辯論員",
             goal="對 AI 新聞做反向辯論，引用宏觀框架強化論點。",
             backstory="對估值泡沫與敘事偏差高度敏感，善用利率與財報催化分析 AI 板塊。",
-            llm=grok,
+            llm=gemini,
             allow_delegation=False,
             tools=[macro_context_tool],
             verbose=_VERBOSE,
