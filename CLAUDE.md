@@ -47,7 +47,45 @@ git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~
   - `/unfreeze` — Remove edit restrictions
   - `/gstack-upgrade` — Upgrade gstack to the latest version
 
-## 6. Coding Conventions
+## 6. Pipeline Architecture Detail
+- **Entry**: `crew.py` → 主要 pipeline 入口
+- **Agents**: `agents/` → 各 agent 定義
+- **Tools**: `tools/` → 自訂工具
+- **Schema**: `models/` → Pydantic schema（JSON output 驗證，Agent output 必須符合 `ReportSchema`，見 `models/schema.py`）
+- **Delivery**: `delivery/telegram.py` → Telegram 推送
+- **Tests**: `tests/` → pytest smoke tests（`pytest tests/smoke_test.py -v`）
+- **Env**: `.env`（參考 `.env.example`）
+
+## 7. Claude Code Session 使用技巧
+
+### 控制 context 範圍
+每次對話開頭明確指定範圍，避免 agent 亂讀：
+```
+只看 agents/research_agent.py 和 models/schema.py，
+幫我 debug 為何 output 缺少 `news` 欄位。
+不需要讀其他檔案。
+```
+
+### 善用 `.claudeignore` 排除不必要的檔案
+```
+# .claudeignore
+node_modules/
+.venv/
+__pycache__/
+*.log
+data/raw/
+*.csv
+```
+
+### 拆分成小型 focused sessions
+與其每次開啟整個 repo，用 subagent / task 分工：
+```
+# 這次 session 只負責 schema validation
+Context: models/schema.py, tests/test_schema.py
+Task: 新增 `sentiment_score` 欄位並更新測試
+```
+
+## 8. Coding Conventions
 - **Style**: Follow standard Ruff guidelines (`ruff check .`). Prefer clean, readable, maintainable code; resolve or document any existing warnings (e.g. unused variables, import order).
 - **Naming**: Use `snake_case` for functions and variables; `PascalCase` for classes (e.g. `CryptoResearchCrew`, `AIResearchCrew`); `UPPER_SNAKE_CASE` for module-level constants; leading underscore for module-private names (e.g. `_get_cache`, `_CACHE`, `_is_retriable`).
 - **Error Handling**: Implement robust error handling. Do not swallow exceptions; log them with `logging` (e.g. `logger.warning`, `logger.error`). Use retries and backoff for transient failures (503, 429, rate limits); return clear `[DATA_MISSING:...]`-style messages from tools when APIs fail.
