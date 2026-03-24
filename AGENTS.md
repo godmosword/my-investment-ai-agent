@@ -38,7 +38,7 @@ Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline tha
 - **LiteLLM `fastapi` warning** — LiteLLM logs `ImportError: No module named 'fastapi'` in its cold storage handler. This is a cosmetic warning and does **not** block LLM calls. Do not install `litellm[proxy]` unless you need the proxy server.
 - **CryptoQuant MVRV Z-Score endpoint returns HTTP 404** — the `/v1/btc/market-data/mvrv-z-score` endpoint may have been removed or moved. The tool handles this gracefully and the pipeline continues.
 - **BigQuery credentials setup** — when `GCP_SA_KEY` env var is available, write it to `~/.config/gcloud/sa-key.json` and set `export GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/sa-key.json` before running any Python commands. The service account needs **BigQuery Data Editor** + **BigQuery Job User** roles on the project.
-- **Gemini model** (`gemini/gemini-3.1-pro-preview` in `crew.py`) — valid model per [Google AI docs](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview). May return 503 during high-demand periods; the pipeline's `max_retries=5` handles transient failures.
+- **Gemini model**（預設 `gemini/gemini-2.5-pro`，`MODEL_GEMINI` 可覆寫）— 見 [Gemini 2.5 Pro](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-pro)。高峰期仍可能 503；管線 `max_retries=5` 處理暫態失敗。
 - **Data APIs**: Tavily, X/Twitter, FRED, CryptoQuant, BigQuery 等行為見各工具實作。**CoinGlass** 見下方專節（v4 與方案權限）。
 
 ### CoinGlass API v4（對照官方文件）

@@ -14,7 +14,7 @@
 | **AI 戰報** | AI 情報收集（ai_task） | `MODEL_GPT` | 約 5～10 輪（多個搜尋/新聞/推文工具） |
 | **選用** | `sentiment_score_tool`（情緒評分） | 候選含 `gpt-4o-mini` | 0～1 次（多數由 Gemini 先處理） |
 
-註：機構策略主編（加密/AI）已改為 **Gemini 3.1 Pro Preview**，不再使用 OpenAI。
+註：機構策略主編（加密/AI）使用 **Gemini 2.5 Pro**（`MODEL_GEMINI`），不再使用 OpenAI。
 
 目前 `crew.py` 中**預設**為低成本模型，並可透過環境變數覆寫：
 

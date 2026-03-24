@@ -16,6 +16,7 @@ from tools import (
     econ_calendar_tool,
     etf_flow_tool,
     fear_greed_tool,
+    financial_datasets_tool,
     gnews_tool,
     macro_context_tool,
     market_search_tool,
@@ -222,7 +223,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段。
-        - dashboard：AI 儀表板 MetricLine 列表。
+        - dashboard：AI 儀表板 MetricLine 列表；若使用 financial_datasets_tool，每檔相關美股至少一行 label 含 FinancialDatasets 與代號。
         - news：3 則 index 4–6，格式同加密新聞欄位語意。
         - chatter：2–3 產業鏈呢喃含可信度。
         - pick_reason / signal_conflict_summary / us_equity_allocation_note：遵守 AI 段 Gate（不重複今日風險預算整行）。
@@ -258,6 +259,7 @@ _TOOL_TRUTH_RULE = dedent("""\
     - **嚴禁**在任何可見欄位貼上工具內部字樣 **`[DATA_MISSING:...]`**（會觸發 Gate「資料缺失欄位」）；請改寫為自然語句或以 value=`N/A` 表示，並簡述原因（≤30 字）。
     - CoinGlass／ETF／爆倉／OI：若工具為 `[DATA_MISSING:coinglass_*]` 或含 401／Upgrade plan，僅能表述為「第三方衍生品數據源未回傳或訂閱方案不含該端點」；嚴禁寫成「資料庫 API 連線異常」「內部 API 故障」等未經證實說法。
     - 若儀表板已出現 Binance 備援、資金費率或多空比等數值，不得稱「籌碼面全缺失」；應寫「CoinGlass 不可用，已採備援／近似指標觀察短線情緒」。
+    - **美股基本面**：營收、淨利、現金流、毛利率、EPS、資產負債等敘述必須來自 `financial_datasets_tool` 回傳；複述時 AI 儀表板須至少一行 MetricLine 的 label 同時含 **`FinancialDatasets`** 與該 ticker（如 NVDA），value 僅用工具數字或 N/A。
     - AI 儀表板（HuggingFace／OpenRouter）：禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；每行一個指標；僅能複述 `ai_momentum_tool` 回傳中的 **TopN: 模型名（下載｜按讚）** 或 RSS 備援標題；缺資料則 value=`N/A`，另補一句原因（≤45 字）—不得捏造數字。""")
 
 _NEWS_FMT = dedent("""\
@@ -597,9 +599,9 @@ class CryptoResearchCrew:
                 · gnews_tool('Ethereum altcoin DeFi Layer2 crypto market')（多語言 + 山寨幣補充）
                 · rumor_scanner_tool('crypto whale ETF flow OR altcoin catalyst OR DeFi exploit OR Layer2 upgrade')
                 · market_search_tool('crypto market altcoin DeFi Layer2 catalyst liquidity derivatives')
-                · x_search_tool('crypto ETF bitcoin ethereum altcoin DeFi liquidation whale')（取得 X/Twitter 即時情緒推文，供 X 推文精選區塊使用）
+                · x_search_tool('crypto ETF bitcoin ethereum altcoin DeFi liquidation whale')（供 X 推文精選區塊使用）
                 · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
-                · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（P2 社群情緒量化：-1 到 +1）
+                · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（可選 / optional：若時間緊迫可跳過；社群情緒量化 -1 到 +1）
 
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
@@ -672,7 +674,16 @@ class AIResearchCrew:
             goal="收集 AI 市場核心資訊並輸出 3 則可交易新聞。",
             backstory="科技產業鏈研究員，聚焦可驗證催化。",
             llm=gpt,
-            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, ai_momentum_tool, rumor_scanner_tool, x_search_tool],
+            tools=[
+                market_search_tool,
+                newsapi_tool,
+                rss_feed_tool,
+                gnews_tool,
+                ai_momentum_tool,
+                financial_datasets_tool,
+                rumor_scanner_tool,
+                x_search_tool,
+            ],
             verbose=_VERBOSE,
         )
 
@@ -719,6 +730,7 @@ class AIResearchCrew:
                 {_QUOTE_RULE}
                 {excl}
                 呼叫 ai_momentum_tool('openrouter_rankings')。
+                必呼叫 financial_datasets_tool：query 留空或 \"watchlist\"（一次取 NVDA、MSFT、AAPL 年度摘要）；若新聞點名其他美股，追加 financial_datasets_tool('TICKER') 或 financial_datasets_tool('TICKER:quarterly')。
                 搜尋：
                 · rss_feed_tool('ai')（TechCrunch / VentureBeat AI RSS，優先取用）
                 · newsapi_tool('AI data center GPU cloud computing semiconductor')（Bloomberg / Reuters AI 報導）

@@ -10,10 +10,10 @@
 |-------|------|-----------|
 | 加密市場情報研究員 | **Grok**（xai/grok-4-1-fast-reasoning） | crypto_task |
 | 首席幣圈風險審計員 | **GPT**（openai/gpt-4o-mini） | review_task（Crypto） |
-| 機構策略主編（加密市場） | **Gemini**（gemini-3.1-pro-preview） | final_report_task（Crypto） |
+| 機構策略主編（加密市場） | **Gemini**（gemini-2.5-pro） | final_report_task（Crypto） |
 | 前沿 AI 市場研究員 | **GPT**（openai/gpt-4o-mini） | ai_task |
 | 首席 AI 市場辯論員 | **Grok**（xai/grok-4-1-fast-reasoning） | review_task（AI） |
-| 機構策略主編（AI 市場） | **Gemini**（gemini-3.1-pro-preview） | final_report_task（AI） |
+| 機構策略主編（AI 市場） | **Gemini**（gemini-2.5-pro） | final_report_task（AI） |
 
 另：`sentiment_score_tool` 依金鑰依序嘗試 **Gemini 2.5 Flash → gpt-4o-mini → Claude Haiku**，單次約 2.5k in / 0.2k out，費用可忽略。
 
@@ -38,7 +38,7 @@
 | 供應商 | 模型 | Input（/1M） | Output（/1M） | 來源 |
 |--------|------|--------------|--------------|------|
 | **OpenAI** | gpt-4o-mini | $0.15 | $0.60 | [OpenAI Pricing](https://openai.com/api/pricing) |
-| **Google** | gemini-3.1-pro-preview | $2.00 | $12.00 | [Gemini Pricing](https://ai.google.dev/gemini-api/docs/pricing)（≤200K 區間） |
+| **Google** | gemini-2.5-pro | $1.25 | $10.00 | [Gemini Pricing](https://ai.google.dev/gemini-api/docs/pricing)（prompt ≤200K tokens） |
 | **xAI** | grok-4-1-fast-reasoning | $0.20 | $0.50 | [xAI / pricepertoken](https://pricepertoken.com/pricing-page/model/xai-grok-4.1-fast) 等級 |
 
 ### 3.2 單次日報每模型花費（未重試）
@@ -46,7 +46,7 @@
 | 模型 | 計算式 | **單次日報約（USD）** |
 |------|--------|------------------------|
 | **OpenAI（gpt-4o-mini）** | 0.042×0.15 + 0.012×0.60 | **≈ $0.014** |
-| **Gemini（3.1 Pro Preview）** | 0.053×2 + 0.018×12 | **≈ $0.32** |
+| **Gemini（2.5 Pro）** | 0.053×1.25 + 0.018×10 | **≈ $0.25** |
 | **Grok（4.1 Fast）** | 0.043×0.20 + 0.012×0.50 | **≈ $0.015** |
 
 ---
@@ -55,10 +55,10 @@
 
 | 項目 | 約 USD/次 | 占比（約） |
 |------|-----------|------------|
-| OpenAI（gpt-4o-mini） | ~$0.01 | ~3% |
-| Gemini（3.1 Pro Preview） | ~$0.32 | ~92% |
-| Grok（4.1 Fast） | ~$0.02 | ~5% |
-| **合計（LLM 僅）** | **~$0.35** | 100% |
+| OpenAI（gpt-4o-mini） | ~$0.01 | ~5% |
+| Gemini（2.5 Pro） | ~$0.25 | ~89% |
+| Grok（4.1 Fast） | ~$0.02 | ~6% |
+| **合計（LLM 僅）** | **~$0.28** | 100% |
 
 說明：**不含** Apify、NewsAPI、Tavily、X API、CoinGlass 等資料 API；若觸發產報重試，總 token 與費用約為 2～3 倍。
 
@@ -66,7 +66,7 @@
 
 ## 5. 重試與變動
 
-- **MAX_REPORT_RETRIES=2**：最壞 3 次完整產報 → 各模型費用約 ×3（例如 Gemini 單次 ~$0.32 → 最壞 ~$0.96）。
+- **MAX_REPORT_RETRIES=2**：最壞 3 次完整產報 → 各模型費用約 ×3（例如 Gemini 單次 ~$0.25 → 最壞 ~$0.75）。
 - **OPENAI_MODEL**：若改為 gpt-4o、gpt-5.2 等較貴模型，OpenAI 那欄會明顯上升；其餘不變。
 - **定價異動**：各廠可能調價，請以官網與帳單為準。
 
@@ -82,10 +82,10 @@ GPT-5.2 定價依來源有兩種區間（每 1M tokens，USD）：
 | 較高 | $1.75 | $14.00 | **≈ $0.24** |
 
 計算式（較高）：`0.042×1.75 + 0.012×14 ≈ $0.24`  
-此時**單次日報 LLM 總計**約：**$0.24（OpenAI）+ $0.32（Gemini）+ $0.02（Grok）≈ $0.58**（未重試）。
+此時**單次日報 LLM 總計**約：**$0.24（OpenAI）+ $0.25（Gemini）+ $0.02（Grok）≈ $0.51**（未重試）。
 
-與目前 gpt-4o-mini 相比：OpenAI 從 ~$0.01 增至 ~$0.12～$0.24，總成本由 ~$0.35 增至 ~$0.46～$0.58。
+與目前 gpt-4o-mini 相比：OpenAI 從 ~$0.01 增至 ~$0.12～$0.24，總成本由 ~$0.28 增至 ~$0.39～$0.51。
 
 ---
 
-**總結**：單次日報（未重試）LLM 總花費約 **$0.35**（預設 gpt-4o-mini）；若改為 **GPT-5.2** 則約 **$0.46～$0.58**。Gemini 3.1 Pro Preview 仍佔多數（兩位機構策略主編）。
+**總結**：單次日報（未重試）LLM 總花費約 **$0.28**（預設 gpt-4o-mini + **gemini-2.5-pro** 主編）；若改為 **GPT-5.2** 則約 **$0.39～$0.51**。Gemini 2.5 Pro（兩位機構策略主編）仍佔多數。

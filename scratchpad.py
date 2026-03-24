@@ -18,6 +18,7 @@ import os
 import threading
 import time
 import uuid
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -27,6 +28,10 @@ logger = logging.getLogger(__name__)
 _LOCK = threading.Lock()
 _CURRENT_FILE: Path | None = None
 _RUN_ID: str | None = None
+_FINALIZED: bool = False
+_TOOL_CALL_COUNT: int = 0
+_TOOL_HISTORY: deque[tuple[str, str]] = deque(maxlen=64)
+_PIPELINE_T0: float | None = None
 
 
 def scratchpad_enabled() -> bool:
@@ -103,11 +108,16 @@ def begin_run(metadata: dict[str, Any] | None = None) -> str | None:
     開始一次新產報 run，建立 JSONL 檔並寫入 init。
     回傳 run_id；關閉或未啟用時回傳 None。
     """
-    global _CURRENT_FILE, _RUN_ID
+    global _CURRENT_FILE, _RUN_ID, _FINALIZED, _TOOL_CALL_COUNT, _TOOL_HISTORY, _PIPELINE_T0
+    _FINALIZED = False
+    _TOOL_CALL_COUNT = 0
+    _TOOL_HISTORY.clear()
     if not scratchpad_enabled():
+        _PIPELINE_T0 = None
         _CURRENT_FILE = None
         _RUN_ID = None
         return None
+    _PIPELINE_T0 = time.perf_counter()
     meta = dict(metadata or {})
     rid = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     d = scratchpad_dir()
@@ -139,6 +149,8 @@ def append_gate_result(attempt: int, result: dict[str, Any] | None) -> None:
         return
     issues = result.get("issues") or []
     top = [str(x) for x in issues[:12]]
+    blocking = result.get("blocking_issues") or []
+    warnings = result.get("warning_issues") or []
     _write_event(
         "gate_result",
         {
@@ -146,6 +158,8 @@ def append_gate_result(attempt: int, result: dict[str, Any] | None) -> None:
             "valid": bool(result.get("valid")),
             "news_count": result.get("news_count"),
             "issues_count": len(issues),
+            "blocking_count": len(blocking),
+            "warning_count": len(warnings),
             "top_issues": top,
         },
     )
@@ -153,9 +167,26 @@ def append_gate_result(attempt: int, result: dict[str, Any] | None) -> None:
 
 def finalize_run(status: str, extra: dict[str, Any] | None = None) -> None:
     """流程結束（成功/失敗/例外）。"""
+    global _FINALIZED, _CURRENT_FILE, _RUN_ID, _PIPELINE_T0
+    if not scratchpad_enabled():
+        with _LOCK:
+            _RUN_ID = None
+            _CURRENT_FILE = None
+        _FINALIZED = True
+        _PIPELINE_T0 = None
+        return
+    with _LOCK:
+        if _FINALIZED:
+            return
+        _FINALIZED = True
+    elapsed = None
+    if _PIPELINE_T0 is not None:
+        elapsed = round(time.perf_counter() - _PIPELINE_T0, 2)
     payload = {"status": status, **(extra or {})}
+    if elapsed is not None:
+        payload["elapsed_sec"] = elapsed
     _write_event("run_end", payload)
-    global _CURRENT_FILE, _RUN_ID
+    _PIPELINE_T0 = None
     with _LOCK:
         _RUN_ID = None
         _CURRENT_FILE = None
@@ -192,8 +223,56 @@ def log_tool_result(
     _write_event("tool_result", payload)
 
 
+def append_judge_result(payload: dict[str, Any]) -> None:
+    """LLM-as-judge 或品質評分結果（Dexter eval 對齊）。"""
+    _write_event("judge_result", {"payload": _redact_obj(payload)})
+
+
+def _args_fingerprint(args: dict[str, Any]) -> str:
+    try:
+        return json.dumps(args, sort_keys=True, default=str)[:800]
+    except (TypeError, ValueError):
+        return str(hash(frozenset((str(k), str(v)) for k, v in list(args.items())[:50])))
+
+
+def _tool_guard_check(tool_name: str, args: dict[str, Any]) -> None:
+    """單次 run 內工具呼叫上限與連續相同參數偵測（防跑飛）。"""
+    global _TOOL_CALL_COUNT
+    if not scratchpad_enabled() or _CURRENT_FILE is None:
+        return
+    try:
+        max_calls = int(os.getenv("MAX_TOOL_CALLS_PER_RUN", "80"))
+    except ValueError:
+        max_calls = 80
+    if max_calls > 0:
+        _TOOL_CALL_COUNT += 1
+        if _TOOL_CALL_COUNT > max_calls:
+            raise RuntimeError(
+                f"MAX_TOOL_CALLS_PER_RUN exceeded ({max_calls}); aborting to prevent runaway tool loop."
+            )
+    try:
+        thresh = int(os.getenv("REPEATED_CALL_THRESHOLD", "3"))
+    except ValueError:
+        thresh = 3
+    if thresh <= 0:
+        return
+    fp = (tool_name, _args_fingerprint(args))
+    _TOOL_HISTORY.append(fp)
+    streak = 0
+    for x in reversed(_TOOL_HISTORY):
+        if x == fp:
+            streak += 1
+        else:
+            break
+    if streak >= thresh:
+        raise RuntimeError(
+            f"REPEATED_CALL_THRESHOLD: tool {tool_name!r} with same args {streak} times (>= {thresh})."
+        )
+
+
 def traced_tool_execution(tool_name: str, args: dict[str, Any], fn: Callable[[], str]) -> str:
     """執行 fn() 並記錄 tool_call / tool_result（供 tools.py 使用）。"""
+    _tool_guard_check(tool_name, args)
     if not scratchpad_enabled() or _CURRENT_FILE is None:
         return fn()
     log_tool_call(tool_name, args)
