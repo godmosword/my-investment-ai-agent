@@ -482,16 +482,23 @@ def _best_repeat_score_gap_for_category(recs: list[dict], category: str) -> floa
 
 
 def _has_repeat_quality_anchor(recs: list[dict], category: str) -> bool:
-    """同標延續時，至少 1 筆滿足 repeat_days 與 selection_score 品質門檻。"""
+    """同標延續時，至少 1 筆滿足 repeat_days 與 selection_score 品質門檻。
+
+    `repeat_days` 在 schema 中預設為 0，LLM 可能省略此欄位；省略時視為 0（仍在新鮮窗口內）。
+    `selection_score` 為必要評分依據，若缺失則略過該筆紀錄。
+    """
     want = category.upper()
     max_days = _repeat_pick_days_max()
     min_score = _repeat_pick_min_score()
     for rec in recs:
         if str(rec.get("category", "")).upper() != want:
             continue
-        repeat_days = _safe_float_val(rec.get("repeat_days"))
+        # Default to 0 when absent — matches the schema default and means "first repeat day".
+        repeat_days_raw = _safe_float_val(rec.get("repeat_days"))
+        repeat_days = repeat_days_raw if repeat_days_raw is not None else 0.0
         score = _safe_float_val(rec.get("selection_score"))
-        if repeat_days is None or score is None:
+        if score is None:
+            # Cannot assess quality without a score; skip this record.
             continue
         if repeat_days <= max_days and score >= min_score:
             return True
@@ -519,7 +526,7 @@ def _fetch_yesterday_qsrec_canonical_set(category: str) -> set[str] | None:
                 f"""
                 SELECT DISTINCT asset
                 FROM `{RECOMMENDATIONS_TABLE}`
-                WHERE report_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+                WHERE report_date = DATE_SUB(CURRENT_DATE('Asia/Taipei'), INTERVAL 1 DAY)
                   AND UPPER(COALESCE(category, '')) = @cat
                 """,
                 job_config=job_cfg,
