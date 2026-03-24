@@ -5,9 +5,11 @@ tracker.py; this module handles writing daily_metrics and reading
 exclusion context for the next run.
 """
 
+import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 
 from google.auth.exceptions import DefaultCredentialsError
@@ -339,6 +341,48 @@ def _fetch_recent_recommended_assets(client: bigquery.Client, days: int = 3) -> 
         return []
 
 
+def _fetch_last_rotation_gate_warnings() -> str | None:
+    """讀取最近 25 小時內的 scratchpad JSONL，回傳輪動相關 gate 警示文字（供 LLM 自我修正）。"""
+    try:
+        from scratchpad import scratchpad_dir  # 延遲匯入，避免循環依賴
+        sd = scratchpad_dir()
+    except Exception:
+        return None
+    if not sd.exists():
+        return None
+    cutoff = time.time() - 25 * 3600
+    try:
+        files = sorted(sd.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        return None
+    rotation_issues: list[str] = []
+    for jf in files[:5]:  # 最多掃最新 5 個檔案，避免耗時
+        try:
+            if jf.stat().st_mtime < cutoff:
+                break
+            with open(jf, encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        evt = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if evt.get("type") != "gate_result":
+                        continue
+                    for issue in evt.get("top_issues", []):
+                        if "輪動" in issue or "rotation" in str(issue).lower():
+                            rotation_issues.append(str(issue))
+        except OSError:
+            continue
+    if not rotation_issues:
+        return None
+    issues_text = "\n".join(f"  · {x}" for x in rotation_issues[:3])
+    return (
+        f"⚠️ 前次產報 Gate 輪動警示（請本次修正）：\n{issues_text}\n"
+        "本日若重複選用相同標的，QSREC 的 score_gap 必須 ≥ 12（selection_score − alt_candidate_score），"
+        "且 alt_candidate_score 不得高於 selection_score − 12。無法構造時請改選新標的。"
+    )
+
+
 def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = METRICS_TABLE) -> str | None:
     """從 BigQuery 讀取前一日的新聞標題列表與近期已推薦資產，供研究流程排除重複。"""
     if SKIP_BIGQUERY:
@@ -379,6 +423,12 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
                 "可以再次選用，但必須明確說明「重複選用理由：XXX」。"
             )
             logger.info("Loaded %d recent recommended assets for exclusion: %s", len(recent_assets), recent_assets)
+
+        # 注入前日 Gate 輪動警示（負反饋迴路，讓 LLM 知道上次失敗）
+        rotation_warn = _fetch_last_rotation_gate_warnings()
+        if rotation_warn:
+            parts.append(rotation_warn)
+            logger.info("Injected rotation gate warning into exclusion context.")
 
         s = "\n\n".join(parts) if parts else None
         if s and len(s) > 2500:
