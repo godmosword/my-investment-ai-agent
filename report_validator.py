@@ -12,7 +12,7 @@ import logging
 import os
 import re
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config import PROJECT_ID, RECOMMENDATIONS_TABLE
@@ -56,6 +56,112 @@ SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
 def _allow_partial_news_gate() -> bool:
     """允許「新聞分段」模式：3~5 則〔新聞 N〕+ 宣告不補假新聞時，放寬 6 則硬性要求。ALLOW_PARTIAL_NEWS_GATE=0 關閉。"""
     return os.getenv("ALLOW_PARTIAL_NEWS_GATE", "1").lower() not in ("0", "false", "no")
+
+
+def _strict_news_freshness_gate() -> bool:
+    """檢查新聞時間戳須在報告生成時間前 N 小時內。預設關閉，STRICT_NEWS_FRESHNESS_GATE=1 啟用。"""
+    return os.getenv("STRICT_NEWS_FRESHNESS_GATE", "0").lower() in ("1", "true", "yes")
+
+
+def _news_freshness_window_hours() -> int:
+    """新鮮度視窗（小時），預設 48。可由 NEWS_FRESHNESS_WINDOW_HOURS 覆蓋。"""
+    try:
+        return int(os.getenv("NEWS_FRESHNESS_WINDOW_HOURS", "48"))
+    except ValueError:
+        return 48
+
+
+# 允許不受新鮮度檢查的來源白名單（例如長期基本面數據源）。
+# 以逗號分隔設置 NEWS_FRESHNESS_SOURCE_WHITELIST，例如 "FRED,IMF"
+def _news_freshness_whitelist() -> frozenset[str]:
+    raw = os.getenv("NEWS_FRESHNESS_SOURCE_WHITELIST", "").strip()
+    if not raw:
+        return frozenset()
+    return frozenset(s.strip().upper() for s in raw.split(",") if s.strip())
+
+
+# 支援格式：[YYYY-MM-DD HH:MM ...] [YYYY/MM/DD HH:MM ...] [MM/DD HH:MM ...] [MM/DD/YYYY HH:MM ...]
+_NEWS_TS_EXTRACT_RE = re.compile(
+    r"〔新聞\s*\d+〕[^\[]*"
+    r"\[(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})\s+(\d{1,2}):(\d{2})"  # YYYY-MM-DD or YYYY/MM/DD
+    r"|"
+    r"〔新聞\s*\d+〕[^\[]*"
+    r"\[(\d{1,2})/(\d{1,2})(?:/(\d{4}))?\s+(\d{1,2}):(\d{2})",  # MM/DD or MM/DD/YYYY
+)
+
+
+def _extract_news_timestamps(text: str) -> list[datetime]:
+    """從新聞標籤中解析所有時間戳（UTC+8）。無法解析的條目靜默跳過。"""
+    now = datetime.now(timezone.utc)
+    tz_utc8 = timezone(timedelta(hours=8))
+    current_year = now.astimezone(tz_utc8).year
+    results: list[datetime] = []
+    # Normalise the text the same way the timezone validator does.
+    t = _text_for_utc8_validation(text)
+    t = _join_news_tag_timestamp_lines(t)
+    t = _normalize_fullwidth_news_brackets_on_news_lines(t)
+    t = _strip_inline_tags_on_news_lines(t)
+    for m in _NEWS_TS_EXTRACT_RE.finditer(t):
+        try:
+            if m.group(1):  # YYYY-MM-DD or YYYY/MM/DD form
+                year, month, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                hour, minute = int(m.group(4)), int(m.group(5))
+            else:  # MM/DD[/YYYY] form
+                month, day = int(m.group(6)), int(m.group(7))
+                year = int(m.group(8)) if m.group(8) else current_year
+                # If the inferred date is in the future (e.g. Dec news read in Jan), step back a year.
+                if datetime(year, month, day, tzinfo=tz_utc8) > now.astimezone(tz_utc8) + timedelta(hours=1):
+                    year -= 1
+                hour, minute = int(m.group(9)), int(m.group(10))
+            results.append(datetime(year, month, day, hour, minute, tzinfo=tz_utc8))
+        except (ValueError, OverflowError):
+            pass
+    return results
+
+
+def _check_news_freshness(
+    text: str,
+    report_dt: datetime | None = None,
+) -> tuple[bool, str]:
+    """新聞新鮮度檢查：所有可解析時間戳須在 report_dt 前 N 小時窗口內。
+
+    只在 STRICT_NEWS_FRESHNESS_GATE=1 時啟用。若某則新聞來源命中白名單則跳過。
+    無時間戳的新聞條目不受此檢查（格式檢查由 _has_news_timezone_utc8 負責）。
+    """
+    if not _strict_news_freshness_gate():
+        return True, ""
+    window_hours = _news_freshness_window_hours()
+    whitelist = _news_freshness_whitelist()
+    ref_dt = report_dt or datetime.now(timezone.utc)
+    cutoff = ref_dt - timedelta(hours=window_hours)
+    timestamps = _extract_news_timestamps(text)
+    if not timestamps:
+        # No parseable timestamps — cannot check freshness; pass silently.
+        return True, ""
+    stale: list[datetime] = []
+    for ts in timestamps:
+        ts_utc = ts.astimezone(timezone.utc)
+        if ts_utc < cutoff:
+            # Check if any whitelist source appears near this timestamp's news line.
+            if whitelist:
+                # Simple heuristic: search the line containing this timestamp for whitelist tokens.
+                ts_str = ts.strftime("%m/%d %H:%M")
+                for line in text.splitlines():
+                    if ts_str in line and any(w in line.upper() for w in whitelist):
+                        break
+                else:
+                    stale.append(ts)
+            else:
+                stale.append(ts)
+    if not stale:
+        return True, ""
+    oldest = min(stale)
+    return (
+        False,
+        f"新聞新鮮度不足：{len(stale)} 則新聞時間戳早於報告時間 {window_hours} 小時前"
+        f"（最舊：{oldest.strftime('%m/%d %H:%M UTC+8')}）。"
+        "如需放行特定來源，請設 NEWS_FRESHNESS_SOURCE_WHITELIST 或關閉 STRICT_NEWS_FRESHNESS_GATE。",
+    )
 
 
 def _strict_pick_justification() -> bool:
@@ -1277,6 +1383,7 @@ def validate_report(text: str) -> dict:
     has_risk_budget = bool(HAS_RISK_BUDGET_RE.search(text))
     has_rumor_grade = _has_rumor_grade_marker(text)
     has_utc8 = _has_news_timezone_utc8(text)
+    news_freshness_ok, news_freshness_err = _check_news_freshness(text)
     too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
     has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
@@ -1387,6 +1494,8 @@ def validate_report(text: str) -> dict:
         issues.append(fund_cite_err)
     if not has_utc8:
         issues.append("新聞時間未統一標示 UTC+8")
+    if not news_freshness_ok:
+        issues.append(news_freshness_err)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if not has_rumor_grade:
