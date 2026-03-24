@@ -1,6 +1,296 @@
-* {
-  box-sizing: border-box;
+/* Global reset & dark theme */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0e1117;
+  --surface:   #1a2035;
+  --card:      #1e2a3a;
+  --border:    #2a3a4a;
+  --accent:    #00d4aa;
+  --accent2:   #6366f1;
+  --red:       #ef4444;
+  --yellow:    #f59e0b;
+  --green:     #10b981;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
+  --nav-h:     56px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
-body {
-  margin: 0;
+
+html, body, #root { height: 100%; background: var(--bg); color: var(--text); }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Layout ── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px calc(var(--nav-h) + 16px);
+}
+
+/* ── Bottom navigation ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  height: var(--nav-h);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: stretch;
+  z-index: 100;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: color 0.15s;
+  text-decoration: none;
+  padding: 6px 0;
+}
+
+.nav-item.active,
+.nav-item:hover { color: var(--accent); }
+
+.nav-icon { font-size: 20px; line-height: 1; }
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+/* ── Metric grid ── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.metric-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.metric-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.metric-delta { font-size: 11px; margin-top: 4px; }
+.delta-up     { color: var(--green); }
+.delta-down   { color: var(--red); }
+.delta-flat   { color: var(--muted); }
+
+/* ── Regime badge ── */
+.regime-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.regime-on      { background: rgba(16,185,129,.15); color: var(--green);  border: 1px solid rgba(16,185,129,.3); }
+.regime-off     { background: rgba(239,68,68,.15);  color: var(--red);    border: 1px solid rgba(239,68,68,.3); }
+.regime-neutral { background: rgba(245,158,11,.15); color: var(--yellow); border: 1px solid rgba(245,158,11,.3); }
+
+/* ── Section header ── */
+.section-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 20px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Trade card ── */
+.trade-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.trade-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.trade-asset { font-size: 16px; font-weight: 700; }
+
+.trade-direction {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.direction-long  { background: rgba(16,185,129,.15); color: var(--green); }
+.direction-short { background: rgba(239,68,68,.15);  color: var(--red);   }
+
+.trade-prices {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.price-item  { font-size: 11px; }
+.price-label { color: var(--muted); display: block; margin-bottom: 2px; }
+.price-value { font-weight: 600; }
+
+.trade-narrative {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 6px;
+}
+
+/* ── Status badges ── */
+.status-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-open       { background: rgba(99,102,241,.15); color: #a5b4fc; }
+.status-hit_target { background: rgba(16,185,129,.15); color: var(--green); }
+.status-hit_stop   { background: rgba(239,68,68,.15);  color: var(--red); }
+.status-expired    { background: rgba(100,116,139,.15);color: var(--muted); }
+
+/* ── Stars confidence ── */
+.stars { color: var(--yellow); font-size: 12px; }
+
+/* ── Page header ── */
+.page-header   { padding: 12px 0 4px; margin-bottom: 4px; }
+.page-title    { font-size: 20px; font-weight: 800; letter-spacing: -0.03em; }
+.page-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* ── Archive list ── */
+.archive-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  text-decoration: none;
+  display: block;
+  color: var(--text);
+}
+
+.archive-item:hover { border-color: var(--accent); }
+.archive-date { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.archive-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+.archive-meta span { font-size: 11px; color: var(--muted); }
+.archive-meta strong { color: var(--text); }
+
+/* ── Performance stats ── */
+.perf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.perf-stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+
+.perf-value { font-size: 20px; font-weight: 700; }
+.perf-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* ── States ── */
+.loading   { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+.error-msg {
+  color: var(--red);
+  background: rgba(239,68,68,.1);
+  border: 1px solid rgba(239,68,68,.2);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+/* ── Recharts dark overrides ── */
+.recharts-text { fill: var(--muted) !important; }
+.recharts-cartesian-grid line { stroke: var(--border) !important; }
+
+/* ── Summary blocks ── */
+.summary-block {
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  padding: 10px 12px;
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
