@@ -15,7 +15,7 @@ ANTHROPIC_API_KEY=
 # MODEL_GROK=xai/grok-4-1-fast-reasoning
 # OPENAI_MODEL=openai/gpt-4o-mini
 # MODEL_GPT=openai/gpt-4o-mini
-# MODEL_GEMINI=gemini/gemini-3.1-pro-preview
+# MODEL_GEMINI=gemini/gemini-2.5-pro
 # MODEL_CLAUDE=anthropic/claude-sonnet-4-20250514
 
 # ---------- 資料/搜尋 API（工具會用到，缺則該工具回傳 DATA_MISSING）----------
@@ -41,6 +41,9 @@ GLASSNODE_API_KEY=
 # 注意：活躍地址數使用 Blockchain.info 免費 API，無需額外金鑰
 # FRED_API_KEY：美債 DGS2 等 fallback（macro_context_tool）
 FRED_API_KEY=
+# FINANCIAL_DATASETS_API_KEY：financialdatasets.ai 美股損益／資產負債／現金流（AI 段基本面）；免費層常含 AAPL/NVDA/MSFT
+# FINANCIAL_DATASETS_API_BASE=https://api.financialdatasets.ai
+FINANCIAL_DATASETS_API_KEY=
 
 # ---------- Telegram 推送（選填，不填則不發送）----------
 TELEGRAM_BOT_TOKEN=
@@ -78,6 +81,14 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # PICK_REPEAT_MIN_SELECTION_SCORE=75  # 同標延續時，至少 1 筆需滿足 selection_score >= 此值
 # SCRATCHPAD_ENABLED=1     # Phase 1：每次產報寫入 .qsilicon/scratchpad/*.jsonl（init/gate/tool）；設 0 關閉
 # SCRATCHPAD_DIR=.qsilicon/scratchpad  # scratchpad 目錄（相對專案根）
+# MAX_TOOL_CALLS_PER_RUN=80   # 單次產報 run 內 traced_tool_execution 上限；0=不限制
+# REPEATED_CALL_THRESHOLD=3    # 連續相同 tool+參數次數達此值則中止；0=關閉
+# CREW_FUTURE_TIMEOUT_SEC=2700 # 雙 Crew ThreadPoolExecutor future.result 逾時（秒）
+# STRICT_AI_FUNDAMENTALS_CITATION=0  # 1=AI「本日選擇理由」含基本面用語時須在 AI 段出現 FinancialDatasets 標記
+# REPORT_LLM_JUDGE=0           # 1=產線結構驗證後呼叫 LLM rubric 評分（寫入 scratchpad judge_result）
+# REPORT_LLM_JUDGE_MODEL=openai/gpt-4o-mini
+# REPORT_LLM_JUDGE_MIN_SCORE=70
+# REPORT_LLM_JUDGE_BLOCKING=0  # 1=評分未過則視同結構驗證失敗並重試
 # GATE_FAILURE_ARTIFACTS=1   # validate 失敗時寫入 .qsilicon/last_gate_failure/（draft_report.txt、issues.txt、validation_summary.json）
 # GATE_FAILURE_ARTIFACT_DIR=   # 自訂目錄（預設專案根下 .qsilicon/last_gate_failure）
 # GATE_ALERT_FULL_ISSUES=1   # Gate 告警後再發 1+ 則純文字訊息列出完整 issues（設 0 只保留 top 3 摘要行）

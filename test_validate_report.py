@@ -61,6 +61,7 @@ def _make_report(
     include_risk_budget: bool = True,
     include_numeric_investment: bool = True,
     extra: str = "",
+    inject_before_qsrec: str = "",
 ) -> str:
     news = ""
     for i in range(1, news_count + 1):
@@ -116,7 +117,10 @@ def _make_report(
             "[QSREC_END]"
         )
 
-    body = news + "\n".join(sections) + "\n" + extra
+    joined = "\n".join(sections)
+    if inject_before_qsrec:
+        joined = joined.replace("[QSREC_START]", inject_before_qsrec + "\n[QSREC_START]", 1)
+    body = news + joined + "\n" + extra
     # Pad to requested length
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
