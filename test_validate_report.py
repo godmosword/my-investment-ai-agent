@@ -387,6 +387,35 @@ class TestPickRotation(unittest.TestCase):
         ok, err = _pick_rotation_equity_ok(good, recs)
         self.assertTrue(ok, f"should pass when repeat_days absent (defaults to 0): {err}")
 
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    def test_score_gap_boundary_11_fails(self, mock_y):
+        """gap=11 嚴格低於門檻 12，應 fail。"""
+        mock_y.return_value = {"BTC", "SOL"}
+        recs = [
+            {"asset": "BTC", "category": "CRYPTO", "selection_score": 83, "alt_candidate_score": 72,
+             "score_gap": 11, "repeat_days": 1},
+            {"asset": "SOL", "category": "CRYPTO", "selection_score": 78, "alt_candidate_score": 67,
+             "score_gap": 11, "repeat_days": 1},
+        ]
+        body = "區塊④\n本日選擇理由：重複選用理由：機構持續增持 BTC，SOL 生態系更新。\n今日風險預算：x"
+        ok, err = _pick_rotation_crypto_ok(body, recs)
+        self.assertFalse(ok)
+        self.assertIn("分差不足", err)
+
+    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    def test_score_gap_boundary_12_passes(self, mock_y):
+        """gap=12 剛好達標，應 pass（邊界值）。"""
+        mock_y.return_value = {"BTC", "SOL"}
+        recs = [
+            {"asset": "BTC", "category": "CRYPTO", "selection_score": 85, "alt_candidate_score": 73,
+             "score_gap": 12, "repeat_days": 1},
+            {"asset": "SOL", "category": "CRYPTO", "selection_score": 78, "alt_candidate_score": 66,
+             "score_gap": 12, "repeat_days": 1},
+        ]
+        body = "區塊④\n本日選擇理由：重複選用理由：ETF 核准預期支撐 BTC，SOL 鏈上活躍度新高。\n今日風險預算：x"
+        ok, err = _pick_rotation_crypto_ok(body, recs)
+        self.assertTrue(ok, f"gap=12 should pass boundary: {err}")
+
 
 class TestPickJustification(unittest.TestCase):
     def test_vague_crypto_reason_fails(self):
