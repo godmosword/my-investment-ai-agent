@@ -10,6 +10,7 @@ import os
 import re
 from datetime import datetime, timezone
 
+from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import bigquery
 
 from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
@@ -139,6 +140,9 @@ def _safe_float(m: re.Match | None, group: int = 1) -> float | None:
 
 def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> None:
     """從戰報文字萃取關鍵指標並寫入 BigQuery daily_metrics 資料表。"""
+    if SKIP_BIGQUERY:
+        logger.info("SKIP_BIGQUERY=1 — skipping metrics write.")
+        return
     metrics_table = f"{project_id}.market_data.daily_metrics"
     # 先剝除 HTML 標籤，避免 <code>97.65</code> 等結構干擾 regex 萃取
     clean_text = strip_html(report_text)
@@ -313,6 +317,9 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             logger.error("BigQuery insert errors: %s", errors)
         else:
             logger.info("Daily metrics written to BigQuery successfully.")
+    except DefaultCredentialsError as e:
+        # Expected in local dev without GCP credentials — warn, don't error.
+        logger.warning("BigQuery credentials not configured (metrics write skipped): %s", e)
     except Exception as e:
         logger.error("Failed to write metrics to BigQuery: %s", e)
 
@@ -334,6 +341,9 @@ def _fetch_recent_recommended_assets(client: bigquery.Client, days: int = 3) -> 
 
 def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = METRICS_TABLE) -> str | None:
     """從 BigQuery 讀取前一日的新聞標題列表與近期已推薦資產，供研究流程排除重複。"""
+    if SKIP_BIGQUERY:
+        logger.info("SKIP_BIGQUERY=1 — skipping exclusion context fetch.")
+        return None
     try:
         client = bigquery.Client(project=project_id)
         query = f"""
