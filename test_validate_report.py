@@ -1108,6 +1108,38 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
             result["issues"],
         )
 
+    def test_regime_token_surface_variants_pass(self):
+        """risk_budget_summary surface variants (space/hyphen/mixed-case) should NOT trigger regime gate."""
+        from report_validator import validate_structured_report
+
+        variants = [
+            "Risk On 模式，總倉位 60%",    # space, title-case
+            "risk on 環境，加倉",          # space, lower-case
+            "Risk-On，建議增持",           # hyphen, title-case
+            "risk-on 模式下",              # hyphen, lower-case
+            "RISK_ON 最大曝險 40%",        # underscore, upper-case
+        ]
+        for summary in variants:
+            report = self._make_minimal_structured_report()
+            report.crypto.risk_budget_summary = summary
+            result = validate_structured_report(report)
+            self.assertFalse(
+                any("regime token" in i for i in result["issues"]),
+                f"Surface variant '{summary}' should pass but got: {result['issues']}",
+            )
+
+    def test_regime_token_missing_fails(self):
+        """risk_budget_summary with no regime token mention must trigger the gate."""
+        from report_validator import validate_structured_report
+
+        report = self._make_minimal_structured_report()
+        report.crypto.risk_budget_summary = "總倉位維持 20%，謹慎操作"
+        result = validate_structured_report(report)
+        self.assertTrue(
+            any("regime token" in i for i in result["issues"]),
+            f"Expected regime token issue, got: {result['issues']}",
+        )
+
     # ── 15. AI 段「本日選擇理由」含基本面用語（第 18 項） ──────────────────
     def test_blocking_ai_pick_reason_fundamental_only(self):
         """AI pick reason using only '基本面' with no specific catalyst hits → blocking (18th prefix)."""
