@@ -1,21 +1,10 @@
 name: CI — Lint & Test
 
 # - PR：一律跑（Required checks）
-# - push main：僅在會影響執行檔／依賴時跑（與過去 deploy 的 paths 對齊），純文件 merge 省分鐘數
-# - workflow_call：給 deploy.yml 手動部署前重用同一套 Lint+Test
+# - workflow_call：給 deploy.yml 在 main push / manual deploy 時重用同一套 Lint+Test
+#   （避免 main push 時「ci.yml + deploy.yml」各跑一次造成重複計算）
 on:
   pull_request:
-  push:
-    branches: [main]
-    paths:
-      - "**/*.py"
-      - "requirements.txt"
-      - "Dockerfile"
-      - "docker-compose.yml"
-      - ".dockerignore"
-      - "assets_config.json"
-      - ".github/workflows/ci.yml"
-      - ".github/workflows/deploy.yml"
   workflow_call:
 
 jobs:
