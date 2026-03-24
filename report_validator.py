@@ -86,6 +86,47 @@ def _strict_pick_scoring() -> bool:
     return os.getenv("STRICT_PICK_SCORING", "1").lower() not in ("0", "false", "no")
 
 
+def _strict_ai_fundamentals_citation() -> bool:
+    """AI 段理由若含基本面用語，須在 AI 區塊內出現 FinancialDatasets 標記。預設關閉。"""
+    return os.getenv("STRICT_AI_FUNDAMENTALS_CITATION", "0").lower() in ("1", "true", "yes")
+
+
+_AI_FUNDAMENTAL_CLAIM_IN_REASON_RE = re.compile(
+    r"營收|淨利|毛利率|現金流|財報|法說|指引|EPS|本益比|自由現金流|FCF|資產負債",
+    re.IGNORECASE,
+)
+
+
+def _ai_span_to_qsrec(text: str) -> str:
+    """🤖 AI 主段起至 QSREC 前（供基本面引用檢查）。"""
+    start_m = re.search(r"(🤖\s*AI\s*市場|【AI\s*數據儀表板】)", text, re.IGNORECASE)
+    if not start_m:
+        return ""
+    start = start_m.start()
+    end_m = re.search(r"\[QSREC_START\]", text[start:], re.IGNORECASE)
+    end = start + end_m.start() if end_m else len(text)
+    return text[start:end]
+
+
+def _ai_fundamentals_citation_ok(text: str) -> tuple[bool, str]:
+    if not _strict_ai_fundamentals_citation():
+        return True, ""
+    ai_span = _ai_span_to_qsrec(text)
+    if not (ai_span or "").strip():
+        return True, ""
+    ai_body = text[len(_crypto_report_prefix(text)) :]
+    reason = _extract_today_pick_reason(ai_body) or ""
+    if not reason or not _AI_FUNDAMENTAL_CLAIM_IN_REASON_RE.search(reason):
+        return True, ""
+    if re.search(r"financial\s*datasets|financialdatasets", ai_span, re.IGNORECASE):
+        return True, ""
+    return (
+        False,
+        "AI 段「本日選擇理由」含基本面用語，但未見 FinancialDatasets 數據源標記；"
+        "請呼叫 financial_datasets_tool 並在儀表板 MetricLine 的 label 含 FinancialDatasets 與 ticker。",
+    )
+
+
 def _allow_qsrec_opposing_directions() -> bool:
     """允許 QSREC 內同一 category+asset 同時出現 LONG 與 SHORT（對沖／實驗用）。預設關閉。"""
     return os.getenv("QSREC_ALLOW_OPPOSING_DIRECTIONS", "").lower() in ("1", "true", "yes")
@@ -1293,6 +1334,10 @@ def validate_report(text: str) -> dict:
         pick_crypto_rot_ok, pick_crypto_rot_err = _pick_rotation_crypto_ok(text, parsed_qsrec)
         pick_equity_rot_ok, pick_equity_rot_err = _pick_rotation_equity_ok(text, parsed_qsrec)
 
+    fund_cite_ok, fund_cite_err = True, ""
+    if _strict_ai_fundamentals_citation():
+        fund_cite_ok, fund_cite_err = _ai_fundamentals_citation_ok(text)
+
     issues = []
     tagged_news = _count_news_tags_only(text)
     if len(text) < 3000:
@@ -1338,6 +1383,8 @@ def validate_report(text: str) -> dict:
             issues.append(pick_crypto_rot_err)
         if not pick_equity_rot_ok:
             issues.append(pick_equity_rot_err)
+    if not fund_cite_ok:
+        issues.append(fund_cite_err)
     if not has_utc8:
         issues.append("新聞時間未統一標示 UTC+8")
     if not has_signal_conflict:
@@ -1478,6 +1525,7 @@ def validate_report(text: str) -> dict:
         "pick_justification_equity_ok": pick_equity_ok,
         "pick_rotation_crypto_ok": pick_crypto_rot_ok,
         "pick_rotation_equity_ok": pick_equity_rot_ok,
+        "ai_fundamentals_citation_ok": fund_cite_ok,
     }
 
 
