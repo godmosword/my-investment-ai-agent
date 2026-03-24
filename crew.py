@@ -541,13 +541,16 @@ def _make_llm_with_fallback(role: str, *, max_retries: int = 3, timeout: int = 1
 
 
 def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
-    """Primary 依 fallback chain 選可用 LLM；use_fallback_llm=True 時全用 GPT 降低凌晨靜默失敗。"""
+    """Primary 依 fallback chain 選可用 LLM；use_fallback_llm=True 時全用 GPT 降低凌晨靜默失敗。
+
+    正常路徑僅建立 Grok + Gemini：兩段 Crew 的 researcher 用 Grok，risk_critic / quant_strategist 用 Gemini；
+    不預先實例化 GPT 槽位（仍須 OPENAI_API_KEY 供 main、sentiment、可選 judge 等）。
+    """
     if use_fallback_llm:
         gpt = _make_llm(MODEL_GPT)
         return {"grok": gpt, "gpt": gpt, "gemini": gpt}
     return {
         "grok": _make_llm_with_fallback("grok"),
-        "gpt": _make_llm_with_fallback("gpt"),
         "gemini": _make_llm_with_fallback("gemini", max_retries=5, timeout=180),
     }
 
@@ -641,7 +644,7 @@ class CryptoResearchCrew:
 
         review_task = Task(
             description=dedent(f"""
-                【幣圈辯論與風險審計 — GPT】
+                【幣圈辯論與風險審計 — Gemini】
                 {ctx}
                 {regime_lock_notice}
                 {_QUOTE_RULE}
@@ -751,7 +754,7 @@ class AIResearchCrew:
 
         ai_task = Task(
             description=dedent(f"""
-                【AI 市場情報收集 — GPT】
+                【AI 市場情報收集 — Grok】
                 {ctx}
 
                 {_DATA_RULES}
@@ -771,7 +774,7 @@ class AIResearchCrew:
 
                 產出 AI 新聞 3 則，每則格式：
                 {_NEWS_FMT}
-                🤖 GPT 研判：2~3 句，必須點名受影響美股或 ETF
+                🤖 研判：2~3 句，必須點名受影響美股或 ETF
             """),
             expected_output="3 則 AI 新聞結構化初稿。",
             agent=self.ai_researcher,
@@ -779,7 +782,7 @@ class AIResearchCrew:
 
         review_task = Task(
             description=dedent(f"""
-                【AI 市場辯論審計 — Grok】
+                【AI 市場辯論審計 — Gemini】
                 {_QUOTE_RULE}
                 {_NARRATIVE_CONSISTENCY_RULE}
                 {ctx}

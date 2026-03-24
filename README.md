@@ -57,23 +57,25 @@ flowchart TB
 
 模型字串集中於 [`config.py`](config.py)，可用環境變數覆寫（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）。
 
-**CryptoResearchCrew（序向：研究 → 風險 → 主編）**
+兩段 Crew 皆為 **序向：研究員 → 風險／辯論 → 策略主編**。程式實際指派如下（與 `crew.py` 一致）：
 
-| 角色 | 預設模型 | API Key 環境變數 |
-|------|-----------|------------------|
-| 加密市場情報研究員 | `xai/grok-4-1-fast-reasoning` | `XAI_API_KEY` |
-| 首席幣圈風險審計員 | `openai/gpt-4o-mini` | `OPENAI_API_KEY`（`OPENAI_MODEL` / `MODEL_GPT`） |
-| 機構策略主編（加密） | `gemini/gemini-2.5-pro` | `GEMINI_API_KEY`（`MODEL_GEMINI`） |
+**CryptoResearchCrew**
 
-**AIResearchCrew（序向：研究 → 辯論 → 主編）**
+| 角色 | 實際 LLM | 預設模型（可覆寫） | API Key |
+|------|-----------|-------------------|---------|
+| 加密市場情報研究員 | Grok 槽（fallback 鏈） | `MODEL_GROK` | `XAI_API_KEY` |
+| 首席幣圈風險審計員 | **Gemini** 槽 | `MODEL_GEMINI` | `GEMINI_API_KEY` |
+| 機構策略主編（加密） | **Gemini** 槽 | `MODEL_GEMINI` | `GEMINI_API_KEY` |
 
-| 角色 | 預設模型 | API Key 環境變數 |
-|------|-----------|------------------|
-| 前沿 AI 市場研究員 | `openai/gpt-4o-mini` | `OPENAI_API_KEY` |
-| 首席 AI 市場辯論員 | `xai/grok-4-1-fast-reasoning` | `XAI_API_KEY` |
-| 機構策略主編（AI） | `gemini/gemini-2.5-pro` | `GEMINI_API_KEY` |
+**AIResearchCrew**
 
-**Fallback**：各槽位有 LiteLLM 後備鏈（Grok / GPT / Claude），需 **`ANTHROPIC_API_KEY`** 才能啟用 Claude 備援。`use_fallback_llm` 時全槽改為同一顆 GPT（凌晨降級路徑）。
+| 角色 | 實際 LLM | 預設模型（可覆寫） | API Key |
+|------|-----------|-------------------|---------|
+| 前沿 AI 市場研究員 | Grok 槽 | `MODEL_GROK` | `XAI_API_KEY` |
+| 首席 AI 市場辯論員 | **Gemini** 槽 | `MODEL_GEMINI` | `GEMINI_API_KEY` |
+| 機構策略主編（AI） | **Gemini** 槽 | `MODEL_GEMINI` | `GEMINI_API_KEY` |
+
+**Fallback 鏈**：`grok` / `gemini` 槽位各自有 LiteLLM 後備鏈（見 `crew.py` 的 `_FALLBACK_CHAINS`）；需 **`ANTHROPIC_API_KEY`** 才能啟用 Claude 備援。管線在 **`use_fallback_llm`**（凌晨降級）時會將 **Grok、Gemini 兩槽都改為同一顆 GPT**（`MODEL_GPT` / `OPENAI_API_KEY`）。
 
 **其他 LLM 呼叫**
 
@@ -184,7 +186,7 @@ pytest -q                   # 完整套件（push main / 本機）
 ├── dashboard.py
 ├── core/report_validation.py   # 候選驗證路徑（比對模式用）
 ├── docs/                   # 規格與導入說明
-├── .github/workflows/      # ci.yml、deploy.yml、setup-scheduler.yml
+├── .github/workflows/      # ci.yml、deploy.yml、setup-scheduler.yml、monitor-intraday.yml
 ├── Dockerfile
 ├── data-verification-ui/   # 選用：Vite + React
 └── AGENTS.md               # Cursor / 雲端執行備忘
@@ -203,12 +205,16 @@ docker run --env-file .env q-silicon-agent
 
 ---
 
-## 部署：Cloud Run Job
+## CI／Deploy（GitHub Actions）
 
-- 型態：**Job**（排程或手動），非長駐 HTTP。
-- **CI**：PR 跑 `ruff` + `pytest -m smoke`；push `main` 在特定 paths 變更時跑完整測試（見 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)）。
-- **Deploy**：變更觸發或手動 **Deploy — Cloud Run Job**（build → Artifact Registry → `gcloud run jobs deploy`）；Secrets 見 workflow 內 `set-secrets`。
-- **排程**：可執行一次 [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) 建立 Cloud Scheduler。
+| Workflow | 觸發 | 內容 |
+|----------|------|------|
+| [`ci.yml`](.github/workflows/ci.yml) | **PR**；或由 `deploy` **`workflow_call`** | PR：`ruff` + `pytest -m smoke`。被 deploy 呼叫時：`ruff` + **完整** `pytest -v`（避免 `main` push 時與 deploy 各跑一次重複 CI，`ci.yml` 不另掛 `push: main`）。 |
+| [`deploy.yml`](.github/workflows/deploy.yml) | `push main`（限 `paths`：Python、Docker、workflow 等）或 **手動** | 先跑 `ci.yml`，通過後 build／push 映像並 `gcloud run jobs deploy`；`concurrency` 同分支 **cancel-in-progress** 避免併發部署。 |
+| [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) | 手動 | 建立 Cloud Scheduler 觸發 Job。 |
+| [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | 每小時 cron 或手動 | BTC／VIX 異常監控、Telegram／BigQuery；runner 使用 `pip install -r requirements.txt`。 |
+
+**Cloud Run Job**：型態為 **Job**（排程或手動），非長駐 HTTP。部署用 Secrets 見 `deploy.yml` 內 `--set-secrets`（含 `FINANCIAL_DATASETS_API_KEY` 等）。
 
 ---
 
