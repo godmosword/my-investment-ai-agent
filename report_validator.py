@@ -287,6 +287,38 @@ def _pick_justification_equity_ok(text: str, recs: list[dict]) -> tuple[bool, st
     )
 
 
+_AI_VAGUE_FUNDAMENTAL_KW: tuple[str, ...] = ("基本面",)
+
+
+def _ai_pick_reason_fundamental_only(text: str, recs: list[dict]) -> tuple[bool, str]:
+    """AI/美股「本日選擇理由」主要依賴「基本面」泛稱而缺乏具體催化線索（_EQUITY_PICK_KW 命中 < 2）。
+
+    觸發條件：reason 含「基本面」且 _EQUITY_PICK_KW 命中次數 < 2。
+    這是比 pick_equity_ok 更精準的反模式偵測：專門捕捉「基本面穩健」等懶人敘事。
+    """
+    eq_assets = [
+        str(r.get("asset", ""))
+        for r in recs
+        if str(r.get("category", "")).upper() == "EQUITY"
+    ]
+    if not eq_assets:
+        return False, ""
+    ai_span = text[len(_crypto_report_prefix(text)):]
+    reason = _extract_today_pick_reason(ai_span)
+    if not reason:
+        return False, ""
+    if not any(kw in reason for kw in _AI_VAGUE_FUNDAMENTAL_KW):
+        return False, ""
+    specific_hits = _score_kw_hits(reason, _EQUITY_PICK_KW)
+    if specific_hits >= 2:
+        return False, ""
+    preview = reason[:60]
+    return (
+        True,
+        f"AI 段「本日選擇理由」含基本面用語（具體催化線索不足，{specific_hits}/2）：{preview}…",
+    )
+
+
 _REPEAT_PICK_REASON_RE = re.compile(
     r"重複選用理由|重複選股理由|重複持有理由|連日(?:選(?:用)?|持有|維持)|連續(?:兩日|多日)(?:同標|持有|維持)|"
     r"仍選(?:用)?|同標(?:的)?延續|延續昨|延續上日|與昨日相同標的|維持昨日(?:兩檔|組合|標的)|持續鎖定(?:同組|兩檔)",
@@ -1343,6 +1375,9 @@ def validate_report(text: str) -> dict:
             issues.append(pick_crypto_err)
         if not pick_equity_ok:
             issues.append(pick_equity_err)
+        ai_fund_only, ai_fund_err = _ai_pick_reason_fundamental_only(text, parsed_qsrec)
+        if ai_fund_only:
+            issues.append(ai_fund_err)
     if _strict_pick_rotation() and not trade_watch_mode and has_valid_qsrec:
         if not pick_crypto_rot_ok:
             issues.append(pick_crypto_rot_err)
@@ -1456,7 +1491,7 @@ def validate_report(text: str) -> dict:
         "結構化 AI 新聞不足",
         "結構化新聞總數",
         "結構化 qsrec 為空",
-        "AI 段「本日選擇理由」含基本面用語",
+        "AI 段「本日選擇理由」含基本面用語",  # 第 18 項
     )
 
     def _is_blocking(issue: str) -> bool:
