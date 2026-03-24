@@ -178,6 +178,7 @@ def build_crypto_structured_final_prompt(
         {prev_recs_ctx}
 
         {_MTF_CONF_RULE}
+        {_SCENARIO_RULE}
 
         === 填入 CryptoSection 欄位 ===
         - report_title_date: 使用 {today_str}
@@ -219,6 +220,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {ctx}
 
         {_MTF_CONF_RULE}
+        {_SCENARIO_RULE}
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段。
@@ -398,6 +400,7 @@ _TRADE_JSON_RULE = dedent("""\
     - score_gap = selection_score - alt_candidate_score（不得亂填）
     - repeat_days（連續同標天數，當天首次選用可填 0）
     可附加欄位：rr_ratio、max_drawdown_pct、expected_win_rate、signal_score、regime。
+    P4 三情境分析欄位（confidence ≥ 3 強制填；< 3 可 null）：bull_scenario、base_scenario、bear_scenario。
     【方向唯一｜硬 Gate】同一 JSON 陣列內，每個 (category, asset) 組合**最多一筆**；禁止出現兩筆皆為 EQUITY+NVDA（或任一 ticker）卻一筆 LONG、一筆 SHORT。若盤點後發現兩筆同代號，請刪併為單一淨方向或改正其中一筆的 asset／direction 筆誤。若需多空對沖敘事，請改為**比值／價差**單筆（見【配對交易單位一致性】）或兩檔**不同 ticker**；否則 validate_report 會回報「QSREC 同資產方向互斥」並擋推送。
     【正文對齊】區塊④內每個 `· $<b>代號</b> (LONG)` 或 `(SHORT)` 交易行，其方向必須與 QSREC 內同 asset、同 category 的 `direction` 一致（加密／美股分開檢視）。""")
 
@@ -468,6 +471,23 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
         【昨日標的對照】提示區「過去 3 天已建議標的」＋ BigQuery 昨日 QSREC：若本日加密 QSREC 與昨日**完全相同**（同幣種／同配對），必須二選一：(1) 至少更換一檔或一改配對腿；(2) 在「本日選擇理由」首段寫明「重複選用理由：〔全新催化／連日持有依據〕」，且 QSREC 需填可驗證分差（score_gap，預設需 >= 12）。否則 validate_report 硬性失敗並整報重試。
          每次必須說明「本日選擇理由：…」（完整規則見【validate_report 動態選幣／選股】；須寫在今日風險預算／訊號衝突／第一筆 · $ 交易行之前）
     6) 最後必須輸出 QSREC JSON 區塊""")
+
+_SCENARIO_RULE = dedent("""\
+    【三情境分析（P4 新增 | 信心 ≥ 3 星強制填入）】
+    每筆 confidence ≥ 3 的 QSREC，在 QSREC JSON 內補充以下三個選填欄位（字串，≤40字/項）：
+    · bull_scenario  — 🐂 樂觀情境：目標價 + 觸發條件（例：突破 70k 且 ETF 淨流 >5億 → 目標 76k）
+    · base_scenario  — ⚖️ 基準情境：預期走勢 + 估計機率（例：震盪整理後突破，機率 55%）
+    · bear_scenario  — 🐻 悲觀情境：失效位 + 觸發條件（例：跌破 63k 且資金費率轉負 → 止損）
+    confidence < 3 時可留 null，但不得輸出空字串。""")
+
+_DEBATE_SUMMARY_RULE = dedent("""\
+    【Risk Critic 辯論摘要（P4 新增 | 必填）】
+    Risk Critic 任務輸出末尾必須以下格式輸出辯論精髓（2行，每行 ≤35字）：
+    ╌ 辯論摘要 ╌
+    · 最強空方論點：[一句核心空方依據]
+    · 多方反駁核心：[一句主編最終為何選多/空的反駁或確認]
+    此區塊由主編（quant_strategist）原文轉錄至報告 signal_conflict_summary，
+    使讀者在最終報告中清楚看到多空辯論結論。""")
 
 _AI_LAYOUT_RULE = dedent("""\
     === 排版順序（AI）===
@@ -633,8 +653,10 @@ class CryptoResearchCrew:
 
                 === 新聞辯論（3 則）===
                 每則 2~3 句反向觀點。
+
+                {_DEBATE_SUMMARY_RULE}
             """),
-            expected_output="宏觀框架、風險審計與可審計 regime 評分卡。",
+            expected_output="宏觀框架、風險審計與可審計 regime 評分卡，末尾含╌辯論摘要╌兩行。",
             agent=self.risk_critic,
             context=[crypto_task],
         )
@@ -749,8 +771,10 @@ class AIResearchCrew:
 
                 === 新聞辯論 ===
                 對 3 則 AI 新聞逐條提出反向觀點（每則 2~3 句）；引用 BTC/均線時須與上方【技術指標與結構】一致。
+
+                {_DEBATE_SUMMARY_RULE}
             """),
-            expected_output="宏觀框架分析與 3 則 AI 新聞辯論觀點。",
+            expected_output="宏觀框架分析、3 則 AI 新聞辯論觀點，末尾含╌辯論摘要╌兩行。",
             agent=self.risk_critic,
             context=[ai_task],
         )
