@@ -8,6 +8,7 @@ Usage example::
 
     data = require_json_dict(response, source="CoinGlass")
     items = require_list(data, path="data.list", source="CoinGlass")
+    rows = require_json_list(raw, source="FMP")  # top-level JSON array from resp.json()
 """
 
 import logging
@@ -35,6 +36,24 @@ def require_json_dict(resp: Any, source: str = "") -> dict:
         label = f" [{source}]" if source else ""
         raise ValueError(
             f"API{label} returned unexpected type {type(resp).__name__!r}; expected a JSON object (dict)."
+        )
+    return resp
+
+
+def require_json_list(resp: Any, source: str = "") -> list:
+    """Assert that *resp* is a list (top-level JSON array).
+
+    Use for APIs that return ``[...]`` at the root (e.g. Binance funding rate,
+    FMP economic calendar, HuggingFace models list).
+
+    Raises:
+        ValueError: If *resp* is not a list.
+    """
+    if not isinstance(resp, list):
+        log_schema_mismatch(source, expected="list", got=resp)
+        label = f" [{source}]" if source else ""
+        raise ValueError(
+            f"API{label} returned unexpected type {type(resp).__name__!r}; expected a JSON array (list)."
         )
     return resp
 

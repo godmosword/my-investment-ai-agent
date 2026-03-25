@@ -21,6 +21,7 @@ import requests
 from dotenv import load_dotenv
 from google.cloud import bigquery
 
+from api_schema import require_json_dict, require_list
 from config import PROJECT_ID, METRICS_TABLE
 
 load_dotenv()
@@ -64,7 +65,12 @@ def fetch_historical_fred(days: int = 365) -> pd.DataFrame:
     try:
         resp = requests.get(url, params=params, timeout=30)
         resp.raise_for_status()
-        obs = resp.json().get("observations", [])
+        try:
+            fred_body = require_json_dict(resp.json(), source="FRED-backfill")
+            obs = require_list(fred_body, "observations", source="FRED-backfill")
+        except ValueError as e:
+            logging.warning("FRED 回傳 schema 異常：%s", e)
+            return pd.DataFrame(columns=["date", "dxy"])
         if not obs:
             logging.warning("FRED 回應無 observations 資料。")
             return pd.DataFrame(columns=["date", "dxy"])
@@ -101,7 +107,17 @@ def fetch_historical_cryptoquant(days: int = 365) -> pd.DataFrame:
             return pd.DataFrame(columns=["date", "mvrv_z_score"])
         resp.raise_for_status()
 
-        data = resp.json().get("result", {}).get("data", [])
+        try:
+            body = require_json_dict(resp.json(), source="CryptoQuant-backfill")
+            res = body.get("result")
+            if not isinstance(res, dict):
+                logging.warning("CryptoQuant result 非物件。")
+                return pd.DataFrame(columns=["date", "mvrv_z_score"])
+            res_obj = require_json_dict(res, source="CryptoQuant-result")
+            data = require_list(res_obj, "data", source="CryptoQuant-backfill")
+        except ValueError as e:
+            logging.warning("CryptoQuant 回傳 schema 異常：%s", e)
+            return pd.DataFrame(columns=["date", "mvrv_z_score"])
         if not data:
             logging.warning("CryptoQuant 回應無資料。")
             return pd.DataFrame(columns=["date", "mvrv_z_score"])
