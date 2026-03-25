@@ -1279,6 +1279,47 @@ def _binance_open_interest() -> str:
     return "[DATA_MISSING:open_interest] OI 暫無法取得（CoinGlass + Binance 均失敗）。"
 
 
+def _binance_liquidations(symbol: str = "BTC") -> str:
+    """從 Binance 公開 API 取得過去 24h 強平訂單並加總（不需 API key）。
+
+    使用 GET /fapi/v1/allForceOrders（Security: NONE），
+    SELL side = 多頭被爆，BUY side = 空頭被爆。
+    """
+    pair = f"{symbol}USDT"
+    try:
+        since_ms = int((datetime.now(timezone.utc).timestamp() - 86400) * 1000)
+        resp = _http_get(
+            "https://fapi.binance.com/fapi/v1/allForceOrders",
+            params={"symbol": pair, "limit": 1000, "startTime": since_ms},
+            timeout=12,
+        )
+        resp.raise_for_status()
+        orders = resp.json()
+        if not isinstance(orders, list):
+            raise ValueError(f"unexpected response type: {type(orders)}")
+        long_liq = short_liq = 0.0
+        for o in orders:
+            try:
+                usd = float(o.get("origQty", 0)) * float(o.get("avgPrice", 0))
+                if o.get("side") == "SELL":   # 多頭強平 → 賣出
+                    long_liq += usd
+                else:                          # 空頭強平 → 買入
+                    short_liq += usd
+            except (TypeError, ValueError):
+                continue
+        total = long_liq + short_liq
+        if total == 0:
+            return "[DATA_MISSING:liquidations] Binance 24h 爆倉數據為零或查無記錄。"
+        return (
+            f"{symbol} 過去 24h 總爆倉 ${total/1e6:.2f}M，"
+            f"其中多頭爆倉 ${long_liq/1e6:.2f}M，空頭爆倉 ${short_liq/1e6:.2f}M"
+            f"（來源：Binance allForceOrders）"
+        )
+    except Exception as e:
+        logger.warning("_binance_liquidations fallback failed (symbol=%s): %s", symbol, e)
+    return f"[DATA_MISSING:liquidations_{symbol}] Binance 爆倉備援失敗。"
+
+
 def _binance_long_short_ratio() -> str:
     """從 Binance 公開 API 取得 BTC 全球大戶多空比（不需 API key）。"""
     try:
@@ -1296,6 +1337,54 @@ def _binance_long_short_ratio() -> str:
     except Exception as e:
         logger.warning("Binance long/short ratio fallback failed: %s", e)
     return "[DATA_MISSING:long_short_ratio] 多空比暫無法取得（CoinGlass + Binance 均失敗）。"
+
+
+def _deribit_options_info(symbol: str = "BTC") -> str:
+    """從 Deribit 公開 API 計算 Put/Call Ratio（不需 API key）。
+
+    使用 GET /api/v2/public/get_book_summary_by_currency，
+    加總 put/call OI 計算 PCR，附帶名目價值。
+    """
+    try:
+        resp = _http_get(
+            "https://www.deribit.com/api/v2/public/get_book_summary_by_currency",
+            params={"currency": symbol, "kind": "option"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        instruments = resp.json().get("result", [])
+        if not isinstance(instruments, list) or not instruments:
+            return f"[DATA_MISSING:options_info] Deribit 無 {symbol} 選擇權數據。"
+
+        put_oi = call_oi = 0.0
+        put_usd = call_usd = 0.0
+        for inst in instruments:
+            name = str(inst.get("instrument_name", ""))
+            oi = float(inst.get("open_interest") or 0)
+            # 名目價值估算：OI 數量 × 標的價格（underlying_price）
+            price = float(inst.get("underlying_price") or inst.get("mark_price") or 0)
+            usd = oi * price
+            if name.endswith("-P"):
+                put_oi += oi
+                put_usd += usd
+            elif name.endswith("-C"):
+                call_oi += oi
+                call_usd += usd
+
+        if call_oi == 0:
+            return "[DATA_MISSING:options_info] Deribit call OI 為零，無法計算 PCR。"
+
+        pcr = put_oi / call_oi
+        hint = "偏空避險" if pcr > 1.0 else ("中性" if pcr > 0.7 else "偏多投機")
+        total_usd = (put_usd + call_usd) / 1e9
+        return (
+            f"Put/Call Ratio: {pcr:.2f}（{hint}）"
+            f" ｜ 名目價值: ${total_usd:.2f}B"
+            f"（來源：Deribit，OI 統計）"
+        )
+    except Exception as e:
+        logger.warning("_deribit_options_info fallback failed (symbol=%s): %s", symbol, e)
+    return f"[DATA_MISSING:options_info] Deribit 備援失敗（{symbol}）。"
 
 
 @tool
@@ -1387,20 +1476,23 @@ def coinglass_data_tool(metric: str) -> str:
             except Exception as e:
                 logger.warning("CoinGlass primary path failed metric=%s symbol=%s: %s", metric_lower, symbol, e)
 
-        # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援（僅 BTC 支援）──
-        if symbol == "BTC":
-            if metric_lower == "funding_rate":
-                result = _binance_funding_rate()
-            elif metric_lower == "open_interest":
-                result = _binance_open_interest()
-            elif metric_lower == "long_short_ratio":
-                result = _binance_long_short_ratio()
-            elif metric_lower == "liquidations":
+        # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援 ──
+        if metric_lower == "funding_rate" and symbol == "BTC":
+            result = _binance_funding_rate()
+        elif metric_lower == "open_interest" and symbol == "BTC":
+            result = _binance_open_interest()
+        elif metric_lower == "long_short_ratio" and symbol == "BTC":
+            result = _binance_long_short_ratio()
+        elif metric_lower == "liquidations":
+            # 所有幣種都試 Binance（公開 API），失敗再試 Apify（BTC 限定）
+            result = _binance_liquidations(symbol)
+            if result.startswith("[DATA_MISSING") and symbol == "BTC":
                 result = _apify_liquidations_fallback()
-            else:
-                result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
+        elif metric_lower == "options_info":
+            # Deribit 公開 API 作為 CoinGlass 備援
+            result = _deribit_options_info(symbol)
         else:
-            result = f"[DATA_MISSING:coinglass_{metric_lower}_{symbol}] CoinGlass {symbol} {metric_lower} 暫無數據。"
+            result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
         _set_cache(cache_key, result)
         if result.startswith("[DATA_MISSING:"):
             return result
