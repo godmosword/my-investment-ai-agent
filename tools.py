@@ -2502,6 +2502,182 @@ def rumor_scanner_tool(topic: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# BTC 估值錨（MVRV proxy + NVT ratio）— 全免費，不需 API key
+# ═══════════════════════════════════════════════════════════════════
+
+def _mvrv_200w_ma() -> tuple[float, float] | None:
+    """
+    用 200 週 MA 當 MVRV proxy（免費替代 Glassnode Realized Cap）。
+    回傳 (current_price, ma_200w)；比值 > 1 = 估值偏高，< 1 = 估值偏低。
+    """
+    try:
+        import yfinance as yf  # noqa: PLC0415
+
+        # 需要至少 200 週 × 7 天 = 1400 天的資料
+        df = yf.download("BTC-USD", period="1600d", interval="1d",
+                         progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return None
+        close = df["Close"].dropna()
+        if len(close) < 200:
+            return None
+        # 200 週 MA = 200 × 7 日 MA（取收盤的滾動 1400 日均）
+        ma_200w = float(close.rolling(1400, min_periods=200).mean().iloc[-1])
+        current = float(close.iloc[-1])
+        if ma_200w <= 0:
+            return None
+        return current, ma_200w
+    except Exception as e:
+        logger.warning("_mvrv_200w_ma failed: %s", e)
+        return None
+
+
+def _nvt_ratio() -> tuple[float, float] | None:
+    """
+    NVT = Market Cap / 30日平均鏈上交易量（USD）。
+    Market Cap: CoinGecko 免費 API。
+    TX Volume: Blockchain.info 免費 charts API。
+    """
+    market_cap: float | None = None
+    tx_vol_30d: float | None = None
+
+    # 1. Market Cap from CoinGecko
+    try:
+        resp = _http_get(
+            "https://api.coingecko.com/api/v3/coins/bitcoin",
+            params={"localization": "false", "tickers": "false",
+                    "market_data": "true", "community_data": "false",
+                    "developer_data": "false"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        mkt = resp.json().get("market_data", {}).get("market_cap", {}).get("usd")
+        if mkt:
+            market_cap = float(mkt)
+    except Exception as e:
+        logger.warning("_nvt_ratio CoinGecko market cap failed: %s", e)
+
+    # 2. 鏈上 30 日平均交易量 from Blockchain.info（免費，無需 key）
+    try:
+        resp = _http_get(
+            "https://api.blockchain.info/charts/estimated-transaction-volume-usd",
+            params={"timespan": "30days", "rollingAverage": "8hours",
+                    "format": "json", "sampled": "true"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        values = resp.json().get("values", [])
+        if values and isinstance(values, list):
+            daily_vols = [float(v.get("y", 0)) for v in values if v.get("y")]
+            if daily_vols:
+                tx_vol_30d = sum(daily_vols) / len(daily_vols)
+    except Exception as e:
+        logger.warning("_nvt_ratio Blockchain.info tx volume failed: %s", e)
+
+    if market_cap and tx_vol_30d and tx_vol_30d > 0:
+        return market_cap, tx_vol_30d
+    return None
+
+
+@tool
+def valuation_anchor_tool(query: str = "") -> str:
+    """
+    BTC 估值錨：提供機構級估值框架，識別當前價格相對歷史公允價值的位置。
+
+    指標：
+    · MVRV proxy（200週MA比值）：Price / 200-week MA，< 1.0 = 歷史底部區，> 3.5 = 歷史頂部區
+    · NVT Ratio（網路價值/交易量）：< 40 = 低估，40-100 = 合理，> 100 = 高估
+    · BTC Dominance（CoinGecko）：市值佔比，反映山寨幣輪動時機
+
+    數據來源：yfinance（MVRV）、Blockchain.info（NVT 鏈上量）、CoinGecko（市值/主導率）。
+    全部免費，不需 API key。
+    """
+    cache_key = ("valuation_anchor", _today_utc())
+    if cached := _get_cache(cache_key):
+        return _append_data_as_of(cached, "valuation_anchor")
+
+    def _run() -> str:
+        lines = ["【BTC 估值錨（Valuation Anchor）】"]
+
+        # ── 1. MVRV proxy via 200-week MA ─────────────────────────────
+        mvrv_data = _mvrv_200w_ma()
+        if mvrv_data:
+            price, ma200w = mvrv_data
+            ratio = price / ma200w
+            if ratio < 1.0:
+                zone = "🟢 歷史底部區（極度低估，長線買入信號）"
+            elif ratio < 2.0:
+                zone = "🟡 公允價值區（合理估值，中性偏多）"
+            elif ratio < 3.5:
+                zone = "🟠 偏高估值區（牛市中後段，注意風險）"
+            else:
+                zone = "🔴 歷史頂部區（極度高估，歷史頂部附近）"
+            lines.append(
+                f"· MVRV proxy（200週MA比值）: <code>{ratio:.2f}x</code>"
+                f"（現價 ${price:,.0f} / 200週MA ${ma200w:,.0f}）→ {zone}"
+            )
+        else:
+            lines.append("· MVRV proxy: <code>N/A</code>（yfinance 數據不足）")
+
+        # ── 2. NVT Ratio ──────────────────────────────────────────────
+        nvt_data = _nvt_ratio()
+        if nvt_data:
+            market_cap, tx_vol = nvt_data
+            nvt = market_cap / tx_vol
+            if nvt < 40:
+                nvt_zone = "低估（鏈上活動支撐估值）"
+            elif nvt < 100:
+                nvt_zone = "合理（鏈上活動與估值匹配）"
+            else:
+                nvt_zone = "高估（價格超前鏈上基本面）"
+            lines.append(
+                f"· NVT Ratio: <code>{nvt:.0f}</code>"
+                f"（市值 ${market_cap/1e9:.0f}B / 30日均量 ${tx_vol/1e6:.0f}M/day）→ {nvt_zone}"
+            )
+        else:
+            lines.append("· NVT Ratio: <code>N/A</code>（CoinGecko 或 Blockchain.info 無回應）")
+
+        # ── 3. BTC Dominance ──────────────────────────────────────────
+        try:
+            resp = _http_get(
+                "https://api.coingecko.com/api/v3/global",
+                timeout=12,
+            )
+            resp.raise_for_status()
+            dom = resp.json().get("data", {}).get("market_cap_percentage", {}).get("btc")
+            if dom is not None:
+                dom_f = float(dom)
+                if dom_f > 60:
+                    dom_hint = "BTC 主導（資金未外溢至山寨）"
+                elif dom_f > 50:
+                    dom_hint = "BTC 微主導（山寨輪動初期）"
+                else:
+                    dom_hint = "山寨季訊號（資金分散至山寨幣）"
+                lines.append(f"· BTC Dominance: <code>{dom_f:.1f}%</code> → {dom_hint}")
+        except Exception as e:
+            logger.warning("valuation_anchor BTC dominance failed: %s", e)
+            lines.append("· BTC Dominance: <code>N/A</code>")
+
+        # ── 4. 綜合判讀 ───────────────────────────────────────────────
+        if mvrv_data and nvt_data:
+            ratio = mvrv_data[0] / mvrv_data[1]
+            nvt = nvt_data[0] / nvt_data[1]
+            if ratio < 1.5 and nvt < 60:
+                verdict = "📊 估值偏低：MVRV 與 NVT 雙指標均顯示當前價格低於公允價值，歷史上為中長線佈局機會。"
+            elif ratio > 3.0 or nvt > 120:
+                verdict = "⚠️ 估值偏高：至少一項指標進入歷史高估區，建議縮短持倉時間框架，設置較緊停損。"
+            else:
+                verdict = "⚖️ 估值中性：當前價格位於歷史合理區間，趨勢動能是主要操作依據。"
+            lines.append(f"→ 綜合判讀：{verdict}")
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return result
+
+    return traced_tool_execution("valuation_anchor_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # BTC 鏈上數據深化（CryptoQuant → Glassnode → Blockchain.info 備援）
 # ═══════════════════════════════════════════════════════════════════
 
