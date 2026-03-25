@@ -29,6 +29,7 @@ from tools import (
     rss_feed_tool,
     rumor_scanner_tool,
     sentiment_score_tool,
+    valuation_anchor_tool,
     x_search_tool,
 )
 
@@ -483,6 +484,7 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
     3b) 【今日主敘事】一行（見【日報 V2】）
     4) 🏛️ 宏觀框架（取自 macro_context_tool）
        · 若 correlation_matrix_tool 有回傳，在宏觀框架末尾加一行：「📐 BTC 相關係數：BTC/SPX X.XX｜BTC/DXY X.XX｜BTC/GLD X.XX」
+       · 若 valuation_anchor_tool 有回傳，在宏觀框架末尾加一行：「📊 估值錨：MVRV X.XXx（區間）｜NVT XX（區間）｜BTC Dominance XX%」
     5) 📊 加密市場：
        - 區塊① 儀表板（宏觀/技術/籌碼；嚴格套用儀表板格式）
        - 區塊② 核心新聞 3 則（〔新聞 1〕～〔新聞 3〕，套用新聞格式）
@@ -583,7 +585,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool, correlation_matrix_tool],
+            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool, correlation_matrix_tool, valuation_anchor_tool],
             verbose=_VERBOSE,
         )
 
@@ -651,6 +653,7 @@ class CryptoResearchCrew:
                 · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
                 · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（可選 / optional：若時間緊迫可跳過；社群情緒量化 -1 到 +1）
                 · correlation_matrix_tool()（BTC 與 SPX/DXY/GLD/NDX 30日相關係數，識別當前市場模式）
+                · valuation_anchor_tool()（MVRV proxy + NVT Ratio + BTC Dominance；提供估值錨，判斷當前是否高估/低估）
 
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
