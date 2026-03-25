@@ -256,7 +256,6 @@ Streamlit 戰情室讀取指標
 | [`docs/COST_PER_MODEL.md`](docs/COST_PER_MODEL.md) | LLM 費用粗估 |
 | [`docs/ADOPTION_DEXTER_CONCEPTS.md`](docs/ADOPTION_DEXTER_CONCEPTS.md) | Dexter 式觀測與工具導入概念 |
 | [`docs/REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md) | 雙軌驗證 |
-| [`docs/autoresearch.plan.md`](docs/autoresearch.plan.md) | Autoresearch 7 天衝刺計畫 |
 | [`gstack.md`](gstack.md) | gstack 技能（瀏覽器／流程） |
 
 ---
