@@ -3153,6 +3153,138 @@ def macro_context_tool(query: str = "") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 相關係數矩陣（BTC vs SPX / DXY / GLD — yfinance 免費）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool
+def correlation_matrix_tool(query: str = "") -> str:
+    """
+    計算 BTC 與主要資產的 30 日滾動相關係數，識別當前 BTC 是「風險資產模式」或「數字黃金模式」。
+
+    涵蓋：BTC/SPX（風險偏好）、BTC/DXY（美元壓制）、BTC/GLD（黃金替代）、BTC/NDX（科技連動）。
+    數據來源：yfinance（免費公開）。
+    """
+    cache_key = ("correlation_matrix", _today_utc())
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    def _run() -> str:
+        try:
+            import pandas as pd  # noqa: PLC0415
+            import yfinance as yf  # noqa: PLC0415
+        except ImportError as e:
+            return f"[DATA_MISSING:correlation_matrix] 套件缺失：{e}"
+
+        tickers = {
+            "BTC":  "BTC-USD",
+            "SPX":  "^GSPC",
+            "DXY":  "DX-Y.NYB",
+            "GLD":  "GLD",
+            "NDX":  "^NDX",
+        }
+
+        try:
+            raw = yf.download(
+                list(tickers.values()),
+                period="35d",
+                interval="1d",
+                progress=False,
+                auto_adjust=True,
+            )
+        except Exception as e:
+            logger.warning("correlation_matrix yfinance download failed: %s", e)
+            return f"[DATA_MISSING:correlation_matrix] yfinance 下載失敗：{e}"
+
+        # 統一取 Close（yfinance 回傳 MultiIndex 或單層皆相容）
+        try:
+            if isinstance(raw.columns, pd.MultiIndex):
+                closes = raw["Close"].copy()
+                closes.columns = {v: k for k, v in tickers.items()}[closes.columns] if False else closes.columns
+                # rename back from yahoo symbol to short name
+                rev = {v: k for k, v in tickers.items()}
+                closes = closes.rename(columns=rev)
+            else:
+                closes = raw[["Close"]].copy()
+                closes.columns = ["BTC"]
+        except Exception as e:
+            logger.warning("correlation_matrix close extraction failed: %s", e)
+            return f"[DATA_MISSING:correlation_matrix] 收盤價擷取失敗：{e}"
+
+        closes = closes.dropna(how="all").tail(30)
+        if "BTC" not in closes.columns or len(closes) < 10:
+            return "[DATA_MISSING:correlation_matrix] BTC 數據不足（需 ≥10 筆）。"
+
+        btc = closes["BTC"].dropna()
+
+        def _corr_hint(r: float) -> str:
+            if r >= 0.7:
+                return "高度正相關"
+            if r >= 0.4:
+                return "中度正相關"
+            if r >= 0.1:
+                return "弱正相關"
+            if r >= -0.1:
+                return "近零相關"
+            if r >= -0.4:
+                return "弱負相關"
+            if r >= -0.7:
+                return "中度負相關"
+            return "高度負相關"
+
+        lines = [f"【BTC 30日相關係數（{len(btc)} 日樣本）】"]
+        pair_labels = {
+            "SPX": ("BTC/SPX（風險偏好）",   "↑正相關 = 風險資產模式"),
+            "DXY": ("BTC/DXY（美元壓制）",   "↓負相關 = 美元走強壓制BTC"),
+            "GLD": ("BTC/GLD（黃金替代性）", "↑正相關 = 數字黃金模式"),
+            "NDX": ("BTC/NDX（科技連動）",   "↑正相關 = 與科技股同漲跌"),
+        }
+        for key, (label, interpretation) in pair_labels.items():
+            if key not in closes.columns:
+                lines.append(f"· {label}: N/A（數據缺失）")
+                continue
+            pair = closes[key].dropna()
+            aligned = btc.align(pair, join="inner")[0], btc.align(pair, join="inner")[1]
+            if len(aligned[0]) < 10:
+                lines.append(f"· {label}: N/A（樣本不足）")
+                continue
+            try:
+                r = float(aligned[0].corr(aligned[1]))
+                lines.append(f"· {label}: <code>{r:+.2f}</code>（{_corr_hint(r)}，{interpretation}）")
+            except Exception:
+                lines.append(f"· {label}: N/A")
+
+        # 加入市場模式判斷
+        spx_r = None
+        dxy_r = None
+        if "SPX" in closes.columns and "DXY" in closes.columns:
+            try:
+                b2, s2 = btc.align(closes["SPX"].dropna(), join="inner")
+                b3, d2 = btc.align(closes["DXY"].dropna(), join="inner")
+                spx_r = float(b2.corr(s2))
+                dxy_r = float(b3.corr(d2))
+            except Exception:
+                pass
+
+        if spx_r is not None and dxy_r is not None:
+            if spx_r > 0.5 and dxy_r < -0.3:
+                mode = "⚠️ 風險資產模式（跟漲跟跌 SPX，美元強則承壓）"
+            elif spx_r < 0.2 and dxy_r < -0.3:
+                mode = "🥇 數字黃金模式（與股市脫鉤，對美元獨立走勢）"
+            elif spx_r > 0.5 and dxy_r > 0.1:
+                mode = "🔀 混合模式（同時受風險情緒與美元主導，訊號分歧）"
+            else:
+                mode = "📊 低相關模式（當前 BTC 走勢相對獨立於傳統資產）"
+            lines.append(f"→ 當前 BTC 模式判定：{mode}")
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "yfinance")
+
+    return traced_tool_execution("correlation_matrix_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 新聞來源工具（NewsAPI / GNews / RSS）— Agent 可直接呼叫
 # ═══════════════════════════════════════════════════════════════════
 

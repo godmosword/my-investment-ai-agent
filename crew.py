@@ -12,6 +12,7 @@ from schemas import AISection, CryptoSection
 from tools import (
     ai_momentum_tool,
     coinglass_data_tool,
+    correlation_matrix_tool,
     cryptopanic_tool,
     econ_calendar_tool,
     etf_flow_tool,
@@ -98,6 +99,7 @@ def build_crypto_final_prompt(*, ctx: str, prev_recs_ctx: str, today_str: str) -
         {_CRYPTO_TRADE_MUTEX_RULE}
         {_BRIEF_V2_RULE}
         {_HEDGE_FUND_BRIEF_RULE}
+        {_EXEC_SUMMARY_RULE}
         {_GATE_VALIDATE_PICK_RULE}
         {ctx}
         {prev_recs_ctx}
@@ -452,6 +454,17 @@ _GATE_VALIDATE_PICK_RULE = dedent("""\
     9) **QSREC 與區塊④方向一致**：JSON 內每一檔 `asset` 的 `LONG`/`SHORT` 須與對應 `· $` 交易行括號內方向相同；同一 category 下同一 ticker 不得在 QSREC 出現兩筆相反方向（機檢硬擋）。
     """)
 
+_EXEC_SUMMARY_RULE = dedent("""\
+    【執行摘要（Executive Summary）— 報告最頂部，CIO 30 秒閱讀】
+    在 exec_summary 欄位填入 3~5 條 bullet，每條 ≤50 字，涵蓋：
+    · 今日核心 Thesis（一句話說明最大驅動力）
+    · 最高信心交易（標的 + 方向 + 簡要理由）
+    · 主要尾部風險（最可能讓部位失效的一個因子）
+    · 宏觀立場（利率/美元/VIX 對今日操作的含義）
+    · 市場模式摘要（regime + 主要訊號來源）
+    格式範例：「→ BTC 多頭排列完整，ETF 淨流入連三日，進場信心 4 星」
+    ⚠️ 嚴禁重複正文內容、嚴禁泛泛而談（如「市場混亂」「保持謹慎」）。""")
+
 _HEDGE_FUND_BRIEF_RULE = dedent("""\
     【避險基金極簡閱讀（手機優先，與 Gate 對齊）】
     - 語氣：多空避險基金晨報——只給可執行結論與必要證據，禁止長篇教學、重複鋪墊、自我辯論。
@@ -464,10 +477,12 @@ _HEDGE_FUND_BRIEF_RULE = dedent("""\
 _CRYPTO_LAYOUT_RULE = dedent("""\
     === 排版順序（Crypto）===
     1) <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {today_str}</i>
+    1b) 【執行摘要】（exec_summary，見【Executive Summary】規則）：3~5 條 bullet，置於標題之後、上期建議追蹤之前。
     2) 【上期建議追蹤】：若提示區已給 HTML，僅能原樣貼上一段、嚴禁自行增刪列或補寫歷史進場（後端亦會覆寫為 BigQuery 權威版本）。
     3) 【今日市場模式】與評分卡明細（取自 review_task）
     3b) 【今日主敘事】一行（見【日報 V2】）
     4) 🏛️ 宏觀框架（取自 macro_context_tool）
+       · 若 correlation_matrix_tool 有回傳，在宏觀框架末尾加一行：「📐 BTC 相關係數：BTC/SPX X.XX｜BTC/DXY X.XX｜BTC/GLD X.XX」
     5) 📊 加密市場：
        - 區塊① 儀表板（宏觀/技術/籌碼；嚴格套用儀表板格式）
        - 區塊② 核心新聞 3 則（〔新聞 1〕～〔新聞 3〕，套用新聞格式）
@@ -481,6 +496,10 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
          配對交易必須選擇強弱分化最明顯的兩幣，禁止用 BTC/SOL 當預設配對
         【昨日標的對照】提示區「過去 3 天已建議標的」＋ BigQuery 昨日 QSREC：若本日加密 QSREC 與昨日**完全相同**（同幣種／同配對），必須二選一：(1) 至少更換一檔或一改配對腿；(2) 在「本日選擇理由」首段寫明「重複選用理由：〔全新催化／連日持有依據〕」，且 QSREC 需填可驗證分差（score_gap，預設需 >= 12）。否則 validate_report 硬性失敗並整報重試。
          每次必須說明「本日選擇理由：…」（完整規則見【validate_report 動態選幣／選股】；須寫在今日風險預算／訊號衝突／第一筆 · $ 交易行之前）
+         【情境分析】每筆交易行信心 ≥ 3 星時，在敘事邏輯之後附上三情境（填入 trade_legs 的 bull/base/bear_scenario 欄位）：
+         🐂 牛：[觸發條件 → 目標]（例：突破 74k + ETF 流入 > $5億 → 78k，機率 30%）
+         ⚖️ 基：[主要情境 + 機率]（例：震盪 70-74k 整理，機率 55%）
+         🐻 熊：[失效條件 → 止損]（例：日線收破 MA20 → 停損 69.5k，機率 15%）
     6) 最後必須輸出 QSREC JSON 區塊""")
 
 _SCENARIO_RULE = dedent("""\
@@ -564,7 +583,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool],
+            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool, correlation_matrix_tool],
             verbose=_VERBOSE,
         )
 
@@ -631,6 +650,7 @@ class CryptoResearchCrew:
                 · x_search_tool('crypto ETF bitcoin ethereum altcoin DeFi liquidation whale')（供 X 推文精選區塊使用）
                 · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
                 · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（可選 / optional：若時間緊迫可跳過；社群情緒量化 -1 到 +1）
+                · correlation_matrix_tool()（BTC 與 SPX/DXY/GLD/NDX 30日相關係數，識別當前市場模式）
 
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
