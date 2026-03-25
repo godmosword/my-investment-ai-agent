@@ -2,6 +2,13 @@
 {% if source_observability_block %}
 {{ source_observability_block }}
 {% endif %}
+{% if crypto.exec_summary %}
+<b>📋 執行摘要</b>
+{% for line in crypto.exec_summary %}
+→ {{ line|tg_escape }}
+{% endfor %}
+────────────
+{% endif %}
 {% if previous_recs_html %}
 {{ previous_recs_html }}
 {% endif %}
@@ -65,6 +72,15 @@
 · 失效條件：<code>{{ leg.invalidation|tg_escape }}</code>
 · 倉位建議：{{ leg.position_pct|tg_escape }}
 · 敘事邏輯：{{ leg.narrative|tg_escape }}
+{% if leg.bull_scenario or leg.base_scenario or leg.bear_scenario %}
+· 情境分析：
+{% if leg.bull_scenario %}  🐂 牛：{{ leg.bull_scenario|tg_escape }}
+{% endif %}
+{% if leg.base_scenario %}  ⚖️ 基：{{ leg.base_scenario|tg_escape }}
+{% endif %}
+{% if leg.bear_scenario %}  🐻 熊：{{ leg.bear_scenario|tg_escape }}
+{% endif %}
+{% endif %}
 
 {% endfor %}
 {% else %}
@@ -127,6 +143,15 @@
 · 失效條件：<code>{{ leg.invalidation|tg_escape }}</code>
 · 倉位建議：{{ leg.position_pct|tg_escape }}
 · 敘事邏輯：{{ leg.narrative|tg_escape }}
+{% if leg.bull_scenario or leg.base_scenario or leg.bear_scenario %}
+· 情境分析：
+{% if leg.bull_scenario %}  🐂 牛：{{ leg.bull_scenario|tg_escape }}
+{% endif %}
+{% if leg.base_scenario %}  ⚖️ 基：{{ leg.base_scenario|tg_escape }}
+{% endif %}
+{% if leg.bear_scenario %}  🐻 熊：{{ leg.bear_scenario|tg_escape }}
+{% endif %}
+{% endif %}
 
 {% endfor %}
 {% else %}

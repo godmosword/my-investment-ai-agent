@@ -148,7 +148,7 @@ def _load_source_health() -> None:
                 ok = float(stats.get("ok", 0))
                 fail = float(stats.get("fail", 0))
                 loaded = {"ok": max(ok, 0.0), "fail": max(fail, 0.0)}
-                for err_key in ("e429", "e400", "etimeout", "e5xx", "eother"):
+                for err_key in ("e429", "e400", "etimeout", "e5xx", "eauth", "eother"):
                     loaded[err_key] = max(float(stats.get(err_key, 0.0)), 0.0)
                 if "updated_at" in stats:
                     loaded["updated_at"] = str(stats.get("updated_at"))
@@ -191,7 +191,7 @@ def _load_source_health_from_bigquery() -> None:
         client = _get_bq_client()
         table_id = _source_health_table_id()
         query = f"""
-            SELECT source, ok, fail, e429, e400, etimeout, e5xx, eother, updated_at
+            SELECT source, ok, fail, e429, e400, etimeout, e5xx, eauth, eother, updated_at
             FROM `{table_id}`
             QUALIFY ROW_NUMBER() OVER (PARTITION BY source ORDER BY updated_at DESC) = 1
         """
@@ -209,6 +209,7 @@ def _load_source_health_from_bigquery() -> None:
                     "e400": max(float(r.get("e400") or 0.0), 0.0),
                     "etimeout": max(float(r.get("etimeout") or 0.0), 0.0),
                     "e5xx": max(float(r.get("e5xx") or 0.0), 0.0),
+                    "eauth": max(float(r.get("eauth") or 0.0), 0.0),
                     "eother": max(float(r.get("eother") or 0.0), 0.0),
                     "updated_at": str(r.get("updated_at") or ""),
                 },
@@ -237,6 +238,7 @@ def _save_source_health_to_bigquery() -> None:
             bigquery.SchemaField("e400", "FLOAT"),
             bigquery.SchemaField("etimeout", "FLOAT"),
             bigquery.SchemaField("e5xx", "FLOAT"),
+            bigquery.SchemaField("eauth", "FLOAT"),
             bigquery.SchemaField("eother", "FLOAT"),
             bigquery.SchemaField("updated_at", "TIMESTAMP"),
         ]
@@ -262,6 +264,7 @@ def _save_source_health_to_bigquery() -> None:
                     "e400": float(stats.get("e400", 0.0)),
                     "etimeout": float(stats.get("etimeout", 0.0)),
                     "e5xx": float(stats.get("e5xx", 0.0)),
+                    "eauth": float(stats.get("eauth", 0.0)),
                     "eother": float(stats.get("eother", 0.0)),
                     "updated_at": str(updated_at),
                 }
@@ -306,6 +309,8 @@ def _normalize_error_key(reason: str | None) -> str:
         return "etimeout"
     if r in ("5xx", "server_error"):
         return "e5xx"
+    if r in ("auth", "unauthorized", "forbidden"):
+        return "eauth"
     return "eother"
 
 
@@ -318,6 +323,7 @@ def _record_source_outcome(source: str, ok: bool, reason: str | None = None) -> 
     e400 = float(stats.get("e400", 0.0))
     etimeout = float(stats.get("etimeout", 0.0))
     e5xx = float(stats.get("e5xx", 0.0))
+    eauth = float(stats.get("eauth", 0.0))
     eother = float(stats.get("eother", 0.0))
     if ok:
         decayed_ok += 1.0
@@ -332,6 +338,8 @@ def _record_source_outcome(source: str, ok: bool, reason: str | None = None) -> 
             etimeout += 1.0
         elif err_key == "e5xx":
             e5xx += 1.0
+        elif err_key == "eauth":
+            eauth += 1.0
         else:
             eother += 1.0
     _SOURCE_HEALTH[source] = {
@@ -341,6 +349,7 @@ def _record_source_outcome(source: str, ok: bool, reason: str | None = None) -> 
         "e400": e400,
         "etimeout": etimeout,
         "e5xx": e5xx,
+        "eauth": eauth,
         "eother": eother,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -377,8 +386,9 @@ def _source_error_summary() -> str:
         e400 = int(float(stats.get("e400", 0.0)))
         etimeout = int(float(stats.get("etimeout", 0.0)))
         e5xx = int(float(stats.get("e5xx", 0.0)))
+        eauth = int(float(stats.get("eauth", 0.0)))
         eother = int(float(stats.get("eother", 0.0)))
-        parts.append(f"{s}:429={e429},400={e400},timeout={etimeout},5xx={e5xx},other={eother}")
+        parts.append(f"{s}:429={e429},400={e400},timeout={etimeout},5xx={e5xx},auth={eauth},other={eother}")
     return " | ".join(parts)
 
 
@@ -399,6 +409,8 @@ def _reason_from_exception(err: Exception | None) -> str:
         status = err.response.status_code if err.response is not None else None
         if status == 429:
             return "429"
+        if status in (401, 403):
+            return "auth"
         if status == 400:
             return "400"
         if status and 500 <= status < 600:
@@ -408,14 +420,16 @@ def _reason_from_exception(err: Exception | None) -> str:
         return "timeout"
     if "429" in msg or "rate limit" in msg:
         return "429"
+    if "401" in msg or "403" in msg or "unauthorized" in msg or "forbidden" in msg:
+        return "auth"
     if "400" in msg:
         return "400"
     if any(k in msg for k in ("500", "502", "503", "504", "server error")):
         return "5xx"
     if "connection" in msg or "dns" in msg or "resolve" in msg:
         return "conn_err"
-    # 記錄具體錯誤類別以便 debug
-    logger.debug("_reason_from_exception unclassified: %s(%s)", type(err).__name__, msg[:120])
+    # 警告等級，讓生產環境看到未分類的例外類型
+    logger.warning("_reason_from_exception unclassified: %s(%s)", type(err).__name__, msg[:120])
     return "other"
 
 
@@ -1074,11 +1088,11 @@ def market_search_tool(query: str) -> str:
             _set_cache(cache_key, result)
             return result
         except ValueError as e:
-            _record_source_outcome("apify", False, "other")
+            _record_source_outcome("apify", False, _reason_from_exception(e))
             return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
         except Exception as e:
             logger.warning("market_search Apify failed: %s", e)
-            _record_source_outcome("apify", False, "other")
+            _record_source_outcome("apify", False, _reason_from_exception(e))
             return "[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。"
 
     return traced_tool_execution("market_search_tool", {"query": query}, _run)
@@ -1265,6 +1279,47 @@ def _binance_open_interest() -> str:
     return "[DATA_MISSING:open_interest] OI 暫無法取得（CoinGlass + Binance 均失敗）。"
 
 
+def _binance_liquidations(symbol: str = "BTC") -> str:
+    """從 Binance 公開 API 取得過去 24h 強平訂單並加總（不需 API key）。
+
+    使用 GET /fapi/v1/allForceOrders（Security: NONE），
+    SELL side = 多頭被爆，BUY side = 空頭被爆。
+    """
+    pair = f"{symbol}USDT"
+    try:
+        since_ms = int((datetime.now(timezone.utc).timestamp() - 86400) * 1000)
+        resp = _http_get(
+            "https://fapi.binance.com/fapi/v1/allForceOrders",
+            params={"symbol": pair, "limit": 1000, "startTime": since_ms},
+            timeout=12,
+        )
+        resp.raise_for_status()
+        orders = resp.json()
+        if not isinstance(orders, list):
+            raise ValueError(f"unexpected response type: {type(orders)}")
+        long_liq = short_liq = 0.0
+        for o in orders:
+            try:
+                usd = float(o.get("origQty", 0)) * float(o.get("avgPrice", 0))
+                if o.get("side") == "SELL":   # 多頭強平 → 賣出
+                    long_liq += usd
+                else:                          # 空頭強平 → 買入
+                    short_liq += usd
+            except (TypeError, ValueError):
+                continue
+        total = long_liq + short_liq
+        if total == 0:
+            return "[DATA_MISSING:liquidations] Binance 24h 爆倉數據為零或查無記錄。"
+        return (
+            f"{symbol} 過去 24h 總爆倉 ${total/1e6:.2f}M，"
+            f"其中多頭爆倉 ${long_liq/1e6:.2f}M，空頭爆倉 ${short_liq/1e6:.2f}M"
+            f"（來源：Binance allForceOrders）"
+        )
+    except Exception as e:
+        logger.warning("_binance_liquidations fallback failed (symbol=%s): %s", symbol, e)
+    return f"[DATA_MISSING:liquidations_{symbol}] Binance 爆倉備援失敗。"
+
+
 def _binance_long_short_ratio() -> str:
     """從 Binance 公開 API 取得 BTC 全球大戶多空比（不需 API key）。"""
     try:
@@ -1282,6 +1337,54 @@ def _binance_long_short_ratio() -> str:
     except Exception as e:
         logger.warning("Binance long/short ratio fallback failed: %s", e)
     return "[DATA_MISSING:long_short_ratio] 多空比暫無法取得（CoinGlass + Binance 均失敗）。"
+
+
+def _deribit_options_info(symbol: str = "BTC") -> str:
+    """從 Deribit 公開 API 計算 Put/Call Ratio（不需 API key）。
+
+    使用 GET /api/v2/public/get_book_summary_by_currency，
+    加總 put/call OI 計算 PCR，附帶名目價值。
+    """
+    try:
+        resp = _http_get(
+            "https://www.deribit.com/api/v2/public/get_book_summary_by_currency",
+            params={"currency": symbol, "kind": "option"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        instruments = resp.json().get("result", [])
+        if not isinstance(instruments, list) or not instruments:
+            return f"[DATA_MISSING:options_info] Deribit 無 {symbol} 選擇權數據。"
+
+        put_oi = call_oi = 0.0
+        put_usd = call_usd = 0.0
+        for inst in instruments:
+            name = str(inst.get("instrument_name", ""))
+            oi = float(inst.get("open_interest") or 0)
+            # 名目價值估算：OI 數量 × 標的價格（underlying_price）
+            price = float(inst.get("underlying_price") or inst.get("mark_price") or 0)
+            usd = oi * price
+            if name.endswith("-P"):
+                put_oi += oi
+                put_usd += usd
+            elif name.endswith("-C"):
+                call_oi += oi
+                call_usd += usd
+
+        if call_oi == 0:
+            return "[DATA_MISSING:options_info] Deribit call OI 為零，無法計算 PCR。"
+
+        pcr = put_oi / call_oi
+        hint = "偏空避險" if pcr > 1.0 else ("中性" if pcr > 0.7 else "偏多投機")
+        total_usd = (put_usd + call_usd) / 1e9
+        return (
+            f"Put/Call Ratio: {pcr:.2f}（{hint}）"
+            f" ｜ 名目價值: ${total_usd:.2f}B"
+            f"（來源：Deribit，OI 統計）"
+        )
+    except Exception as e:
+        logger.warning("_deribit_options_info fallback failed (symbol=%s): %s", symbol, e)
+    return f"[DATA_MISSING:options_info] Deribit 備援失敗（{symbol}）。"
 
 
 @tool
@@ -1373,20 +1476,23 @@ def coinglass_data_tool(metric: str) -> str:
             except Exception as e:
                 logger.warning("CoinGlass primary path failed metric=%s symbol=%s: %s", metric_lower, symbol, e)
 
-        # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援（僅 BTC 支援）──
-        if symbol == "BTC":
-            if metric_lower == "funding_rate":
-                result = _binance_funding_rate()
-            elif metric_lower == "open_interest":
-                result = _binance_open_interest()
-            elif metric_lower == "long_short_ratio":
-                result = _binance_long_short_ratio()
-            elif metric_lower == "liquidations":
+        # ── CoinGlass 失敗，嘗試 Binance 公開 API 備援 ──
+        if metric_lower == "funding_rate" and symbol == "BTC":
+            result = _binance_funding_rate()
+        elif metric_lower == "open_interest" and symbol == "BTC":
+            result = _binance_open_interest()
+        elif metric_lower == "long_short_ratio" and symbol == "BTC":
+            result = _binance_long_short_ratio()
+        elif metric_lower == "liquidations":
+            # 所有幣種都試 Binance（公開 API），失敗再試 Apify（BTC 限定）
+            result = _binance_liquidations(symbol)
+            if result.startswith("[DATA_MISSING") and symbol == "BTC":
                 result = _apify_liquidations_fallback()
-            else:
-                result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
+        elif metric_lower == "options_info":
+            # Deribit 公開 API 作為 CoinGlass 備援
+            result = _deribit_options_info(symbol)
         else:
-            result = f"[DATA_MISSING:coinglass_{metric_lower}_{symbol}] CoinGlass {symbol} {metric_lower} 暫無數據。"
+            result = f"[DATA_MISSING:coinglass_{metric_lower}] CoinGlass API 暫無回應，此指標無備援來源。"
         _set_cache(cache_key, result)
         if result.startswith("[DATA_MISSING:"):
             return result
@@ -2396,6 +2502,182 @@ def rumor_scanner_tool(topic: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# BTC 估值錨（MVRV proxy + NVT ratio）— 全免費，不需 API key
+# ═══════════════════════════════════════════════════════════════════
+
+def _mvrv_200w_ma() -> tuple[float, float] | None:
+    """
+    用 200 週 MA 當 MVRV proxy（免費替代 Glassnode Realized Cap）。
+    回傳 (current_price, ma_200w)；比值 > 1 = 估值偏高，< 1 = 估值偏低。
+    """
+    try:
+        import yfinance as yf  # noqa: PLC0415
+
+        # 需要至少 200 週 × 7 天 = 1400 天的資料
+        df = yf.download("BTC-USD", period="1600d", interval="1d",
+                         progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return None
+        close = df["Close"].dropna()
+        if len(close) < 200:
+            return None
+        # 200 週 MA = 200 × 7 日 MA（取收盤的滾動 1400 日均）
+        ma_200w = float(close.rolling(1400, min_periods=200).mean().iloc[-1])
+        current = float(close.iloc[-1])
+        if ma_200w <= 0:
+            return None
+        return current, ma_200w
+    except Exception as e:
+        logger.warning("_mvrv_200w_ma failed: %s", e)
+        return None
+
+
+def _nvt_ratio() -> tuple[float, float] | None:
+    """
+    NVT = Market Cap / 30日平均鏈上交易量（USD）。
+    Market Cap: CoinGecko 免費 API。
+    TX Volume: Blockchain.info 免費 charts API。
+    """
+    market_cap: float | None = None
+    tx_vol_30d: float | None = None
+
+    # 1. Market Cap from CoinGecko
+    try:
+        resp = _http_get(
+            "https://api.coingecko.com/api/v3/coins/bitcoin",
+            params={"localization": "false", "tickers": "false",
+                    "market_data": "true", "community_data": "false",
+                    "developer_data": "false"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        mkt = resp.json().get("market_data", {}).get("market_cap", {}).get("usd")
+        if mkt:
+            market_cap = float(mkt)
+    except Exception as e:
+        logger.warning("_nvt_ratio CoinGecko market cap failed: %s", e)
+
+    # 2. 鏈上 30 日平均交易量 from Blockchain.info（免費，無需 key）
+    try:
+        resp = _http_get(
+            "https://api.blockchain.info/charts/estimated-transaction-volume-usd",
+            params={"timespan": "30days", "rollingAverage": "8hours",
+                    "format": "json", "sampled": "true"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        values = resp.json().get("values", [])
+        if values and isinstance(values, list):
+            daily_vols = [float(v.get("y", 0)) for v in values if v.get("y")]
+            if daily_vols:
+                tx_vol_30d = sum(daily_vols) / len(daily_vols)
+    except Exception as e:
+        logger.warning("_nvt_ratio Blockchain.info tx volume failed: %s", e)
+
+    if market_cap and tx_vol_30d and tx_vol_30d > 0:
+        return market_cap, tx_vol_30d
+    return None
+
+
+@tool
+def valuation_anchor_tool(query: str = "") -> str:
+    """
+    BTC 估值錨：提供機構級估值框架，識別當前價格相對歷史公允價值的位置。
+
+    指標：
+    · MVRV proxy（200週MA比值）：Price / 200-week MA，< 1.0 = 歷史底部區，> 3.5 = 歷史頂部區
+    · NVT Ratio（網路價值/交易量）：< 40 = 低估，40-100 = 合理，> 100 = 高估
+    · BTC Dominance（CoinGecko）：市值佔比，反映山寨幣輪動時機
+
+    數據來源：yfinance（MVRV）、Blockchain.info（NVT 鏈上量）、CoinGecko（市值/主導率）。
+    全部免費，不需 API key。
+    """
+    cache_key = ("valuation_anchor", _today_utc())
+    if cached := _get_cache(cache_key):
+        return _append_data_as_of(cached, "valuation_anchor")
+
+    def _run() -> str:
+        lines = ["【BTC 估值錨（Valuation Anchor）】"]
+
+        # ── 1. MVRV proxy via 200-week MA ─────────────────────────────
+        mvrv_data = _mvrv_200w_ma()
+        if mvrv_data:
+            price, ma200w = mvrv_data
+            ratio = price / ma200w
+            if ratio < 1.0:
+                zone = "🟢 歷史底部區（極度低估，長線買入信號）"
+            elif ratio < 2.0:
+                zone = "🟡 公允價值區（合理估值，中性偏多）"
+            elif ratio < 3.5:
+                zone = "🟠 偏高估值區（牛市中後段，注意風險）"
+            else:
+                zone = "🔴 歷史頂部區（極度高估，歷史頂部附近）"
+            lines.append(
+                f"· MVRV proxy（200週MA比值）: <code>{ratio:.2f}x</code>"
+                f"（現價 ${price:,.0f} / 200週MA ${ma200w:,.0f}）→ {zone}"
+            )
+        else:
+            lines.append("· MVRV proxy: <code>N/A</code>（yfinance 數據不足）")
+
+        # ── 2. NVT Ratio ──────────────────────────────────────────────
+        nvt_data = _nvt_ratio()
+        if nvt_data:
+            market_cap, tx_vol = nvt_data
+            nvt = market_cap / tx_vol
+            if nvt < 40:
+                nvt_zone = "低估（鏈上活動支撐估值）"
+            elif nvt < 100:
+                nvt_zone = "合理（鏈上活動與估值匹配）"
+            else:
+                nvt_zone = "高估（價格超前鏈上基本面）"
+            lines.append(
+                f"· NVT Ratio: <code>{nvt:.0f}</code>"
+                f"（市值 ${market_cap/1e9:.0f}B / 30日均量 ${tx_vol/1e6:.0f}M/day）→ {nvt_zone}"
+            )
+        else:
+            lines.append("· NVT Ratio: <code>N/A</code>（CoinGecko 或 Blockchain.info 無回應）")
+
+        # ── 3. BTC Dominance ──────────────────────────────────────────
+        try:
+            resp = _http_get(
+                "https://api.coingecko.com/api/v3/global",
+                timeout=12,
+            )
+            resp.raise_for_status()
+            dom = resp.json().get("data", {}).get("market_cap_percentage", {}).get("btc")
+            if dom is not None:
+                dom_f = float(dom)
+                if dom_f > 60:
+                    dom_hint = "BTC 主導（資金未外溢至山寨）"
+                elif dom_f > 50:
+                    dom_hint = "BTC 微主導（山寨輪動初期）"
+                else:
+                    dom_hint = "山寨季訊號（資金分散至山寨幣）"
+                lines.append(f"· BTC Dominance: <code>{dom_f:.1f}%</code> → {dom_hint}")
+        except Exception as e:
+            logger.warning("valuation_anchor BTC dominance failed: %s", e)
+            lines.append("· BTC Dominance: <code>N/A</code>")
+
+        # ── 4. 綜合判讀 ───────────────────────────────────────────────
+        if mvrv_data and nvt_data:
+            ratio = mvrv_data[0] / mvrv_data[1]
+            nvt = nvt_data[0] / nvt_data[1]
+            if ratio < 1.5 and nvt < 60:
+                verdict = "📊 估值偏低：MVRV 與 NVT 雙指標均顯示當前價格低於公允價值，歷史上為中長線佈局機會。"
+            elif ratio > 3.0 or nvt > 120:
+                verdict = "⚠️ 估值偏高：至少一項指標進入歷史高估區，建議縮短持倉時間框架，設置較緊停損。"
+            else:
+                verdict = "⚖️ 估值中性：當前價格位於歷史合理區間，趨勢動能是主要操作依據。"
+            lines.append(f"→ 綜合判讀：{verdict}")
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return result
+
+    return traced_tool_execution("valuation_anchor_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # BTC 鏈上數據深化（CryptoQuant → Glassnode → Blockchain.info 備援）
 # ═══════════════════════════════════════════════════════════════════
 
@@ -3044,6 +3326,544 @@ def macro_context_tool(query: str = "") -> str:
 
     q = (query or "").strip()
     return traced_tool_execution("macro_context_tool", {"query": q or "(default)"}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 相關係數矩陣（BTC vs SPX / DXY / GLD — yfinance 免費）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool
+def correlation_matrix_tool(query: str = "") -> str:
+    """
+    計算 BTC 與主要資產的 30 日滾動相關係數，識別當前 BTC 是「風險資產模式」或「數字黃金模式」。
+
+    涵蓋：BTC/SPX（風險偏好）、BTC/DXY（美元壓制）、BTC/GLD（黃金替代）、BTC/NDX（科技連動）。
+    數據來源：yfinance（免費公開）。
+    """
+    cache_key = ("correlation_matrix", _today_utc())
+    cached = _get_cache(cache_key)
+    if cached:
+        return cached
+
+    def _run() -> str:
+        try:
+            import pandas as pd  # noqa: PLC0415
+            import yfinance as yf  # noqa: PLC0415
+        except ImportError as e:
+            return f"[DATA_MISSING:correlation_matrix] 套件缺失：{e}"
+
+        tickers = {
+            "BTC":  "BTC-USD",
+            "SPX":  "^GSPC",
+            "DXY":  "DX-Y.NYB",
+            "GLD":  "GLD",
+            "NDX":  "^NDX",
+        }
+
+        try:
+            raw = yf.download(
+                list(tickers.values()),
+                period="35d",
+                interval="1d",
+                progress=False,
+                auto_adjust=True,
+            )
+        except Exception as e:
+            logger.warning("correlation_matrix yfinance download failed: %s", e)
+            return f"[DATA_MISSING:correlation_matrix] yfinance 下載失敗：{e}"
+
+        # 統一取 Close（yfinance 回傳 MultiIndex 或單層皆相容）
+        try:
+            if isinstance(raw.columns, pd.MultiIndex):
+                closes = raw["Close"].copy()
+                closes.columns = {v: k for k, v in tickers.items()}[closes.columns] if False else closes.columns
+                # rename back from yahoo symbol to short name
+                rev = {v: k for k, v in tickers.items()}
+                closes = closes.rename(columns=rev)
+            else:
+                closes = raw[["Close"]].copy()
+                closes.columns = ["BTC"]
+        except Exception as e:
+            logger.warning("correlation_matrix close extraction failed: %s", e)
+            return f"[DATA_MISSING:correlation_matrix] 收盤價擷取失敗：{e}"
+
+        closes = closes.dropna(how="all").tail(30)
+        if "BTC" not in closes.columns or len(closes) < 10:
+            return "[DATA_MISSING:correlation_matrix] BTC 數據不足（需 ≥10 筆）。"
+
+        btc = closes["BTC"].dropna()
+
+        def _corr_hint(r: float) -> str:
+            if r >= 0.7:
+                return "高度正相關"
+            if r >= 0.4:
+                return "中度正相關"
+            if r >= 0.1:
+                return "弱正相關"
+            if r >= -0.1:
+                return "近零相關"
+            if r >= -0.4:
+                return "弱負相關"
+            if r >= -0.7:
+                return "中度負相關"
+            return "高度負相關"
+
+        lines = [f"【BTC 30日相關係數（{len(btc)} 日樣本）】"]
+        pair_labels = {
+            "SPX": ("BTC/SPX（風險偏好）",   "↑正相關 = 風險資產模式"),
+            "DXY": ("BTC/DXY（美元壓制）",   "↓負相關 = 美元走強壓制BTC"),
+            "GLD": ("BTC/GLD（黃金替代性）", "↑正相關 = 數字黃金模式"),
+            "NDX": ("BTC/NDX（科技連動）",   "↑正相關 = 與科技股同漲跌"),
+        }
+        for key, (label, interpretation) in pair_labels.items():
+            if key not in closes.columns:
+                lines.append(f"· {label}: N/A（數據缺失）")
+                continue
+            pair = closes[key].dropna()
+            aligned = btc.align(pair, join="inner")[0], btc.align(pair, join="inner")[1]
+            if len(aligned[0]) < 10:
+                lines.append(f"· {label}: N/A（樣本不足）")
+                continue
+            try:
+                r = float(aligned[0].corr(aligned[1]))
+                lines.append(f"· {label}: <code>{r:+.2f}</code>（{_corr_hint(r)}，{interpretation}）")
+            except Exception:
+                lines.append(f"· {label}: N/A")
+
+        # 加入市場模式判斷
+        spx_r = None
+        dxy_r = None
+        if "SPX" in closes.columns and "DXY" in closes.columns:
+            try:
+                b2, s2 = btc.align(closes["SPX"].dropna(), join="inner")
+                b3, d2 = btc.align(closes["DXY"].dropna(), join="inner")
+                spx_r = float(b2.corr(s2))
+                dxy_r = float(b3.corr(d2))
+            except Exception:
+                pass
+
+        if spx_r is not None and dxy_r is not None:
+            if spx_r > 0.5 and dxy_r < -0.3:
+                mode = "⚠️ 風險資產模式（跟漲跟跌 SPX，美元強則承壓）"
+            elif spx_r < 0.2 and dxy_r < -0.3:
+                mode = "🥇 數字黃金模式（與股市脫鉤，對美元獨立走勢）"
+            elif spx_r > 0.5 and dxy_r > 0.1:
+                mode = "🔀 混合模式（同時受風險情緒與美元主導，訊號分歧）"
+            else:
+                mode = "📊 低相關模式（當前 BTC 走勢相對獨立於傳統資產）"
+            lines.append(f"→ 當前 BTC 模式判定：{mode}")
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "yfinance")
+
+    return traced_tool_execution("correlation_matrix_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 歷史類比引擎（純 yfinance，不需向量 DB）
+# ═══════════════════════════════════════════════════════════════════
+
+def _calc_rsi(series, period: int = 14) -> float:
+    """計算 RSI(period)，回傳最新值（0-100）。"""
+    delta = series.diff().dropna()
+    gain = delta.clip(lower=0).rolling(period).mean()
+    loss = (-delta.clip(upper=0)).rolling(period).mean()
+    rs = gain / loss.replace(0, float("nan"))
+    rsi = 100 - (100 / (1 + rs))
+    return float(rsi.dropna().iloc[-1]) if not rsi.dropna().empty else 50.0
+
+
+def _feature_vector(close, idx: int, ma200, ma50) -> list[float]:
+    """
+    計算指定索引位置的 5 維特徵向量（皆已正規化，無單位差異）：
+    [0] RSI14 / 100                 — 動量超買超賣
+    [1] log(price / MA200)          — 長期估值偏離
+    [2] log(price / MA50)           — 中期趨勢位置
+    [3] 30日年化波動率               — 風險狀態
+    [4] 30日報酬（log return）       — 近期動能
+    """
+    import math  # noqa: PLC0415
+    window = close.iloc[max(0, idx - 60): idx + 1]
+    if len(window) < 30:
+        return []
+    price = float(window.iloc[-1])
+    ma200_val = float(ma200.iloc[idx]) if idx < len(ma200) else float("nan")
+    ma50_val = float(ma50.iloc[idx]) if idx < len(ma50) else float("nan")
+
+    if math.isnan(ma200_val) or math.isnan(ma50_val) or ma200_val <= 0 or ma50_val <= 0:
+        return []
+
+    rsi = _calc_rsi(window) / 100.0
+
+    try:
+        log_vs_ma200 = math.log(price / ma200_val)
+        log_vs_ma50 = math.log(price / ma50_val)
+    except (ValueError, ZeroDivisionError):
+        return []
+
+    rets = window.pct_change().dropna().tail(30)
+    vol_30d = float(rets.std() * (252 ** 0.5)) if len(rets) >= 5 else 0.5
+
+    ret_30d = math.log(price / float(window.iloc[-31])) if len(window) >= 31 else 0.0
+
+    return [rsi, log_vs_ma200, log_vs_ma50, min(vol_30d, 3.0), ret_30d]
+
+
+@tool
+def historical_analog_tool(query: str = "") -> str:
+    """
+    在 BTC 完整歷史中搜尋與當前市場結構最相似的歷史時期，提供「歷史類比」參考。
+
+    方法：用 5 維技術特徵向量（RSI、長/中期估值偏離、波動率、近期動能）
+    計算當前與所有歷史 30 日窗口的 Euclidean distance，找出最相似的 3 個時期，
+    並報告它們之後 30/60/90 日的實際報酬。
+
+    數據來源：yfinance BTC-USD（2015 至今）。免費，無需 API key。
+    """
+    cache_key = ("historical_analog", _today_utc())
+    if cached := _get_cache(cache_key):
+        return _append_data_as_of(cached, "historical_analog")
+
+    def _run() -> str:
+        try:
+            import numpy as np  # noqa: PLC0415
+            import pandas as pd  # noqa: PLC0415
+            import yfinance as yf  # noqa: PLC0415
+        except ImportError as e:
+            return f"[DATA_MISSING:historical_analog] 套件缺失：{e}"
+
+        try:
+            df = yf.download("BTC-USD", start="2015-01-01", interval="1d",
+                             progress=False, auto_adjust=True)
+        except Exception as e:
+            logger.warning("historical_analog yfinance download failed: %s", e)
+            return f"[DATA_MISSING:historical_analog] yfinance 下載失敗：{e}"
+
+        if df is None or df.empty:
+            return "[DATA_MISSING:historical_analog] BTC-USD 歷史數據為空。"
+
+        close: pd.Series = df["Close"].dropna()
+        if len(close) < 300:
+            return "[DATA_MISSING:historical_analog] 歷史數據不足 300 天。"
+
+        ma200 = close.rolling(200).mean()
+        ma50 = close.rolling(50).mean()
+
+        # ── 當前特徵向量 ──────────────────────────────────────────────
+        cur_vec = _feature_vector(close, len(close) - 1, ma200, ma50)
+        if not cur_vec:
+            return "[DATA_MISSING:historical_analog] 當前特徵向量計算失敗（數據不足）。"
+        cur_arr = np.array(cur_vec)
+
+        # 特徵權重：估值偏離 > 動能 > RSI > 波動率
+        weights = np.array([1.0, 2.0, 1.5, 0.8, 1.5])
+
+        # ── 掃描所有歷史窗口（保留最近 90 天以外的，避免自我比較）──────
+        distances: list[tuple[float, int]] = []
+        min_history_days = 250          # MA200 需要足夠數據
+        exclude_recent = 90             # 排除最近 90 天（太相似無意義）
+        scan_end = len(close) - exclude_recent
+
+        for i in range(min_history_days, scan_end):
+            vec = _feature_vector(close, i, ma200, ma50)
+            if not vec:
+                continue
+            diff = (np.array(vec) - cur_arr) * weights
+            dist = float(np.sqrt(np.dot(diff, diff)))
+            distances.append((dist, i))
+
+        if not distances:
+            return "[DATA_MISSING:historical_analog] 無足夠歷史窗口進行比較。"
+
+        distances.sort(key=lambda x: x[0])
+
+        # ── 取 Top 3，且彼此相隔至少 60 天（避免連續相鄰結果）─────────
+        top_analogues: list[tuple[float, int]] = []
+        for dist, idx in distances:
+            if all(abs(idx - prev_idx) >= 60 for _, prev_idx in top_analogues):
+                top_analogues.append((dist, idx))
+            if len(top_analogues) == 3:
+                break
+
+        # ── 格式化輸出 ─────────────────────────────────────────────────
+        lines = [
+            "【BTC 歷史類比（最相似的 3 個歷史時期）】",
+            f"基準日：{close.index[-1].strftime('%Y-%m-%d')} | "
+            f"BTC 現價 ${float(close.iloc[-1]):,.0f}",
+        ]
+
+        for rank, (dist, idx) in enumerate(top_analogues, 1):
+            analog_date = close.index[idx]
+            analog_price = float(close.iloc[idx])
+
+            # 計算 30/60/90 日後報酬
+            def _fwd_ret(days: int) -> str:
+                fwd_idx = idx + days
+                if fwd_idx >= len(close):
+                    return "N/A"
+                fwd_price = float(close.iloc[fwd_idx])
+                pct = (fwd_price - analog_price) / analog_price * 100
+                sign = "+" if pct >= 0 else ""
+                return f"{sign}{pct:.1f}%"
+
+            r30, r60, r90 = _fwd_ret(30), _fwd_ret(60), _fwd_ret(90)
+
+            # 市場狀態簡述（用當時的 MVRV proxy）
+            ma200_at = float(ma200.iloc[idx])
+            mvrv_at = analog_price / ma200_at if ma200_at > 0 else 0
+            rsi_at = _calc_rsi(close.iloc[max(0, idx - 60): idx + 1])
+
+            if mvrv_at < 1.0:
+                zone = "底部區"
+            elif mvrv_at < 2.0:
+                zone = "公允區"
+            elif mvrv_at < 3.5:
+                zone = "偏高區"
+            else:
+                zone = "頂部區"
+
+            similarity = max(0, 100 - dist * 30)   # 距離轉換為 0-100 相似度分
+            lines.append(
+                f"\n#{rank} {analog_date.strftime('%Y-%m-%d')}"
+                f"（相似度 {similarity:.0f}/100）"
+                f"\n  · 當時價格 ${analog_price:,.0f}｜RSI {rsi_at:.0f}｜MVRV {mvrv_at:.2f}x（{zone}）"
+                f"\n  · 後續報酬：30日 {r30}｜60日 {r60}｜90日 {r90}"
+            )
+
+        # ── 統計中位數報酬作為綜合預期 ────────────────────────────────
+        fwd_30 = []
+        for _, idx in top_analogues:
+            fwd_idx = idx + 30
+            if fwd_idx < len(close):
+                fwd_30.append((float(close.iloc[fwd_idx]) - float(close.iloc[idx])) / float(close.iloc[idx]) * 100)
+
+        if fwd_30:
+            median_30 = float(np.median(fwd_30))
+            sign = "+" if median_30 >= 0 else ""
+            bullish_count = sum(1 for r in fwd_30 if r > 0)
+            lines.append(
+                f"\n→ 3 個類比 30 日中位數報酬：<code>{sign}{median_30:.1f}%</code>"
+                f"｜看漲勝率 <code>{bullish_count}/{len(fwd_30)}</code>"
+                f"（歷史統計，非預測）"
+            )
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "historical_analog")
+
+    return traced_tool_execution("historical_analog_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# CFTC COT — CME 比特幣期貨機構持倉週報（免費公開 API）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool
+def cot_positioning_tool(query: str = "") -> str:
+    """
+    取得 CFTC Commitments of Traders（COT）報告中 CME 比特幣期貨的機構持倉。
+
+    追蹤：
+    · Asset Manager / Institutional（共同基金、退休基金）淨多空
+    · Leveraged Money（對沖基金）淨多空
+    · 週變化（本期 vs 上期）— 辨別機構是在加倉還是撤倉
+
+    數據來源：CFTC 公開 OData API（免費，無需 API key），週五更新上週二數據。
+    """
+    cache_key = ("cot_positioning", _today_utc())
+    if cached := _get_cache(cache_key):
+        return _append_data_as_of(cached, "cftc_cot")
+
+    def _run() -> str:
+        # CME Bitcoin futures CFTC market code = 133741
+        url = (
+            "https://publicreporting.cftc.gov/api/odata/v1/DiscreteTradersReports"
+            "?$filter=CFTC_Market_Code eq '133741'"
+            "&$orderby=Report_Date_as_YYYY_MM_DD desc"
+            "&$top=2"
+        )
+        try:
+            resp = _http_get(url, timeout=20)
+            resp.raise_for_status()
+            rows = resp.json().get("value", [])
+        except Exception as e:
+            logger.warning("cot_positioning CFTC API failed: %s", e)
+            return f"[DATA_MISSING:cot_positioning] CFTC COT API 無回應：{e}"
+
+        if not rows:
+            return "[DATA_MISSING:cot_positioning] CFTC COT 無 Bitcoin 期貨數據（市場代碼 133741）。"
+
+        def _net(row: dict, long_key: str, short_key: str) -> int:
+            try:
+                return int(row.get(long_key) or 0) - int(row.get(short_key) or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        cur = rows[0]
+        report_date = str(cur.get("Report_Date_as_YYYY_MM_DD", "N/A"))[:10]
+        oi = int(cur.get("Open_Interest_All") or 0)
+
+        am_net = _net(cur, "Asset_Mgr_Positions_Long_All", "Asset_Mgr_Positions_Short_All")
+        lev_net = _net(cur, "Lev_Money_Positions_Long_All", "Lev_Money_Positions_Short_All")
+
+        # 週變化（對比上期）
+        am_chg = lev_chg = None
+        if len(rows) >= 2:
+            prev = rows[1]
+            am_prev = _net(prev, "Asset_Mgr_Positions_Long_All", "Asset_Mgr_Positions_Short_All")
+            lev_prev = _net(prev, "Lev_Money_Positions_Long_All", "Lev_Money_Positions_Short_All")
+            am_chg = am_net - am_prev
+            lev_chg = lev_net - lev_prev
+
+        def _fmt_net(net: int, chg: int | None) -> str:
+            sign = "+" if net >= 0 else ""
+            label = "淨多" if net >= 0 else "淨空"
+            chg_str = ""
+            if chg is not None:
+                arrow = "▲" if chg > 0 else ("▼" if chg < 0 else "→")
+                chg_str = f"（週變化 {arrow}{abs(chg):,}）"
+            return f"{sign}{net:,}（{label}）{chg_str}"
+
+        def _regime_hint(am: int, lev: int) -> str:
+            # 機構多 + 槓桿多 = 強烈看漲共識
+            if am > 0 and lev > 0:
+                return "📈 機構與對沖基金同向看漲，市場共識偏多"
+            if am < 0 and lev < 0:
+                return "📉 機構與對沖基金同向看空，機構性賣壓存在"
+            if am > 0 and lev < 0:
+                return "⚖️ 機構看多、槓桿基金看空，出現分歧（常見於趨勢轉折前）"
+            return "⚖️ 機構看空、槓桿基金看多，投機資金與長線資金方向相反"
+
+        lines = [
+            f"【CME 比特幣期貨 COT 報告｜{report_date}】",
+            f"· 總未平倉合約（OI）: <code>{oi:,}</code> 張",
+            f"· Asset Manager 淨倉: <code>{_fmt_net(am_net, am_chg)}</code>",
+            f"· Leveraged Money 淨倉: <code>{_fmt_net(lev_net, lev_chg)}</code>",
+            f"→ {_regime_hint(am_net, lev_net)}",
+        ]
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "cftc_cot")
+
+    return traced_tool_execution("cot_positioning_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Grayscale 折溢價（GBTC / ETHE — yfinance 免費）
+# ═══════════════════════════════════════════════════════════════════
+
+# Grayscale 每日公告的 BTC per share（因 1.5% 管理費每年遞減）
+# 此值需定期更新；若 Grayscale 網站 API 可用則動態抓取，否則用靜態近似值
+_GBTC_BTC_PER_SHARE_FALLBACK: float = 0.00092    # 2025 近似值
+_ETHE_ETH_PER_SHARE_FALLBACK: float = 0.00850    # 2025 近似值
+
+
+def _grayscale_btc_per_share() -> float:
+    """嘗試從 Grayscale 公開 JSON 動態取得 GBTC 的 BTC per share，失敗則用靜態近似值。"""
+    try:
+        resp = _http_get(
+            "https://grayscale.com/wp-json/grayscale/v1/get-product?ticker=GBTC",
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            # 嘗試常見欄位名稱
+            for key in ("bitcoinPerShare", "digital_asset_per_share", "assetsPerShare", "nav_per_share"):
+                val = data.get(key)
+                if val:
+                    return float(val)
+    except Exception as e:
+        logger.debug("_grayscale_btc_per_share fetch failed, using fallback: %s", e)
+    return _GBTC_BTC_PER_SHARE_FALLBACK
+
+
+@tool
+def grayscale_premium_tool(query: str = "") -> str:
+    """
+    計算 Grayscale GBTC 與 ETHE 相對 NAV 的折溢價。
+
+    · Premium > 0%：市場需求大於供給（機構搶購信號）
+    · Discount < 0%：拋售壓力 / 套利空間（ETF 核准後常見深度折價）
+
+    數據來源：yfinance（GBTC/ETHE 市價 + BTC-USD/ETH-USD）+ Grayscale 公開 BTC per Share。
+    免費，無需 API key。
+    """
+    cache_key = ("grayscale_premium", _today_utc())
+    if cached := _get_cache(cache_key):
+        return _append_data_as_of(cached, "grayscale")
+
+    def _run() -> str:
+        try:
+            import yfinance as yf  # noqa: PLC0415
+        except ImportError as e:
+            return f"[DATA_MISSING:grayscale_premium] yfinance 載入失敗：{e}"
+
+        lines = ["【Grayscale 信託折溢價】"]
+        any_data = False
+
+        for trust_ticker, spot_ticker, per_share_fn, label in [
+            ("GBTC", "BTC-USD", _grayscale_btc_per_share, "GBTC（BTC）"),
+            ("ETHE", "ETH-USD", lambda: _ETHE_ETH_PER_SHARE_FALLBACK, "ETHE（ETH）"),
+        ]:
+            try:
+                t_data = yf.download(
+                    [trust_ticker, spot_ticker],
+                    period="3d", interval="1d",
+                    progress=False, auto_adjust=True,
+                )
+                if t_data is None or t_data.empty:
+                    lines.append(f"· {label}: <code>N/A</code>（yfinance 無數據）")
+                    continue
+
+                import pandas as pd  # noqa: PLC0415
+                if isinstance(t_data.columns, pd.MultiIndex):
+                    closes = t_data["Close"]
+                else:
+                    lines.append(f"· {label}: <code>N/A</code>（數據格式異常）")
+                    continue
+
+                trust_price = float(closes[trust_ticker].dropna().iloc[-1])
+                spot_price = float(closes[spot_ticker].dropna().iloc[-1])
+                asset_per_share = per_share_fn()
+
+                nav = spot_price * asset_per_share
+                if nav <= 0:
+                    lines.append(f"· {label}: <code>N/A</code>（NAV 計算異常）")
+                    continue
+
+                premium_pct = (trust_price - nav) / nav * 100
+                sign = "+" if premium_pct >= 0 else ""
+                if premium_pct > 5:
+                    hint = "溢價偏高（機構需求強，但注意過熱）"
+                elif premium_pct >= 0:
+                    hint = "小幅溢價（正常需求）"
+                elif premium_pct >= -5:
+                    hint = "小幅折價（輕微拋壓或套利空間）"
+                elif premium_pct >= -15:
+                    hint = "明顯折價（機構拋售壓力）"
+                else:
+                    hint = "深度折價（強烈賣壓 / 贖回潮）"
+
+                lines.append(
+                    f"· {label}: 市價 <code>${trust_price:.2f}</code>"
+                    f" / NAV <code>${nav:.2f}</code>"
+                    f" → <code>{sign}{premium_pct:.2f}%</code>（{hint}）"
+                )
+                any_data = True
+            except Exception as e:
+                logger.warning("grayscale_premium %s failed: %s", trust_ticker, e)
+                lines.append(f"· {label}: <code>N/A</code>（{type(e).__name__}）")
+
+        if not any_data:
+            return "[DATA_MISSING:grayscale_premium] GBTC 與 ETHE 數據均無法取得。"
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "grayscale")
+
+    return traced_tool_execution("grayscale_premium_tool", {}, _run)
 
 
 # ═══════════════════════════════════════════════════════════════════
