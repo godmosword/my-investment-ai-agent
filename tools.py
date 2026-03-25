@@ -3461,6 +3461,217 @@ def correlation_matrix_tool(query: str = "") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# CFTC COT — CME 比特幣期貨機構持倉週報（免費公開 API）
+# ═══════════════════════════════════════════════════════════════════
+
+@tool
+def cot_positioning_tool(query: str = "") -> str:
+    """
+    取得 CFTC Commitments of Traders（COT）報告中 CME 比特幣期貨的機構持倉。
+
+    追蹤：
+    · Asset Manager / Institutional（共同基金、退休基金）淨多空
+    · Leveraged Money（對沖基金）淨多空
+    · 週變化（本期 vs 上期）— 辨別機構是在加倉還是撤倉
+
+    數據來源：CFTC 公開 OData API（免費，無需 API key），週五更新上週二數據。
+    """
+    cache_key = ("cot_positioning", _today_utc())
+    if cached := _get_cache(cache_key):
+        return _append_data_as_of(cached, "cftc_cot")
+
+    def _run() -> str:
+        # CME Bitcoin futures CFTC market code = 133741
+        url = (
+            "https://publicreporting.cftc.gov/api/odata/v1/DiscreteTradersReports"
+            "?$filter=CFTC_Market_Code eq '133741'"
+            "&$orderby=Report_Date_as_YYYY_MM_DD desc"
+            "&$top=2"
+        )
+        try:
+            resp = _http_get(url, timeout=20)
+            resp.raise_for_status()
+            rows = resp.json().get("value", [])
+        except Exception as e:
+            logger.warning("cot_positioning CFTC API failed: %s", e)
+            return f"[DATA_MISSING:cot_positioning] CFTC COT API 無回應：{e}"
+
+        if not rows:
+            return "[DATA_MISSING:cot_positioning] CFTC COT 無 Bitcoin 期貨數據（市場代碼 133741）。"
+
+        def _net(row: dict, long_key: str, short_key: str) -> int:
+            try:
+                return int(row.get(long_key) or 0) - int(row.get(short_key) or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        cur = rows[0]
+        report_date = str(cur.get("Report_Date_as_YYYY_MM_DD", "N/A"))[:10]
+        oi = int(cur.get("Open_Interest_All") or 0)
+
+        am_net = _net(cur, "Asset_Mgr_Positions_Long_All", "Asset_Mgr_Positions_Short_All")
+        lev_net = _net(cur, "Lev_Money_Positions_Long_All", "Lev_Money_Positions_Short_All")
+
+        # 週變化（對比上期）
+        am_chg = lev_chg = None
+        if len(rows) >= 2:
+            prev = rows[1]
+            am_prev = _net(prev, "Asset_Mgr_Positions_Long_All", "Asset_Mgr_Positions_Short_All")
+            lev_prev = _net(prev, "Lev_Money_Positions_Long_All", "Lev_Money_Positions_Short_All")
+            am_chg = am_net - am_prev
+            lev_chg = lev_net - lev_prev
+
+        def _fmt_net(net: int, chg: int | None) -> str:
+            sign = "+" if net >= 0 else ""
+            label = "淨多" if net >= 0 else "淨空"
+            chg_str = ""
+            if chg is not None:
+                arrow = "▲" if chg > 0 else ("▼" if chg < 0 else "→")
+                chg_str = f"（週變化 {arrow}{abs(chg):,}）"
+            return f"{sign}{net:,}（{label}）{chg_str}"
+
+        def _regime_hint(am: int, lev: int) -> str:
+            # 機構多 + 槓桿多 = 強烈看漲共識
+            if am > 0 and lev > 0:
+                return "📈 機構與對沖基金同向看漲，市場共識偏多"
+            if am < 0 and lev < 0:
+                return "📉 機構與對沖基金同向看空，機構性賣壓存在"
+            if am > 0 and lev < 0:
+                return "⚖️ 機構看多、槓桿基金看空，出現分歧（常見於趨勢轉折前）"
+            return "⚖️ 機構看空、槓桿基金看多，投機資金與長線資金方向相反"
+
+        lines = [
+            f"【CME 比特幣期貨 COT 報告｜{report_date}】",
+            f"· 總未平倉合約（OI）: <code>{oi:,}</code> 張",
+            f"· Asset Manager 淨倉: <code>{_fmt_net(am_net, am_chg)}</code>",
+            f"· Leveraged Money 淨倉: <code>{_fmt_net(lev_net, lev_chg)}</code>",
+            f"→ {_regime_hint(am_net, lev_net)}",
+        ]
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "cftc_cot")
+
+    return traced_tool_execution("cot_positioning_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Grayscale 折溢價（GBTC / ETHE — yfinance 免費）
+# ═══════════════════════════════════════════════════════════════════
+
+# Grayscale 每日公告的 BTC per share（因 1.5% 管理費每年遞減）
+# 此值需定期更新；若 Grayscale 網站 API 可用則動態抓取，否則用靜態近似值
+_GBTC_BTC_PER_SHARE_FALLBACK: float = 0.00092    # 2025 近似值
+_ETHE_ETH_PER_SHARE_FALLBACK: float = 0.00850    # 2025 近似值
+
+
+def _grayscale_btc_per_share() -> float:
+    """嘗試從 Grayscale 公開 JSON 動態取得 GBTC 的 BTC per share，失敗則用靜態近似值。"""
+    try:
+        resp = _http_get(
+            "https://grayscale.com/wp-json/grayscale/v1/get-product?ticker=GBTC",
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            # 嘗試常見欄位名稱
+            for key in ("bitcoinPerShare", "digital_asset_per_share", "assetsPerShare", "nav_per_share"):
+                val = data.get(key)
+                if val:
+                    return float(val)
+    except Exception as e:
+        logger.debug("_grayscale_btc_per_share fetch failed, using fallback: %s", e)
+    return _GBTC_BTC_PER_SHARE_FALLBACK
+
+
+@tool
+def grayscale_premium_tool(query: str = "") -> str:
+    """
+    計算 Grayscale GBTC 與 ETHE 相對 NAV 的折溢價。
+
+    · Premium > 0%：市場需求大於供給（機構搶購信號）
+    · Discount < 0%：拋售壓力 / 套利空間（ETF 核准後常見深度折價）
+
+    數據來源：yfinance（GBTC/ETHE 市價 + BTC-USD/ETH-USD）+ Grayscale 公開 BTC per Share。
+    免費，無需 API key。
+    """
+    cache_key = ("grayscale_premium", _today_utc())
+    if cached := _get_cache(cache_key):
+        return _append_data_as_of(cached, "grayscale")
+
+    def _run() -> str:
+        try:
+            import yfinance as yf  # noqa: PLC0415
+        except ImportError as e:
+            return f"[DATA_MISSING:grayscale_premium] yfinance 載入失敗：{e}"
+
+        lines = ["【Grayscale 信託折溢價】"]
+        any_data = False
+
+        for trust_ticker, spot_ticker, per_share_fn, label in [
+            ("GBTC", "BTC-USD", _grayscale_btc_per_share, "GBTC（BTC）"),
+            ("ETHE", "ETH-USD", lambda: _ETHE_ETH_PER_SHARE_FALLBACK, "ETHE（ETH）"),
+        ]:
+            try:
+                t_data = yf.download(
+                    [trust_ticker, spot_ticker],
+                    period="3d", interval="1d",
+                    progress=False, auto_adjust=True,
+                )
+                if t_data is None or t_data.empty:
+                    lines.append(f"· {label}: <code>N/A</code>（yfinance 無數據）")
+                    continue
+
+                import pandas as pd  # noqa: PLC0415
+                if isinstance(t_data.columns, pd.MultiIndex):
+                    closes = t_data["Close"]
+                else:
+                    lines.append(f"· {label}: <code>N/A</code>（數據格式異常）")
+                    continue
+
+                trust_price = float(closes[trust_ticker].dropna().iloc[-1])
+                spot_price = float(closes[spot_ticker].dropna().iloc[-1])
+                asset_per_share = per_share_fn()
+
+                nav = spot_price * asset_per_share
+                if nav <= 0:
+                    lines.append(f"· {label}: <code>N/A</code>（NAV 計算異常）")
+                    continue
+
+                premium_pct = (trust_price - nav) / nav * 100
+                sign = "+" if premium_pct >= 0 else ""
+                if premium_pct > 5:
+                    hint = "溢價偏高（機構需求強，但注意過熱）"
+                elif premium_pct >= 0:
+                    hint = "小幅溢價（正常需求）"
+                elif premium_pct >= -5:
+                    hint = "小幅折價（輕微拋壓或套利空間）"
+                elif premium_pct >= -15:
+                    hint = "明顯折價（機構拋售壓力）"
+                else:
+                    hint = "深度折價（強烈賣壓 / 贖回潮）"
+
+                lines.append(
+                    f"· {label}: 市價 <code>${trust_price:.2f}</code>"
+                    f" / NAV <code>${nav:.2f}</code>"
+                    f" → <code>{sign}{premium_pct:.2f}%</code>（{hint}）"
+                )
+                any_data = True
+            except Exception as e:
+                logger.warning("grayscale_premium %s failed: %s", trust_ticker, e)
+                lines.append(f"· {label}: <code>N/A</code>（{type(e).__name__}）")
+
+        if not any_data:
+            return "[DATA_MISSING:grayscale_premium] GBTC 與 ETHE 數據均無法取得。"
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "grayscale")
+
+    return traced_tool_execution("grayscale_premium_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 新聞來源工具（NewsAPI / GNews / RSS）— Agent 可直接呼叫
 # ═══════════════════════════════════════════════════════════════════
 
