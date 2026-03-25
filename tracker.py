@@ -775,9 +775,12 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
             elif hit_stop:
                 status_icon = "🛑"
             elif pnl > 0:
-                status_icon = "📈"
+                # Icon tracks price direction: LONG profits when price rises (📈),
+                # SHORT profits when price falls (📉). Avoids the visual mismatch
+                # of showing 📈 next to a profitable SHORT trade.
+                status_icon = "📈" if direction == "LONG" else "📉"
             else:
-                status_icon = "📉"
+                status_icon = "📉" if direction == "LONG" else "📈"
 
         dir_icon = "🔼" if direction == "LONG" else "🔽"
         current_str = f"${current:,.2f}" if current else "N/A"

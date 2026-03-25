@@ -302,7 +302,7 @@ def _normalize_error_key(reason: str | None) -> str:
         return "e429"
     if r in ("400", "bad_request"):
         return "e400"
-    if r in ("timeout", "read_timeout", "connect_timeout"):
+    if r in ("timeout", "read_timeout", "connect_timeout", "conn_err"):
         return "etimeout"
     if r in ("5xx", "server_error"):
         return "e5xx"
