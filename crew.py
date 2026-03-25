@@ -16,6 +16,7 @@ from tools import (
     cot_positioning_tool,
     cryptopanic_tool,
     grayscale_premium_tool,
+    historical_analog_tool,
     econ_calendar_tool,
     etf_flow_tool,
     fear_greed_tool,
@@ -489,6 +490,7 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
        · 若 valuation_anchor_tool 有回傳，在宏觀框架末尾加一行：「📊 估值錨：MVRV X.XXx（區間）｜NVT XX（區間）｜BTC Dominance XX%」
        · 若 cot_positioning_tool 有回傳，在儀表板區塊①加一行：「🏦 CME COT：機構 +X,XXX（週▲/▼）｜槓桿 +X,XXX（週▲/▼）」
        · 若 grayscale_premium_tool 有回傳，在儀表板區塊①加一行：「🔒 GBTC X.XX%｜ETHE X.XX%」
+       · 若 historical_analog_tool 有回傳，在宏觀框架末尾加一小節：「🕰 歷史類比：最近似 YYYY-MM-DD（相似度 XX/100），30日後 +/-X.X%｜中位勝率 X/3」
     5) 📊 加密市場：
        - 區塊① 儀表板（宏觀/技術/籌碼；嚴格套用儀表板格式）
        - 區塊② 核心新聞 3 則（〔新聞 1〕～〔新聞 3〕，套用新聞格式）
@@ -589,7 +591,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool, correlation_matrix_tool, valuation_anchor_tool, cot_positioning_tool, grayscale_premium_tool],
+            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool, correlation_matrix_tool, valuation_anchor_tool, cot_positioning_tool, grayscale_premium_tool, historical_analog_tool],
             verbose=_VERBOSE,
         )
 
@@ -660,6 +662,7 @@ class CryptoResearchCrew:
                 · valuation_anchor_tool()（MVRV proxy + NVT Ratio + BTC Dominance；提供估值錨，判斷當前是否高估/低估）
                 · cot_positioning_tool()（CFTC COT 報告：CME 比特幣期貨機構淨倉 + 週變化，辨別機構是加倉還是撤倉）
                 · grayscale_premium_tool()（GBTC/ETHE 折溢價；溢價高 = 機構需求旺，折價大 = 拋售壓力）
+                · historical_analog_tool()（搜尋與當前技術結構最相似的歷史時期，報告其後 30/60/90 日報酬作為參考基準）
 
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
