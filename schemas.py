@@ -309,6 +309,9 @@ _LABEL_PREFIX_RE = re.compile(
     r'^(?:本日選擇理由|今日風險預算|訊號衝突摘要)[：:]\s*',
     re.IGNORECASE,
 )
+# Strips the "╌ 辯論摘要 ╌" decorator that Risk Critic prepends to its debate block.
+# The Jinja template already labels the field "訊號衝突摘要：", so this header is redundant.
+_DEBATE_HEADER_RE = re.compile(r'^\s*╌\s*辯論摘要\s*╌\s*\n?', re.IGNORECASE)
 
 
 class ExecutableTradeLeg(BaseModel):
@@ -422,6 +425,16 @@ class CryptoSection(BaseModel):
             return _LABEL_PREFIX_RE.sub("", v)
         return v
 
+    @field_validator("signal_conflict_summary", mode="before")
+    @classmethod
+    def _clean_signal_conflict(cls, v: object) -> object:
+        """Remove decorative ╌辯論摘要╌ header (redundant with template label) and
+        normalise literal backslash-n sequences to real newlines."""
+        if isinstance(v, str):
+            v = _DEBATE_HEADER_RE.sub("", v)
+            v = v.replace("\\n", "\n")
+        return v
+
     @model_validator(mode="after")
     def _warn_consensus_direction_mismatch(self) -> "CryptoSection":
         _check_consensus_direction(self.news, self.trade_legs)
@@ -474,6 +487,17 @@ class AISection(BaseModel):
         if isinstance(v, str):
             return _LABEL_PREFIX_RE.sub("", v)
         return v
+
+    @field_validator("signal_conflict_summary", mode="before")
+    @classmethod
+    def _clean_signal_conflict(cls, v: object) -> object:
+        """Remove decorative ╌辯論摘要╌ header (redundant with template label) and
+        normalise literal backslash-n sequences to real newlines."""
+        if isinstance(v, str):
+            v = _DEBATE_HEADER_RE.sub("", v)
+            v = v.replace("\\n", "\n")
+        return v
+
     us_equity_allocation_note: str | None = Field(
         default=None,
         description="Optional 美股部位框 line body text.",
