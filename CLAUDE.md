@@ -35,7 +35,7 @@
 |---|---|
 | `core/` | `report_validation.py` — Phase 3 candidate validator entry point |
 | `templates/` | `telegram_report.j2` — Jinja2 Telegram report template |
-| `docs/` | Internal design docs (PHASE_GATES.md, REPORT_COMPARE_STAGING.md, etc.) |
+| `docs/` | Internal design docs (REPORT_COMPARE_STAGING.md, COST_PER_MODEL.md, autoresearch.plan.md, etc.) |
 | `data-verification-ui/` | Optional Vite + React PWA front-end |
 | `.github/workflows/` | CI/CD: deploy + scheduler workflows |
 

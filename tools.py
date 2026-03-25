@@ -4,7 +4,7 @@ import re
 import time
 import json
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -14,10 +14,36 @@ from crewai.tools import tool
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
 
+from api_schema import require_json_dict, require_json_list, require_list
 from config import PROJECT_ID, METRICS_TABLE
 from scratchpad import traced_tool_execution
 
 logger = logging.getLogger(__name__)
+
+
+def _response_json_dict(resp: requests.Response, source: str) -> dict | None:
+    try:
+        raw = resp.json()
+    except ValueError as e:
+        logger.warning("%s JSON decode failed: %s", source, e)
+        return None
+    try:
+        return require_json_dict(raw, source=source)
+    except ValueError:
+        return None
+
+
+def _response_json_list(resp: requests.Response, source: str) -> list | None:
+    try:
+        raw = resp.json()
+    except ValueError as e:
+        logger.warning("%s JSON decode failed: %s", source, e)
+        return None
+    try:
+        return require_json_list(raw, source=source)
+    except ValueError:
+        return None
+
 
 def _http_get(
     url: str,
@@ -538,15 +564,50 @@ def _search_with_apify(query: str, max_items: int = 8) -> str:
     """以 Apify Google Search Scraper 回傳結構化搜尋結果。"""
     client = _get_apify_client()
     actor_id = os.getenv("APIFY_SEARCH_ACTOR", "apify/google-search-scraper")
-    run = client.actor(actor_id).call(run_input={
+    prefix = f"(當前時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，請嚴格過濾超過 48 小時的舊資訊)\n"
+
+    run_obj = client.actor(actor_id).call(run_input={
         "queries": query,
         "maxPagesPerQuery": 1,
         "resultsPerPage": max_items,
         "languageCode": "zh-TW",
     })
-    dataset = client.dataset(run["defaultDatasetId"])
-    items = list(dataset.iterate_items())[:max_items]
-    prefix = f"(當前時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}，請嚴格過濾超過 48 小時的舊資訊)\n"
+    if isinstance(run_obj, dict):
+        run_candidate: dict = run_obj
+    elif isinstance(run_obj, Mapping):
+        run_candidate = dict(run_obj)
+    else:
+        logger.warning("Apify run not mapping-like: %s", type(run_obj).__name__)
+        return prefix + "[DATA_MISSING:apify_search] Apify run 回傳格式異常。"
+    try:
+        run_ok = require_json_dict(run_candidate, source="Apify-run")
+    except ValueError:
+        return prefix + "[DATA_MISSING:apify_search] Apify run 回傳格式異常。"
+
+    ds_id = run_ok.get("defaultDatasetId")
+    if not ds_id:
+        logger.warning(
+            "Apify run missing defaultDatasetId (keys=%s)",
+            sorted(run_ok.keys())[:30],
+        )
+        return prefix + "[DATA_MISSING:apify_search] Apify run 缺少 dataset id。"
+
+    dataset = client.dataset(ds_id)
+    raw_items = list(dataset.iterate_items())[:max_items]
+    items: list[dict] = []
+    for it in raw_items:
+        if isinstance(it, dict):
+            cand = it
+        elif isinstance(it, Mapping):
+            cand = dict(it)
+        else:
+            logger.debug("apify: skip non-object dataset item type=%s", type(it).__name__)
+            continue
+        try:
+            items.append(require_json_dict(cand, source="Apify-dataset-item"))
+        except ValueError:
+            continue
+
     if not items:
         return prefix + "[DATA_MISSING:apify_search] Apify 無搜尋結果。"
 
@@ -607,8 +668,12 @@ def _hf_fetch_models() -> str | None:
             if resp.status_code != 200:
                 logger.warning("HuggingFace API HTTP %s (sort=%s)", resp.status_code, sort_key)
                 continue
-            models = resp.json()
-            if not isinstance(models, list) or not models:
+            try:
+                models = require_json_list(resp.json(), source="HuggingFace")
+            except ValueError as e:
+                logger.warning("HuggingFace API schema (sort=%s): %s", sort_key, e)
+                continue
+            if not models:
                 logger.warning("HuggingFace API empty (sort=%s)", sort_key)
                 continue
             lines: list[str] = []
@@ -664,16 +729,11 @@ def _openrouter_fetch_models() -> str | None:
             logger.warning("OpenRouter API HTTP %s", resp.status_code)
             return None
         try:
-            payload = resp.json()
+            raw = resp.json()
+            payload = require_json_dict(raw, source="OpenRouter")
+            models = require_list(payload, "data", source="OpenRouter")
         except ValueError as e:
-            logger.warning("OpenRouter JSON parse failed: %s", e)
-            return None
-        if not isinstance(payload, dict):
-            logger.warning("OpenRouter expected JSON object, got %s", type(payload).__name__)
-            return None
-        models = payload.get("data", [])
-        if not isinstance(models, list):
-            logger.warning("OpenRouter 'data' must be list, got %s", type(models).__name__)
+            logger.warning("OpenRouter JSON/schema failed: %s", e)
             return None
         if not models:
             return None
@@ -894,24 +954,17 @@ def _newsapi_fetch(query: str) -> str:
                 r = _get_with_retry("https://newsapi.org/v2/everything", params=params, timeout=10, retries=2)
                 try:
                     data = r.json()
+                    data = require_json_dict(data, source="NewsAPI")
+                    articles = require_list(data, "articles", source="NewsAPI")
                 except ValueError as e:
-                    logger.warning("_newsapi_fetch JSON parse (query=%r): %s", cand, e)
+                    logger.warning("_newsapi_fetch JSON/schema (query=%r): %s", cand, e)
                     last_err = e
-                    break
-                if not isinstance(data, dict):
-                    logger.warning("_newsapi_fetch expected object, got %s (query=%r)", type(data).__name__, cand)
-                    last_err = RuntimeError("invalid newsapi JSON shape")
                     break
                 # NewsAPI 有時回傳 status=error 但 HTTP 200
                 if data.get("status") == "error":
                     logger.warning("_newsapi_fetch API error (query=%r): %s", cand, data.get("message"))
                     last_err = RuntimeError(data.get("message", "newsapi status=error"))
                     break  # 此模板組失敗，跳到下一組 param_template
-                articles = data.get("articles", [])
-                if not isinstance(articles, list):
-                    logger.warning("_newsapi_fetch articles not list (query=%r): %s", cand, type(articles).__name__)
-                    last_err = RuntimeError("invalid newsapi articles type")
-                    break
                 if not articles:
                     continue
                 _record_source_outcome("newsapi", True)
@@ -966,18 +1019,11 @@ def _gnews_fetch(query: str) -> str:
             r = _get_with_retry("https://gnews.io/api/v4/search", params=params, timeout=10, retries=2)
             try:
                 payload = r.json()
+                payload = require_json_dict(payload, source="GNews")
+                articles = require_list(payload, "articles", source="GNews")
             except ValueError as e:
                 last_err = e
-                logger.warning("_gnews_fetch JSON parse (query=%r): %s", cand, e)
-                continue
-            if not isinstance(payload, dict):
-                last_err = RuntimeError("invalid gnews JSON shape")
-                logger.warning("_gnews_fetch expected object (query=%r): %s", cand, type(payload).__name__)
-                continue
-            articles = payload.get("articles", [])
-            if not isinstance(articles, list):
-                last_err = RuntimeError("invalid gnews articles type")
-                logger.warning("_gnews_fetch articles not list (query=%r): %s", cand, type(articles).__name__)
+                logger.warning("_gnews_fetch JSON/schema (query=%r): %s", cand, e)
                 continue
             if not articles:
                 continue
@@ -1240,8 +1286,8 @@ def _binance_funding_rate() -> str:
             timeout=10,
         )
         resp.raise_for_status()
-        data = resp.json()
-        if data and isinstance(data, list):
+        data = _response_json_list(resp, "Binance-fundingRate")
+        if data:
             rate = float(data[-1].get("fundingRate", 0))
             rate_pct = rate * 100
             hint = "多頭付費給空頭，情緒偏熱" if rate_pct > 0 else "空頭付費給多頭，情緒偏冷"
@@ -1265,13 +1311,15 @@ def _binance_open_interest() -> str:
             timeout=10,
         )
         oi_resp.raise_for_status()
-        oi = float(oi_resp.json().get("openInterest", 0))
+        oi_body = _response_json_dict(oi_resp, "Binance-openInterest") or {}
+        oi = float(oi_body.get("openInterest", 0))
         price_resp = _http_get(
             "https://api.binance.com/api/v3/ticker/price",
             params={"symbol": "BTCUSDT"},
             timeout=5,
         )
-        btc_price = float(price_resp.json().get("price", 0)) if price_resp.ok else 0
+        px_body = _response_json_dict(price_resp, "Binance-ticker") if price_resp.ok else None
+        btc_price = float(px_body.get("price", 0)) if px_body else 0
         oi_usd = oi * btc_price / 1e9 if btc_price else 0
         return f"BTC 未平倉合約 OI: {oi:,.0f} BTC（約 ${oi_usd:.2f}B）（來源：Binance）"
     except Exception as e:
@@ -1294,9 +1342,9 @@ def _binance_liquidations(symbol: str = "BTC") -> str:
             timeout=12,
         )
         resp.raise_for_status()
-        orders = resp.json()
-        if not isinstance(orders, list):
-            raise ValueError(f"unexpected response type: {type(orders)}")
+        orders = _response_json_list(resp, "Binance-allForceOrders")
+        if orders is None:
+            raise ValueError("unexpected Binance force orders response")
         long_liq = short_liq = 0.0
         for o in orders:
             try:
@@ -1329,8 +1377,8 @@ def _binance_long_short_ratio() -> str:
             timeout=10,
         )
         resp.raise_for_status()
-        data = resp.json()
-        if data and isinstance(data, list):
+        data = _response_json_list(resp, "Binance-longShortRatio")
+        if data:
             ratio = float(data[-1].get("longShortRatio", 1.0))
             hint = "多方佔優" if ratio > 1 else "空方佔優"
             return f"BTC 全球多空比 {ratio:.3f}（{hint}）（來源：Binance）"
@@ -1352,8 +1400,14 @@ def _deribit_options_info(symbol: str = "BTC") -> str:
             timeout=15,
         )
         resp.raise_for_status()
-        instruments = resp.json().get("result", [])
-        if not isinstance(instruments, list) or not instruments:
+        root = _response_json_dict(resp, "Deribit")
+        if root is None:
+            return "[DATA_MISSING:options_info] Deribit API 回傳格式異常。"
+        try:
+            instruments = require_list(root, "result", source="Deribit")
+        except ValueError:
+            instruments = []
+        if not instruments:
             return f"[DATA_MISSING:options_info] Deribit 無 {symbol} 選擇權數據。"
 
         put_oi = call_oi = 0.0
@@ -1423,20 +1477,7 @@ def coinglass_data_tool(metric: str) -> str:
                 headers = {"accept": "application/json", "CG-API-KEY": api_key}
                 response = _http_get(url, headers=headers, timeout=10)
                 if response.status_code == 200:
-                    try:
-                        body = response.json()
-                    except ValueError as e:
-                        logger.warning(
-                            "CoinGlass JSON parse failed metric=%s symbol=%s: %s",
-                            metric_lower, symbol, e,
-                        )
-                        body = {}
-                    if not isinstance(body, dict):
-                        logger.warning(
-                            "CoinGlass body not dict metric=%s symbol=%s type=%s",
-                            metric_lower, symbol, type(body).__name__ if body is not None else "none",
-                        )
-                        body = {}
+                    body = _response_json_dict(response, "CoinGlass") or {}
                     if not _coinglass_success(body):
                         logger.warning(
                             "CoinGlass v4 non-success: code=%r msg=%r metric=%s symbol=%s",
@@ -1446,7 +1487,10 @@ def coinglass_data_tool(metric: str) -> str:
                             symbol,
                         )
                     if _coinglass_success(body):
-                        data = body.get("data") or []
+                        try:
+                            data = require_list(body, "data", source="CoinGlass")
+                        except ValueError:
+                            data = []
                         if metric_lower == "open_interest":
                             if data:
                                 # 解析最新 OI 數據為可讀格式，而非原始 JSON
@@ -1534,16 +1578,11 @@ def cryptopanic_tool(topic: str = "bitcoin") -> str:
         resp = _http_get("https://cryptopanic.com/api/v1/posts/", params=params, timeout=10)
         resp.raise_for_status()
         try:
-            payload = resp.json()
+            raw = resp.json()
+            payload = require_json_dict(raw, source="CryptoPanic")
+            results = require_list(payload, "results", source="CryptoPanic")
         except ValueError as e:
-            return f"[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: invalid JSON ({e})"
-        if not isinstance(payload, dict):
-            logger.warning("cryptopanic: expected JSON object, got %s", type(payload).__name__)
-            return "[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: unexpected payload shape."
-        results = payload.get("results", [])
-        if not isinstance(results, list):
-            logger.warning("cryptopanic: results must be list, got %s", type(results).__name__)
-            return "[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: unexpected results type."
+            return f"[DATA_MISSING:cryptopanic] CryptoPanic Tool Failed: invalid JSON or schema ({e})"
         posts = results[:5]
         if not posts:
             return "CryptoPanic：目前沒有符合條件的重點新聞。"
@@ -1600,7 +1639,9 @@ def x_search_tool(query: str) -> str:
                 timeout=15,
             )
             if resp.status_code == 200:
-                tweets = resp.json().get("data", [])
+                root = _response_json_dict(resp, "Twitter-v2")
+                raw_tw = root.get("data", []) if root else []
+                tweets = raw_tw if isinstance(raw_tw, list) else []
                 if tweets:
                     lines: list[str] = []
                     for t in tweets[:5]:
@@ -1642,7 +1683,9 @@ def x_search_tool(query: str) -> str:
                 timeout=15,
             )
             if resp.status_code == 200:
-                tweets = resp.json().get("results", [])
+                tw_root = _response_json_dict(resp, "RapidAPI-twitter154")
+                raw_r = tw_root.get("results", []) if tw_root else []
+                tweets = raw_r if isinstance(raw_r, list) else []
                 if tweets:
                     lines = []
                     for t in tweets[:5]:
@@ -1741,12 +1784,13 @@ def ml_quant_tool() -> str:
         try:
             resp = _http_get(url, timeout=20)
             resp.raise_for_status()
-            cg = resp.json()
-            if not isinstance(cg, dict):
-                return f"ML Quant Tool Failed：CoinGecko 回傳非物件（{type(cg).__name__}）。"
-            prices = cg.get("prices", [])
-            if not isinstance(prices, list):
-                logger.warning("ml_quant_tool CoinGecko prices not list: %s", type(prices).__name__)
+            cg = _response_json_dict(resp, "CoinGecko-market_chart")
+            if cg is None:
+                return "ML Quant Tool Failed：CoinGecko JSON 解析失敗。"
+            try:
+                prices = require_list(cg, "prices", source="CoinGecko-market_chart")
+            except ValueError as e:
+                logger.warning("ml_quant_tool CoinGecko prices schema: %s", e)
                 return "ML Quant Tool Failed：CoinGecko 價格欄位格式異常。"
             df_btc = pd.DataFrame(prices, columns=["ts_ms", "close"])
             df_btc["date"] = pd.to_datetime(df_btc["ts_ms"], unit="ms").dt.date
@@ -1878,14 +1922,13 @@ def regime_scorecard_tool(query: str = "") -> str:
     # Fear & Greed
     try:
         resp = _http_get("https://api.alternative.me/fng/?limit=1&format=json", timeout=8)
-        raw = resp.json()
-        if not isinstance(raw, dict):
-            logger.warning("regime_scorecard fear_greed: expected object, got %s", type(raw).__name__)
-        else:
-            data = raw.get("data", [{}])
-            if not isinstance(data, list) or not data:
-                logger.warning("regime_scorecard fear_greed: data not non-empty list")
-            elif isinstance(data[0], dict):
+        raw = _response_json_dict(resp, "Alternative.me")
+        if raw is not None:
+            try:
+                data = require_list(raw, "data", source="Alternative.me")
+            except ValueError:
+                data = []
+            if data and isinstance(data[0], dict):
                 values["fear_greed"] = float(data[0].get("value", 0))
     except Exception as e:
         logger.warning("regime_scorecard fear_greed fetch failed: %s", e)
@@ -1897,10 +1940,8 @@ def regime_scorecard_tool(query: str = "") -> str:
             params={"symbol": "BTCUSDT", "limit": 1},
             timeout=8,
         )
-        items = resp.json()
-        if not isinstance(items, list):
-            logger.warning("regime_scorecard Binance funding: expected list, got %s", type(items).__name__)
-        elif items:
+        items = _response_json_list(resp, "Binance-fundingRate")
+        if items:
             values["funding_%"] = float(items[-1].get("fundingRate", 0)) * 100
     except Exception as e:
         logger.warning("regime_scorecard Binance funding fetch failed: %s", e)
@@ -1921,16 +1962,19 @@ def regime_scorecard_tool(query: str = "") -> str:
                 },
                 timeout=10,
             )
-            body_v4 = resp_v4.json()
-            if isinstance(body_v4, dict) and not _coinglass_success(body_v4):
+            body_v4 = _response_json_dict(resp_v4, "CoinGlass-liquidation")
+            if body_v4 is not None and not _coinglass_success(body_v4):
                 logger.warning(
                     "Regime scorecard: CoinGlass v4 liquidation non-success: code=%r msg=%r",
                     body_v4.get("code"),
                     body_v4.get("msg"),
                 )
-            if isinstance(body_v4, dict) and _coinglass_success(body_v4):
-                data = body_v4.get("data") or []
-                if isinstance(data, list) and data:
+            if body_v4 is not None and _coinglass_success(body_v4):
+                try:
+                    data = require_list(body_v4, "data", source="CoinGlass-liquidation")
+                except ValueError:
+                    data = []
+                if data:
                     total_liq = 0.0
                     for d in data:
                         if not isinstance(d, dict):
@@ -2012,12 +2056,14 @@ def fear_greed_tool() -> str:
             timeout=10,
         )
         resp.raise_for_status()
-        raw = resp.json()
-        if not isinstance(raw, dict):
-            logger.warning("fear_greed_tool: expected JSON object, got %s", type(raw).__name__)
+        try:
+            raw = resp.json()
+            raw = require_json_dict(raw, source="Alternative.me")
+            data = require_list(raw, "data", source="Alternative.me")
+        except ValueError as e:
+            logger.warning("fear_greed_tool: %s", e)
             return "[DATA_MISSING:fear_greed] Alternative.me 回傳格式異常。"
-        data = raw.get("data", [])
-        if not isinstance(data, list) or not data:
+        if not data:
             return "[DATA_MISSING:fear_greed] Alternative.me 無數據。"
         if not isinstance(data[0], dict):
             logger.warning("fear_greed_tool: data[0] not object, got %s", type(data[0]).__name__)
@@ -2148,8 +2194,10 @@ def _coinglass_etf_flow() -> str | None:
             resp = _http_get(endpoint, headers={"CG-API-KEY": api_key}, timeout=10)
             if resp.status_code != 200:
                 continue
-            payload = resp.json()
-            if isinstance(payload, dict) and not _coinglass_success(payload):
+            payload = _response_json_dict(resp, "CoinGlass-ETF")
+            if payload is None:
+                continue
+            if not _coinglass_success(payload):
                 logger.warning(
                     "CoinGlass ETF endpoint non-success: code=%r msg=%r url=%s",
                     payload.get("code"),
@@ -2157,7 +2205,7 @@ def _coinglass_etf_flow() -> str | None:
                     endpoint,
                 )
                 continue
-            data = payload.get("data") if isinstance(payload, dict) else payload
+            data = payload.get("data")
             if not isinstance(data, list) or len(data) < 2:
                 continue
             lines: list[str] = []
@@ -2199,8 +2247,17 @@ def _sosovalue_etf_flow() -> str | None:
             resp = _http_get(url, timeout=10)
             if resp.status_code != 200:
                 continue
-            raw_data = resp.json()
-            items = raw_data if isinstance(raw_data, list) else raw_data.get("data", [])
+            try:
+                raw_data = resp.json()
+                if isinstance(raw_data, list):
+                    items = require_json_list(raw_data, source="SoSoValue")
+                else:
+                    d = require_json_dict(raw_data, source="SoSoValue")
+                    items = d.get("data", [])
+                    if not isinstance(items, list):
+                        continue
+            except ValueError:
+                continue
             if not items:
                 continue
             lines: list[str] = []
@@ -2309,12 +2366,10 @@ def econ_calendar_tool() -> str:
             )
             resp = _http_get(url, timeout=15)
             resp.raise_for_status()
-            events = resp.json()
-            if not isinstance(events, list):
-                logger.warning(
-                    "FMP economic_calendar: expected JSON array, got %s",
-                    type(events).__name__,
-                )
+            try:
+                events = require_json_list(resp.json(), source="FMP-economic_calendar")
+            except ValueError as e:
+                logger.warning("FMP economic_calendar: %s", e)
                 events = []
 
             # 篩選高重要性 + 美國
@@ -2551,7 +2606,12 @@ def _nvt_ratio() -> tuple[float, float] | None:
             timeout=15,
         )
         resp.raise_for_status()
-        mkt = resp.json().get("market_data", {}).get("market_cap", {}).get("usd")
+        cg_coin = _response_json_dict(resp, "CoinGecko-coin")
+        mkt = (
+            cg_coin.get("market_data", {}).get("market_cap", {}).get("usd")
+            if cg_coin
+            else None
+        )
         if mkt:
             market_cap = float(mkt)
     except Exception as e:
@@ -2566,7 +2626,8 @@ def _nvt_ratio() -> tuple[float, float] | None:
             timeout=15,
         )
         resp.raise_for_status()
-        values = resp.json().get("values", [])
+        bc = _response_json_dict(resp, "Blockchain.info-chart")
+        values = bc.get("values", []) if bc else []
         if values and isinstance(values, list):
             daily_vols = [float(v.get("y", 0)) for v in values if v.get("y")]
             if daily_vols:
@@ -2644,7 +2705,12 @@ def valuation_anchor_tool(query: str = "") -> str:
                 timeout=12,
             )
             resp.raise_for_status()
-            dom = resp.json().get("data", {}).get("market_cap_percentage", {}).get("btc")
+            glob = _response_json_dict(resp, "CoinGecko-global")
+            dom = (
+                glob.get("data", {}).get("market_cap_percentage", {}).get("btc")
+                if glob
+                else None
+            )
             if dom is not None:
                 dom_f = float(dom)
                 if dom_f > 60:
@@ -2692,7 +2758,9 @@ def _cryptoquant_fetch(path: str) -> dict | None:
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=10,
         )
-        return resp.json() if resp.status_code == 200 else None
+        if resp.status_code != 200:
+            return None
+        return _response_json_dict(resp, "CryptoQuant")
     except Exception as e:
         logger.warning("CryptoQuant %s failed: %s", path, e)
         return None
@@ -2751,8 +2819,9 @@ def _blockchain_info_active_addresses() -> str | None:
         )
         if resp.status_code != 200:
             return None
-        values = resp.json().get("values", [])
-        if len(values) < 7:
+        bc = _response_json_dict(resp, "Blockchain.info-addresses")
+        values = bc.get("values", []) if bc else []
+        if not isinstance(values, list) or len(values) < 7:
             return None
         recent = [v["y"] for v in values[-7:]]
         latest, prev_wk = recent[-1], recent[0]
@@ -2781,7 +2850,10 @@ def _glassnode_nupl() -> str | None:
         )
         if resp.status_code != 200:
             return None
-        data = resp.json()
+        try:
+            data = require_json_list(resp.json(), source="Glassnode")
+        except ValueError:
+            return None
         val = data[-1].get("v") if data else None
         if val is None:
             return None
@@ -2913,7 +2985,14 @@ def sentiment_score_tool(news_and_tweets: str) -> str:
 
         json_m = re.search(r"\{[^{}]+\}", raw, re.DOTALL)
         if json_m:
-            parsed = _json.loads(json_m.group())
+            try:
+                parsed_raw = _json.loads(json_m.group())
+                parsed = require_json_dict(parsed_raw, source="sentiment_score-LLM-json")
+            except (ValueError, _json.JSONDecodeError) as parse_err:
+                logger.warning("sentiment_score_tool LLM JSON not object: %s", parse_err)
+                result = f"【社群情緒量化】\n· LLM 回傳：{raw[:300]}"
+                _set_cache(cache_key, result)
+                return result
             score = max(-1.0, min(1.0, float(parsed.get("aggregate_score", 0.0))))
             label = parsed.get("label", "中性")
             bullish = int(parsed.get("bullish_count", 0))
@@ -2976,8 +3055,7 @@ def _fd_http_get_json(path: str, params: dict[str, str | int]) -> dict | None:
     try:
         resp = _http_get(url, params=params, headers=headers, timeout=25)
         resp.raise_for_status()
-        data = resp.json()
-        return data if isinstance(data, dict) else None
+        return _response_json_dict(resp, "FinancialDatasets")
     except Exception as e:
         logger.warning("financial_datasets GET %s failed: %s", path, e)
         return None
@@ -3158,19 +3236,11 @@ def macro_context_tool(query: str = "") -> str:
                     timeout=8,
                 )
                 resp.raise_for_status()
-                fred_payload = resp.json()
-                if not isinstance(fred_payload, dict):
-                    logger.warning(
-                        "macro_context FRED %s: expected object, got %s",
-                        series_id, type(fred_payload).__name__,
-                    )
-                    return None
-                observations = fred_payload.get("observations", [])
-                if not isinstance(observations, list):
-                    logger.warning(
-                        "macro_context FRED %s: observations not list (%s)",
-                        series_id, type(observations).__name__,
-                    )
+                try:
+                    fred_payload = require_json_dict(resp.json(), source="FRED")
+                    observations = require_list(fred_payload, "observations", source="FRED")
+                except ValueError as e:
+                    logger.warning("macro_context FRED %s: schema error: %s", series_id, e)
                     return None
                 for obs in observations:
                     raw = str(obs.get("value", "")).strip()
@@ -3686,7 +3756,12 @@ def cot_positioning_tool(query: str = "") -> str:
         try:
             resp = _http_get(url, timeout=20)
             resp.raise_for_status()
-            rows = resp.json().get("value", [])
+            try:
+                odata = require_json_dict(resp.json(), source="CFTC-OData")
+                rows = require_list(odata, "value", source="CFTC-OData")
+            except ValueError as e:
+                logger.warning("cot_positioning CFTC schema: %s", e)
+                return f"[DATA_MISSING:cot_positioning] CFTC COT API 回傳格式異常：{e}"
         except Exception as e:
             logger.warning("cot_positioning CFTC API failed: %s", e)
             return f"[DATA_MISSING:cot_positioning] CFTC COT API 無回應：{e}"
@@ -3768,7 +3843,9 @@ def _grayscale_btc_per_share() -> float:
             timeout=10,
         )
         if resp.status_code == 200:
-            data = resp.json()
+            data = _response_json_dict(resp, "Grayscale")
+            if data is None:
+                return _GBTC_BTC_PER_SHARE_FALLBACK
             # 嘗試常見欄位名稱
             for key in ("bitcoinPerShare", "digital_asset_per_share", "assetsPerShare", "nav_per_share"):
                 val = data.get(key)
