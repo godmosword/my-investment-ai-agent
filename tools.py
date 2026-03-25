@@ -3461,6 +3461,201 @@ def correlation_matrix_tool(query: str = "") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 歷史類比引擎（純 yfinance，不需向量 DB）
+# ═══════════════════════════════════════════════════════════════════
+
+def _calc_rsi(series, period: int = 14) -> float:
+    """計算 RSI(period)，回傳最新值（0-100）。"""
+    delta = series.diff().dropna()
+    gain = delta.clip(lower=0).rolling(period).mean()
+    loss = (-delta.clip(upper=0)).rolling(period).mean()
+    rs = gain / loss.replace(0, float("nan"))
+    rsi = 100 - (100 / (1 + rs))
+    return float(rsi.dropna().iloc[-1]) if not rsi.dropna().empty else 50.0
+
+
+def _feature_vector(close, idx: int, ma200, ma50) -> list[float]:
+    """
+    計算指定索引位置的 5 維特徵向量（皆已正規化，無單位差異）：
+    [0] RSI14 / 100                 — 動量超買超賣
+    [1] log(price / MA200)          — 長期估值偏離
+    [2] log(price / MA50)           — 中期趨勢位置
+    [3] 30日年化波動率               — 風險狀態
+    [4] 30日報酬（log return）       — 近期動能
+    """
+    import math  # noqa: PLC0415
+    window = close.iloc[max(0, idx - 60): idx + 1]
+    if len(window) < 30:
+        return []
+    price = float(window.iloc[-1])
+    ma200_val = float(ma200.iloc[idx]) if idx < len(ma200) else float("nan")
+    ma50_val = float(ma50.iloc[idx]) if idx < len(ma50) else float("nan")
+
+    if math.isnan(ma200_val) or math.isnan(ma50_val) or ma200_val <= 0 or ma50_val <= 0:
+        return []
+
+    rsi = _calc_rsi(window) / 100.0
+
+    try:
+        log_vs_ma200 = math.log(price / ma200_val)
+        log_vs_ma50 = math.log(price / ma50_val)
+    except (ValueError, ZeroDivisionError):
+        return []
+
+    rets = window.pct_change().dropna().tail(30)
+    vol_30d = float(rets.std() * (252 ** 0.5)) if len(rets) >= 5 else 0.5
+
+    ret_30d = math.log(price / float(window.iloc[-31])) if len(window) >= 31 else 0.0
+
+    return [rsi, log_vs_ma200, log_vs_ma50, min(vol_30d, 3.0), ret_30d]
+
+
+@tool
+def historical_analog_tool(query: str = "") -> str:
+    """
+    在 BTC 完整歷史中搜尋與當前市場結構最相似的歷史時期，提供「歷史類比」參考。
+
+    方法：用 5 維技術特徵向量（RSI、長/中期估值偏離、波動率、近期動能）
+    計算當前與所有歷史 30 日窗口的 Euclidean distance，找出最相似的 3 個時期，
+    並報告它們之後 30/60/90 日的實際報酬。
+
+    數據來源：yfinance BTC-USD（2015 至今）。免費，無需 API key。
+    """
+    cache_key = ("historical_analog", _today_utc())
+    if cached := _get_cache(cache_key):
+        return _append_data_as_of(cached, "historical_analog")
+
+    def _run() -> str:
+        try:
+            import numpy as np  # noqa: PLC0415
+            import pandas as pd  # noqa: PLC0415
+            import yfinance as yf  # noqa: PLC0415
+        except ImportError as e:
+            return f"[DATA_MISSING:historical_analog] 套件缺失：{e}"
+
+        try:
+            df = yf.download("BTC-USD", start="2015-01-01", interval="1d",
+                             progress=False, auto_adjust=True)
+        except Exception as e:
+            logger.warning("historical_analog yfinance download failed: %s", e)
+            return f"[DATA_MISSING:historical_analog] yfinance 下載失敗：{e}"
+
+        if df is None or df.empty:
+            return "[DATA_MISSING:historical_analog] BTC-USD 歷史數據為空。"
+
+        close: pd.Series = df["Close"].dropna()
+        if len(close) < 300:
+            return "[DATA_MISSING:historical_analog] 歷史數據不足 300 天。"
+
+        ma200 = close.rolling(200).mean()
+        ma50 = close.rolling(50).mean()
+
+        # ── 當前特徵向量 ──────────────────────────────────────────────
+        cur_vec = _feature_vector(close, len(close) - 1, ma200, ma50)
+        if not cur_vec:
+            return "[DATA_MISSING:historical_analog] 當前特徵向量計算失敗（數據不足）。"
+        cur_arr = np.array(cur_vec)
+
+        # 特徵權重：估值偏離 > 動能 > RSI > 波動率
+        weights = np.array([1.0, 2.0, 1.5, 0.8, 1.5])
+
+        # ── 掃描所有歷史窗口（保留最近 90 天以外的，避免自我比較）──────
+        distances: list[tuple[float, int]] = []
+        min_history_days = 250          # MA200 需要足夠數據
+        exclude_recent = 90             # 排除最近 90 天（太相似無意義）
+        scan_end = len(close) - exclude_recent
+
+        for i in range(min_history_days, scan_end):
+            vec = _feature_vector(close, i, ma200, ma50)
+            if not vec:
+                continue
+            diff = (np.array(vec) - cur_arr) * weights
+            dist = float(np.sqrt(np.dot(diff, diff)))
+            distances.append((dist, i))
+
+        if not distances:
+            return "[DATA_MISSING:historical_analog] 無足夠歷史窗口進行比較。"
+
+        distances.sort(key=lambda x: x[0])
+
+        # ── 取 Top 3，且彼此相隔至少 60 天（避免連續相鄰結果）─────────
+        top_analogues: list[tuple[float, int]] = []
+        for dist, idx in distances:
+            if all(abs(idx - prev_idx) >= 60 for _, prev_idx in top_analogues):
+                top_analogues.append((dist, idx))
+            if len(top_analogues) == 3:
+                break
+
+        # ── 格式化輸出 ─────────────────────────────────────────────────
+        lines = [
+            "【BTC 歷史類比（最相似的 3 個歷史時期）】",
+            f"基準日：{close.index[-1].strftime('%Y-%m-%d')} | "
+            f"BTC 現價 ${float(close.iloc[-1]):,.0f}",
+        ]
+
+        for rank, (dist, idx) in enumerate(top_analogues, 1):
+            analog_date = close.index[idx]
+            analog_price = float(close.iloc[idx])
+
+            # 計算 30/60/90 日後報酬
+            def _fwd_ret(days: int) -> str:
+                fwd_idx = idx + days
+                if fwd_idx >= len(close):
+                    return "N/A"
+                fwd_price = float(close.iloc[fwd_idx])
+                pct = (fwd_price - analog_price) / analog_price * 100
+                sign = "+" if pct >= 0 else ""
+                return f"{sign}{pct:.1f}%"
+
+            r30, r60, r90 = _fwd_ret(30), _fwd_ret(60), _fwd_ret(90)
+
+            # 市場狀態簡述（用當時的 MVRV proxy）
+            ma200_at = float(ma200.iloc[idx])
+            mvrv_at = analog_price / ma200_at if ma200_at > 0 else 0
+            rsi_at = _calc_rsi(close.iloc[max(0, idx - 60): idx + 1])
+
+            if mvrv_at < 1.0:
+                zone = "底部區"
+            elif mvrv_at < 2.0:
+                zone = "公允區"
+            elif mvrv_at < 3.5:
+                zone = "偏高區"
+            else:
+                zone = "頂部區"
+
+            similarity = max(0, 100 - dist * 30)   # 距離轉換為 0-100 相似度分
+            lines.append(
+                f"\n#{rank} {analog_date.strftime('%Y-%m-%d')}"
+                f"（相似度 {similarity:.0f}/100）"
+                f"\n  · 當時價格 ${analog_price:,.0f}｜RSI {rsi_at:.0f}｜MVRV {mvrv_at:.2f}x（{zone}）"
+                f"\n  · 後續報酬：30日 {r30}｜60日 {r60}｜90日 {r90}"
+            )
+
+        # ── 統計中位數報酬作為綜合預期 ────────────────────────────────
+        fwd_30 = []
+        for _, idx in top_analogues:
+            fwd_idx = idx + 30
+            if fwd_idx < len(close):
+                fwd_30.append((float(close.iloc[fwd_idx]) - float(close.iloc[idx])) / float(close.iloc[idx]) * 100)
+
+        if fwd_30:
+            median_30 = float(np.median(fwd_30))
+            sign = "+" if median_30 >= 0 else ""
+            bullish_count = sum(1 for r in fwd_30 if r > 0)
+            lines.append(
+                f"\n→ 3 個類比 30 日中位數報酬：<code>{sign}{median_30:.1f}%</code>"
+                f"｜看漲勝率 <code>{bullish_count}/{len(fwd_30)}</code>"
+                f"（歷史統計，非預測）"
+            )
+
+        result = "\n".join(lines)
+        _set_cache(cache_key, result)
+        return _append_data_as_of(result, "historical_analog")
+
+    return traced_tool_execution("historical_analog_tool", {}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # CFTC COT — CME 比特幣期貨機構持倉週報（免費公開 API）
 # ═══════════════════════════════════════════════════════════════════
 
