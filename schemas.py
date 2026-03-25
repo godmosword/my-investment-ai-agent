@@ -341,6 +341,18 @@ class ExecutableTradeLeg(BaseModel):
     invalidation: str = Field(default="", description="Invalidation one line non-empty when actionable.")
     position_pct: str = Field(default="", description="Portfolio % guidance line.")
     narrative: str = Field(default="", description="Short catalyst tie-in.")
+    bull_scenario: str | None = Field(
+        default=None,
+        description="🐂 Bull scenario ≤40 chars: target + trigger (e.g. breaks 74k, ETF inflow >$500M).",
+    )
+    base_scenario: str | None = Field(
+        default=None,
+        description="⚖️ Base scenario ≤40 chars: expected path + probability % (e.g. range 68-74k, prob 55%).",
+    )
+    bear_scenario: str | None = Field(
+        default=None,
+        description="🐻 Bear scenario ≤40 chars: invalidation level + trigger (e.g. breaks 65k, funding turns negative).",
+    )
 
 
 class MarketRegimeBlock(BaseModel):
@@ -366,6 +378,14 @@ class CryptoSection(BaseModel):
     report_title_date: str = Field(
         ...,
         description="YYYY-MM-DD for Daily Brief subtitle (UTC+8 run day).",
+    )
+    exec_summary: list[str] = Field(
+        default_factory=list,
+        description=(
+            "【執行摘要】3–5 bullet lines, each ≤50 chars. "
+            "One-glance conclusions for a CIO: today's dominant thesis, key trade, main risk, macro stance. "
+            "Goes at the very top of the report before market mode."
+        ),
     )
     market: MarketRegimeBlock
     narrative_of_day: str = Field(
