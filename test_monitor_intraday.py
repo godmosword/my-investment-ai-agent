@@ -122,7 +122,7 @@ def test_no_alert_when_btc_below_threshold(capsys):
         patch.object(m, "_send_alert") as mock_send,
         patch.object(m, "_log_alert_to_bigquery") as mock_log,
     ):
-        m._evaluate_btc(2.5)  # below default 5.0% threshold
+        m._evaluate_btc(2.5)  # below default 8.0% threshold
 
     mock_send.assert_not_called()
     mock_log.assert_not_called()
@@ -137,7 +137,7 @@ def test_no_alert_when_vix_below_threshold():
         patch.object(m, "_send_alert") as mock_send,
         patch.object(m, "_log_alert_to_bigquery") as mock_log,
     ):
-        m._evaluate_vix(29.9)  # below default 30.0 threshold
+        m._evaluate_vix(29.9)  # below default 36.0 threshold
 
     mock_send.assert_not_called()
     mock_log.assert_not_called()
@@ -173,10 +173,10 @@ def test_btc_alert_fires_above_threshold():
         patch.object(m, "_send_alert") as mock_send,
         patch.object(m, "_log_alert_to_bigquery") as mock_log,
     ):
-        m._evaluate_btc(7.5)  # above 5.0% threshold
+        m._evaluate_btc(9.0)  # above 8.0% threshold
 
     mock_send.assert_called_once()
-    mock_log.assert_called_once_with(m.ALERT_TYPE_BTC, pytest.approx("BTC 1h change +7.50%", abs=0), pytest.approx(7.5))
+    mock_log.assert_called_once_with(m.ALERT_TYPE_BTC, pytest.approx("BTC 1h change +9.00%", abs=0), pytest.approx(9.0))
 
 
 @pytest.mark.smoke
@@ -189,7 +189,7 @@ def test_vix_alert_fires_above_threshold():
         patch.object(m, "_send_alert") as mock_send,
         patch.object(m, "_log_alert_to_bigquery") as mock_log,
     ):
-        m._evaluate_vix(35.0)  # above 30.0 threshold
+        m._evaluate_vix(40.0)  # above 36.0 threshold
 
     mock_send.assert_called_once()
     mock_log.assert_called_once()
@@ -205,7 +205,7 @@ def test_btc_negative_move_triggers_alert():
         patch.object(m, "_send_alert") as mock_send,
         patch.object(m, "_log_alert_to_bigquery"),
     ):
-        m._evaluate_btc(-8.0)  # -8% is below -5% threshold
+        m._evaluate_btc(-8.5)  # |−8.5%| ≥ 8% threshold
 
     mock_send.assert_called_once()
 

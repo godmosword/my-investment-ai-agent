@@ -6,9 +6,9 @@ BigQuery to enforce a silence period so duplicate alerts are suppressed within
 a configurable window.
 
 Environment variables:
-  INTRADAY_SILENCE_HOURS      Hours to suppress repeat alerts for same event type (default: 4)
-  INTRADAY_BTC_PCT_THRESHOLD  Absolute % change that triggers BTC alert (default: 5.0)
-  INTRADAY_VIX_THRESHOLD      VIX level that triggers alert (default: 30.0)
+  INTRADAY_SILENCE_HOURS      Hours to suppress repeat alerts for same event type (default: 8)
+  INTRADAY_BTC_PCT_THRESHOLD  Absolute % change that triggers BTC alert (default: 8.0)
+  INTRADAY_VIX_THRESHOLD      VIX level that triggers alert when strictly above (default: 36.0)
   SKIP_TELEGRAM               Set to 1/true/yes to skip Telegram sends
   SKIP_BIGQUERY               Set to 1/true/yes to skip BigQuery reads/writes
   GCP_PROJECT_ID              GCP project ID (default: my-investment-ai-agent)
@@ -32,9 +32,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ── Config from environment ────────────────────────────────────────────────
-SILENCE_HOURS: float = float(os.getenv("INTRADAY_SILENCE_HOURS", "4"))
-BTC_PCT_THRESHOLD: float = float(os.getenv("INTRADAY_BTC_PCT_THRESHOLD", "5.0"))
-VIX_THRESHOLD: float = float(os.getenv("INTRADAY_VIX_THRESHOLD", "30.0"))
+SILENCE_HOURS: float = float(os.getenv("INTRADAY_SILENCE_HOURS", "8"))
+BTC_PCT_THRESHOLD: float = float(os.getenv("INTRADAY_BTC_PCT_THRESHOLD", "8.0"))
+VIX_THRESHOLD: float = float(os.getenv("INTRADAY_VIX_THRESHOLD", "36.0"))
 
 SKIP_TELEGRAM: bool = os.getenv("SKIP_TELEGRAM", "").lower() in ("1", "true", "yes")
 SKIP_BIGQUERY: bool = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")

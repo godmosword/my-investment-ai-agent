@@ -212,7 +212,7 @@ docker run --env-file .env q-silicon-agent
 | [`ci.yml`](.github/workflows/ci.yml) | **PR**；或由 `deploy` **`workflow_call`** | PR：`ruff` + `pytest -m smoke`。被 deploy 呼叫時：`ruff` + **完整** `pytest -v`（避免 `main` push 時與 deploy 各跑一次重複 CI，`ci.yml` 不另掛 `push: main`）。 |
 | [`deploy.yml`](.github/workflows/deploy.yml) | `push main`（限 `paths`：Python、Docker、workflow 等）或 **手動** | 先跑 `ci.yml`，通過後 build／push 映像並 `gcloud run jobs deploy`；`concurrency` 同分支 **cancel-in-progress** 避免併發部署。 |
 | [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) | 手動 | 建立 Cloud Scheduler 觸發 Job。 |
-| [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | 每小時 cron 或手動 | BTC／VIX 異常監控、Telegram／BigQuery；runner 使用 `pip install -r requirements.txt`。 |
+| [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | 每小時 cron 或手動 | BTC 1h 絕對變動 ≥8%、VIX **>**36、同類事件靜默 8h（可改 repo variables）；Telegram／BigQuery；`pip install -r requirements.txt`。 |
 
 **Cloud Run Job**：型態為 **Job**（排程或手動），非長駐 HTTP。部署用 Secrets 見 `deploy.yml` 內 `--set-secrets`（含 `FINANCIAL_DATASETS_API_KEY` 等）。
 
