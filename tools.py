@@ -148,7 +148,7 @@ def _load_source_health() -> None:
                 ok = float(stats.get("ok", 0))
                 fail = float(stats.get("fail", 0))
                 loaded = {"ok": max(ok, 0.0), "fail": max(fail, 0.0)}
-                for err_key in ("e429", "e400", "etimeout", "e5xx", "eother"):
+                for err_key in ("e429", "e400", "etimeout", "e5xx", "eauth", "eother"):
                     loaded[err_key] = max(float(stats.get(err_key, 0.0)), 0.0)
                 if "updated_at" in stats:
                     loaded["updated_at"] = str(stats.get("updated_at"))
@@ -191,7 +191,7 @@ def _load_source_health_from_bigquery() -> None:
         client = _get_bq_client()
         table_id = _source_health_table_id()
         query = f"""
-            SELECT source, ok, fail, e429, e400, etimeout, e5xx, eother, updated_at
+            SELECT source, ok, fail, e429, e400, etimeout, e5xx, eauth, eother, updated_at
             FROM `{table_id}`
             QUALIFY ROW_NUMBER() OVER (PARTITION BY source ORDER BY updated_at DESC) = 1
         """
@@ -209,6 +209,7 @@ def _load_source_health_from_bigquery() -> None:
                     "e400": max(float(r.get("e400") or 0.0), 0.0),
                     "etimeout": max(float(r.get("etimeout") or 0.0), 0.0),
                     "e5xx": max(float(r.get("e5xx") or 0.0), 0.0),
+                    "eauth": max(float(r.get("eauth") or 0.0), 0.0),
                     "eother": max(float(r.get("eother") or 0.0), 0.0),
                     "updated_at": str(r.get("updated_at") or ""),
                 },
@@ -237,6 +238,7 @@ def _save_source_health_to_bigquery() -> None:
             bigquery.SchemaField("e400", "FLOAT"),
             bigquery.SchemaField("etimeout", "FLOAT"),
             bigquery.SchemaField("e5xx", "FLOAT"),
+            bigquery.SchemaField("eauth", "FLOAT"),
             bigquery.SchemaField("eother", "FLOAT"),
             bigquery.SchemaField("updated_at", "TIMESTAMP"),
         ]
@@ -262,6 +264,7 @@ def _save_source_health_to_bigquery() -> None:
                     "e400": float(stats.get("e400", 0.0)),
                     "etimeout": float(stats.get("etimeout", 0.0)),
                     "e5xx": float(stats.get("e5xx", 0.0)),
+                    "eauth": float(stats.get("eauth", 0.0)),
                     "eother": float(stats.get("eother", 0.0)),
                     "updated_at": str(updated_at),
                 }
@@ -306,6 +309,8 @@ def _normalize_error_key(reason: str | None) -> str:
         return "etimeout"
     if r in ("5xx", "server_error"):
         return "e5xx"
+    if r in ("auth", "unauthorized", "forbidden"):
+        return "eauth"
     return "eother"
 
 
@@ -318,6 +323,7 @@ def _record_source_outcome(source: str, ok: bool, reason: str | None = None) -> 
     e400 = float(stats.get("e400", 0.0))
     etimeout = float(stats.get("etimeout", 0.0))
     e5xx = float(stats.get("e5xx", 0.0))
+    eauth = float(stats.get("eauth", 0.0))
     eother = float(stats.get("eother", 0.0))
     if ok:
         decayed_ok += 1.0
@@ -332,6 +338,8 @@ def _record_source_outcome(source: str, ok: bool, reason: str | None = None) -> 
             etimeout += 1.0
         elif err_key == "e5xx":
             e5xx += 1.0
+        elif err_key == "eauth":
+            eauth += 1.0
         else:
             eother += 1.0
     _SOURCE_HEALTH[source] = {
@@ -341,6 +349,7 @@ def _record_source_outcome(source: str, ok: bool, reason: str | None = None) -> 
         "e400": e400,
         "etimeout": etimeout,
         "e5xx": e5xx,
+        "eauth": eauth,
         "eother": eother,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -377,8 +386,9 @@ def _source_error_summary() -> str:
         e400 = int(float(stats.get("e400", 0.0)))
         etimeout = int(float(stats.get("etimeout", 0.0)))
         e5xx = int(float(stats.get("e5xx", 0.0)))
+        eauth = int(float(stats.get("eauth", 0.0)))
         eother = int(float(stats.get("eother", 0.0)))
-        parts.append(f"{s}:429={e429},400={e400},timeout={etimeout},5xx={e5xx},other={eother}")
+        parts.append(f"{s}:429={e429},400={e400},timeout={etimeout},5xx={e5xx},auth={eauth},other={eother}")
     return " | ".join(parts)
 
 
@@ -399,6 +409,8 @@ def _reason_from_exception(err: Exception | None) -> str:
         status = err.response.status_code if err.response is not None else None
         if status == 429:
             return "429"
+        if status in (401, 403):
+            return "auth"
         if status == 400:
             return "400"
         if status and 500 <= status < 600:
@@ -408,14 +420,16 @@ def _reason_from_exception(err: Exception | None) -> str:
         return "timeout"
     if "429" in msg or "rate limit" in msg:
         return "429"
+    if "401" in msg or "403" in msg or "unauthorized" in msg or "forbidden" in msg:
+        return "auth"
     if "400" in msg:
         return "400"
     if any(k in msg for k in ("500", "502", "503", "504", "server error")):
         return "5xx"
     if "connection" in msg or "dns" in msg or "resolve" in msg:
         return "conn_err"
-    # 記錄具體錯誤類別以便 debug
-    logger.debug("_reason_from_exception unclassified: %s(%s)", type(err).__name__, msg[:120])
+    # 警告等級，讓生產環境看到未分類的例外類型
+    logger.warning("_reason_from_exception unclassified: %s(%s)", type(err).__name__, msg[:120])
     return "other"
 
 
@@ -1074,11 +1088,11 @@ def market_search_tool(query: str) -> str:
             _set_cache(cache_key, result)
             return result
         except ValueError as e:
-            _record_source_outcome("apify", False, "other")
+            _record_source_outcome("apify", False, _reason_from_exception(e))
             return f"[DATA_MISSING:market_search] Market Search Failed：{e}"
         except Exception as e:
             logger.warning("market_search Apify failed: %s", e)
-            _record_source_outcome("apify", False, "other")
+            _record_source_outcome("apify", False, _reason_from_exception(e))
             return "[DATA_MISSING:market_search] Market Search Failed：所有來源均無法取得資料。"
 
     return traced_tool_execution("market_search_tool", {"query": query}, _run)
