@@ -44,3 +44,4 @@ daily_chart.png
 # Last gate validation failure (draft report + full issues list)
 .qsilicon/last_gate_failure/
 .pytest_gate_fail_tmp/
+.gstack/
