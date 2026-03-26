@@ -2,6 +2,10 @@
 
 ## Cursor Cloud specific instructions
 
+### Before you code (read this repo’s guide)
+
+- On **first task** in this repo or when **starting a large change**, read root **`CLAUDE.md`** first (architecture map, commands, `docs/` index, project red lines). Then `README.md` / `ENV_TEMPLATE.txt` for detail; **`TODOS.md`** for backlog.
+
 ### Project overview
 
 Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline that generates daily crypto & AI investment reports. See `README.md` for full details.
