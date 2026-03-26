@@ -21,7 +21,7 @@
 | `report_output_validator.py` | Output parsing & assertion helpers |
 | `validation_rules.py` | Declarative validation rule definitions |
 | `telegram_sender.py` | Telegram HTML sanitizer + send helpers |
-| `bigquery_writer.py` | BigQuery insert helpers |
+| `bigquery_writer.py` | BigQuery insert helpers；`write_gate_failure_log`（Gate issues→`gate_failure_log`） |
 | `dashboard.py` | Streamlit war room |
 | `visualizer.py` | Chart generation |
 | `backtest.py` | ML backtesting |

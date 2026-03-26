@@ -61,6 +61,10 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # CREW_VERBOSE=0
 # SKIP_TELEGRAM=0
 # SKIP_BIGQUERY=0
+# PIPELINE_STRICT_ENV=0   # 1=生產／排程硬擋：未 SKIP_TELEGRAM 須 TELEGRAM_BOT_TOKEN+CHAT_ID；未 SKIP_BIGQUERY 須 GCP_PROJECT_ID 與 GCP_SA_KEY 或 GOOGLE_APPLICATION_CREDENTIALS
+# STRICT_NEWS_FRESHNESS_GATE=0   # 1=新聞行內時間戳須落在報告時間前 NEWS_FRESHNESS_WINDOW_HOURS 小時內（預設關）
+# NEWS_FRESHNESS_WINDOW_HOURS=48
+# NEWS_FRESHNESS_SOURCE_WHITELIST=FRED,IMF   # 行內含關鍵字則略過該則新鮮度檢查（逗號分隔，大小寫不敏感）
 # REPORT_COMPARE_MODE=0   # Phase 3：1=每次 validate 後額外跑候選路徑並 log 差異（不切 Telegram/BQ 決策）
 # MAX_REPORT_RETRIES=2
 # MAX_503_RETRIES=3
@@ -91,6 +95,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # REPORT_LLM_JUDGE_BLOCKING=0  # 1=評分未過則視同結構驗證失敗並重試
 # GATE_FAILURE_ARTIFACTS=1   # validate 失敗時寫入 .qsilicon/last_gate_failure/（draft_report.txt、issues.txt、validation_summary.json）
 # GATE_FAILURE_ARTIFACT_DIR=   # 自訂目錄（預設專案根下 .qsilicon/last_gate_failure）
+# GATE_FAILURE_BQ_LOG=1      # 1=管線每次 validate 含 issues 時寫入 BigQuery `market_data.gate_failure_log`（結構化分類，不自動改 prompt）；SKIP_BIGQUERY=1 時仍略過
 # GATE_ALERT_FULL_ISSUES=1   # Gate 告警後再發 1+ 則純文字訊息列出完整 issues（設 0 只保留 top 3 摘要行）
 
 # ---------- 路線圖：潤稿／權重 context／Company 試點 ----------
