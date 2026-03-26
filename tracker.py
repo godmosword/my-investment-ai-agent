@@ -137,6 +137,10 @@ _SCHEMA = [
     bigquery.SchemaField("expected_win_rate",        "FLOAT"),
     bigquery.SchemaField("expected_value_pct",       "FLOAT"),
     bigquery.SchemaField("signal_score",             "FLOAT"),
+    # Phase 4：三情境分析（star_rating ≥ 3 時必填）
+    bigquery.SchemaField("bull_scenario",            "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("base_scenario",            "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("bear_scenario",            "STRING", mode="NULLABLE"),
 ]
 
 
@@ -459,6 +463,10 @@ def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | 
         "expected_win_rate":       metrics["expected_win_rate"],
         "expected_value_pct":      metrics["expected_value_pct"],
         "signal_score":            metrics["signal_score"],
+        # Phase 4 情境分析（star_rating ≥ 3 時由 LLM 填入）
+        "bull_scenario":           str(raw.get("bull_scenario", "") or "")[:500] or None,
+        "base_scenario":           str(raw.get("base_scenario", "") or "")[:500] or None,
+        "bear_scenario":           str(raw.get("bear_scenario", "") or "")[:500] or None,
     }
 
 

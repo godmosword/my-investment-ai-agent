@@ -276,7 +276,8 @@ def load_daily_metrics() -> dict:
         client = _get_bq_client()
         query = f"""
             SELECT timestamp, dxy, etf_flow_millions, avg_risk_score,
-                   gpu_b200_price, grok_summary, gpt_summary, mvrv_z_score
+                   gpu_b200_price, grok_summary, gpt_summary, mvrv_z_score,
+                   sentiment_score, sopr, exchange_netflow, regime_score
             FROM `{PROJECT_ID}.market_data.daily_metrics`
             ORDER BY timestamp DESC
             LIMIT 2
@@ -309,6 +310,10 @@ def load_daily_metrics() -> dict:
             "delta_risk":       _delta("avg_risk_score"),
             "delta_b200":       _delta("gpu_b200_price"),
             "delta_mvrv":       _delta("mvrv_z_score"),
+            "sentiment_score":  latest.get("sentiment_score"),
+            "sopr":             latest.get("sopr"),
+            "exchange_netflow": latest.get("exchange_netflow"),
+            "regime_score":     latest.get("regime_score"),
         }
     except Exception as e:
         st.warning(f"⚠️ 無法讀取 daily_metrics：{e}")
