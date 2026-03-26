@@ -4,7 +4,7 @@
 
 **設計原則**：可驗證的報價、技術與宏觀數字由 **工具層抓取** 注入 Context；LLM 負責整合與敘事，**不得捏造**客觀數據。版面與標籤白名單見專案 [`.cursorrules`](.cursorrules) 與 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)。
 
-**路線與待辦**（優先序、已落地備查）→ [`TODOS.md`](TODOS.md)。
+**待辦與完成度彙總** → [`TODOS.md`](TODOS.md)；**改版紀錄** → [`CHANGELOG.md`](CHANGELOG.md)。
 
 ---
 
@@ -284,7 +284,8 @@ Streamlit / PWA 讀取指標
 
 | 文件 | 內容 |
 |------|------|
-| [`TODOS.md`](TODOS.md) | 待辦優先序、已落地備查 |
+| [`TODOS.md`](TODOS.md) | 待辦／已完成驗證彙總、Backlog 編號、路線完成度 |
+| [`CHANGELOG.md`](CHANGELOG.md) | 功能與行為變更紀錄（改版時請同步更新 TODOS 狀態） |
 | [`CLAUDE.md`](CLAUDE.md) | 開發者導覽、常用指令、gstack |
 | [`AGENTS.md`](AGENTS.md) | 雲端注意事項、CoinGlass、已知現象 |
 | [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | 日報版面與敘事規格 |

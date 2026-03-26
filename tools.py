@@ -1639,7 +1639,9 @@ def cryptopanic_tool(topic: str = "bitcoin") -> str:
 @tool
 def x_search_tool(query: str) -> str:
     """搜尋 X/Twitter 最新 24h 高互動推文。
-    需設定 TWITTER_BEARER_TOKEN（Twitter API v2 官方）或 RAPIDAPI_KEY（twitter154 備援）。
+
+    Crew 管線已不掛載本 tool（見 .cursorrules）；保留供本機除錯或手動呼叫。
+    需 TWITTER_BEARER_TOKEN（Twitter API v2）或 RAPIDAPI_KEY（twitter154 備援）。
     回傳含用戶名、時間、推文內容、互動數的結構化列表。
     """
     cache_key = ("x_search", query)
