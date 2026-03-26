@@ -210,8 +210,6 @@ def _install_runtime_noise_filters() -> None:
         builtins.print = _quiet_print
 
 
-
-
 def _qsrec_canonical_set_for_category(recs: list[dict], category: str) -> set[str]:
     want = category.upper()
     out: set[str] = set()

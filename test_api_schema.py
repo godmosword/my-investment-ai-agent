@@ -2,7 +2,7 @@
 
 import pytest
 
-from api_schema import log_schema_mismatch, require_json_dict, require_list
+from api_schema import log_schema_mismatch, require_json_dict, require_json_list, require_list
 
 
 @pytest.mark.smoke
@@ -26,6 +26,21 @@ class TestRequireJsonDict:
     def test_no_source_still_raises(self):
         with pytest.raises(ValueError):
             require_json_dict(42)
+
+
+@pytest.mark.smoke
+class TestRequireJsonList:
+    def test_returns_list_unchanged(self):
+        lst = [1, {"a": 2}]
+        assert require_json_list(lst, source="Binance") is lst
+
+    def test_raises_on_dict(self):
+        with pytest.raises(ValueError, match="FMP"):
+            require_json_list({"x": 1}, source="FMP")
+
+    def test_raises_on_none(self):
+        with pytest.raises(ValueError):
+            require_json_list(None, source="API")
 
 
 @pytest.mark.smoke

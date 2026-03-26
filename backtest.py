@@ -31,6 +31,7 @@ import pandas as pd
 import requests
 from google.cloud import bigquery
 
+from api_schema import require_json_dict, require_list
 from config import PROJECT_ID, METRICS_TABLE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -82,7 +83,12 @@ def fetch_btc_price(days: int) -> pd.DataFrame:
     try:
         resp = requests.get(url, timeout=20)
         resp.raise_for_status()
-        prices = resp.json().get("prices", [])
+        try:
+            cg = require_json_dict(resp.json(), source="CoinGecko-backtest")
+            prices = require_list(cg, "prices", source="CoinGecko-backtest")
+        except ValueError as e:
+            logging.error("CoinGecko JSON/schema invalid: %s", e)
+            return pd.DataFrame(columns=["close"])
         df = pd.DataFrame(prices, columns=["ts_ms", "close"])
         df["date"] = pd.to_datetime(df["ts_ms"], unit="ms").dt.date
         df = df.drop_duplicates("date").set_index("date").sort_index()
