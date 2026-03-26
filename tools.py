@@ -4,7 +4,7 @@ import re
 import time
 import json
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
