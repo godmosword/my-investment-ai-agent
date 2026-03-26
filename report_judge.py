@@ -111,6 +111,139 @@ def llm_quality_judge(report_html: str) -> dict[str, Any]:
     return out
 
 
+def domain_quality_check(report_html: str) -> dict[str, Any]:
+    """
+    域專用品質檢查（無需 API key，確定性規則）。
+
+    回傳 dict：
+      tools        — 5 個新工具是否出現在報告正文
+      scenario_legs — 有三情境分析的交易腿數量
+      trade_legs   — 總交易腿數量
+      has_exec     — 執行摘要是否存在
+      source_health — newsapi/gnews/apify 健康分（從報告標頭解析）
+      scores       — tools/scenarios/sources/exec 各維度 0–100
+      overall      — 加權總分 0–100
+    """
+    text = report_html or ""
+
+    # ── 新工具出現檢查 ──────────────────────────────────────────────────
+    tools: dict[str, bool] = {
+        "correlation": bool(re.search(r"BTC 相關係數|BTC/SPX|📐", text)),
+        "cot":         bool(re.search(r"CME COT|🏦.*COT|機構.*週[▲▼]", text)),
+        "valuation":   bool(re.search(r"估值錨|MVRV|NVT", text)),
+        "historical":  bool(re.search(r"歷史類比|🕰|最近似.*\d{4}", text)),
+        "grayscale":   bool(re.search(r"GBTC.*%|🔒.*GBTC", text)),
+    }
+
+    # ── 情境分析覆蓋率 ──────────────────────────────────────────────────
+    # 計算有完整三情境（🐂+⚖️+🐻）的段落數
+    # 每筆交易腿段落以 "· $<ASSET>" 開頭，往下找三個情境圖示
+    legs = re.split(r"(?=· \$\w+.*(?:LONG|SHORT))", text)
+    scenario_legs = sum(
+        1 for leg in legs
+        if re.search(r"🐂", leg) and re.search(r"⚖️", leg) and re.search(r"🐻", leg)
+    )
+    trade_legs = max(len(legs) - 1, 0)  # legs[0] is pre-trade content
+
+    # ── 執行摘要 ────────────────────────────────────────────────────────
+    has_exec = bool(re.search(r"執行摘要", text))
+
+    # ── Source Health（從報告 SourceHealth 標頭解析）─────────────────────
+    source_health: dict[str, float | None] = {}
+    for src in ("newsapi", "gnews", "apify"):
+        m = re.search(rf"{src}:([0-9]+\.[0-9]+)", text)
+        source_health[src] = float(m.group(1)) if m else None
+
+    # ── 各維度分數（0–100）──────────────────────────────────────────────
+    tool_score = sum(tools.values()) / len(tools) * 100
+    scenario_score = (scenario_legs / max(trade_legs, 1)) * 100
+    valid_srcs = [v for v in source_health.values() if v is not None]
+    source_score = (sum(valid_srcs) / len(valid_srcs) * 100) if valid_srcs else 50.0
+    exec_score = 100.0 if has_exec else 0.0
+
+    # 加權：工具出現 40%、情境分析 30%、來源健康 20%、執行摘要 10%
+    overall = round(
+        0.40 * tool_score
+        + 0.30 * scenario_score
+        + 0.20 * source_score
+        + 0.10 * exec_score,
+        1,
+    )
+
+    return {
+        "tools":         tools,
+        "scenario_legs": scenario_legs,
+        "trade_legs":    trade_legs,
+        "has_exec":      has_exec,
+        "source_health": source_health,
+        "scores": {
+            "tools":     round(tool_score, 1),
+            "scenarios": round(scenario_score, 1),
+            "sources":   round(source_score, 1),
+            "exec":      exec_score,
+        },
+        "overall": overall,
+    }
+
+
+def format_quality_card(dqc: dict[str, Any], elapsed_sec: float | None = None) -> str:
+    """
+    將 domain_quality_check() 結果格式化為可發送到 Telegram 的品質卡 HTML。
+    """
+    overall = dqc.get("overall", 0.0)
+    grade = "🟢" if overall >= 75 else "🟡" if overall >= 55 else "🔴"
+
+    tools = dqc.get("tools", {})
+    tool_icons = {
+        "correlation": "📐相關係數",
+        "cot":         "🏦COT",
+        "valuation":   "📊估值錨",
+        "historical":  "🕰歷史類比",
+        "grayscale":   "🔒Grayscale",
+    }
+    tool_line = " | ".join(
+        f"{'✅' if v else '❌'}{tool_icons[k]}"
+        for k, v in tools.items()
+    )
+
+    sl = dqc.get("scenario_legs", 0)
+    tl = dqc.get("trade_legs", 0)
+    scenario_line = f"{'✅' if sl == tl and tl > 0 else '⚠️'} 情境分析 {sl}/{tl} 腿"
+
+    src = dqc.get("source_health", {})
+    src_parts = []
+    for s, v in src.items():
+        if v is None:
+            src_parts.append(f"{s}:N/A")
+        elif v >= 0.6:
+            src_parts.append(f"✅{s}:{v:.2f}")
+        else:
+            src_parts.append(f"⚠️{s}:{v:.2f}")
+    src_line = " | ".join(src_parts)
+
+    elapsed_line = ""
+    if elapsed_sec is not None:
+        m, s = divmod(int(elapsed_sec), 60)
+        elapsed_line = f"\n⏱ 產報耗時：{m}m{s:02d}s"
+
+    scores = dqc.get("scores", {})
+    score_detail = (
+        f"工具:{scores.get('tools',0):.0f} "
+        f"情境:{scores.get('scenarios',0):.0f} "
+        f"來源:{scores.get('sources',0):.0f} "
+        f"摘要:{scores.get('exec',0):.0f}"
+    )
+
+    return (
+        f"{grade} <b>Q-Score: {overall:.0f}/100</b>  "
+        f"<code>({score_detail})</code>\n"
+        f"{tool_line}\n"
+        f"{scenario_line}\n"
+        f"📰 {src_line}"
+        f"{elapsed_line}"
+    )
+
+
 def llm_judge_should_block(result: dict[str, Any]) -> bool:
     """REPORT_LLM_JUDGE_BLOCKING=1 且評分未達門檻時為 True。"""
     if os.getenv("REPORT_LLM_JUDGE_BLOCKING", "").lower() not in ("1", "true", "yes"):

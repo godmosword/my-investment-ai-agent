@@ -526,6 +526,10 @@ def save_recommendations(report_text: str,
     try:
         client = _get_bq_client(project_id)
         _ensure_table(client)
+        # 刪除同日既有 OPEN 記錄，防止 pipeline 重試造成同資產多空方向並存
+        client.query(
+            f"DELETE FROM `{RECOMMENDATIONS_TABLE}` WHERE report_date = '{report_date}'"
+        ).result()
         errors = client.insert_rows_json(RECOMMENDATIONS_TABLE, recs)
         if errors:
             logger.error("BigQuery insert errors for recommendations: %s", errors)

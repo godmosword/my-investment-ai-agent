@@ -38,6 +38,8 @@ from report_judge import (
     hard_pattern_judge_reason,
     llm_judge_should_block,
     llm_quality_judge,
+    domain_quality_check,
+    format_quality_card,
 )
 from report_validator import (
     validate_report,
@@ -1158,6 +1160,7 @@ def _verify_optional_api_keys_light() -> None:
 
 
 if __name__ == "__main__":
+    _main_start = time.monotonic()
     _install_runtime_noise_filters()
     logger.info("Initializing Q-Silicon Ultimate Agent...")
     _validate_required_keys()
@@ -1264,6 +1267,16 @@ if __name__ == "__main__":
                 logger.warning("Telegram configuration missing. Skipping gate alert push.")
         elif token and chat_id:
             _send_telegram_report(clean_report, token, chat_id, image_path="daily_chart.png")
+            # 方案A: 發送品質卡（deterministic，失敗不影響主報告）
+            try:
+                import telebot as _tb
+                _dqc = domain_quality_check(clean_report)
+                _elapsed = time.monotonic() - _main_start
+                _card = format_quality_card(_dqc, elapsed_sec=_elapsed)
+                _tb.TeleBot(token).send_message(chat_id, _card, parse_mode="HTML", timeout=10)
+                logger.info("Quality card sent. Q-Score=%s", _dqc.get("overall"))
+            except Exception as _qe:
+                logger.warning("Quality card send failed: %s", _qe)
         else:
             logger.warning("Telegram configuration missing. Skipping push.")
     else:
