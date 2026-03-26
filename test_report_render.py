@@ -97,6 +97,9 @@ def _sample_trade_leg(sym: str) -> ExecutableTradeLeg:
         invalidation="跌破 95",
         position_pct="5%",
         narrative="催化",
+        bull_scenario="多頭：突破前高，目標 110",
+        base_scenario="基礎：區間震盪，持倉觀望",
+        bear_scenario="空頭：跌破 95 停損出場",
     )
 
 
