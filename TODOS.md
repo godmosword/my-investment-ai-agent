@@ -1,5 +1,53 @@
 # Project TODOs
 
+---
+
+## 🚀 三大戰略方向（2026-03-26 新增）
+
+> 執行時間軸：1A → 2A → 1B → 2B → Direction 3
+
+### Direction 1A — 穩定視覺化輸出（Week 1–2）
+
+- [ ] `visualizer.py` — 新增 Panel 4：BTC 資金費率（fundingRate）趨勢折線圖（CoinGlass API 已有）
+- [ ] `dashboard.py` — 新增 Streamlit Tab 5：Sentiment Score；Tab 6：SOPR + Exchange Netflow 雙軸圖
+- [ ] `telegram_sender.py` + `templates/telegram_report.j2` — 報告底部加「查看歷史」Inline Keyboard Button（`reply_markup`）
+- [ ] `data-verification-ui/src/` — ServiceWorker Web Push 通知（BTC 異動 / 日報到達）
+
+### Direction 1B — 商業化地基（Week 5–6）
+
+- [ ] `auth.py` (新) — Firebase Auth JWT middleware（FastAPI `Depends`）
+- [ ] `billing.py` (新) — Stripe Checkout + Webhook；FREE / PRO / INSTITUTIONAL 三級
+- [ ] `api.py` — 依 tier 限制資料範圍：FREE=7天、PRO=全部、INSTITUTIONAL=直連 API key
+- [ ] `telegram_sender.py` — PRO 用戶帶自己的 BOT_TOKEN + CHAT_ID（從 BQ `user_settings` 表讀取）
+- [ ] `data-verification-ui/src/pages/Landing.jsx` (新) — Landing page：Hero + 方案比較表 + Stripe Checkout
+
+### Direction 2A — 績效反饋閉環（Week 3–4）
+
+- [ ] `backtest.py` — 新增 `--update-config` flag：回測後自動把最佳信號權重寫入 `config.py` `SIGNAL_WEIGHTS`
+- [ ] `.github/workflows/weekly-backtest.yml` (新) — 週一 02:00 HKT 觸發 `python backtest.py --update-config`
+- [ ] `crew.py` — Quant Strategist prompt 注入「過去 3 天 HIT_STOP 反饋」（`bigquery_writer._fetch_recent_stopped_out_trades` 已實作）
+- [ ] `report_validator.py` — `_adaptive_threshold()`：若最近 7 天 Gate pass rate > 80% 自動提高情境字數門檻
+
+### Direction 2B — OSS 自主整合 Scout Agent（Week 7–8）
+
+- [ ] `agents/scout_agent.py` (新) — GitHub GraphQL + HuggingFace Hub 搜尋；過濾：Stars ↑500/月、MIT/Apache、Python、領域=crypto-analytics/LLM-finance
+- [ ] `agents/integration_proposal_agent.py` (新) — clone → 分析 API → 生成整合 diff → 跑 smoke test → 自動開 PR（**不自動合併**）
+- [ ] `.github/workflows/weekly-scout.yml` (新) — 週五 18:00 HKT 觸發
+
+### Direction 3 — Multi-Agent 新創規模（Week 9–12）
+
+- [ ] `agents/product_crew.py` (新) — PM Agent + UX Researcher Agent（每週功能優先排序 + 用戶痛點）
+- [ ] `agents/growth_crew.py` (新) — Marketing Agent + Competitor Intel Agent（每週競品 + GTM 草稿）
+- [ ] `agents/finance_crew.py` (新) — CFO Agent + Cost Optimizer Agent（每日 API 成本 + 月度 P&L 預測）
+- [ ] `agents/engineering_crew.py` (新) — Tech Radar Agent + Code Review Agent（依賴更新建議 + Dependabot-style PR）
+- [ ] `agents/arbiter_crew.py` (新) — 接收所有 Crew 輸出，產出全局風險預算 + 跨部門一致性檢查
+- [ ] `company_report_render.py` (新) — 合併所有 Crew 輸出，渲染「新創公司日報」
+- [ ] `main.py` — 新增 `--mode=company_daily` 支援 6 Crew 並行
+- [ ] `data-verification-ui/` — Company War Room 頁面（各部門狀態 + 公司日報）
+
+---
+
+
 ## 優先順序速覽（重估）
 
 | 順序 | 項目 | 重要性 | 可行性 | 說明 |
