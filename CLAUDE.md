@@ -1,68 +1,146 @@
 # Project Developer Guide for Claude
 
+**Claude Code** discovers this file at the repo root as project context; **Cursor** loads `.cursor/rules/claude-md-bootstrap.mdc` + `.cursorrules` §0 so agents are nudged to read this file before substantive work.
+
+Concise orientation for coding agents. **Authoritative product/README detail** → [`README.md`](README.md). **Backlog & shipped features** → [`TODOS.md`](TODOS.md). **Human changelog** → [`CHANGELOG.md`](CHANGELOG.md). **Cursor-specific** → [`AGENTS.md`](AGENTS.md).
+
+---
+
 ## 1. Tooling & Navigation Rules (CRITICAL)
-- **LSP Priority**: Strictly prioritize the LSP tool for all code navigation — finding definitions, references, and cross-file refactoring.
-- **Avoid Text Search**: Do NOT use Grep, Glob, or Regex for code navigation unless LSP explicitly fails.
 
-## 2. Project Context & Architecture
-- **Description**: Q-Silicon Institutional Research AI Agent — a Python CrewAI pipeline that generates daily crypto & AI investment reports. Runs four agents (crypto researcher, AI researcher, risk critic, quant strategist), fetches real-time data, validates reports, then pushes to Telegram and writes metrics to BigQuery.
-- **Tech Stack**: Python 3.11+; CrewAI + LiteLLM (multi-LLM: Grok, GPT, Claude, Gemini); Apify (search); Streamlit (dashboard); Google Cloud BigQuery; yfinance, pandas, plotly, matplotlib; pyTelegramBotAPI; python-dotenv, pydantic.
+- **LSP priority**: Prefer the IDE/LSP for go-to-definition, references, and refactors.
+- **Fallback**: If LSP is unavailable, targeted search (e.g. ripgrep) is acceptable—do not avoid navigation entirely.
 
-### Key Files (flat layout at repo root)
+---
+
+## 2. Project Red Lines (Q-Silicon)
+
+Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md):
+
+- **No data hallucination**: Objective prices, indicators (RSI, MAs, VIX, etc.), and macro figures must come from **Python tools** / APIs injected into context—not LLM invention.
+- **X/Twitter**: Not used in the main daily pipeline (crew tasks do not rely on X search); do not reintroduce it as a primary news path.
+- **Telegram HTML**: Whitelist only `<b>`, `<i>`, `<u>`, `<s>`, `<code>`, `<blockquote>`, `<a>`. Report layout order: dashboard → core news → market murmurs → actionable trades.
+- **Tools**: New tools should implement cache helpers consistent with existing patterns (`_get_cache` / `_set_cache` where applicable).
+- **Threading**: Respect `ThreadPoolExecutor` safety for the dual crypto + AI crew path in [`main.py`](main.py).
+
+---
+
+## 3. Project Context & Architecture
+
+- **Description**: Q-Silicon Institutional Research AI Agent — Python **CrewAI** pipeline producing daily **crypto** and **AI (incl. US equities fundamentals)** research, merged into a Telegram HTML brief. Optional **LLM judge**, **BigQuery** metrics / logs, **Streamlit** dashboard, **FastAPI** + **PWA** front-end.
+- **Flow (high level)**: API key checks → optional strict env → numeric env validation → tool prewarm → **parallel** `CryptoResearchCrew` + `AIResearchCrew` → assemble/render → `validate_report` / structured validation → optional editor polish → Telegram + BQ writes.
+- **Tech stack**: Python 3.11+ (Dockerfile 3.11-slim; 3.12 OK locally); CrewAI + LiteLLM (Grok, GPT, Claude, Gemini); Streamlit; BigQuery; pandas / plotly / matplotlib; pyTelegramBotAPI; pydantic v2; python-dotenv.
+
+### Key files (repo root)
+
 | File | Role |
-|---|---|
-| `main.py` | Entry point — retry loop, Telegram push, BigQuery write |
-| `crew.py` | CrewAI agents & tasks definition |
-| `tools.py` | Apify, CoinGlass, CryptoPanic, ML quant tools |
-| `schemas.py` | Pydantic v2 schema — `DailyBriefReport`, `CryptoSection`, `AISection` |
-| `config.py` | Constants: `PROJECT_ID`, `METRICS_TABLE`, `WHALE_TABLE`, model names |
-| `report_render.py` | Assembles & renders final report from crew output |
-| `report_validator.py` | Gate validation — blocking quality checks |
-| `report_output_validator.py` | Output parsing & assertion helpers |
-| `validation_rules.py` | Declarative validation rule definitions |
-| `telegram_sender.py` | Telegram HTML sanitizer + send helpers |
-| `bigquery_writer.py` | BigQuery insert helpers；`write_gate_failure_log`（Gate issues→`gate_failure_log`） |
-| `dashboard.py` | Streamlit war room |
-| `visualizer.py` | Chart generation |
-| `backtest.py` | ML backtesting |
-| `tracker.py` | Signal/position tracker |
-| `api.py` | FastAPI backend for PWA war room |
-| `crew_output_parse.py` | Parses crew `kickoff()` output → Pydantic |
-| `scratchpad.py` | Gate trace / debug JSONL writer |
+|------|------|
+| [`main.py`](main.py) | Entry: `_validate_required_keys`, `_validate_critical_env_strict` (`PIPELINE_STRICT_ENV`), `_validate_env_types`, prewarm, dual-crew run, retries, Telegram, BQ, charts |
+| [`crew.py`](crew.py) | CrewAI agents, tasks, LLM fallback chains |
+| [`tools.py`](tools.py) | Search, news, market, on-chain, macro, quant tools (large single module; split plan in `docs/TOOLS_MODULARIZATION_PLAN.md`) |
+| [`schemas.py`](schemas.py) | Pydantic — `DailyBriefReport`, sections, QSREC |
+| [`config.py`](config.py) | `PROJECT_ID`, table IDs, model env names, `GATE_FAILURE_LOG_TABLE`, etc. |
+| [`report_render.py`](report_render.py) | Assemble + render Telegram HTML from crew output |
+| [`report_validator.py`](report_validator.py) | Gate: news, UTC+8, optional freshness, QSREC, rotation, consistency |
+| [`report_output_validator.py`](report_output_validator.py) | Parsing / assertion helpers |
+| [`report_judge.py`](report_judge.py) | Hard-pattern judge; optional `REPORT_LLM_JUDGE` |
+| [`report_editor.py`](report_editor.py) | Optional polish pass (`EDITOR_AGENT_ENABLED`) |
+| [`validation_rules.py`](validation_rules.py) | Shared regex / rule fragments for validation |
+| [`telegram_sender.py`](telegram_sender.py) | HTML sanitization + send helpers |
+| [`bigquery_writer.py`](bigquery_writer.py) | Metrics, LLM run log, exclusion context, **`write_gate_failure_log`** |
+| [`tracker.py`](tracker.py) | Positions / previous recommendations |
+| [`scratchpad.py`](scratchpad.py) | JSONL trace, tool caps, editor/judge append |
+| [`api.py`](api.py) | FastAPI for PWA / war room data |
+| [`api_schema.py`](api_schema.py) | JSON response guards for tools |
+| [`dashboard.py`](dashboard.py) | Streamlit war room |
+| [`crew_output_parse.py`](crew_output_parse.py) | Crew `kickoff()` output → Pydantic |
+| [`signal_weights_store.py`](signal_weights_store.py) | Versioned ML weights; optional crew context (`WEIGHTS_CONTEXT_ENABLED`) |
+| [`crew_company.py`](crew_company.py) | Company Growth narrative pilot (`COMPANY_CREW_ENABLED`) |
+| [`company_ops_schemas.py`](company_ops_schemas.py) | Pydantic schemas for company ops / war room |
+| [`monitor_intraday.py`](monitor_intraday.py) | Intraday monitor script + workflow companion |
+| [`visualizer.py`](visualizer.py) | Chart generation |
+| [`backtest.py`](backtest.py) | ML backtest CLI |
 
-### Sub-directories
-| Dir | Contents |
-|---|---|
-| `core/` | `report_validation.py` — Phase 3 candidate validator entry point |
-| `templates/` | `telegram_report.j2` — Jinja2 Telegram report template |
-| `docs/` | Internal design docs (REPORT_COMPARE_STAGING.md, COST_PER_MODEL.md, etc.) |
-| `data-verification-ui/` | Optional Vite + React PWA front-end |
-| `.github/workflows/` | CI/CD: deploy + scheduler workflows |
+### Subdirectories
 
-## 3. Common Commands
-- **Install deps**: `uv pip install -r requirements.txt --system`
-- **Run tests (smoke, fast)**: `python3 -m pytest -m smoke -v`
-- **Run full test suite**: `python3 -m pytest -v` (~140+ cases in `test_*.py` at root)
-- **Lint**: `ruff check .`
-- **Dashboard**: `streamlit run dashboard.py --server.port 8501 --server.headless true`
-- **Full pipeline** (needs API keys, ~15–30 min): `python main.py`
-- **Docker**: `docker build -f Dockerfile .`
-- **Dual-track comparison**: `REPORT_COMPARE_MODE=1 python main.py` (see `docs/REPORT_COMPARE_STAGING.md`)
+| Path | Contents |
+|------|----------|
+| [`core/`](core/) | `report_validation.py` — Phase 3 / candidate validator entry |
+| [`templates/`](templates/) | `telegram_report.j2` |
+| [`docs/`](docs/) | Design docs, runbooks, SQL samples (see §5) |
+| [`scripts/`](scripts/) | `bench_autoresearch.sh`, `oss_scout_candidates.py`, `write_ml_weights.py`, `inject_test_data.py` |
+| [`data-verification-ui/`](data-verification-ui/) | Vite + React PWA |
+| [`.github/workflows/`](.github/workflows/) | CI, deploy (`environment: production`), schedulers |
 
-## 4. Bug Reporting & Fixing Workflow
-- **Test-First**: When a bug is reported, first write a failing test that reproduces it. Then fix the bug and prove it with a passing test. Do NOT jump straight to fixing.
+---
 
-## 5. Coding Conventions
-- **Style**: Ruff guidelines. Clean, readable, maintainable. Resolve existing warnings.
-- **Naming**: `snake_case` functions/variables; `PascalCase` classes (e.g. `CryptoResearchCrew`); `UPPER_SNAKE_CASE` module constants; `_leading_underscore` for module-private names.
-- **Error Handling**: Never swallow exceptions. Log with `logger.warning` / `logger.error`. Retry with backoff for 503/429. Return `[DATA_MISSING:...]`-style strings from tools when APIs fail.
-- **Comments**: Document the "why", not the "what". Docstrings for public functions. Inline comments for business rules (thresholds, whitelist logic).
+## 4. Common Commands
 
-## 6. gstack — Web Browsing & Engineering Skills
-- **Web Browsing**: Use `/browse` from gstack for ALL web browsing. NEVER use `mcp__claude-in-chrome__*` tools.
-- **Setup** (first time per machine): `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`
-- **If skills aren't working**: `cd ~/.claude/skills/gstack && ./setup`
+| Task | Command |
+|------|---------|
+| Install deps | `uv pip install -r requirements.txt --system` or `pip install -r requirements.txt` |
+| Lint | `ruff check .` |
+| Smoke tests (CI-aligned) | `python3 -m pytest -m smoke -v` |
+| Full tests | `python3 -m pytest -v` (~24 `test_*.py` modules at repo root) |
+| Dashboard | `streamlit run dashboard.py --server.port 8501 --server.headless true` |
+| Full pipeline | `python main.py` (many API keys; ~15–30+ min) |
+| Dry run | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` |
+| Strict prod-like startup | `PIPELINE_STRICT_ENV=1` (requires Telegram and/or GCP when respective `SKIP_*` unset) |
+| Bench / autoresearch hook | `./scripts/bench_autoresearch.sh` (ruff + smoke; official `METRIC` lines at end only) |
+| Docker | `docker build -f Dockerfile .` |
+| Dual-track compare | `REPORT_COMPARE_MODE=1 python main.py` — [`docs/REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md) |
 
-Available skills: `/browse`, `/review`, `/ship`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/design-consultation`, `/qa`, `/qa-only`, `/investigate`, `/retro`, `/codex`, `/office-hours`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/gstack-upgrade`, `/document-release`, `/setup-browser-cookies`.
+---
 
-See [`gstack.md`](gstack.md) for project-specific notes.
+## 5. Documentation Index (`docs/`)
+
+| Doc | Purpose |
+|-----|---------|
+| [`DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | Brief format / Telegram rules |
+| [`ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) | Product directions |
+| [`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | Streamlit / API / PWA KPI contract |
+| [`DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) | Production deploy + GitHub Environment reviewers |
+| [`AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md) + [`autoresearch.plan.md`](docs/autoresearch.plan.md) | Autoresearch loop spec |
+| [`REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md) | Compare mode |
+| [`COST_PER_MODEL.md`](docs/COST_PER_MODEL.md) | LLM cost notes |
+| [`COMMERCE_PLAYBOOK.md`](docs/COMMERCE_PLAYBOOK.md) / [`COMMERCE_NEXT_STEPS.md`](docs/COMMERCE_NEXT_STEPS.md) | Commerce hypotheses / checklist |
+| [`COMPANY_CREW_ROADMAP.md`](docs/COMPANY_CREW_ROADMAP.md) | Multi-function crew roadmap |
+| [`TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) | Splitting `tools.py` |
+| [`SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql) | Example BQ aggregation for gate failures |
+| [`oss_candidates/README.md`](docs/oss_candidates/README.md) | OSS scout process |
+
+**Env reference**: [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) (copy to `.env`).
+
+---
+
+## 6. Observability & Gates (quick reference)
+
+- **Gate failure artifacts**: `.qsilicon/last_gate_failure/` when `GATE_FAILURE_ARTIFACTS` enabled.
+- **Gate failure BigQuery**: `write_gate_failure_log` → `{PROJECT}.market_data.gate_failure_log`; toggle `GATE_FAILURE_BQ_LOG`, respect `SKIP_BIGQUERY`.
+- **Scratchpad**: `.qsilicon/scratchpad/*.jsonl` when `SCRATCHPAD_ENABLED`.
+- **News freshness** (optional): `STRICT_NEWS_FRESHNESS_GATE`, `NEWS_FRESHNESS_WINDOW_HOURS`, `NEWS_FRESHNESS_SOURCE_WHITELIST` — see [`report_validator.py`](report_validator.py), tests in [`test_news_freshness.py`](test_news_freshness.py).
+
+---
+
+## 7. Bug Fixing Workflow
+
+- **Test-first**: Add a failing test that reproduces the bug, then fix until green. Do not fix-only without coverage for regressions.
+
+---
+
+## 8. Coding Conventions
+
+- **Style**: Ruff; fix warnings in touched files.
+- **Naming**: `snake_case` / `PascalCase` / `UPPER_SNAKE_CASE` / `_private`.
+- **Errors**: Log with `logger.warning` / `logger.error`; retry 503/429 with backoff where appropriate; tools return `[DATA_MISSING:...]` (or agreed sentinel) on API failure—do not silently return fake numbers.
+- **Comments**: Explain *why*; docstrings on public APIs; inline notes for thresholds and whitelist behavior.
+
+---
+
+## 9. gstack — Browsing & Workflow Skills
+
+- **Browsing**: Prefer `/browse` from gstack for interactive web QA when applicable. Do not use legacy `mcp__claude-in-chrome__*` flows documented as deprecated in older setups.
+- **Setup** (first time): `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`
+- **Skills** (examples): `/browse`, `/review`, `/ship`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/design-consultation`, `/qa`, `/qa-only`, `/investigate`, `/retro`, `/codex`, `/office-hours`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/gstack-upgrade`, `/document-release`, `/setup-browser-cookies`.
+
+See [`gstack.md`](gstack.md) if present for repo-local gstack notes.
