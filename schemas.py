@@ -90,7 +90,11 @@ class TradeRecommendation(BaseModel):
     )
     narrative: str = Field(
         default="",
-        description="One tight sentence: fundamental or technical root cause; avoid bullet lists.",
+        max_length=80,
+        description=(
+            "【≤80字】一句話說明進場的根本原因（技術面或基本面催化劑）。"
+            "絕對禁止：條列式、出現「辯論摘要」「最強空方論點」「多方反駁」等內部思考標籤。"
+        ),
     )
     trigger: str = Field(
         default="",
@@ -340,7 +344,14 @@ class ExecutableTradeLeg(BaseModel):
     sizing_logic: str = Field(default="", description="Position scaling logic one line.")
     invalidation: str = Field(default="", description="Invalidation one line non-empty when actionable.")
     position_pct: str = Field(default="", description="Portfolio % guidance line.")
-    narrative: str = Field(default="", description="Short catalyst tie-in.")
+    narrative: str = Field(
+        default="",
+        max_length=80,
+        description=(
+            "【≤80字】一句話說明操作的根本原因。"
+            "禁止出現「辯論摘要」「最強空方論點」「多方反駁」等內部思考標籤。"
+        ),
+    )
     bull_scenario: str | None = Field(
         default=None,
         description="🐂 Bull scenario ≤40 chars: target + trigger (e.g. breaks 74k, ETF inflow >$500M).",
@@ -422,10 +433,11 @@ class CryptoSection(BaseModel):
     )
     signal_conflict_summary: str = Field(
         ...,
+        max_length=160,
         description=(
-            "訊號衝突摘要 body text ONLY — do NOT include the label '訊號衝突摘要：' as prefix. ≤75 chars. "
-            "P4: include the two-line ╌辯論摘要╌ from Risk Critic verbatim if available "
-            "(最強空方論點 + 多方反駁核心), keeping total ≤120 chars."
+            "【≤160字】訊號衝突摘要。格式：「最強空方論點：XXX\n多方反駁核心：XXX」兩行即可。"
+            "嚴禁以「訊號衝突摘要：」開頭，嚴禁輸出「╌辯論摘要╌」框架標題，"
+            "嚴禁重複貼上完整 Risk Critic 辯論過程，直接輸出結論兩行。"
         ),
     )
     trade_legs: list[ExecutableTradeLeg] = Field(
