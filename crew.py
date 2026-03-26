@@ -486,13 +486,15 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
     3) 【今日市場模式】與評分卡明細（取自 review_task）
     3b) 【今日主敘事】一行（見【日報 V2】）
     4) 🏛️ 宏觀框架（取自 macro_context_tool）
-       · 若 correlation_matrix_tool 有回傳，在宏觀框架末尾加一行：「📐 BTC 相關係數：BTC/SPX X.XX｜BTC/DXY X.XX｜BTC/GLD X.XX」
-       · 若 valuation_anchor_tool 有回傳，在宏觀框架末尾加一行：「📊 估值錨：MVRV X.XXx（區間）｜NVT XX（區間）｜BTC Dominance XX%」
-       · 若 cot_positioning_tool 有回傳，在儀表板區塊①加一行：「🏦 CME COT：機構 +X,XXX（週▲/▼）｜槓桿 +X,XXX（週▲/▼）」
-       · 若 grayscale_premium_tool 有回傳，在儀表板區塊①加一行：「🔒 GBTC X.XX%｜ETHE X.XX%」
-       · 若 historical_analog_tool 有回傳，在宏觀框架末尾加一小節：「🕰 歷史類比：最近似 YYYY-MM-DD（相似度 XX/100），30日後 +/-X.X%｜中位勝率 X/3」
+       【強制輸出以下四行，若工具失敗填 `N/A`，但行本身不可省略】
+       · 📐 BTC 相關係數：BTC/SPX X.XX｜BTC/DXY X.XX｜BTC/GLD X.XX｜BTC/NDX X.XX（取自 correlation_matrix_tool；若失敗填 N/A）
+       · 📊 估值錨：MVRV X.XXx（區間）｜NVT XX（區間）｜BTC Dominance XX%（取自 valuation_anchor_tool；若失敗填 N/A）
+       · 🕰 歷史類比：最近似 YYYY-MM-DD（相似度 XX/100），30日後 +/-X.X%｜中位勝率 X/3（取自 historical_analog_tool；若失敗填 N/A）
     5) 📊 加密市場：
        - 區塊① 儀表板（宏觀/技術/籌碼；嚴格套用儀表板格式）
+         【強制加入以下兩行至儀表板，若工具失敗填 `N/A`，但行本身不可省略】
+         · 🏦 CME COT：機構 +X,XXX（週▲/▼）｜槓桿 +X,XXX（週▲/▼）（取自 cot_positioning_tool；若失敗填 N/A）
+         · 🔒 GBTC X.XX%｜ETHE X.XX%（取自 grayscale_premium_tool；若失敗填 N/A）
        - 區塊② 核心新聞 3 則（〔新聞 1〕～〔新聞 3〕，套用新聞格式）
        - 區塊②b X 推文精選（無資料可跳過）
        - 區塊③ 市場呢喃與傳聞 2~3 條
@@ -504,19 +506,19 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
          配對交易必須選擇強弱分化最明顯的兩幣，禁止用 BTC/SOL 當預設配對
         【昨日標的對照】提示區「過去 3 天已建議標的」＋ BigQuery 昨日 QSREC：若本日加密 QSREC 與昨日**完全相同**（同幣種／同配對），必須二選一：(1) 至少更換一檔或一改配對腿；(2) 在「本日選擇理由」首段寫明「重複選用理由：〔全新催化／連日持有依據〕」，且 QSREC 需填可驗證分差（score_gap，預設需 >= 12）。否則 validate_report 硬性失敗並整報重試。
          每次必須說明「本日選擇理由：…」（完整規則見【validate_report 動態選幣／選股】；須寫在今日風險預算／訊號衝突／第一筆 · $ 交易行之前）
-         【情境分析】每筆交易行信心 ≥ 3 星時，在敘事邏輯之後附上三情境（填入 trade_legs 的 bull/base/bear_scenario 欄位）：
+         【情境分析】每筆交易行信心 ≥ 2 星時，在敘事邏輯之後必須附上三情境（填入 trade_legs 的 bull/base/bear_scenario 欄位）：
          🐂 牛：[觸發條件 → 目標]（例：突破 74k + ETF 流入 > $5億 → 78k，機率 30%）
          ⚖️ 基：[主要情境 + 機率]（例：震盪 70-74k 整理，機率 55%）
          🐻 熊：[失效條件 → 止損]（例：日線收破 MA20 → 停損 69.5k，機率 15%）
     6) 最後必須輸出 QSREC JSON 區塊""")
 
 _SCENARIO_RULE = dedent("""\
-    【三情境分析（P4 新增 | 信心 ≥ 3 星強制填入）】
-    每筆 confidence ≥ 3 的 QSREC，在 QSREC JSON 內補充以下三個選填欄位（字串，≤40字/項）：
+    【三情境分析（P4 新增 | 信心 ≥ 2 星強制填入）】
+    每筆 confidence ≥ 2 的 QSREC，在 QSREC JSON 內必須補充以下三個欄位（字串，≤40字/項）：
     · bull_scenario  — 🐂 樂觀情境：目標價 + 觸發條件（例：突破 70k 且 ETF 淨流 >5億 → 目標 76k）
     · base_scenario  — ⚖️ 基準情境：預期走勢 + 估計機率（例：震盪整理後突破，機率 55%）
     · bear_scenario  — 🐻 悲觀情境：失效位 + 觸發條件（例：跌破 63k 且資金費率轉負 → 止損）
-    confidence < 3 時可留 null，但不得輸出空字串。""")
+    confidence < 2 時可留 null，但不得輸出空字串。""")
 
 _DEBATE_SUMMARY_RULE = dedent("""\
     【Risk Critic 辯論摘要（P4 新增 | 必填）】

@@ -383,6 +383,47 @@ def _fetch_last_rotation_gate_warnings() -> str | None:
     )
 
 
+def _fetch_recent_stopped_out_trades(client: bigquery.Client, days: int = 3) -> str | None:
+    """
+    查詢近 N 天內觸發停損（HIT_STOP）的交易紀錄，格式化為 LLM 反思提示。
+    讓 AI 知道近期哪些方向判斷失誤，自動降低同類看法的信心水準。
+    """
+    try:
+        rows = list(client.query(f"""
+            SELECT asset, direction, entry_price, stop_price, exit_price,
+                   pnl_pct, report_date, narrative
+            FROM `{RECOMMENDATIONS_TABLE}`
+            WHERE status = 'HIT_STOP'
+              AND report_date >= DATE_SUB(CURRENT_DATE('Asia/Taipei'), INTERVAL {days} DAY)
+            ORDER BY report_date DESC
+            LIMIT 5
+        """).result())
+    except Exception as e:
+        logger.warning("Failed to fetch stopped-out trades: %s", e)
+        return None
+
+    if not rows:
+        return None
+
+    lines = ["⚠️ 系統回饋：近期停損紀錄（請本次調整判斷方向與信心水準）："]
+    for r in rows:
+        asset = r.get("asset", "?")
+        direction = r.get("direction", "?")
+        pnl = r.get("pnl_pct")
+        pnl_str = f"{pnl:+.1f}%" if pnl is not None else "N/A"
+        date_str = str(r.get("report_date", ""))[:10]
+        narrative = str(r.get("narrative") or "")[:60]
+        lines.append(
+            f"  · {date_str} ${asset} {direction} 觸及停損 {pnl_str}"
+            + (f"（原因：{narrative}）" if narrative else "")
+        )
+    lines.append(
+        "請根據以上停損紀錄：① 若近期同方向連續失敗，本次應降低該方向信心（star_rating）或考慮換方向；"
+        "② 若停損原因是宏觀衝擊（VIX 急升等），請確認今日宏觀環境是否已改變。"
+    )
+    return "\n".join(lines)
+
+
 def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = METRICS_TABLE) -> str | None:
     """從 BigQuery 讀取前一日的新聞標題列表與近期已推薦資產，供研究流程排除重複。"""
     if SKIP_BIGQUERY:
@@ -423,6 +464,12 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
                 "可以再次選用，但必須明確說明「重複選用理由：XXX」。"
             )
             logger.info("Loaded %d recent recommended assets for exclusion: %s", len(recent_assets), recent_assets)
+
+        # 注入近期停損紀錄（反思迴圈：讓 LLM 知道哪些方向判斷失誤）
+        stopped_out = _fetch_recent_stopped_out_trades(client, days=3)
+        if stopped_out:
+            parts.append(stopped_out)
+            logger.info("Injected stopped-out trade feedback into exclusion context.")
 
         # 注入前日 Gate 輪動警示（負反饋迴路，讓 LLM 知道上次失敗）
         rotation_warn = _fetch_last_rotation_gate_warnings()
