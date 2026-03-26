@@ -12,7 +12,7 @@ secrets/
 # ==========================================
 # 不需要進 image 的本機腳本與工具 (僅限開發或分析用)
 # ==========================================
-inject_test_data.py
+scripts/inject_test_data.py
 dashboard.py
 dashboard_app.py
 deploy.sh

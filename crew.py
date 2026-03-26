@@ -570,13 +570,16 @@ def _make_llm_with_fallback(role: str, *, max_retries: int = 3, timeout: int = 1
 
 
 def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
-    """Primary 依 fallback chain 選可用 LLM；use_fallback_llm=True 時全用 GPT 降低凌晨靜默失敗。"""
+    """Primary 依 fallback chain 選可用 LLM；use_fallback_llm=True 時全用 GPT 降低凌晨靜默失敗。
+
+    正常路徑僅建立 Grok + Gemini：兩段 Crew 的 researcher 用 Grok，risk_critic / quant_strategist 用 Gemini；
+    不預先實例化 GPT 槽位（仍須 OPENAI_API_KEY 供 main、sentiment、可選 judge 等）。
+    """
     if use_fallback_llm:
         gpt = _make_llm(MODEL_GPT)
         return {"grok": gpt, "gpt": gpt, "gemini": gpt}
     return {
         "grok": _make_llm_with_fallback("grok"),
-        "gpt": _make_llm_with_fallback("gpt"),
         "gemini": _make_llm_with_fallback("gemini", max_retries=5, timeout=180),
     }
 
@@ -584,7 +587,7 @@ def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
 class CryptoResearchCrew:
     def __init__(self, use_fallback_llm: bool = False):
         llms = _get_llms_for_crew(use_fallback_llm)
-        grok, gpt, gemini = llms["grok"], llms["gpt"], llms["gemini"]
+        grok, gemini = llms["grok"], llms["gemini"]
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -599,7 +602,7 @@ class CryptoResearchCrew:
             role="首席幣圈風險審計員",
             goal="對幣圈新聞做反向辯論，以評分卡判定 market_regime。",
             backstory="反身性風險審計者，負責挑錯、驗證與量化機制判斷。",
-            llm=gpt,
+            llm=gemini,
             allow_delegation=False,
             tools=[regime_scorecard_tool, macro_context_tool],
             verbose=_VERBOSE,
@@ -675,7 +678,7 @@ class CryptoResearchCrew:
 
         review_task = Task(
             description=dedent(f"""
-                【幣圈辯論與風險審計 — GPT】
+                【幣圈辯論與風險審計 — Gemini】
                 {ctx}
                 {regime_lock_notice}
                 {_QUOTE_RULE}
@@ -730,13 +733,13 @@ class CryptoResearchCrew:
 class AIResearchCrew:
     def __init__(self, use_fallback_llm: bool = False):
         llms = _get_llms_for_crew(use_fallback_llm)
-        gpt, grok, gemini = llms["gpt"], llms["grok"], llms["gemini"]
+        grok, gemini = llms["grok"], llms["gemini"]
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
             goal="收集 AI 市場核心資訊並輸出 3 則可交易新聞。",
             backstory="科技產業鏈研究員，聚焦可驗證催化。",
-            llm=gpt,
+            llm=grok,
             tools=[
                 market_search_tool,
                 newsapi_tool,
@@ -754,7 +757,7 @@ class AIResearchCrew:
             role="首席 AI 市場辯論員",
             goal="對 AI 新聞做反向辯論，引用宏觀框架強化論點。",
             backstory="對估值泡沫與敘事偏差高度敏感，善用利率與財報催化分析 AI 板塊。",
-            llm=grok,
+            llm=gemini,
             allow_delegation=False,
             tools=[macro_context_tool],
             verbose=_VERBOSE,
@@ -785,7 +788,7 @@ class AIResearchCrew:
 
         ai_task = Task(
             description=dedent(f"""
-                【AI 市場情報收集 — GPT】
+                【AI 市場情報收集 — Grok】
                 {ctx}
 
                 {_DATA_RULES}
@@ -805,7 +808,7 @@ class AIResearchCrew:
 
                 產出 AI 新聞 3 則，每則格式：
                 {_NEWS_FMT}
-                🤖 GPT 研判：2~3 句，必須點名受影響美股或 ETF
+                🤖 研判：2~3 句，必須點名受影響美股或 ETF
             """),
             expected_output="3 則 AI 新聞結構化初稿。",
             agent=self.ai_researcher,
@@ -813,7 +816,7 @@ class AIResearchCrew:
 
         review_task = Task(
             description=dedent(f"""
-                【AI 市場辯論審計 — Grok】
+                【AI 市場辯論審計 — Gemini】
                 {_QUOTE_RULE}
                 {_NARRATIVE_CONSISTENCY_RULE}
                 {ctx}

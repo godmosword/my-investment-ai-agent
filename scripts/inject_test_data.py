@@ -1,8 +1,27 @@
-from google.cloud import bigquery
-from datetime import datetime, timezone, timedelta
-import random
+"""一次性腳本：向 BigQuery 寫入測試用巨鯨交易列。
 
-PROJECT_ID = "my-investment-ai-agent"
+執行（專案根目錄）::
+
+    python scripts/inject_test_data.py
+
+需已設定 Application Default Credentials 或 GOOGLE_APPLICATION_CREDENTIALS。
+專案 ID 取自 config.PROJECT_ID（與管線一致）。
+"""
+
+from __future__ import annotations
+
+import random
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from google.cloud import bigquery  # noqa: E402
+
+from config import PROJECT_ID  # noqa: E402
 
 
 def inject_test_whale_data(n: int = 10) -> None:

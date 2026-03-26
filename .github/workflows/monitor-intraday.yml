@@ -2,7 +2,7 @@ name: Monitor — Intraday BTC/VIX Anomaly
 
 # Runs every hour to check BTC 1h price change and VIX for anomalies.
 # Pushes a Telegram alert and logs to BigQuery when thresholds are breached,
-# subject to a configurable silence period (default 4h) to avoid duplicate alerts.
+# subject to a configurable silence period (default 8h) to avoid duplicate alerts.
 on:
   schedule:
     - cron: '0 * * * *'   # every hour at :00
@@ -24,9 +24,9 @@ jobs:
       COINGLASS_API_KEY:          ${{ secrets.COINGLASS_API_KEY }}
       GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GCP_SA_KEY }}
       # Tunable via repository variables or secrets
-      INTRADAY_SILENCE_HOURS:     ${{ vars.INTRADAY_SILENCE_HOURS || '4' }}
-      INTRADAY_BTC_PCT_THRESHOLD: ${{ vars.INTRADAY_BTC_PCT_THRESHOLD || '5.0' }}
-      INTRADAY_VIX_THRESHOLD:     ${{ vars.INTRADAY_VIX_THRESHOLD || '30.0' }}
+      INTRADAY_SILENCE_HOURS:     ${{ vars.INTRADAY_SILENCE_HOURS || '8' }}
+      INTRADAY_BTC_PCT_THRESHOLD: ${{ vars.INTRADAY_BTC_PCT_THRESHOLD || '8.0' }}
+      INTRADAY_VIX_THRESHOLD:     ${{ vars.INTRADAY_VIX_THRESHOLD || '36.0' }}
 
     steps:
       - name: Checkout repository
@@ -39,7 +39,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt --system
+        run: pip install -r requirements.txt
 
       - name: Write GCP credentials file
         if: ${{ env.GOOGLE_APPLICATION_CREDENTIALS_JSON != '' }}

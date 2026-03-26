@@ -174,7 +174,7 @@ def test_render_contains_qsrec_and_passes_structured_gate():
     )
     ai = AISection(
         macro_bridge_lines=["承上：VIX 偏低"],
-        dashboard=[MetricLine(label="模型熱度", value="N/A")],
+        dashboard=[MetricLine(label="模型熱度", value="N/A"), MetricLine(label="FinancialDatasets NVDA 年度損益", value="$61B")],
         news=_sample_news_ai(),
         chatter=[ChatterItem(text="產業呢喃（未確認）｜可信度：72/100｜主流媒體二次驗證：否")],
         pick_reason=(
