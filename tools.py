@@ -1074,9 +1074,12 @@ def _gnews_fetch(query: str) -> str:
             last_err = e
             logger.warning("_gnews_fetch error (query=%r): %s", cand, e)
             continue
-    _record_source_outcome("gnews", False, _reason_from_exception(last_err))
     if last_err:
+        # 真實錯誤（HTTP error / JSON parse error）
+        _record_source_outcome("gnews", False, _reason_from_exception(last_err))
         return f"[DATA_MISSING:gnews] {last_err}"
+    # API 正常但無符合條件新聞（空結果或全被低品質過濾）—— 非 API 失敗
+    _record_source_outcome("gnews", True)
     return "[DATA_MISSING:gnews] 無符合條件的新聞"
 
 
