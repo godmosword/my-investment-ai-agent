@@ -31,6 +31,7 @@ from bigquery_writer import (
     extract_and_save_metrics,
     fetch_exclusion_context,
     _get_last_success_report_time_utc,
+    write_gate_failure_log,
     write_llm_run_log,
 )
 from report_judge import (
@@ -930,6 +931,13 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             report_valid = result["valid"]  # True only when issues == 0
 
             scratchpad.append_gate_result(attempt + 1, result)
+            if result.get("issues"):
+                write_gate_failure_log(
+                    attempt=attempt + 1,
+                    validation=result,
+                    report_chars=len(final_report or ""),
+                    used_fallback=_used_fallback,
+                )
             fallback_cnt = _fallback_news_count(final_report)
             logger.info(
                 "[Attempt %d] Validation — news=%d, fallback=%d, blocking=%d, warnings=%d, valid=%s",
@@ -1073,6 +1081,30 @@ def _validate_required_keys() -> None:
             )
 
 
+def _validate_critical_env_strict() -> None:
+    """可選硬擋：PIPELINE_STRICT_ENV=1 時，未 SKIP 的路徑必須具備最小金鑰／設定（排程／生產建議）。"""
+    if os.getenv("PIPELINE_STRICT_ENV", "").lower() not in ("1", "true", "yes"):
+        return
+    if not os.getenv("SKIP_TELEGRAM", "").strip():
+        if not (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip() or not (
+            os.getenv("TELEGRAM_CHAT_ID") or ""
+        ).strip():
+            raise RuntimeError(
+                "PIPELINE_STRICT_ENV=1 且未設 SKIP_TELEGRAM：必須設定 TELEGRAM_BOT_TOKEN 與 TELEGRAM_CHAT_ID。"
+            )
+    if not os.getenv("SKIP_BIGQUERY", "").strip():
+        if not (os.getenv("GCP_PROJECT_ID") or "").strip():
+            raise RuntimeError(
+                "PIPELINE_STRICT_ENV=1 且未設 SKIP_BIGQUERY：必須設定 GCP_PROJECT_ID。"
+            )
+        if not (os.getenv("GCP_SA_KEY") or "").strip() and not (
+            os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or ""
+        ).strip():
+            raise RuntimeError(
+                "PIPELINE_STRICT_ENV=1 且未設 SKIP_BIGQUERY：必須設定 GCP_SA_KEY 或 GOOGLE_APPLICATION_CREDENTIALS。"
+            )
+
+
 def _validate_env_types() -> None:
     """Validate numeric environment variables at startup to fail fast on typos."""
     numeric_vars = {
@@ -1087,6 +1119,7 @@ def _validate_env_types() -> None:
         "PICK_REPEAT_MIN_SELECTION_SCORE": "75",
         "MAX_EXCLUSION_CONTEXT_CHARS": "1000",
         "MAX_PREV_RECS_CHARS": "1200",
+        "NEWS_FRESHNESS_WINDOW_HOURS": "48",
     }
     for var, default in numeric_vars.items():
         raw = os.getenv(var)
@@ -1174,6 +1207,7 @@ if __name__ == "__main__":
     _install_runtime_noise_filters()
     logger.info("Initializing Q-Silicon Ultimate Agent...")
     _validate_required_keys()
+    _validate_critical_env_strict()
     _validate_env_types()
     _log_api_key_inventory()
     _verify_optional_api_keys_light()

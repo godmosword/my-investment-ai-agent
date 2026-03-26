@@ -144,6 +144,7 @@ flowchart TB
 | `STRICT_AI_FUNDAMENTALS_CITATION` | AI 段基本面用語需 FinancialDatasets 標記（預設 0） |
 | `REPORT_COMPARE_MODE` | 雙軌觀測 → [`docs/REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md) |
 | `SKIP_TELEGRAM` / `SKIP_BIGQUERY` | 略過推送／BQ 寫入（本機乾跑常用） |
+| `PIPELINE_STRICT_ENV` | `1` 時啟動硬擋：未 `SKIP_TELEGRAM` 須 Bot+Chat；未 `SKIP_BIGQUERY` 須專案 ID + 服務帳戶憑證（見 `main._validate_critical_env_strict`） |
 
 啟動日誌會輸出 **API key inventory**（不落密碼）。`VERIFY_API_KEYS=1` 時對部分服務做輕量探測。
 
