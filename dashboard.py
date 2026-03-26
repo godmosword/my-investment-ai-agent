@@ -414,6 +414,53 @@ if metrics.get("timestamp"):
     st.caption(f"數據更新時間：{metrics['timestamp']}")
 
 # ════════════════════════════════════════════════════════════════════
+# 鏈上情緒與衍生品（日報 / BQ 同源 + 工具層資金費率）
+# ════════════════════════════════════════════════════════════════════
+st.subheader("🔗 鏈上情緒與衍生品快照")
+st.caption(
+    "SOPR、情緒分數、交易所淨流向、regime_score 來自 **daily_metrics**（與 `bigquery_writer` 萃取一致）；"
+    "BTC 資金費率為 **即時** 呼叫 `coinglass_data_tool`／Binance 備援（非 BQ 快取）。"
+)
+
+_s = metrics.get("sentiment_score")
+_sopr = metrics.get("sopr")
+_net = metrics.get("exchange_netflow")
+_rs = metrics.get("regime_score")
+
+def _fmt_opt(v, nd=3, suffix=""):
+    if v is None:
+        return "N/A"
+    try:
+        return f"{float(v):.{nd}f}{suffix}"
+    except (TypeError, ValueError):
+        return "N/A"
+
+oc1, oc2, oc3, oc4 = st.columns(4)
+with oc1:
+    st.metric(label="SOPR（鏈上）", value=_fmt_opt(_sopr, 4), help=">1 偏獲利了結；<1 偏虧損拋售")
+with oc2:
+    st.metric(label="情緒分數", value=_fmt_opt(_s, 3), help="約 -1～+1，來自日報管線情緒工具")
+with oc3:
+    st.metric(label="交易所淨流向", value=_fmt_opt(_net, 2), help="單位依管線萃取；正偏流入、負偏流出")
+with oc4:
+    st.metric(label="Regime score", value=_fmt_opt(_rs, 2), help="與日報 regime 評分卡相關之結構分數")
+
+@st.cache_data(ttl=300)
+def _dashboard_btc_funding_text() -> str:
+    try:
+        from tools import coinglass_data_tool  # noqa: PLC0415
+
+        return str(coinglass_data_tool.run("funding_rate") or "").strip()
+    except Exception as e:
+        logger.warning("dashboard funding_rate tool failed: %s", e)
+        return f"[DATA_MISSING:funding_rate] {e}"
+
+
+with st.expander("📌 BTC 資金費率（Funding · 工具層即時）", expanded=False):
+    _ft = _dashboard_btc_funding_text()
+    st.code(_ft[:4000] if len(_ft) > 4000 else _ft, language="text")
+
+# ════════════════════════════════════════════════════════════════════
 # 風險儀表盤（Gauge）
 # ════════════════════════════════════════════════════════════════════
 st.divider()
@@ -480,7 +527,8 @@ def load_risk_trend(days: int = 30) -> pd.DataFrame:
         client = _get_bq_client()
         cutoff = (date.today() - timedelta(days=days)).isoformat()
         query = f"""
-            SELECT timestamp, avg_risk_score, dxy, etf_flow_millions, mvrv_z_score
+            SELECT timestamp, avg_risk_score, dxy, etf_flow_millions, mvrv_z_score,
+                   sentiment_score, sopr, exchange_netflow
             FROM `{PROJECT_ID}.market_data.daily_metrics`
             WHERE timestamp >= '{cutoff}'
             ORDER BY timestamp ASC
@@ -495,7 +543,9 @@ df_trend = load_risk_trend(days=trend_days)
 if df_trend.empty:
     st.info("尚無歷史指標數據，等待第一次戰報寫入後自動顯示。")
 else:
-    tab_dxy, tab_etf, tab_mvrv, tab_risk = st.tabs(["💵 宏觀 DXY", "💸 幣圈 ETF 資金流", "🔗 幣圈 MVRV", "⚠️ 影響指數"])
+    tab_dxy, tab_etf, tab_mvrv, tab_risk, tab_sopr, tab_sent, tab_net = st.tabs(
+        ["💵 宏觀 DXY", "💸 幣圈 ETF 資金流", "🔗 幣圈 MVRV", "⚠️ 影響指數", "⛓ SOPR", "🎭 情緒", "🏦 交易所淨流"]
+    )
     with tab_dxy:
         fig_dxy = px.line(
             df_trend, x="timestamp", y="dxy",
@@ -570,6 +620,50 @@ else:
         )
         _style_plotly(fig_risk, height=420)
         st.plotly_chart(fig_risk, use_container_width=True)
+    with tab_sopr:
+        if "sopr" in df_trend.columns and df_trend["sopr"].notna().any():
+            fig_so = px.line(
+                df_trend.dropna(subset=["sopr"]),
+                x="timestamp", y="sopr",
+                title="BTC SOPR（日報萃取 · daily_metrics）",
+                labels={"timestamp": "日期", "sopr": "SOPR"},
+                markers=True, color_discrete_sequence=[COLORS["cyan"]],
+            )
+            fig_so.update_traces(line=dict(width=2.4, shape="spline", smoothing=0.3))
+            _style_plotly(fig_so, height=400)
+            st.plotly_chart(fig_so, use_container_width=True)
+            st.caption("資料來源：戰報寫入 BQ 之鏈上摘要欄位；全 null 時代表尚未有有效萃取。")
+        else:
+            st.info("尚無 SOPR 歷史序列（欄位全空或尚無戰報寫入）。")
+    with tab_sent:
+        if "sentiment_score" in df_trend.columns and df_trend["sentiment_score"].notna().any():
+            fig_se = px.line(
+                df_trend.dropna(subset=["sentiment_score"]),
+                x="timestamp", y="sentiment_score",
+                title="情緒分數（日報管線 · daily_metrics）",
+                labels={"timestamp": "日期", "sentiment_score": "情緒 (-1~+1)"},
+                markers=True, color_discrete_sequence=[COLORS["purple"]],
+            )
+            fig_se.update_traces(line=dict(width=2.4, shape="spline", smoothing=0.3))
+            _style_plotly(fig_se, height=400)
+            st.plotly_chart(fig_se, use_container_width=True)
+        else:
+            st.info("尚無情緒分數歷史序列。")
+    with tab_net:
+        if "exchange_netflow" in df_trend.columns and df_trend["exchange_netflow"].notna().any():
+            fig_nf = px.bar(
+                df_trend.dropna(subset=["exchange_netflow"]),
+                x="timestamp", y="exchange_netflow",
+                title="交易所淨流向（日報萃取）",
+                labels={"timestamp": "日期", "exchange_netflow": "淨流向"},
+                color="exchange_netflow",
+                color_continuous_scale=[COLORS["red"], "#1a1f2e", COLORS["green"]],
+            )
+            fig_nf.update_traces(marker_line_width=0, opacity=0.9)
+            _style_plotly(fig_nf, height=400)
+            st.plotly_chart(fig_nf, use_container_width=True)
+        else:
+            st.info("尚無交易所淨流向歷史序列。")
 
 st.divider()
 
@@ -604,6 +698,43 @@ st.divider()
 # ════════════════════════════════════════════════════════════════════
 # 區塊 4：Agent 戰略觀點（預留擴充）
 # ════════════════════════════════════════════════════════════════════
+st.subheader("🏢 公司戰情（試點 · Multi-agent）")
+try:
+    from crew_company import load_company_war_room_snapshot
+
+    _co = load_company_war_room_snapshot()
+except Exception:
+    _co = None
+if _co:
+    st.caption(f"最近更新：{_co.get('updated_at', 'N/A')} ｜ 來源：{_co.get('crew', 'N/A')}")
+    st.text_area("Growth 敘事快照（唯讀）", value=str(_co.get("growth_raw", "")), height=220, disabled=True)
+else:
+    st.info(
+        "尚無快照：於主機設定 `COMPANY_CREW_ENABLED=1` 並執行 `python main.py` 後，"
+        "Growth crew 會寫入 `.qsilicon/company_run_latest.json`（勿提交 git）。"
+    )
+with st.expander("Arbiter／四職能 schema（設計預覽）"):
+    try:
+        from company_ops_schemas import ArbiterResolution, DepartmentMemo
+
+        _demo = DepartmentMemo(
+            department="growth",
+            summary="（範例）本週敘事主軸：開源模型下載榜變化。",
+            confidence=0.6,
+            open_questions=["是否需追加產品路線對齊？"],
+        )
+        _res = ArbiterResolution(
+            headline="（範例）優先完成日報穩定性，其次實驗 Growth A/B。",
+            priorities=["日報 Gate", "PWA KPI 對齊"],
+            conflicts=["Growth 想加速 vs Engineering 技術債"],
+            needs_data=["上週轉換率"],
+        )
+        st.json({"memo_demo": _demo.model_dump(), "arbiter_demo": _res.model_dump()})
+    except Exception as e:
+        st.warning(f"無法載入 schema 預覽：{e}")
+
+st.divider()
+
 st.subheader("🧠 核心 Agent 戰略點評")
 tab1, tab2 = st.tabs(["🛸 幣圈暗網情報 (Grok)", "🤖 AI 前沿與算力 (GPT)"])
 

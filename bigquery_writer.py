@@ -5,6 +5,7 @@ tracker.py; this module handles writing daily_metrics and reading
 exclusion context for the next run.
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -15,12 +16,13 @@ from datetime import datetime, timezone
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import bigquery
 
-from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
+from config import GATE_FAILURE_LOG_TABLE, PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
 from telegram_sender import strip_html
 
 logger = logging.getLogger(__name__)
 
 SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
+GATE_FAILURE_BQ_LOG = os.getenv("GATE_FAILURE_BQ_LOG", "1").lower() not in ("0", "false", "no")
 
 # ── 語義去重（Semantic Deduplication）──────────────────────────────────
 _SBERT_MODEL: object = None  # None=not loaded, False=unavailable, Model=ready
@@ -476,6 +478,16 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
         if rotation_warn:
             parts.append(rotation_warn)
             logger.info("Injected rotation gate warning into exclusion context.")
+
+        try:
+            from signal_weights_store import format_weights_for_crew_context
+
+            wctx = format_weights_for_crew_context()
+            if wctx:
+                parts.append(wctx)
+                logger.info("Injected signal weights snapshot into exclusion context.")
+        except Exception as _w_err:
+            logger.warning("signal_weights context skipped: %s", _w_err)
 
         s = "\n\n".join(parts) if parts else None
         if s and len(s) > 2500:

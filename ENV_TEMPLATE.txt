@@ -92,3 +92,10 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # GATE_FAILURE_ARTIFACTS=1   # validate 失敗時寫入 .qsilicon/last_gate_failure/（draft_report.txt、issues.txt、validation_summary.json）
 # GATE_FAILURE_ARTIFACT_DIR=   # 自訂目錄（預設專案根下 .qsilicon/last_gate_failure）
 # GATE_ALERT_FULL_ISSUES=1   # Gate 告警後再發 1+ 則純文字訊息列出完整 issues（設 0 只保留 top 3 摘要行）
+
+# ---------- 路線圖：潤稿／權重 context／Company 試點 ----------
+# EDITOR_AGENT_ENABLED=0     # 1=assemble+render 後、validate 前跑潤稿（預設關）
+# EDITOR_AGENT_MODEL=openai/gpt-4o-mini
+# WEIGHTS_CONTEXT_ENABLED=0  # 1=fetch_exclusion_context 附加 ML 權重摘要（見 signal_weights_store）
+# SIGNAL_WEIGHTS_DIR=.qsilicon
+# COMPANY_CREW_ENABLED=0     # 1=main 啟動時 prepend Growth 敘事至 exclusion context；寫入 .qsilicon/company_run_latest.json

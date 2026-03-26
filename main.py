@@ -481,11 +481,9 @@ def _prewarm_tool_caches() -> None:
         regime_scorecard_tool,
         macro_context_tool,
         financial_datasets_tool,
-        x_search_tool,
     )
 
     # 定義所有獨立的 tool 呼叫（無互相依賴）
-    # x_search_tool 以 crew task 使用的相同 query 預熱，讓 agent 命中 cache 而非重新等待
     tasks: dict[str, callable] = {
         "coinglass_funding_rate": lambda: coinglass_data_tool.run("funding_rate"),
         "coinglass_liquidations": lambda: coinglass_data_tool.run("liquidations"),
@@ -498,8 +496,6 @@ def _prewarm_tool_caches() -> None:
         "ml_quant":               lambda: ml_quant_tool.run(),
         "regime_scorecard":       lambda: regime_scorecard_tool.run(),
         "macro_context":          lambda: macro_context_tool.run(),
-        "x_search_crypto":        lambda: x_search_tool.run("crypto ETF bitcoin ethereum altcoin DeFi liquidation whale"),
-        "x_search_ai":            lambda: x_search_tool.run("NVIDIA AI GPU data center OpenAI Anthropic Microsoft"),
         "financial_datasets":     lambda: financial_datasets_tool.run("watchlist"),
     }
 
@@ -722,6 +718,20 @@ def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> 
     return html
 
 
+def _maybe_editor_polish_html(html: str) -> str:
+    """可選：潤稿後仍由 validate_report 把關；失敗或非變更時回傳原文。"""
+    try:
+        from report_editor import polish_daily_report_html
+
+        out, meta = polish_daily_report_html(html)
+        scratchpad.append_editor_result(meta)
+        return out
+    except Exception as e:
+        logger.warning("Editor polish skipped: %s", e)
+        scratchpad.append_editor_result({"enabled": False, "skipped_reason": f"exception:{e}"})
+        return html
+
+
 def _run_pipeline_once(
     exclude_context: str | None,
     use_fallback_llm: bool = False,
@@ -788,6 +798,7 @@ def _run_pipeline_once(
         )
         html = render_telegram_daily_brief(report_model)
         html = _post_process_html_for_gate(html, agreed_regime=agreed_regime)
+        html = _maybe_editor_polish_html(html)
         return html, None, report_model
     except Exception as e:
         return "", e, None
@@ -1110,7 +1121,6 @@ def _log_api_key_inventory() -> None:
                 ("CRYPTOPANIC_API_KEY", "CryptoPanic"),
                 ("CRYPTOQUANT_API_KEY", "CryptoQuant"),
                 ("FRED_API_KEY", "FRED"),
-                ("TWITTER_BEARER_TOKEN", "X/Twitter"),
                 ("OPENROUTER_API_KEY", "OpenRouter"),
                 ("FMP_API_KEY", "FMP"),
                 ("FINANCIAL_DATASETS_API_KEY", "Financial Datasets"),
@@ -1171,6 +1181,16 @@ if __name__ == "__main__":
     exclusion = fetch_exclusion_context()
     if exclusion:
         logger.info("Loaded exclusion context from previous report (to avoid duplicate news).")
+    if os.getenv("COMPANY_CREW_ENABLED", "").lower() in ("1", "true", "yes"):
+        try:
+            from crew_company import run_growth_narrative_for_context
+
+            growth_ctx = run_growth_narrative_for_context()
+            if growth_ctx:
+                exclusion = f"{growth_ctx}\n\n{exclusion}" if exclusion else growth_ctx
+                logger.info("Prepended Company Growth narrative to exclusion context.")
+        except Exception as _co_err:
+            logger.warning("Company crew block skipped: %s", _co_err)
 
     # Pre-initialize so downstream references are always safe even if the
     # pipeline call raises an uncaught exception.

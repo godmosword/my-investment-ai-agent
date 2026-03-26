@@ -228,6 +228,11 @@ def append_judge_result(payload: dict[str, Any]) -> None:
     _write_event("judge_result", {"payload": _redact_obj(payload)})
 
 
+def append_editor_result(payload: dict[str, Any]) -> None:
+    """日報潤稿 Agent 結果（meta only，不寫全文）。"""
+    _write_event("editor_result", {"payload": _redact_obj(payload)})
+
+
 def _args_fingerprint(args: dict[str, Any]) -> str:
     try:
         return json.dumps(args, sort_keys=True, default=str)[:800]

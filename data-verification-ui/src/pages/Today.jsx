@@ -54,6 +54,37 @@ export default function Today() {
         />
       </div>
 
+      <div className="section-header subtle">鏈上情緒（與 daily_metrics / Streamlit 同源）</div>
+      <div className="metrics-grid">
+        <MetricCard
+          label="SOPR"
+          value={metrics?.sopr}
+          delta={metrics?.delta_sopr}
+          format={(v) => v.toFixed(4)}
+        />
+        <MetricCard
+          label="情緒分數"
+          value={metrics?.sentiment_score}
+          delta={metrics?.delta_sentiment_score}
+          format={(v) => v.toFixed(3)}
+        />
+        <MetricCard
+          label="交易所淨流向"
+          value={metrics?.exchange_netflow}
+          delta={metrics?.delta_exchange_netflow}
+          format={(v) => v.toFixed(2)}
+        />
+        <MetricCard
+          label="Regime score"
+          value={metrics?.regime_score}
+          delta={metrics?.delta_regime_score}
+          format={(v) => v.toFixed(2)}
+        />
+      </div>
+      <p className="page-subtitle" style={{ marginTop: "-0.5rem", opacity: 0.75 }}>
+        BTC 資金費率為工具層即時查詢，請見 Streamlit 戰情室「資金費率」摺疊區或當日 Telegram 戰報。
+      </p>
+
       {metrics?.grok_summary && (
         <>
           <div className="section-header">🔮 幣圈情報（Grok）</div>
