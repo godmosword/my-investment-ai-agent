@@ -1715,6 +1715,17 @@ def validate_structured_report(report: object) -> dict:
                 if getattr(rec, f) is None:
                     issues.append(f"{label} qsrec 第 {idx} 筆缺少可量化評分欄位：{f}")
 
+    # Gate: star_rating ≥ 3 時三情境分析（bull/base/bear）必填
+    for section_label, section in (("加密", cr), ("AI", ai_sec)):
+        for leg in section.trade_legs:
+            if leg.star_rating >= 3 and not all(
+                [leg.bull_scenario, leg.base_scenario, leg.bear_scenario]
+            ):
+                issues.append(
+                    f"{section_label}交易腿 {leg.asset} star_rating={leg.star_rating}≥3"
+                    f" 但缺少三情境分析（bull/base/bear）"
+                )
+
     _check_section_alignment(cr, "CRYPTO", "加密")
     _check_section_alignment(ai_sec, "EQUITY", "AI")
     # All structured validation issues are blocking (schema-level integrity).
