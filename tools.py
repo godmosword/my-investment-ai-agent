@@ -4,7 +4,8 @@ import re
 import time
 import json
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -54,6 +55,26 @@ def _http_get(
 ) -> requests.Response:
     """模組級 Session 的 GET，供連線重用與統一出口。"""
     return _get_http_session().get(url, params=params, headers=headers, timeout=timeout)
+
+# ── yfinance 下載超時包裝器 ────────────────────────────────────────────
+# yf.download 沒有原生 timeout 參數；用 ThreadPoolExecutor 設定硬上限，
+# 防止 Yahoo Finance 延遲拖垮整個 pipeline。
+_YF_DOWNLOAD_TIMEOUT_SEC = int(os.getenv("YF_DOWNLOAD_TIMEOUT_SEC", "45"))
+
+
+def _yf_download_with_timeout(symbol: str, timeout: int = _YF_DOWNLOAD_TIMEOUT_SEC, **kwargs):
+    """呼叫 yf.download，超過 timeout 秒時拋 TimeoutError。"""
+    import yfinance as yf  # noqa: PLC0415
+
+    with ThreadPoolExecutor(max_workers=1) as _ex:
+        fut = _ex.submit(yf.download, symbol, **kwargs)
+        try:
+            return fut.result(timeout=timeout)
+        except _FuturesTimeout:
+            raise TimeoutError(
+                f"yf.download('{symbol}') 超過 {timeout}s 未完成，放棄本次下載"
+            )
+
 
 # ── 模組級 in-memory cache（同一次執行內避免重複打外部 API）────────────
 # key: (tool_name, query_string)  value: (result_str, expire_timestamp)
@@ -2566,11 +2587,11 @@ def _mvrv_200w_ma() -> tuple[float, float] | None:
     回傳 (current_price, ma_200w)；比值 > 1 = 估值偏高，< 1 = 估值偏低。
     """
     try:
-        import yfinance as yf  # noqa: PLC0415
-
         # 需要至少 200 週 × 7 天 = 1400 天的資料
-        df = yf.download("BTC-USD", period="1600d", interval="1d",
-                         progress=False, auto_adjust=True)
+        df = _yf_download_with_timeout(
+            "BTC-USD", period="1600d", interval="1d",
+            progress=False, auto_adjust=True,
+        )
         if df is None or df.empty:
             return None
         close = df["Close"].dropna()
@@ -3599,13 +3620,17 @@ def historical_analog_tool(query: str = "") -> str:
         try:
             import numpy as np  # noqa: PLC0415
             import pandas as pd  # noqa: PLC0415
-            import yfinance as yf  # noqa: PLC0415
         except ImportError as e:
             return f"[DATA_MISSING:historical_analog] 套件缺失：{e}"
 
         try:
-            df = yf.download("BTC-USD", start="2015-01-01", interval="1d",
-                             progress=False, auto_adjust=True)
+            df = _yf_download_with_timeout(
+                "BTC-USD", start="2015-01-01", interval="1d",
+                progress=False, auto_adjust=True,
+            )
+        except TimeoutError as e:
+            logger.warning("historical_analog yfinance timeout: %s", e)
+            return "[DATA_MISSING:historical_analog] yfinance 下載超時（>45s），跳過歷史類比。"
         except Exception as e:
             logger.warning("historical_analog yfinance download failed: %s", e)
             return f"[DATA_MISSING:historical_analog] yfinance 下載失敗：{e}"

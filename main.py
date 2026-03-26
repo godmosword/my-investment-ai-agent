@@ -92,7 +92,10 @@ BACKOFF_BASE_SEC = int(os.getenv("BACKOFF_BASE_SEC", "30"))
 ERROR_PREFIX = "🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息："
 MAX_EXCLUSION_CONTEXT_CHARS = int(os.getenv("MAX_EXCLUSION_CONTEXT_CHARS", "1000"))
 MAX_PREV_RECS_CHARS = int(os.getenv("MAX_PREV_RECS_CHARS", "1200"))
-CREW_FUTURE_TIMEOUT_SEC = int(os.getenv("CREW_FUTURE_TIMEOUT_SEC", "2700"))
+# 降低單次 crew kickoff 上限（原 2700s / 45 min 過高；3 次重試 × 45 min > Cloud Run 3600s）
+CREW_FUTURE_TIMEOUT_SEC = int(os.getenv("CREW_FUTURE_TIMEOUT_SEC", "1500"))
+# 全 pipeline 硬截止（Cloud Run task timeout = 3600s；保留 300s buffer）
+PIPELINE_HARD_DEADLINE_SEC = int(os.getenv("PIPELINE_HARD_DEADLINE_SEC", "3300"))
 
 # 除錯用環境變數：LOG_LEVEL=DEBUG | DEBUG=1 | CREW_VERBOSE=1（Agent 步驟）| SKIP_TELEGRAM=1 | SKIP_BIGQUERY=1
 
@@ -808,12 +811,32 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
     # LLM run tracking — populated as the pipeline runs, written to BQ at the end.
     _used_fallback = False
     _total_retries = 0
+    _pipeline_start = time.monotonic()
+
+    def _budget_ok() -> bool:
+        """True 當剩餘時間足夠再跑一次完整的 crew kickoff（加 2 分鐘緩衝）。"""
+        elapsed = time.monotonic() - _pipeline_start
+        remaining = PIPELINE_HARD_DEADLINE_SEC - elapsed
+        return remaining >= CREW_FUTURE_TIMEOUT_SEC + 120
+
     try:
         for attempt in range(MAX_REPORT_RETRIES + 1):
+            if not _budget_ok():
+                logger.error(
+                    "Pipeline wall-clock budget exhausted (elapsed=%.0fs / %ds) — aborting retries",
+                    time.monotonic() - _pipeline_start, PIPELINE_HARD_DEADLINE_SEC,
+                )
+                break
             last_err: Exception | None = None
             structural_validation_err: Exception | None = None
             report_model: DailyBriefReport | None = None
             for step in range(MAX_503_RETRIES + 1):
+                if not _budget_ok():
+                    logger.error(
+                        "Pipeline wall-clock budget exhausted mid-attempt (elapsed=%.0fs) — stopping 503 retries",
+                        time.monotonic() - _pipeline_start,
+                    )
+                    break
                 report_html, err, report_model = _run_pipeline_once(exclude_context, use_fallback_llm=False)
                 if err is None:
                     if report_model is None:
@@ -845,7 +868,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     final_report = f"{ERROR_PREFIX}{err}"
                     break
             # 可重試錯誤時，以 fallback LLM（全 GPT）再跑一次
-            if last_err is not None and _is_retriable(last_err):
+            if last_err is not None and _is_retriable(last_err) and _budget_ok():
                 logger.warning("Primary LLM 失敗，改用 fallback LLM（全 GPT）重試一次：%s", last_err)
                 _used_fallback = True
                 _total_retries += 1
