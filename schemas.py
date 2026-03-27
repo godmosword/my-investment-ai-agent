@@ -90,7 +90,6 @@ class TradeRecommendation(BaseModel):
     )
     narrative: str = Field(
         default="",
-        max_length=80,
         description=(
             "【≤80字】一句話說明進場的根本原因（技術面或基本面催化劑）。"
             "絕對禁止：條列式、出現「辯論摘要」「最強空方論點」「多方反駁」等內部思考標籤。"
@@ -163,6 +162,18 @@ class TradeRecommendation(BaseModel):
             "Required when confidence ≥ 3."
         ),
     )
+
+    @field_validator("narrative", mode="before")
+    @classmethod
+    def _truncate_narrative(cls, v: object) -> object:
+        """Auto-truncate narrative to 80 chars so LLM over-generation never fails validation."""
+        if isinstance(v, str) and len(v) > 80:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "TradeRecommendation.narrative truncated %d→80 chars", len(v)
+            )
+            return v[:80]
+        return v
 
 
 class NewsItem(BaseModel):
@@ -346,7 +357,6 @@ class ExecutableTradeLeg(BaseModel):
     position_pct: str = Field(default="", description="Portfolio % guidance line.")
     narrative: str = Field(
         default="",
-        max_length=80,
         description=(
             "【≤80字】一句話說明操作的根本原因。"
             "禁止出現「辯論摘要」「最強空方論點」「多方反駁」等內部思考標籤。"
@@ -364,6 +374,18 @@ class ExecutableTradeLeg(BaseModel):
         default=None,
         description="🐻 Bear scenario ≤40 chars: invalidation level + trigger (e.g. breaks 65k, funding turns negative).",
     )
+
+    @field_validator("narrative", mode="before")
+    @classmethod
+    def _truncate_narrative(cls, v: object) -> object:
+        """Auto-truncate narrative to 80 chars so LLM over-generation never fails validation."""
+        if isinstance(v, str) and len(v) > 80:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "ExecutableTradeLeg.narrative truncated %d→80 chars", len(v)
+            )
+            return v[:80]
+        return v
 
 
 class MarketRegimeBlock(BaseModel):
@@ -433,7 +455,6 @@ class CryptoSection(BaseModel):
     )
     signal_conflict_summary: str = Field(
         ...,
-        max_length=160,
         description=(
             "【≤160字】訊號衝突摘要。格式：「最強空方論點：XXX\n多方反駁核心：XXX」兩行即可。"
             "嚴禁以「訊號衝突摘要：」開頭，嚴禁輸出「╌辯論摘要╌」框架標題，"
@@ -460,11 +481,18 @@ class CryptoSection(BaseModel):
     @field_validator("signal_conflict_summary", mode="before")
     @classmethod
     def _clean_signal_conflict(cls, v: object) -> object:
-        """Remove decorative ╌辯論摘要╌ header (redundant with template label) and
-        normalise literal backslash-n sequences to real newlines."""
+        """Remove decorative ╌辯論摘要╌ header (redundant with template label),
+        normalise literal backslash-n sequences to real newlines,
+        and auto-truncate to 160 chars so LLM over-generation never fails validation."""
         if isinstance(v, str):
             v = _DEBATE_HEADER_RE.sub("", v)
             v = v.replace("\\n", "\n")
+            if len(v) > 160:
+                import logging as _log
+                _log.getLogger(__name__).warning(
+                    "CryptoSection.signal_conflict_summary truncated %d→160 chars", len(v)
+                )
+                v = v[:160]
         return v
 
     @model_validator(mode="after")
