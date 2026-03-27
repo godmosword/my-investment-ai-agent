@@ -42,6 +42,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Free disk space on runner
+        run: |
+          set -eux
+          sudo docker system prune -af || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
@@ -65,6 +74,9 @@ jobs:
           docker build -t "${IMAGE_URI}" -t "${IMAGE_LATEST}" .
           docker push "${IMAGE_URI}"
           docker push "${IMAGE_LATEST}"
+          docker builder prune -af || true
+          docker system prune -af || true
+          df -h
 
       - name: Deploy to Cloud Run Job
         run: |

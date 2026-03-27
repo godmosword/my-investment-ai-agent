@@ -256,7 +256,7 @@ docker run --env-file .env q-silicon-agent
 | [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) | 手動 | Cloud Scheduler |
 | [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | cron（預設每 **2** 小時）／手動 | 盤中 BTC／VIX；依賴 [`requirements-monitor.txt`](requirements-monitor.txt)（**非**全量 `requirements.txt`，省 Actions 分鐘） |
 
-**GitHub Actions 免費額度**：排程 workflow 每次若 `pip install` 全量管線依賴會非常耗分鐘。本 repo 已將盤中監控改為輕量依賴 + 降低頻率；若仍吃緊可到 Repo **Settings → Billing → Manage budgets** 設預算警示，或將 `monitor-intraday` 的 cron 再拉長（例如每 4 小時）。
+**GitHub Actions 免費額度／磁碟**：排程 workflow 若每次 `pip install` 全量依賴會耗分鐘；盤中監控已改輕量依賴 + 較低頻率。若出現 **`No space left on device`**（含 runner 無法寫 `_diag` log），workflow 已內建 **釋放預裝 SDK 磁碟** 與 **`pip install --no-cache-dir`**；**自架 runner** 仍須在本機擴充分區或清快取。
 
 生產人工閘門與 secrets 配置 → [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)。Cloud Run 為 **Job**（排程／手動），非長駐 HTTP。
 
