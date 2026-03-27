@@ -126,7 +126,7 @@
 ## 已落地（備查，不再重複開票）
 
 - API schema guard：[`api_schema.py`](api_schema.py)、[`test_api_schema.py`](test_api_schema.py)。
-- 盤中監控：[`monitor_intraday.py`](monitor_intraday.py)、[`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml)（輕量依賴 [`requirements-monitor.txt`](requirements-monitor.txt)、降頻與磁碟優化）。
+- 盤中監控：[`monitor_intraday.py`](monitor_intraday.py)、[`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml)（輕量依賴 [`requirements-monitor.txt`](requirements-monitor.txt)；**cron 預設關閉**，手動 `workflow_dispatch` 或 YAML 啟用排程）。
 - LLM run log → BQ：[`bigquery_writer.write_llm_run_log`](bigquery_writer.py)、[`main.py`](main.py)。
 - **Gate 失敗結構化 log**：`write_gate_failure_log`、`GATE_FAILURE_BQ_LOG`、[`test_gate_failure_log.py`](test_gate_failure_log.py)；範例 SQL [`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)。
 - 新聞新鮮度機檢 + 白名單 ISO 日期修正：[`report_validator.py`](report_validator.py)、[`test_news_freshness.py`](test_news_freshness.py)。

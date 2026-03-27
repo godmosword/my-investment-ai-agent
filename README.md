@@ -295,11 +295,11 @@ docker run --env-file .env q-silicon-agent
 | [`ci.yml`](.github/workflows/ci.yml) | PR；`workflow_call` | PR：`ruff` + `pytest -m smoke`；被 deploy 呼叫時跑完整 `pytest -v` |
 | [`deploy.yml`](.github/workflows/deploy.yml) | `push main`（paths 篩選）或手動 | CI 通過後 build／push 映像、`gcloud run jobs deploy`；`environment: production` |
 | [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) | 手動 | Cloud Scheduler |
-| [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | cron（預設每 **2** 小時）／手動 | 盤中 BTC／VIX；依賴 [`requirements-monitor.txt`](requirements-monitor.txt)（**非**全量 `requirements.txt`，省 Actions 分鐘） |
+| [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | **僅手動**（`workflow_dispatch`）；cron 於 YAML 內預設關閉 | 盤中 BTC／VIX；依賴 [`requirements-monitor.txt`](requirements-monitor.txt)（**非**全量 `requirements.txt`，省 Actions 分鐘） |
 | [`weekly-scout.yml`](.github/workflows/weekly-scout.yml) | 手動 | OSS 候選腳本（輔助；見 `scripts/oss_scout_candidates.py`） |
 | [`weekly-backtest.yml`](.github/workflows/weekly-backtest.yml) | 手動 | `backtest.py --optimize --write-signal-weights`（需 repository secret `GCP_SA_KEY`） |
 
-**GitHub Actions 免費額度／磁碟**：排程 workflow 若每次 `pip install` 全量依賴會耗分鐘；盤中監控已改輕量依賴 + 較低頻率。若出現 **`No space left on device`**（含 runner 無法寫 `_diag` log），workflow 已內建 **釋放預裝 SDK 磁碟** 與 **`pip install --no-cache-dir`**；**自架 runner** 仍須在本機擴充分區或清快取。
+**GitHub Actions 免費額度／磁碟**：排程 workflow 若每次 `pip install` 全量依賴會耗分鐘；盤中監控為輕量依賴，且 **cron 預設關閉**（需時於 Actions 手動執行或於 YAML 啟用排程）。若出現 **`No space left on device`**（含 runner 無法寫 `_diag` log），workflow 已內建 **釋放預裝 SDK 磁碟** 與 **`pip install --no-cache-dir`**；**自架 runner** 仍須在本機擴充分區或清快取。
 
 生產人工閘門與 secrets 配置 → [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)。Cloud Run 為 **Job**（排程／手動），非長駐 HTTP。
 

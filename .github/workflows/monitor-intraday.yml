@@ -1,12 +1,15 @@
 name: Monitor — Intraday BTC/VIX Anomaly
 
 # 盤中檢查 BTC 1h 漲跌與 VIX；觸發 Telegram + BigQuery（靜默期見 vars）。
-# Actions 分鐘數：先前「每小時 + 全量 requirements.txt」易在免費額度內爆量。
-# - 排程改為每 2 小時（需每小時可改回 '0 * * * *'）
-# - pip 改用 requirements-monitor.txt（無 CrewAI），大幅縮短安裝
+# pip 使用 requirements-monitor.txt（無 CrewAI）。
+#
+# 排程預設關閉：避免 main 上 cron 持續佔用 Actions 分鐘／通知疲勞。
+# 需要自動巡檢時二選一：
+#   1) Actions → 本 workflow → Run workflow（手動）
+#   2) 取消下方 schedule 註解（例：每 2 小時 UTC 整點）
 on:
-  schedule:
-    - cron: '0 */2 * * *'   # 每 2 小時整點（UTC）；約 12 次/日
+  # schedule:
+  #   - cron: '0 */2 * * *'   # 每 2 小時整點（UTC）；約 12 次/日
   workflow_dispatch:
 
 concurrency:
