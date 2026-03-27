@@ -128,22 +128,31 @@ def domain_quality_check(report_html: str) -> dict[str, Any]:
 
     # ── 新工具出現檢查 ──────────────────────────────────────────────────
     tools: dict[str, bool] = {
-        "correlation": bool(re.search(r"BTC 相關係數|BTC/SPX|📐", text)),
-        "cot":         bool(re.search(r"CME COT|🏦.*COT|機構.*週[▲▼]", text)),
-        "valuation":   bool(re.search(r"估值錨|MVRV|NVT", text)),
-        "historical":  bool(re.search(r"歷史類比|🕰|最近似.*\d{4}", text)),
-        "grayscale":   bool(re.search(r"GBTC.*%|🔒.*GBTC", text)),
+        # 📐 相關係數：crew 強制輸出 "📐 BTC 相關係數：BTC/SPX ..."
+        "correlation": bool(re.search(r"BTC\s*相關係數|BTC/SPX|📐", text)),
+        # 🏦 COT：crew 強制輸出 "🏦 機構周倉位" 或 "CME COT" 或倉位方向箭頭
+        "cot":         bool(re.search(r"CME\s*COT|COT|🏦|機構.*倉位|機構.*週[▲▼↑↓]", text)),
+        # 📊 估值錨：MVRV/NVT 常見於 dashboard 區塊
+        "valuation":   bool(re.search(r"估值錨|MVRV|NVT|📊.*估值", text)),
+        # 🕰️ 歷史類比：注意 🕰 (U+1F570) 可能帶 variation selector FE0F
+        "historical":  bool(re.search(r"歷史類比|\U0001F570|最近似.*\d{4}|歷史.*相似", text)),
+        # 🔒 Grayscale：折溢價通常附 %
+        "grayscale":   bool(re.search(r"GBTC|Grayscale|🔒", text)),
     }
 
     # ── 情境分析覆蓋率 ──────────────────────────────────────────────────
-    # 計算有完整三情境（🐂+⚖️+🐻）的段落數
-    # 每筆交易腿段落以 "· $<ASSET>" 開頭，往下找三個情境圖示
-    legs = re.split(r"(?=· \$\w+.*(?:LONG|SHORT))", text)
+    # Telegram HTML 格式：· <b>$BTC (LONG)</b> — 需跳過 HTML 標籤
+    # 用純文字版本（strip tags）做 split，避免 <b> 干擾
+    plain = re.sub(r"<[^>]+>", "", text)
+    legs = re.split(r"(?=·\s*\$\w+\s*\((?:LONG|SHORT)\))", plain)
     scenario_legs = sum(
         1 for leg in legs
         if re.search(r"🐂", leg) and re.search(r"⚖️", leg) and re.search(r"🐻", leg)
     )
     trade_legs = max(len(legs) - 1, 0)  # legs[0] is pre-trade content
+
+    # trade_legs=0 代表 leg 解析失敗（格式不符），情境分數設中性避免虛高
+    scenario_score = (scenario_legs / trade_legs * 100) if trade_legs > 0 else 50.0
 
     # ── 執行摘要 ────────────────────────────────────────────────────────
     has_exec = bool(re.search(r"執行摘要", text))
@@ -156,7 +165,6 @@ def domain_quality_check(report_html: str) -> dict[str, Any]:
 
     # ── 各維度分數（0–100）──────────────────────────────────────────────
     tool_score = sum(tools.values()) / len(tools) * 100
-    scenario_score = (scenario_legs / max(trade_legs, 1)) * 100
     valid_srcs = [v for v in source_health.values() if v is not None]
     source_score = (sum(valid_srcs) / len(valid_srcs) * 100) if valid_srcs else 50.0
     exec_score = 100.0 if has_exec else 0.0
@@ -208,7 +216,11 @@ def format_quality_card(dqc: dict[str, Any], elapsed_sec: float | None = None) -
 
     sl = dqc.get("scenario_legs", 0)
     tl = dqc.get("trade_legs", 0)
-    scenario_line = f"{'✅' if sl == tl and tl > 0 else '⚠️'} 情境分析 {sl}/{tl} 腿"
+    if tl == 0:
+        # leg 解析失敗（HTML 格式未匹配），顯示為未知而非錯誤數字
+        scenario_line = "❓ 情境分析 ?/? 腿（格式未識別）"
+    else:
+        scenario_line = f"{'✅' if sl == tl else '⚠️'} 情境分析 {sl}/{tl} 腿"
 
     src = dqc.get("source_health", {})
     src_parts = []
