@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-03-27
+
+### Changed
+- **GitHub Actions 分鐘數**：[`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) 改為每 **2** 小時排程、`pip install -r` [`requirements-monitor.txt`](requirements-monitor.txt)（僅 yfinance／BQ／Telegram，略過 CrewAI 全量依賴）；新增 `concurrency` 避免重疊 run；runner 對齊 `ubuntu-22.04`。
+
 ## 2026-03-26
 
 ### Added

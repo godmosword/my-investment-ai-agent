@@ -1,0 +1,7 @@
+# 僅供 monitor_intraday.py（盤中監控 GitHub Action）使用。
+# 勿用於 main.py 管線 — 刻意不包含 CrewAI / LiteLLM，以縮短每小時 workflow 的 pip 安裝時間。
+yfinance>=0.2.36
+pandas>=2.0
+numpy>=1.24
+pyTelegramBotAPI>=4.14
+google-cloud-bigquery>=3.25

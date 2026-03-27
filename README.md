@@ -223,6 +223,7 @@ python3 -m pytest -v            # 全量（root 下 test_*.py）
 ├── signal_weights_store.py, crew_company.py, company_ops_schemas.py
 ├── monitor_intraday.py, visualizer.py, backtest.py, backfill_data.py
 ├── core/report_validation.py
+├── requirements-monitor.txt # 盤中監控 Action 專用（無 CrewAI）
 ├── scripts/              # bench_autoresearch.sh, write_ml_weights.py, inject_test_data.py, oss_scout_candidates.py
 ├── docs/                 # 規格、runbook、SQL、路線圖
 ├── templates/            # telegram_report.j2
@@ -253,7 +254,9 @@ docker run --env-file .env q-silicon-agent
 | [`ci.yml`](.github/workflows/ci.yml) | PR；`workflow_call` | PR：`ruff` + `pytest -m smoke`；被 deploy 呼叫時跑完整 `pytest -v` |
 | [`deploy.yml`](.github/workflows/deploy.yml) | `push main`（paths 篩選）或手動 | CI 通過後 build／push 映像、`gcloud run jobs deploy`；`environment: production` |
 | [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) | 手動 | Cloud Scheduler |
-| [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | cron／手動 | 盤中閾值 — 見 workflow 與 `monitor_intraday.py` |
+| [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | cron（預設每 **2** 小時）／手動 | 盤中 BTC／VIX；依賴 [`requirements-monitor.txt`](requirements-monitor.txt)（**非**全量 `requirements.txt`，省 Actions 分鐘） |
+
+**GitHub Actions 免費額度**：排程 workflow 每次若 `pip install` 全量管線依賴會非常耗分鐘。本 repo 已將盤中監控改為輕量依賴 + 降低頻率；若仍吃緊可到 Repo **Settings → Billing → Manage budgets** 設預算警示，或將 `monitor-intraday` 的 cron 再拉長（例如每 4 小時）。
 
 生產人工閘門與 secrets 配置 → [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)。Cloud Run 為 **Job**（排程／手動），非長駐 HTTP。
 
