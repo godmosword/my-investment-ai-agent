@@ -2,18 +2,51 @@
 
 ---
 
-## 🚀 三大戰略方向（2026-03-26 新增）
+## 🔥 日報實戰等級升級（2026-03-27 更新）
 
-> 執行時間軸：1A → 2A → 1B → 2B → Direction 3
+> 執行優先級：P0（防崩潰）→ P1（品質提升）→ P2（自動化）→ P3（長期）
+> 探索發現 10 類結構性弱點，按「對日報品質的直接影響」排序。
 
-### Direction 1A — 穩定視覺化輸出（Week 1–2）
+### P0 — 防止管線崩潰與資料缺失（立即）
+
+- [ ] **env fail-fast 擴充** — `main.py`（`_validate_required_keys()`）：依 `SKIP_*` 條件式，擴充至 13+ API key 檢查（CoinGlass、CryptoPanic、FRED、Telegram、BQ SA key 等）。啟動時缺 key 即 hard fail。
+- [ ] **DATA_MISSING 計數 Gate** — `report_validator.py`、`validation_rules.py`：新增 `_check_data_missing_count()`，`[DATA_MISSING:...]` 超過 3 次直接 block（目前是 warning-only）。
+- [ ] **schema 必填欄位收緊** — `schemas.py`：`bull_scenario`、`base_scenario`、`bear_scenario`、`narrative` 從 `Optional` 改為必填。已有 `@field_validator` auto-truncation 兜底。
+
+### P1 — 直接提升日報品質（本 Sprint）
+
+- [ ] **移除 post-processing band-aids** — `report_render.py`（`_post_process_html_for_gate()`）：分析 7 個 regex 補丁的根因，修復移到 agent prompt / schema validator，刪除至少 5/7 個。
+- [ ] **軟 Gate 升級為硬 Gate** — `report_validator.py`：審計 ~20 個 warning-only 條件，升級：(a) 情境分析腿數不足、(b) 執行摘要缺失、(c) 工具覆蓋率 < 3/5 為 blocking。
+- [ ] **新聞新鮮度 Gate 補測試 + 預設開啟** — `report_validator.py`、新增 `test_news_freshness.py`：補齊 5 場景測試（新鮮/過舊/無時間戳/跨日/白名單），穩定後 `STRICT_NEWS_FRESHNESS_GATE` 預設改 `1`。
+- [ ] **工具呼叫保底機制** — `crew.py`（agent prompt）、`report_validator.py`：(a) prompt 明確列出必須呼叫的工具清單；(b) Gate 新增 `_check_tool_coverage()`，5 核心工具命中 < 3 則 block。
+
+### P2 — 自動化與自我改進（下個 Sprint）
+
+- [ ] **backtest --update-config** — `backtest.py`、`config.py`：新增 `--update-config` CLI flag，回測完自動寫最佳信號權重到 `SIGNAL_WEIGHTS` dict。
+- [ ] **weekly-backtest.yml** — `.github/workflows/weekly-backtest.yml`（新）：每週一 02:00 HKT cron 觸發，結果 commit 回 main。
+- [ ] **Gate 失敗結構化 log** — `bigquery_writer.py`、`report_validator.py`：失敗時寫結構化 JSON（類型、prefix、時間戳）到 BQ `gate_failure_log` 表。**不自動改 prompt**。
+- [ ] **tools.py 模組分割** — `tools.py` → `tools/crypto.py`、`tools/macro.py`、`tools/equities.py`、`tools/search.py`、`tools/quant.py`；`tools/__init__.py` re-export。4011 行 god-file。
+
+### P3 — 長期改進（Backlog）
+
+- [ ] **Gate 失敗自動學習 prompt 注入** — `crew.py`、`bigquery_writer.py`：分析 `gate_failure_log` 高頻類型，生成「避免模式」段落。需人工審核。依賴 P2 Gate log。
+- [ ] **_adaptive_threshold() Gate 自動調節** — `report_validator.py`：統計 7 天 pass rate > 80% 自動提高門檻。依賴 P2 Gate log。
+- [ ] **agent tool-use 強制驗證** — `crew.py`：kickoff() 後檢查 tool call 記錄，crypto_researcher 未呼叫任何 tool 則觸發 retry。
+
+---
+
+## 🚀 三大戰略方向（2026-03-26 新增，保留）
+
+> 中長期方向，優先級低於上方 P0-P3。執行時間軸：1A → 2A → 1B → 2B → Direction 3
+
+### Direction 1A — 穩定視覺化輸出
 
 - [ ] `visualizer.py` — 新增 Panel 4：BTC 資金費率（fundingRate）趨勢折線圖（CoinGlass API 已有）
 - [ ] `dashboard.py` — 新增 Streamlit Tab 5：Sentiment Score；Tab 6：SOPR + Exchange Netflow 雙軸圖
 - [ ] `telegram_sender.py` + `templates/telegram_report.j2` — 報告底部加「查看歷史」Inline Keyboard Button（`reply_markup`）
 - [ ] `data-verification-ui/src/` — ServiceWorker Web Push 通知（BTC 異動 / 日報到達）
 
-### Direction 1B — 商業化地基（Week 5–6）
+### Direction 1B — 商業化地基
 
 - [ ] `auth.py` (新) — Firebase Auth JWT middleware（FastAPI `Depends`）
 - [ ] `billing.py` (新) — Stripe Checkout + Webhook；FREE / PRO / INSTITUTIONAL 三級
@@ -21,20 +54,19 @@
 - [ ] `telegram_sender.py` — PRO 用戶帶自己的 BOT_TOKEN + CHAT_ID（從 BQ `user_settings` 表讀取）
 - [ ] `data-verification-ui/src/pages/Landing.jsx` (新) — Landing page：Hero + 方案比較表 + Stripe Checkout
 
-### Direction 2A — 績效反饋閉環（Week 3–4）
+### Direction 2A — 績效反饋閉環
 
-- [ ] `backtest.py` — 新增 `--update-config` flag：回測後自動把最佳信號權重寫入 `config.py` `SIGNAL_WEIGHTS`
-- [ ] `.github/workflows/weekly-backtest.yml` (新) — 週一 02:00 HKT 觸發 `python backtest.py --update-config`
+- 已併入 P2（backtest --update-config + weekly workflow）
 - [ ] `crew.py` — Quant Strategist prompt 注入「過去 3 天 HIT_STOP 反饋」（`bigquery_writer._fetch_recent_stopped_out_trades` 已實作）
-- [ ] `report_validator.py` — `_adaptive_threshold()`：若最近 7 天 Gate pass rate > 80% 自動提高情境字數門檻
+- [ ] `report_validator.py` — `_adaptive_threshold()`（已列 P3）
 
-### Direction 2B — OSS 自主整合 Scout Agent（Week 7–8）
+### Direction 2B — OSS 自主整合 Scout Agent
 
 - [ ] `agents/scout_agent.py` (新) — GitHub GraphQL + HuggingFace Hub 搜尋；過濾：Stars ↑500/月、MIT/Apache、Python、領域=crypto-analytics/LLM-finance
 - [ ] `agents/integration_proposal_agent.py` (新) — clone → 分析 API → 生成整合 diff → 跑 smoke test → 自動開 PR（**不自動合併**）
 - [ ] `.github/workflows/weekly-scout.yml` (新) — 週五 18:00 HKT 觸發
 
-### Direction 3 — Multi-Agent 新創規模（Week 9–12）
+### Direction 3 — Multi-Agent 新創規模
 
 - [ ] `agents/product_crew.py` (新) — PM Agent + UX Researcher Agent（每週功能優先排序 + 用戶痛點）
 - [ ] `agents/growth_crew.py` (新) — Marketing Agent + Competitor Intel Agent（每週競品 + GTM 草稿）
@@ -47,145 +79,14 @@
 
 ---
 
+## 已落地（自 TODOS 移除細項，僅存檔備查）
 
-## 優先順序速覽（重估）
-
-| 順序 | 項目 | 重要性 | 可行性 | 說明 |
-|------|------|--------|--------|------|
-| 1 | 啟動期 critical env | 高（維運／節省長跑成本） | 高 | 建議下一波主力 |
-| 2 | 新聞新鮮度 | 高（敘事正確性） | 主體已完成 | 剩上線策略、測試、文件 |
-| 3 | `tools.py` 分割 | 中（長期維護） | 中高、工時大 | 獨立 refactor PR 較佳 |
-| 4 | Gate 失敗自動學習 | 中長期 | 低～中 | 遠期；可先只做 BQ log |
-
----
-
-## 狀態圖例
-
-| 符號 | 意義 |
-|------|------|
-| ✅ | 已落地且可指到檔案／測試；營運設定若需人工（如 GitHub Environment）會註明 |
-| 🔶 | 邏輯或文件已有，**缺測試、文件、上線策略或營運關閉動作** |
-| ⬜ | 尚未實作或規格未寫 |
-
----
-
-## 已完成並驗證
-
-### A. 基礎與可觀測性
-
-| ID | 項目 | 佐證／驗證 |
-|----|------|------------|
-| DONE-A1 | API 回應 schema guard | [`api_schema.py`](api_schema.py)、[`test_api_schema.py`](test_api_schema.py) |
-| DONE-A2 | 盤中監控與 workflow | [`monitor_intraday.py`](monitor_intraday.py)、[`.github/workflows/monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) |
-| DONE-A3 | LLM run log → BigQuery | [`bigquery_writer.py`](bigquery_writer.py) `write_llm_run_log`、[`main.py`](main.py)、[`test_llm_run_log.py`](test_llm_run_log.py) |
-| DONE-A5 | Gate 失敗 **結構化 BQ log**（寫入＋粗分類） | [`bigquery_writer.py`](bigquery_writer.py) `write_gate_failure_log`、`GATE_FAILURE_LOG_TABLE`（[`config.py`](config.py)）、[`main.py`](main.py) `run_pipeline_with_retries`、`GATE_FAILURE_BQ_LOG`、[`test_gate_failure_log.py`](test_gate_failure_log.py)；**週期分析／儀表**仍見 BL-08 |
-| DONE-A4 | 新聞新鮮度 **機檢邏輯**（預設關） | [`report_validator.py`](report_validator.py) `_check_news_freshness` 等；測試／`ENV_TEMPLATE` 見 BL-02 |
-
-### B. 產品路線（對 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)）
-
-| ID | 項目 | 佐證／驗證 |
-|----|------|------------|
-| DONE-B1 | 路線願景文件 | [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) |
-| DONE-B2 | 方向 1B 使用者路徑／付費假設（文件） | [`docs/COMMERCE_PLAYBOOK.md`](docs/COMMERCE_PLAYBOOK.md)（**實作 Auth／Stripe** 未做，見 BL-10） |
-| DONE-B3 | 方向 2A 權重版本化＋可選注入 context | [`signal_weights_store.py`](signal_weights_store.py)、[`scripts/write_ml_weights.py`](scripts/write_ml_weights.py)、[`bigquery_writer.py`](bigquery_writer.py) `fetch_exclusion_context`、`WEIGHTS_CONTEXT_ENABLED` |
-| DONE-B4 | 方向 2B Scout 流程與檢查清單（文件） | [`docs/oss_candidates/README.md`](docs/oss_candidates/README.md)（**自動週報腳本**未做，見 BL-09） |
-| DONE-B5 | 方向 3A schema + Growth 試點 crew | [`company_ops_schemas.py`](company_ops_schemas.py)、[`crew_company.py`](crew_company.py)、`COMPANY_CREW_ENABLED`、[`test_company_ops_schemas.py`](test_company_ops_schemas.py) |
-| DONE-B6 | 方向 3B War Room 唯讀（試點） | [`dashboard.py`](dashboard.py)「公司戰情」區塊、`load_company_war_room_snapshot`（**四職能自動產出**未做，見 BL-11） |
-| DONE-B7 | 橫切：日報潤稿（可選） | [`report_editor.py`](report_editor.py)、[`main.py`](main.py) `_maybe_editor_polish_html`、`EDITOR_AGENT_ENABLED`、[`test_report_editor.py`](test_report_editor.py)、[`scratchpad.py`](scratchpad.py) `append_editor_result` |
-| DONE-B8 | 方向 1A 儀表／PWA／API KPI 對齊（實作） | [`dashboard.py`](dashboard.py)、[`api.py`](api.py)、[`data-verification-ui/`](data-verification-ui/)；契約表見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) |
-
-### C. CI／部署
-
-| ID | 項目 | 佐證／驗證 |
-|----|------|------------|
-| DONE-C1 | `deploy` job 使用 `environment: production` | [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 第 39 行；**GitHub 後台是否設定 Required reviewers** 須營運確認（未完成則 BL-06 仍算開放） |
-
-### D. 測試與 Lint（例行）
-
-| 項目 | 指令 |
-|------|------|
-| Smoke | `python3 -m pytest -m smoke -v` |
-| 全量 | `python3 -m pytest -v` |
-| Lint | `ruff check .` |
-
----
-
-## 待辦清單（Backlog）
-
-### P0 — 建議下一波（高影響／可行性高）
-
-| ID | 狀態 | 項目 | 說明與主要路徑 |
-|----|------|------|----------------|
-| **BL-01** | ✅ | 啟動期 **critical env fail-fast** | **`PIPELINE_STRICT_ENV=1`**：[`main._validate_critical_env_strict`](main.py)；`ENV_TEMPLATE`／README 已註記。更廣的 data API 條件式硬擋仍可依營運需求擴充。 |
-| **BL-02** | 🔶 | **新聞新鮮度 Gate** 上線 | 測試：[`test_news_freshness.py`](test_news_freshness.py)；文件：`ENV_TEMPLATE`、README。**仍缺**：營運 rollout、可選管線固定傳入 `report_dt`。 |
-
-### P1 — 架構與 Autoresearch
-
-| ID | 狀態 | 項目 | 說明與主要路徑 |
-|----|------|------|----------------|
-| **BL-03** | 🔶 | **`tools.py` 模組化** | 規格：[`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)；**執行拆分**仍待。 |
-| **BL-04** | ✅ | **Autoresearch：`docs/AUTORESEARCH_LOOP.md`** | [`docs/AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md)（狀態機摘要；細節仍見 [`autoresearch.plan.md`](docs/autoresearch.plan.md)）。 |
-| **BL-05** | ✅ | **Autoresearch：bench 入口** | [`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh)（`ruff` + `pytest -m smoke` + `METRIC`）。 |
-| **BL-06** | 🔶 | **生產部署人工閘門（營運閉環）** | Runbook：[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)；**仍須營運**：GitHub production **Required reviewers**。 |
-
-### P2 — 安全與加固
-
-| ID | 狀態 | 項目 | 說明與主要路徑 |
-|----|------|------|----------------|
-| **BL-07** | ✅ | **bench `METRIC` 完整性防偽** | [`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh) 檔首註解：僅末尾 `echo METRIC` 為官方行；勿 tee 混流。 |
-
-### P3 — 遠期
-
-| ID | 狀態 | 項目 | 說明與主要路徑 |
-|----|------|------|----------------|
-| **BL-08** | 🔶 | **Gate 失敗 → BQ 結構化 log → 週期分析** | **已做**：寫入 BQ，見 DONE-A5。**範例聚合**：[`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)。**仍缺**：儀表板自動化、無審核自動改 prompt。 |
-
-### 產品／路線延伸（非阻塞日報）
-
-| ID | 狀態 | 項目 | 說明 |
-|----|------|------|------|
-| **BL-09** | 🔶 | **Scout 週報自動化** | 輔助腳本：[`scripts/oss_scout_candidates.py`](scripts/oss_scout_candidates.py)（`--dry-run`／`GITHUB_TOKEN`）；仍須 **人類 PR**，流程見 [`docs/oss_candidates/README.md`](docs/oss_candidates/README.md)。 |
-| **BL-10** | 🔶 | **商業化實作** | 檢查清單：[`docs/COMMERCE_NEXT_STEPS.md`](docs/COMMERCE_NEXT_STEPS.md)；假設見 [`COMMERCE_PLAYBOOK.md`](docs/COMMERCE_PLAYBOOK.md)。 |
-| **BL-11** | 🔶 | **四職能 Crew + Arbiter 執行層** | 路線圖：[`docs/COMPANY_CREW_ROADMAP.md`](docs/COMPANY_CREW_ROADMAP.md)；執行層接線仍待。 |
-| **BL-12** | ✅ | **儀表板「契約」完整文件化** | [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)（區塊／API／PWA 對齊）；細節擴充可持續 PR。 |
-
----
-
-## 產品路線對照（`ROADMAP_VISION` 完成度）
-
-| 區塊 | 目標 | 完成度 | 備註 |
-|------|------|--------|------|
-| 1A | 視覺化正確性 + KPI 對齊 | ✅ | 實作 + [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) |
-| 1B | 路徑 + 付費假設 | 🔶 | 文件 ✅；付費實作 ⬜（BL-10） |
-| 2A | 權重閉環 | ✅ | 儲存、注入、回滾、測試 |
-| 2B | Scout + 部署閘門 | 🔶 | 流程文件 ✅；候選腳本 🔶（[`scripts/oss_scout_candidates.py`](scripts/oss_scout_candidates.py)）；deploy 程式 ✅、審批設定 🔶 |
-| 3A | Arbiter schema + Growth | ✅ | 試點 crew + schema |
-| 3B | 四職能 + War Room | 🔶 | War Room 讀快照 ✅；四職能路線圖 🔶（BL-11） |
-| 橫切 | 潤稿 Agent | ✅ | 可關閉、Gate 後驗、`<code>` 保護 |
-
----
-
-## Repo 掃描紀錄（靜態搜尋）
-
-**掃描日：2026-03-25**（之後請在每次大整理時更新本段日期與摘要）
-
-| 搜尋 | 結果 |
-|------|------|
-| `*.py` 中 `# TODO` / `# FIXME` / `# XXX` | **無** |
-| `tools.py` 含「TODO／未完成」 | 僅一般中文或網域字串（如 hackernoon），**非**工程待辦 |
-| `docs/autoresearch.plan.md` | 仍描述 7 日衝刺；**bench 腳本與 LOOP 規格**與 repo 現況落差 → 已收斂為 BL-04、BL-05、BL-07 |
-| `scripts/` | 無 `bench_autoresearch.sh` → BL-05 |
-
----
-
-## 舊「優先順序速覽」對照
-
-| 舊列點 | 現編號 |
-|--------|--------|
-| critical env | BL-01 |
-| 新聞新鮮度 | BL-02 |
-| tools.py 分割 | BL-03 |
-| Gate 自動學習 | BL-08 |
-| Autoresearch loop spec | BL-04 |
-| deploy 人工審批 | BL-06（+ DONE-C1） |
-| METRIC 完整性 | BL-07 |
+- **統一 API schema guard：** [`api_schema.py`](api_schema.py)（`require_json_dict`、`require_list`、`log_schema_mismatch`）與 [`test_api_schema.py`](test_api_schema.py)。
+- **盤中異常推送：** [`monitor_intraday.py`](monitor_intraday.py)、[`.github/workflows/monitor-intraday.yml`](.github/workflows/monitor-intraday.yml)。
+- **LLM run log → BigQuery：** [`bigquery_writer.py`](bigquery_writer.py) 內 `write_llm_run_log`、[`main.py`](main.py) 呼叫與 [`test_llm_run_log.py`](test_llm_run_log.py)。
+- **新聞新鮮度 Gate（機檢邏輯）：** [`report_validator.py`](report_validator.py) 內 `_check_news_freshness` 等；預設關閉，見 P1 項目。
+- **Q-Score 品質卡（A+B+C 方案）：** `report_judge.py`、`main.py`、`check_report.py` — PR #66-68。
+- **Writing Editor Agent（第 4 agent）：** `crew.py` — `gpt-5.4-nano-2026-03-17` 潤稿角色，PR #68。
+- **Gemini 3 Flash 切換：** `config.py` — Risk Critic + Quant Strategist 改用 `gemini-3-flash-preview`。
+- **narrative auto-truncation：** `schemas.py` — `@field_validator` 取代 `max_length` 硬驗證。
+- **Q-Score regex 修復：** `report_judge.py` — 工具偵測、腿數計算、HTML tag 處理。
