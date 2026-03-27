@@ -144,10 +144,17 @@ def _check_news_freshness(
         if ts_utc < cutoff:
             # Check if any whitelist source appears near this timestamp's news line.
             if whitelist:
-                # Simple heuristic: search the line containing this timestamp for whitelist tokens.
-                ts_str = ts.strftime("%m/%d %H:%M")
+                # Heuristic: match lines that contain this instant in common report formats
+                # (YYYY-MM-DD vs MM/DD — previously only %m/%d missed ISO-style brackets).
+                patterns = (
+                    ts.strftime("%Y-%m-%d %H:%M"),
+                    ts.strftime("%Y/%m/%d %H:%M"),
+                    ts.strftime("%m/%d %H:%M"),
+                )
                 for line in text.splitlines():
-                    if ts_str in line and any(w in line.upper() for w in whitelist):
+                    if any(p in line for p in patterns) and any(
+                        w in line.upper() for w in whitelist
+                    ):
                         break
                 else:
                     stale.append(ts)

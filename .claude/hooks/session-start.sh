@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+if [ -f "$ROOT/CLAUDE.md" ]; then
+  echo "Tip: Read $ROOT/CLAUDE.md for project guide before large changes."
+fi
+
 # Only run in remote Claude Code on the web sessions
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0

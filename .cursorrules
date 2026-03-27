@@ -1,5 +1,9 @@
 # Q-Silicon Cursor AI Rules
 
+## 0. 接手開發（Bootstrap）
+- **第一次**處理本專案、**大任務開工**、或不熟模組分工時：先讀專案根目錄 **`CLAUDE.md`**（架構、檔案地圖、指令、`docs/` 索引、紅線）。細節補 **`README.md`**／**`ENV_TEMPLATE.txt`**；待辦見 **`TODOS.md`**。
+- Cursor 亦載入 `.cursor/rules/claude-md-bootstrap.mdc`（同上）。
+
 ## 1. 系統核心架構 (V2.0+ 終極無菌資料管線)
 - **嚴禁數據幻覺**：廢棄 X/Twitter API。所有實盤價格、技術指標 (RSI, MA20/50, VIX) 與宏觀數據 (FMP API, Alternative.me) 必須由 Python 底層抓取並作為 Context 強制注入。
 - **Agent 開發鐵則**：嚴禁讓 LLM 自行推導、計算或捏造任何客觀報價與日期。

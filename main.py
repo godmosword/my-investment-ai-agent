@@ -31,6 +31,7 @@ from bigquery_writer import (
     extract_and_save_metrics,
     fetch_exclusion_context,
     _get_last_success_report_time_utc,
+    write_gate_failure_log,
     write_llm_run_log,
 )
 from report_judge import (
@@ -481,11 +482,9 @@ def _prewarm_tool_caches() -> None:
         regime_scorecard_tool,
         macro_context_tool,
         financial_datasets_tool,
-        x_search_tool,
     )
 
     # 定義所有獨立的 tool 呼叫（無互相依賴）
-    # x_search_tool 以 crew task 使用的相同 query 預熱，讓 agent 命中 cache 而非重新等待
     tasks: dict[str, callable] = {
         "coinglass_funding_rate": lambda: coinglass_data_tool.run("funding_rate"),
         "coinglass_liquidations": lambda: coinglass_data_tool.run("liquidations"),
@@ -498,8 +497,6 @@ def _prewarm_tool_caches() -> None:
         "ml_quant":               lambda: ml_quant_tool.run(),
         "regime_scorecard":       lambda: regime_scorecard_tool.run(),
         "macro_context":          lambda: macro_context_tool.run(),
-        "x_search_crypto":        lambda: x_search_tool.run("crypto ETF bitcoin ethereum altcoin DeFi liquidation whale"),
-        "x_search_ai":            lambda: x_search_tool.run("NVIDIA AI GPU data center OpenAI Anthropic Microsoft"),
         "financial_datasets":     lambda: financial_datasets_tool.run("watchlist"),
     }
 
@@ -722,6 +719,20 @@ def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> 
     return html
 
 
+def _maybe_editor_polish_html(html: str) -> str:
+    """可選：潤稿後仍由 validate_report 把關；失敗或非變更時回傳原文。"""
+    try:
+        from report_editor import polish_daily_report_html
+
+        out, meta = polish_daily_report_html(html)
+        scratchpad.append_editor_result(meta)
+        return out
+    except Exception as e:
+        logger.warning("Editor polish skipped: %s", e)
+        scratchpad.append_editor_result({"enabled": False, "skipped_reason": f"exception:{e}"})
+        return html
+
+
 def _run_pipeline_once(
     exclude_context: str | None,
     use_fallback_llm: bool = False,
@@ -788,6 +799,7 @@ def _run_pipeline_once(
         )
         html = render_telegram_daily_brief(report_model)
         html = _post_process_html_for_gate(html, agreed_regime=agreed_regime)
+        html = _maybe_editor_polish_html(html)
         return html, None, report_model
     except Exception as e:
         return "", e, None
@@ -919,6 +931,13 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             report_valid = result["valid"]  # True only when issues == 0
 
             scratchpad.append_gate_result(attempt + 1, result)
+            if result.get("issues"):
+                write_gate_failure_log(
+                    attempt=attempt + 1,
+                    validation=result,
+                    report_chars=len(final_report or ""),
+                    used_fallback=_used_fallback,
+                )
             fallback_cnt = _fallback_news_count(final_report)
             logger.info(
                 "[Attempt %d] Validation — news=%d, fallback=%d, blocking=%d, warnings=%d, valid=%s",
@@ -1062,6 +1081,30 @@ def _validate_required_keys() -> None:
             )
 
 
+def _validate_critical_env_strict() -> None:
+    """可選硬擋：PIPELINE_STRICT_ENV=1 時，未 SKIP 的路徑必須具備最小金鑰／設定（排程／生產建議）。"""
+    if os.getenv("PIPELINE_STRICT_ENV", "").lower() not in ("1", "true", "yes"):
+        return
+    if not os.getenv("SKIP_TELEGRAM", "").strip():
+        if not (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip() or not (
+            os.getenv("TELEGRAM_CHAT_ID") or ""
+        ).strip():
+            raise RuntimeError(
+                "PIPELINE_STRICT_ENV=1 且未設 SKIP_TELEGRAM：必須設定 TELEGRAM_BOT_TOKEN 與 TELEGRAM_CHAT_ID。"
+            )
+    if not os.getenv("SKIP_BIGQUERY", "").strip():
+        if not (os.getenv("GCP_PROJECT_ID") or "").strip():
+            raise RuntimeError(
+                "PIPELINE_STRICT_ENV=1 且未設 SKIP_BIGQUERY：必須設定 GCP_PROJECT_ID。"
+            )
+        if not (os.getenv("GCP_SA_KEY") or "").strip() and not (
+            os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or ""
+        ).strip():
+            raise RuntimeError(
+                "PIPELINE_STRICT_ENV=1 且未設 SKIP_BIGQUERY：必須設定 GCP_SA_KEY 或 GOOGLE_APPLICATION_CREDENTIALS。"
+            )
+
+
 def _validate_env_types() -> None:
     """Validate numeric environment variables at startup to fail fast on typos."""
     numeric_vars = {
@@ -1076,6 +1119,7 @@ def _validate_env_types() -> None:
         "PICK_REPEAT_MIN_SELECTION_SCORE": "75",
         "MAX_EXCLUSION_CONTEXT_CHARS": "1000",
         "MAX_PREV_RECS_CHARS": "1200",
+        "NEWS_FRESHNESS_WINDOW_HOURS": "48",
     }
     for var, default in numeric_vars.items():
         raw = os.getenv(var)
@@ -1110,7 +1154,6 @@ def _log_api_key_inventory() -> None:
                 ("CRYPTOPANIC_API_KEY", "CryptoPanic"),
                 ("CRYPTOQUANT_API_KEY", "CryptoQuant"),
                 ("FRED_API_KEY", "FRED"),
-                ("TWITTER_BEARER_TOKEN", "X/Twitter"),
                 ("OPENROUTER_API_KEY", "OpenRouter"),
                 ("FMP_API_KEY", "FMP"),
                 ("FINANCIAL_DATASETS_API_KEY", "Financial Datasets"),
@@ -1164,6 +1207,7 @@ if __name__ == "__main__":
     _install_runtime_noise_filters()
     logger.info("Initializing Q-Silicon Ultimate Agent...")
     _validate_required_keys()
+    _validate_critical_env_strict()
     _validate_env_types()
     _log_api_key_inventory()
     _verify_optional_api_keys_light()
@@ -1171,6 +1215,16 @@ if __name__ == "__main__":
     exclusion = fetch_exclusion_context()
     if exclusion:
         logger.info("Loaded exclusion context from previous report (to avoid duplicate news).")
+    if os.getenv("COMPANY_CREW_ENABLED", "").lower() in ("1", "true", "yes"):
+        try:
+            from crew_company import run_growth_narrative_for_context
+
+            growth_ctx = run_growth_narrative_for_context()
+            if growth_ctx:
+                exclusion = f"{growth_ctx}\n\n{exclusion}" if exclusion else growth_ctx
+                logger.info("Prepended Company Growth narrative to exclusion context.")
+        except Exception as _co_err:
+            logger.warning("Company crew block skipped: %s", _co_err)
 
     # Pre-initialize so downstream references are always safe even if the
     # pipeline call raises an uncaught exception.
