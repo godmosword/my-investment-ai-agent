@@ -5,6 +5,7 @@ tracker.py; this module handles writing daily_metrics and reading
 exclusion context for the next run.
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -15,12 +16,13 @@ from datetime import datetime, timezone
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import bigquery
 
-from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
+from config import GATE_FAILURE_LOG_TABLE, PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
 from telegram_sender import strip_html
 
 logger = logging.getLogger(__name__)
 
 SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
+GATE_FAILURE_BQ_LOG = os.getenv("GATE_FAILURE_BQ_LOG", "1").lower() not in ("0", "false", "no")
 
 # ── 語義去重（Semantic Deduplication）──────────────────────────────────
 _SBERT_MODEL: object = None  # None=not loaded, False=unavailable, Model=ready
@@ -477,6 +479,16 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
             parts.append(rotation_warn)
             logger.info("Injected rotation gate warning into exclusion context.")
 
+        try:
+            from signal_weights_store import format_weights_for_crew_context
+
+            wctx = format_weights_for_crew_context()
+            if wctx:
+                parts.append(wctx)
+                logger.info("Injected signal weights snapshot into exclusion context.")
+        except Exception as _w_err:
+            logger.warning("signal_weights context skipped: %s", _w_err)
+
         s = "\n\n".join(parts) if parts else None
         if s and len(s) > 2500:
             s = s[:2500] + "\n…[truncated]"
@@ -585,3 +597,114 @@ def write_llm_run_log(
         logger.warning("BigQuery credentials not configured (LLM run log skipped): %s", e)
     except Exception as e:
         logger.error("Failed to write LLM run log to BigQuery: %s", e)
+
+
+def _bucket_gate_issues(issues: list[str]) -> dict[str, int]:
+    """粗分類 Gate issue 字串，供週期分析／儀表板聚合（非阻塞語意）。"""
+    buckets = {k: 0 for k in ("news", "qsrec", "source", "macro", "regime", "trade", "other")}
+    rules: list[tuple[str, tuple[str, ...]]] = [
+        ("source", ("DATA_MISSING", "STALE_DATA", "SourceHealth", "SourceErrors", "資料缺失")),
+        ("news", ("新聞", "UTC+8", "〔新聞")),
+        ("qsrec", ("QSREC", "結構化", "本日選擇理由", "json")),
+        ("macro", ("宏觀", "利率", "美債", "利差")),
+        ("regime", ("market_regime", "mixed_regime", "regime")),
+        ("trade", ("交易", "R:R", "風險預算", "進場", "停損", "觀望模式", "N/A 關鍵價格")),
+    ]
+    for issue in issues:
+        placed = False
+        low = issue
+        for name, subs in rules:
+            if any(s in low for s in subs):
+                buckets[name] += 1
+                placed = True
+                break
+        if not placed:
+            buckets["other"] += 1
+    return buckets
+
+
+def write_gate_failure_log(
+    *,
+    attempt: int,
+    validation: dict,
+    report_chars: int,
+    used_fallback: bool,
+    table_id: str | None = None,
+) -> None:
+    """將單次 validate_report 失敗（含僅 warning）寫入 BQ，供事後聚合與自我改善分析。
+
+    不自動改 prompt（防注入）；僅結構化留存。設 GATE_FAILURE_BQ_LOG=0 可關閉。
+    """
+    if SKIP_BIGQUERY:
+        return
+    if not GATE_FAILURE_BQ_LOG:
+        return
+    issues = [str(x).strip() for x in (validation.get("issues") or []) if str(x).strip()]
+    if not issues:
+        return
+
+    tid = (table_id or "").strip() or GATE_FAILURE_LOG_TABLE
+    bq_project = tid.split(".", 1)[0] if "." in tid else PROJECT_ID
+    blocking = validation.get("blocking_issues") or []
+    warnings = validation.get("warning_issues") or []
+    try:
+        client = bigquery.Client(project=bq_project)
+        schema = [
+            bigquery.SchemaField("timestamp", "TIMESTAMP"),
+            bigquery.SchemaField("attempt", "INTEGER"),
+            bigquery.SchemaField("blocking_count", "INTEGER"),
+            bigquery.SchemaField("warning_count", "INTEGER"),
+            bigquery.SchemaField("issue_count", "INTEGER"),
+            bigquery.SchemaField("news_count", "INTEGER"),
+            bigquery.SchemaField("used_fallback", "BOOL"),
+            bigquery.SchemaField("bucket_counts_json", "STRING"),
+            bigquery.SchemaField("issues_preview", "STRING"),
+            bigquery.SchemaField("fingerprint", "STRING"),
+            bigquery.SchemaField("report_chars", "INTEGER"),
+        ]
+        table_ref = bigquery.Table(tid, schema=schema)
+        client.create_table(table_ref, exists_ok=True)
+
+        table = client.get_table(tid)
+        existing_columns = {field.name for field in table.schema}
+        missing_fields = [f for f in schema if f.name not in existing_columns]
+        if missing_fields:
+            table.schema = list(table.schema) + missing_fields
+            client.update_table(table, ["schema"])
+            logger.info(
+                "Added missing gate_failure_log columns: %s",
+                ", ".join(f.name for f in missing_fields),
+            )
+
+        buckets = _bucket_gate_issues(issues)
+        preview_src = " | ".join(issues[:3])
+        if len(preview_src) > 512:
+            preview_src = preview_src[:509] + "..."
+        fp = hashlib.sha256("\n".join(sorted(issues)).encode("utf-8")).hexdigest()[:16]
+        row = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "attempt": int(attempt),
+            "blocking_count": len(blocking),
+            "warning_count": len(warnings),
+            "issue_count": len(issues),
+            "news_count": int(validation.get("news_count") or 0),
+            "used_fallback": bool(used_fallback),
+            "bucket_counts_json": json.dumps(buckets, ensure_ascii=False),
+            "issues_preview": preview_src or None,
+            "fingerprint": fp,
+            "report_chars": int(report_chars),
+        }
+        errors = client.insert_rows_json(tid, [row])
+        if errors:
+            logger.error("BigQuery gate_failure_log insert errors: %s", errors)
+        else:
+            logger.info(
+                "gate_failure_log written (attempt=%s, issues=%d, blocking=%d).",
+                attempt,
+                len(issues),
+                len(blocking),
+            )
+    except DefaultCredentialsError as e:
+        logger.warning("BigQuery credentials not configured (gate_failure_log skipped): %s", e)
+    except Exception as e:
+        logger.error("Failed to write gate_failure_log to BigQuery: %s", e)

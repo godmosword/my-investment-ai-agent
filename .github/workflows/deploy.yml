@@ -34,6 +34,9 @@ jobs:
   build-and-deploy:
     needs: [test]
     runs-on: ubuntu-22.04
+    # 於 GitHub Repo → Settings → Environments → production 設定 Required reviewers 後，
+    # 本 job 會在部署前等待人工核准（阻斷「綠 CI 即上線」）。
+    environment: production
 
     steps:
       - name: Checkout repository
