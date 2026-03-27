@@ -2,8 +2,9 @@
 
 import pytest
 from report_render import assemble_daily_brief_report, render_telegram_daily_brief
-from report_validator import validate_report, validate_structured_report
+from report_html_gates import validate_report
 from schemas import (
+    validate_structured_report,
     AISection,
     ChatterItem,
     CryptoSection,
@@ -12,6 +13,7 @@ from schemas import (
     MetricLine,
     NewsItem,
     TradeRecommendation,
+    QSREC_JSON_EXCLUDE_FIELDS,
 )
 
 
@@ -127,6 +129,10 @@ def _sample_qsrec_crypto() -> TradeRecommendation:
         alt_candidate_score=65.0,
         score_gap=15.0,
         repeat_days=0,
+        rr_ratio=2.5,
+        max_drawdown_pct=-4.0,
+        expected_win_rate=55.0,
+        signal_score=70.0,
     )
 
 
@@ -154,7 +160,28 @@ def _sample_qsrec_equity() -> TradeRecommendation:
         alt_candidate_score=66.0,
         score_gap=16.0,
         repeat_days=0,
+        rr_ratio=2.5,
+        max_drawdown_pct=-4.0,
+        expected_win_rate=55.0,
+        signal_score=72.0,
     )
+
+
+def test_qsrec_json_excludes_internal_reasoning():
+    raw = TradeRecommendation(
+        asset="BTC",
+        direction="LONG",
+        current_price=1.0,
+        entry=1.0,
+        target=2.0,
+        stop=0.5,
+        confidence=2,
+        category="CRYPTO",
+        internal_reasoning="SECRET_COT_SHOULD_NOT_LEAK",
+        narrative="公開敘事",
+    ).model_dump(exclude_none=True, exclude=QSREC_JSON_EXCLUDE_FIELDS)
+    assert "internal_reasoning" not in raw
+    assert raw.get("narrative") == "公開敘事"
 
 
 def test_render_contains_qsrec_and_passes_structured_gate():
@@ -206,6 +233,7 @@ def test_render_contains_qsrec_and_passes_structured_gate():
 
 def _minimal_report():
     from schemas import MarketRegimeBlock, MetricLine
+
     crypto = CryptoSection(
         report_title_date="2025-03-22",
         market=MarketRegimeBlock(regime="risk_on", score_suffix="（+4/6）"),
@@ -214,21 +242,25 @@ def _minimal_report():
         dashboard=[MetricLine(label="DXY", value="104")],
         news=_sample_news_crypto(),
         chatter=[],
-        pick_reason="本日選擇理由：test",
-        risk_budget_summary="test",
-        signal_conflict_summary="test",
+        pick_reason=(
+            "現貨 ETF 淨流入與交易所淨流出同向，資金費率支持短線偏多，新聞面以 BTC 催化最集中"
+        ),
+        risk_budget_summary="risk_on 模式下總倉位 15%",
+        signal_conflict_summary="無顯著多空衝突，維持原策略執行節奏",
         trade_legs=[],
-        qsrec=[],
+        qsrec=[_sample_qsrec_crypto()],
     )
     ai = AISection(
         macro_bridge_lines=["bridge"],
         dashboard=[MetricLine(label="熱度", value="N/A")],
         news=_sample_news_ai(),
         chatter=[],
-        pick_reason="本日選擇理由：test",
-        signal_conflict_summary="test",
+        pick_reason=(
+            "NVDA 與 AMD 於主流新聞同時具備資料中心 CAPEX 與 GPU 拉貨能見度，財報前瞻形成共振"
+        ),
+        signal_conflict_summary="無顯著多空衝突，維持原策略執行節奏",
         trade_legs=[],
-        qsrec=[],
+        qsrec=[_sample_qsrec_equity()],
     )
     return assemble_daily_brief_report(
         crypto, ai,

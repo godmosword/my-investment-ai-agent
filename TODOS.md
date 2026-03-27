@@ -21,13 +21,13 @@
 | 機制 | 檔案／行為 | 為何仍顯固定 |
 |------|------------|----------------|
 | 近 3 日已推薦標的排除 | [`bigquery_writer.fetch_exclusion_context`](bigquery_writer.py) | LLM 仍可在「重大催化」敘事下 **重複選用**；與 `STRICT_PICK_ROTATION` 的「與昨日 BQ 集合完全相同」條件可能 **不同步**（昨日 vs 近 3 日） |
-| 輪動 Gate | [`report_validator`](report_validator.py) `STRICT_PICK_ROTATION`、`ALLOW_REPEAT_PICK_OVERRIDE` | 同標延續若 **分數與 `alt_candidate` 敘事** 過鬆，易合法連莊 |
+| 輪動 Gate | [`report_html_gates`](report_html_gates.py) `STRICT_PICK_ROTATION`、`ALLOW_REPEAT_PICK_OVERRIDE` | 同標延續若 **分數與 `alt_candidate` 敘事** 過鬆，易合法連莊 |
 | 停損反思 | `fetch_exclusion_context` 已注入 **HIT_STOP** 文字 | 只在 **有 BQ 交易紀錄** 時有效；未與 **Quant 任務標題** 強綁定，模型可能略讀 |
 | 工具覆蓋 | 研究員工具呼叫 | 若標的池過窄或 prompt 過度錨定 **BTC/ETH/NVDA**，輸出會收斂 |
 
 **建議待辦（可勾選追蹤）**
 
-- [x] **對齊「排除清單」與 Rotation Gate 語意**：[`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md)；`PICK_ROLLING_*`、`DATA_MISSING_COUNT_GATE_MAX` 見 [`report_validator.py`](report_validator.py)。
+- [x] **對齊「排除清單」與 Rotation Gate 語意**：[`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md)；`PICK_ROLLING_*`、`DATA_MISSING_COUNT_GATE_MAX` 見 [`report_html_gates.py`](report_html_gates.py)。
 - [x] **crew prompt（候選多樣性）**：[`crew.py`](crew.py) `_ALT_PICK_DIVERSITY_RESEARCH_RULE`（含昨日主標異於候選之句）；主編 `_HIT_STOP_STRATEGIST_RULE`。
 - [x] **Quant / HIT_STOP**：同上 `_HIT_STOP_STRATEGIST_RULE`（主編必答權重是否調降）。
 - [ ] **閾值實驗**：在 staging 調高 `PICK_ROTATION_OVERRIDE_MIN_GAP` 或暫緊 `PICK_REPEAT_MIN_SELECTION_SCORE`，觀察 Gate 失敗率與人工滿意度（與 Direction **2A** 自適應門檻合併評估）。
@@ -38,7 +38,7 @@
 ## P0 — 防止管線崩潰與資料品質（日報核心）
 
 - [ ] **Critical env 策略定稿**：已具 [`PIPELINE_STRICT_ENV`](main.py)；是否再加「資料源 key 分級 hard fail」需產品決策（見上方意見）。
-- [x] **DATA_MISSING 計數 Gate** — [`report_validator.py`](report_validator.py) `DATA_MISSING_COUNT_GATE_MAX`。
+- [x] **DATA_MISSING 計數 Gate** — [`report_html_gates.py`](report_html_gates.py) `DATA_MISSING_COUNT_GATE_MAX`。
 - [ ] **schema 必填收緊** — `schemas.py`：`bull/base/bear_scenario`、`narrative` 等由 Optional → 必填（保留 validator 截斷兜底）；高信心腿見 `ExecutableTradeLeg` validator。
 
 ---
@@ -129,7 +129,7 @@
 - 盤中監控：[`monitor_intraday.py`](monitor_intraday.py)、[`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml)（輕量依賴 [`requirements-monitor.txt`](requirements-monitor.txt)；**cron 預設關閉**，手動 `workflow_dispatch` 或 YAML 啟用排程）。
 - LLM run log → BQ：[`bigquery_writer.write_llm_run_log`](bigquery_writer.py)、[`main.py`](main.py)。
 - **Gate 失敗結構化 log**：`write_gate_failure_log`、`GATE_FAILURE_BQ_LOG`、[`test_gate_failure_log.py`](test_gate_failure_log.py)；範例 SQL [`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)。
-- 新聞新鮮度機檢 + 白名單 ISO 日期修正：[`report_validator.py`](report_validator.py)、[`test_news_freshness.py`](test_news_freshness.py)。
+- 新聞新鮮度機檢 + 白名單 ISO 日期修正：[`report_html_gates.py`](report_html_gates.py)、[`test_news_freshness.py`](test_news_freshness.py)。
 - 啟動硬擋：`PIPELINE_STRICT_ENV`、[`_validate_critical_env_strict`](main.py)、`NEWS_FRESHNESS_WINDOW_HOURS` 型別校驗。
 - 權重版本化與 context：[`signal_weights_store.py`](signal_weights_store.py)、[`scripts/write_ml_weights.py`](scripts/write_ml_weights.py)、`WEIGHTS_CONTEXT_ENABLED`。
 - Exclusion context：**近 3 日標的** + **HIT_STOP** + rotation 警示 + 權重摘要：[`fetch_exclusion_context`](bigquery_writer.py)。

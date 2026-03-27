@@ -11,8 +11,8 @@ from pathlib import Path
 
 from crew import AIResearchCrew, CryptoResearchCrew
 from report_render import assemble_daily_brief_report, render_telegram_daily_brief
-from schemas import DailyBriefReport
-from report_output_validator import (
+from schemas import (
+    DailyBriefReport,
     assert_report_output,
     assert_sample_output,
     parse_report_output,
@@ -40,11 +40,9 @@ from report_judge import (
     llm_judge_should_block,
     llm_quality_judge,
     domain_quality_check,
-    format_quality_card,
 )
-from report_validator import (
+from report_html_gates import (
     validate_report,
-    validate_structured_report,
     _crypto_report_prefix,  # noqa: F401
     _fallback_news_count,
     _has_news_timezone_utc8,  # noqa: F401
@@ -68,7 +66,7 @@ from tools import source_observability_lines
 from visualizer import generate_quant_chart
 import tracker
 import scratchpad
-from tracker import load_previous_recs_block
+from tracker import get_recent_lessons, load_previous_recs_block
 from report_pipeline_compare import compare_validation_results
 
 load_dotenv()
@@ -306,13 +304,12 @@ def _validate_report_candidate(text: str) -> dict:
     """
     Phase 3 候選驗證路徑。
 
-    實作位於 `core/report_validation.py`（延遲 import main，避免循環）。
+    實作：延遲 import `report_html_gates.validate_report`，避免載入循環。
     目前與 `validate_report` 等價；日後可改為獨立實作並以 REPORT_COMPARE_MODE 觀測差異。
-    正式管線仍以本模組的 `validate_report` 為唯一權威。
     """
-    from core.report_validation import validate_report_candidate
+    from report_html_gates import validate_report as _vr
 
-    return validate_report_candidate(text)
+    return _vr(text)
 
 
 def _log_validation_dual_run(final_report: str, legacy_result: dict) -> None:
@@ -587,7 +584,7 @@ def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> 
     This runs AFTER Jinja2 rendering so it works regardless of LLM output quality.
     It is intentionally minimal: only patches what the gate would reject.
 
-    長期：可根因項目應上移至 crew prompt／report_validator，縮減 regex 依賴（TODOS P1）。
+    長期：可根因項目應上移至 crew prompt／schemas，縮減 HTML regex 依賴（TODOS P1）。
     """
     # ── 0. Credibility language normalization ────────────────────────
     # Normalize English "Credibility：X" / "Grade：X" to "可信度：X" for display consistency.
@@ -721,20 +718,6 @@ def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> 
     return html
 
 
-def _maybe_editor_polish_html(html: str) -> str:
-    """可選：潤稿後仍由 validate_report 把關；失敗或非變更時回傳原文。"""
-    try:
-        from report_editor import polish_daily_report_html
-
-        out, meta = polish_daily_report_html(html)
-        scratchpad.append_editor_result(meta)
-        return out
-    except Exception as e:
-        logger.warning("Editor polish skipped: %s", e)
-        scratchpad.append_editor_result({"enabled": False, "skipped_reason": f"exception:{e}"})
-        return html
-
-
 def _run_pipeline_once(
     exclude_context: str | None,
     use_fallback_llm: bool = False,
@@ -774,6 +757,14 @@ def _run_pipeline_once(
         except Exception as _re:
             logger.warning("Regime pre-parse failed (non-fatal): %s", _re)
 
+        try:
+            _reflect_days = int(os.getenv("REFLECTION_LOOKBACK_DAYS", "3") or "3")
+        except ValueError:
+            _reflect_days = 3
+        _reflect_days = max(1, min(_reflect_days, 90))
+        lessons_str = get_recent_lessons(_reflect_days)
+        logger.info("Injected recent_lessons for crew (%d chars, days=%d).", len(lessons_str), _reflect_days)
+
         from concurrent.futures import ThreadPoolExecutor
 
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -783,6 +774,7 @@ def _run_pipeline_once(
                     price_context=price_context,
                     prev_recs_block=prev_recs,
                     agreed_regime=agreed_regime,
+                    recent_lessons=lessons_str,
                 )
             )
             future_ai = executor.submit(
@@ -790,6 +782,7 @@ def _run_pipeline_once(
                     exclude_context=trimmed_exclusion,
                     price_context=price_context,
                     agreed_regime=agreed_regime,
+                    recent_lessons=lessons_str,
                 )
             )
 
@@ -810,16 +803,18 @@ def _run_pipeline_once(
 
         tagged = len(crypto_section.news) + len(ai_section.news)
         partial_tier = tagged < 6 and _allow_partial_news_gate() and 3 <= tagged
+        _so = (source_observability_lines() or "").strip()
+        if _so:
+            logger.info("Source observability (not in Telegram body):\n%s", _so)
         report_model = assemble_daily_brief_report(
             crypto_section,
             ai_section,
             previous_recs_html=prev_recs or "",
-            source_observability_block=source_observability_lines(),
+            source_observability_block="",
             report_tier_partial_news=partial_tier,
         )
         html = render_telegram_daily_brief(report_model)
         html = _post_process_html_for_gate(html, agreed_regime=agreed_regime)
-        html = _maybe_editor_polish_html(html)
         return html, None, report_model
     except Exception as e:
         return "", e, None
@@ -925,23 +920,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                 )
 
             result = validate_report(final_report)
-            if report_model is not None:
-                sres = validate_structured_report(report_model)
-                if not sres["valid"]:
-                    # Merge issues from both validators; structured issues are always blocking.
-                    merged_issues = list(result.get("issues") or [])
-                    merged_issues.extend(sres.get("issues") or [])
-                    merged_blocking = list(result.get("blocking_issues") or [])
-                    merged_blocking.extend(sres.get("blocking_issues") or [])
-                    merged_warnings = list(result.get("warning_issues") or [])
-                    merged_warnings.extend(sres.get("warning_issues") or [])
-                    result = {
-                        **result,
-                        "valid": False,
-                        "issues": merged_issues,
-                        "blocking_issues": merged_blocking,
-                        "warning_issues": merged_warnings,
-                    }
+            # Structured business rules enforced at DailyBriefReport construction (schemas).
             _log_validation_dual_run(final_report, result)
             last_validation = result
 
@@ -1341,16 +1320,17 @@ if __name__ == "__main__":
                 logger.warning("Telegram configuration missing. Skipping gate alert push.")
         elif token and chat_id:
             _send_telegram_report(clean_report, token, chat_id, image_path="daily_chart.png")
-            # 方案A: 發送品質卡（deterministic，失敗不影響主報告）
             try:
-                import telebot as _tb
                 _dqc = domain_quality_check(clean_report)
                 _elapsed = time.monotonic() - _main_start
-                _card = format_quality_card(_dqc, elapsed_sec=_elapsed)
-                _tb.TeleBot(token).send_message(chat_id, _card, parse_mode="HTML", timeout=10)
-                logger.info("Quality card sent. Q-Score=%s", _dqc.get("overall"))
+                logger.info(
+                    "Report quality (not sent to Telegram): Q-Score=%s elapsed=%.1fs detail=%s",
+                    _dqc.get("overall"),
+                    _elapsed,
+                    _dqc,
+                )
             except Exception as _qe:
-                logger.warning("Quality card send failed: %s", _qe)
+                logger.warning("Quality check logging failed: %s", _qe)
         else:
             logger.warning("Telegram configuration missing. Skipping push.")
     else:

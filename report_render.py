@@ -8,7 +8,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
-from schemas import AISection, CryptoSection, DailyBriefReport
+from schemas import AISection, CryptoSection, DailyBriefReport, QSREC_JSON_EXCLUDE_FIELDS
 
 
 def tg_escape(value: object) -> str:
@@ -45,7 +45,10 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
     )
     env.filters["tg_escape"] = tg_escape
 
-    qsrec_list = [r.model_dump(exclude_none=True) for r in report.all_qsrec()]
+    qsrec_list = [
+        r.model_dump(exclude_none=True, exclude=QSREC_JSON_EXCLUDE_FIELDS)
+        for r in report.all_qsrec()
+    ]
     try:
         tmpl = env.get_template("telegram_report.j2")
     except TemplateNotFound as exc:

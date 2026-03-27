@@ -76,7 +76,7 @@
       - crew.py        # constants block only
       - docs/prompts/  # if extracted from crew.py
     denylist:
-      - report_validator.py   # core Gate logic — never auto-mutate
+      - report_html_gates.py   # HTML/BQ Gate — never auto-mutate
       - telegram_sender.py    # HTML whitelist — security boundary
       - main.py               # pipeline entry — human review required
     ```
@@ -130,7 +130,7 @@
 |-------------|--------------|-------|
 | L0 lint | `ruff check .` in `ci.yml` | Copy pattern directly |
 | L1 smoke | `pytest -m smoke -q` (33 tests) | Reuse as-is |
-| Fixture gate | `test_validate_report.py` + `report_validator.py` | Must set SKIP_* env vars |
+| Fixture gate | `test_validate_report.py` + `report_html_gates.py` | Must set SKIP_* env vars |
 | JSONL logging | `scratchpad.py` → `.qsilicon/scratchpad/` | Follow same pattern for `.qsilicon/experiments/` |
 | Token/cost tracking | `bigquery_writer.write_llm_run_log` | L2 only; not for L0/L1 bench loop |
 | Experiment log dir | N/A — `.qsilicon/experiments/` to be created | Consistent with existing `.qsilicon/scratchpad/` |

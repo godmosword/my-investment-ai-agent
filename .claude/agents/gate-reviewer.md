@@ -11,8 +11,9 @@ Your job: analyze why a report failed Gate validation and give a precise diagnos
 
 ## What you have access to
 - `validation_rules.py` — all Gate rules and their conditions
-- `report_validator.py` — validate_report() implementation
-- `core/report_validation.py` — Phase 3 candidate validator
+- `report_html_gates.py` — validate_report() (HTML / env / BQ)
+- `schemas.py` — DailyBriefReport + structured business rules + ReportOutput helpers
+- `main._validate_report_candidate` — delegates to `report_html_gates.validate_report` (compare mode)
 - `gate_artifacts/` — persisted Gate failure artifacts (if present)
 - `scratchpad_*.json` — run-level Gate result history (if present)
 

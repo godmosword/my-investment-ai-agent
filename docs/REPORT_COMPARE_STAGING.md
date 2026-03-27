@@ -2,7 +2,9 @@
 
 ## 目的
 
-在 **不切換正式輸出**（Telegram / BigQuery / `report_valid` 仍以 `main.validate_report` 為準）的前提下，讓候選路徑 `core.report_validation.validate_report_candidate` 與 legacy 並跑，並在日誌中記錄 snapshot 差異。
+在 **不切換正式輸出**（Telegram / BigQuery / `report_valid` 仍以 `main.validate_report` 為準）的前提下，讓候選路徑 `main._validate_report_candidate`（內部呼叫 `report_html_gates.validate_report`）與 legacy 並跑，並在日誌中記錄 snapshot 差異。
+
+> 註：候選與 legacy 目前皆為同一 `report_html_gates.validate_report` 實作；`REPORT_COMPARE_MODE=1` 時仍會雙次計算，僅供日誌觀測與未來替換第二路徑時預留。
 
 ## 本機 / 手動跑一次
 
@@ -24,7 +26,7 @@ python main.py
 
 正式 production Job **不要**長期開啟（避免雙倍 `validate_report` 成本；候選與 legacy 目前仍等價時，log 僅多一次相同計算）。
 
-等 `core/report_validation.py` 改為獨立實作後，再對 staging 長開 compare，蒐集一週 `mismatch` 比例後決定切流。
+若日後在 `core/` 或其他模組實作**第二套**候選驗證，可改 `main._validate_report_candidate` 並對 staging 長開 compare，蒐集一週 `mismatch` 比例後決定切流。
 
 ## 切流條件（建議）
 
@@ -36,4 +38,4 @@ python main.py
 
 - `main._log_validation_dual_run` — 每次 `validate_report` 後觸發比對。
 - `report_pipeline_compare.py` — snapshot / diff 邏輯。
-- `core/report_validation.py` — 候選入口（目前 delegate 至 `main.validate_report`）。
+- `main._validate_report_candidate` — 候選入口（目前等同 `report_html_gates.validate_report`）。

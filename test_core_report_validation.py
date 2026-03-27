@@ -1,16 +1,16 @@
-"""core.report_validation 與 main.validate_report 等價性（Phase 3 接線）。"""
+"""main.validate_report 與 report_html_gates.validate_report 一致（同一路徑）。"""
 
 import unittest
 
-from core.report_validation import validate_report_candidate
-from main import validate_report
+from report_html_gates import validate_report as validate_html_gates
+from main import validate_report as validate_main
 
 
 class TestCoreReportValidationDelegate(unittest.TestCase):
     def test_candidate_matches_legacy_on_short_text(self):
         text = "x" * 500
-        a = validate_report(text)
-        b = validate_report_candidate(text)
+        a = validate_main(text)
+        b = validate_html_gates(text)
         self.assertEqual(a["valid"], b["valid"])
         self.assertEqual(a["news_count"], b["news_count"])
         self.assertEqual(sorted(a.get("issues") or []), sorted(b.get("issues") or []))
@@ -19,8 +19,8 @@ class TestCoreReportValidationDelegate(unittest.TestCase):
         from test_smoke_pipeline import _minimal_valid_report  # type: ignore
 
         text = _minimal_valid_report()
-        a = validate_report(text)
-        b = validate_report_candidate(text)
+        a = validate_main(text)
+        b = validate_html_gates(text)
         self.assertEqual(a["valid"], b["valid"])
         self.assertEqual(sorted(a.get("issues") or []), sorted(b.get("issues") or []))
 

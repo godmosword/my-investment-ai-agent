@@ -159,6 +159,13 @@ _STRUCTURED_IO_HEADER = dedent("""\
     所有字串為純文字；缺資料用 "N/A" 或 null／空陣列，勿捏造工具未回傳的價格或指標。
     """)
 
+# Quant Strategist 最終任務追加；{recent_lessons} 由 crew.kickoff(inputs=...) 代入（勿改為 f-string）。
+_REFLECTION_DYNAMIC_RISK_RULE = dedent("""\
+    【昨日反思與動態風控】
+    {recent_lessons}
+    請你作為頂級基金經理人，務必在閱讀上述「系統反思記憶」後進行今日決策。若發現某板塊近期連續停損，今日該板塊的操作必須強制降級倉位（position_pct）或轉為觀望（Neutral）。
+    """)
+
 
 def build_crypto_structured_final_prompt(
     *, ctx: str, prev_recs_ctx: str, today_str: str, agreed_regime: str | None = None
@@ -189,6 +196,8 @@ def build_crypto_structured_final_prompt(
         {_MTF_CONF_RULE}
         {_SCENARIO_RULE}
         {_HIT_STOP_STRATEGIST_RULE}
+        {_THINK_SHOW_ZONE_RULE}
+        {_INSTITUTIONAL_VOICE_RULE}
 
         === 填入 CryptoSection 欄位 ===
         - report_title_date: 使用 {today_str}
@@ -199,9 +208,9 @@ def build_crypto_structured_final_prompt(
         - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據。
         - chatter：2–3 則呢喃，含可信度與（未確認）。
         - pick_reason / risk_budget_summary / signal_conflict_summary：供區塊④，順序與 Gate 一致。
-        - trade_legs：若可執行則填 ExecutableTradeLeg（asset 勿含 $ 於欄位內由模板加）；R:R 等放於 rr 等字串欄位。
+        - trade_legs：若可執行則填 ExecutableTradeLeg（含 internal_reasoning + narrative）；asset 勿含 $；R:R 等放於 rr 等字串欄位。
           star_rating 1–4。若無法給價則 trade_legs 留空（由管線渲染觀望模式）。
-        - qsrec：與 trade_legs 方向一致；category 僅 CRYPTO；數字欄位為 JSON number；填滿選分與 repeat_days 等 Gate 欄位。
+        - qsrec：與 trade_legs 方向一致；每筆含 internal_reasoning + narrative；category 僅 CRYPTO；數字欄位為 JSON number；填滿選分與 repeat_days 等 Gate 欄位。
 
         嚴禁在字串中出現字面 DATA_MISSING 方括號標記（改 N/A 或自然語）；嚴禁函數名 multi_timeframe_tool。
     """)
@@ -232,17 +241,36 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {_MTF_CONF_RULE}
         {_SCENARIO_RULE}
         {_HIT_STOP_STRATEGIST_RULE}
+        {_THINK_SHOW_ZONE_RULE}
+        {_INSTITUTIONAL_VOICE_RULE}
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段。
         - dashboard：AI 儀表板 MetricLine 列表；若使用 financial_datasets_tool，每檔相關美股至少一行 label 含 FinancialDatasets 與代號。
-        - news：3 則 index 4–6，格式同加密新聞欄位語意。
+        - news：3 則 index 4–6，格式同加密新聞；每則可填 internal_reasoning（思考區）與對外三欄。
         - chatter：2–3 產業鏈呢喃含可信度。
         - pick_reason / signal_conflict_summary / us_equity_allocation_note：遵守 AI 段 Gate（不重複今日風險預算整行）。
-        - trade_legs：兩檔美股為主；star_rating 1–4；留空則渲染觀望。
-        - qsrec：category 僅 EQUITY；與 trade_legs 對齊。
+        - trade_legs：兩檔美股為主；每筆 internal_reasoning + narrative；star_rating 1–4；留空則渲染觀望。
+        - qsrec：category 僅 EQUITY；與 trade_legs 對齊；每筆 internal_reasoning + narrative。
 
         嚴禁 DATA_MISSING 方括號標記字面；嚴禁 multi_timeframe_tool 字樣。
+    """)
+
+_INSTITUTIONAL_VOICE_RULE = dedent("""\
+    【機構級寫作｜Bloomberg 式】
+    讀者為專業經理人；文字如刀鋒，拒絕話癆與討好。
+    - 禁用名詞教學：不解釋什麼是 VIX、RSI（直接給讀數與市場含義）。
+    - 禁用口語連接與填充：雖然、但是、因為、所以、值得注意的是、綜合以上、總結來說、我們認為、由此可見。
+    - 標點：因果並列優先用分號（；）銜接，避免「因為…所以…」拖句。
+    - 數據驅動：主要陳述須緊扣具體數字或百分比（例：營收成長 65.5%；禁「表現很好」空話）。
+    """)
+
+_THINK_SHOW_ZONE_RULE = dedent("""\
+    【思考區 vs 展示區（強制）】
+    - 每筆 trade_legs 與 qsrec：先寫滿 `internal_reasoning`（多空權衡、數據衝突、選點依據；可較長）。
+      該欄不會出現在 Telegram 戰報正文，也不會進入對外 QSREC JSON。
+    - 再寫 `narrative`：僅保留榨乾後的 1～2 句展示用敘事；禁止把 internal_reasoning 整段貼進 narrative。
+    - 每則 news：`internal_reasoning` 可放簡短研判草稿；`summary`／`investment_takeaway`／`editor_consensus` 僅留對外洗練句。
     """)
 
 _EDITOR_RULE = dedent("""\
@@ -381,7 +409,7 @@ _RISK_MODE_RULE = dedent("""\
     - 允許情境分析條件句：可使用「若轉為 risk_off 則…」「若 VIX 突破 25 則切換至…」等 if…then 語句描述替代情境，但主 regime 判定不變。
     - 若今日市場模式為 risk_off：所有交易建議信心水準上限降一級（最高只能 ⭐️⭐️⭐️），並在敘事中明確標註「減倉/輕倉」。
     - 若主判定為 neutral 或 risk_on：嚴禁在敘事中寫「高風險環境 risk_off」「Market Regime: risk_off」「依 risk_off」等與主判定矛盾的 regime 標籤；若要表達謹慎，僅可寫「VIX 偏高、採保守倉位／減碼」，且「今日風險預算」行須與主 regime 一致。
-    - **加密區交易段落前固定三行順序**（validate_report 會截斷檢查）：① `本日選擇理由：…` ② `今日風險預算：…` ③ `訊號衝突摘要：…`（單行 ≤75 字；無衝突時寫「訊號衝突摘要：無顯著多空衝突。」）→ 再進入 `· $<b>…` 交易條目。嚴禁把「本日選擇理由」放在風險預算或訊號衝突之後。
+    - **加密區交易段落前固定三行順序**（validate_report 會截斷檢查）：① `本日選擇理由：…` ② `今日風險預算：…` ③ `訊號衝突摘要：…`（內文兩句精簡：空方主線｜多方主線；**勿**在 JSON 欄位內再寫「訊號衝突摘要：」「╌辯論摘要╌」「最強空方論點：」等小標——Jinja 已印標題；無衝突時內文可寫「無顯著多空衝突。」）→ 再進入交易條目。嚴禁把「本日選擇理由」放在風險預算或訊號衝突之後。
     - **AI 美股區交易段落前**：① `本日選擇理由：…` ② `訊號衝突摘要：…` →（可選美股部位框）→ `· $<b>…`；不重複輸出「今日風險預算」整行（見【AI 段風險預算銜接】）。""")
 
 _PAIR_TRADE_RULE = dedent("""\
@@ -431,7 +459,7 @@ _BRIEF_V2_RULE = dedent("""\
        · 今日主敘事：<b>…</b>（僅 1 句、≤45 字；總結當日最大驅動與對倉位的含義；不得與主 regime 矛盾）
     2) 【語氣校準】主 regime 為 neutral／risk_on，或關鍵資料為 N/A 導致不確定時：禁止「歷史底部明確」「絕對」「確定暴漲／見頂」「絕佳進場點」「必漲／必跌」；改用「若…則…」「在…條件下」「機率偏…」「證據仍不足」。
     3) 【儀表板可讀性】區塊①每行僅一個指標；<code>N/A</code> 或數值後若需補充說明（如 CoinGlass 權限），必須換行另起一句，嚴禁黏成同一行（禁止出現 <code>N/A</code> 緊接英文字母）。
-    4) 【Source 三行】區塊①儀表板內禁止輸出整行【SourceHealth】/【SourceErrors】/【SourceQuota】（pipeline 會於 QSREC 前統一注入）；儀表板內若要交代資料健康，僅能用一句自然語言，勿複製三行欄位。
+    4) 【Source 三行】區塊①儀表板內禁止輸出整行【SourceHealth】/【SourceErrors】/【SourceQuota】；pipeline 僅於後台 logger 記錄，讀者版 Telegram 不顯示。儀表板內若要交代資料健康，僅能用一句自然語言。
     """)
 
 _AI_RISK_BRIDGE_RULE = dedent("""\
@@ -524,10 +552,7 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
          配對交易必須選擇強弱分化最明顯的兩幣，禁止用 BTC/SOL 當預設配對
         【昨日標的對照】提示區「過去 3 天已建議標的」＋ BigQuery 昨日 QSREC：若本日加密 QSREC 與昨日**完全相同**（同幣種／同配對），必須二選一：(1) 至少更換一檔或一改配對腿；(2) 在「本日選擇理由」首段寫明「重複選用理由：〔全新催化／連日持有依據〕」，且 QSREC 需填可驗證分差（score_gap，預設需 >= 12）。否則 validate_report 硬性失敗並整報重試。
          每次必須說明「本日選擇理由：…」（完整規則見【validate_report 動態選幣／選股】；須寫在今日風險預算／訊號衝突／第一筆 · $ 交易行之前）
-         【情境分析】每筆交易行信心 ≥ 2 星時，在敘事邏輯之後必須附上三情境（填入 trade_legs 的 bull/base/bear_scenario 欄位）：
-         🐂 牛：[觸發條件 → 目標]（例：突破 74k + ETF 流入 > $5億 → 78k，機率 30%）
-         ⚖️ 基：[主要情境 + 機率]（例：震盪 70-74k 整理，機率 55%）
-         🐻 熊：[失效條件 → 止損]（例：日線收破 MA20 → 停損 69.5k，機率 15%）
+         【情境分析】每筆信心 ≥ 2 星時，三情境**僅填** trade_legs / QSREC 的 bull/base/bear_scenario 欄位（供結構化驗證）；讀者版 Telegram 精簡交易卡**不**另印情境段落，勿在正文重複貼三情境。
     6) 最後必須輸出 QSREC JSON 區塊""")
 
 _SCENARIO_RULE = dedent("""\
@@ -540,12 +565,9 @@ _SCENARIO_RULE = dedent("""\
 
 _DEBATE_SUMMARY_RULE = dedent("""\
     【Risk Critic 辯論摘要（P4 新增 | 必填）】
-    Risk Critic 任務輸出末尾必須以下格式輸出辯論精髓（2行，每行 ≤35字）：
-    ╌ 辯論摘要 ╌
-    · 最強空方論點：[一句核心空方依據]
-    · 多方反駁核心：[一句主編最終為何選多/空的反駁或確認]
-    此區塊由主編（quant_strategist）原文轉錄至報告 signal_conflict_summary，
-    使讀者在最終報告中清楚看到多空辯論結論。""")
+    Risk Critic 任務輸出末尾用兩句話總結多空（可各一行）；主編（quant_strategist）將精髓**轉寫**進 JSON 的 `signal_conflict_summary`：
+    · 禁止輸出「╌辯論摘要╌」「最強空方論點：」「多方反駁核心：」等框架字樣（讀者版模板已印「訊號衝突摘要：」）。
+    · 內文僅保留可讀結論：空方一句、多方一句（可用全形｜同一行），勿整段複製辯論逐字稿。""")
 
 _AI_LAYOUT_RULE = dedent("""\
     === 排版順序（AI）===
@@ -565,28 +587,6 @@ _AI_LAYOUT_RULE = dedent("""\
         【昨日標的對照】若本日兩檔美股 QSREC 與昨日 BQ 紀錄**完全相同**，必須更換至少一檔，或在 **🤖 本段**「本日選擇理由」內寫明「重複選用理由：…」（勿只寫在加密段），且 QSREC 需填可驗證分差（score_gap，預設需 >= 12）。否則 validate_report 硬性失敗。
          每次必須說明「本日選擇理由：…」（**僅寫於本 AI 段**，完整規則見【validate_report 動態選幣／選股】；須寫在訊號衝突／美股部位框／第一筆 · $ 交易行之前）
     3) 最後必須輸出 QSREC JSON 區塊""")
-
-# ── 文稿潤稿主編 prompt ──────────────────────────────────────────────────────
-_POLISH_RULE = dedent("""\
-    【文稿潤稿主編 — 最終品質把關】
-    你是一位精通繁體中文的機構研究編輯，擅長精煉金融報告文字。
-    上一任務已輸出完整的 JSON 物件，你的唯一職責是：
-    在不改變任何數字、標的、方向、評分或結構欄位的前提下，
-    只潤稿以下文字欄位，使其精煉、專業、不含內部思考標籤：
-
-    【必須潤稿的欄位（其他欄位原樣照搬）】
-    1. narrative_of_day — ≤45字，一句點出今日市場核心催化，語氣機構
-    2. 每筆 trade_legs[i].narrative — ≤80字，一句點出進場根本原因，禁止條列式
-    3. signal_conflict_summary — ≤160字，格式固定：「最強空方論點：XXX\n多方反駁核心：XXX」
-    4. 每則 news[i].editor_consensus — ≤28字，點名具體標的，嚴禁「💎主編共識：」前綴
-
-    【輸出規則】
-    · 嚴格輸出符合 schema 的完整 JSON，所有欄位齊全，不得缺欄
-    · 所有數字欄位（entry/target/stop/star_rating/score 等）原值照搬，絕對不得修改
-    · 禁止新增或刪除任何陣列元素（news/trade_legs/qsrec 長度必須與輸入完全一致）
-    · 禁止 Markdown / HTML / ``` 包裝
-    · 若某欄位文字已符合規範（≤字限、無標籤），可直接保留原文
-""")
 
 
 def _make_llm(model: str, *, max_retries: int = 3, timeout: int = 120) -> LLM:
@@ -618,7 +618,6 @@ def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
       researcher       → Grok（real-time 資料 + tool calling）
       risk_critic      → Gemini 3 Flash（thinking + 長上下文辯論）
       quant_strategist → Gemini 3 Flash（thinking + structured outputs）
-      writing_editor   → GPT Nano（輕量文字改寫，fallback GPT-4o-mini）
     """
     if use_fallback_llm:
         gpt = _make_llm(MODEL_GPT)
@@ -633,7 +632,7 @@ def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
 class CryptoResearchCrew:
     def __init__(self, use_fallback_llm: bool = False):
         llms = _get_llms_for_crew(use_fallback_llm)
-        grok, gemini, gpt_nano = llms["grok"], llms["gemini"], llms["gpt_nano"]
+        grok, gemini = llms["grok"], llms["gemini"]
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -657,23 +656,22 @@ class CryptoResearchCrew:
         self.quant_strategist = Agent(
             role="機構策略主編（加密市場）",
             goal="整合研究成果，輸出戰報上半部。",
-            backstory="最終排版與風控守門員。",
+            backstory="最終排版與風控守門員；嚴守【思考區／展示區】與【機構級寫作】Bloomberg 式洗練。",
             llm=gemini,
             tools=[coinglass_data_tool, ml_quant_tool, multi_timeframe_tool],
             verbose=_VERBOSE,
         )
 
-        self.writing_editor = Agent(
-            role="文稿潤稿主編（加密市場）",
-            goal="潤稿文字欄位，確保繁體中文精煉專業，所有數字與結構原樣保留。",
-            backstory="精通機構金融報告文體的資深編輯，擅長在嚴格字數限制內提升可讀性。",
-            llm=gpt_nano,
-            allow_delegation=False,
-            verbose=_VERBOSE,
-        )
-
-    def run(self, exclude_context: str | None = None, price_context: str = "",
-            prev_recs_block: str = "", agreed_regime: str | None = None):
+    def run(
+        self,
+        exclude_context: str | None = None,
+        price_context: str = "",
+        prev_recs_block: str = "",
+        agreed_regime: str | None = None,
+        recent_lessons: str = (
+            "[系統反思記憶] 近期無停損紀錄，請維持客觀的風險控管。"
+        ),
+    ):
         today_str = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
         excl = (
             f"\n【避免重複】昨日已涵蓋：\n{exclude_context}\n"
@@ -758,7 +756,7 @@ class CryptoResearchCrew:
 
                 {_DEBATE_SUMMARY_RULE}
             """),
-            expected_output="宏觀框架、風險審計與可審計 regime 評分卡，末尾含╌辯論摘要╌兩行。",
+            expected_output="宏觀框架、風險審計與可審計 regime 評分卡；末尾兩句多空結論（勿再用╌辯論摘要╌框架）。",
             agent=self.risk_critic,
             context=[crypto_task],
         )
@@ -769,40 +767,22 @@ class CryptoResearchCrew:
                 prev_recs_ctx=prev_recs_ctx,
                 today_str=today_str,
                 agreed_regime=agreed_regime,
-            ),
+            )
+            + "\n\n"
+            + _REFLECTION_DYNAMIC_RISK_RULE,
             expected_output="符合 CryptoSection schema 的 JSON 物件；qsrec 為 CRYPTO 建議陣列。",
             agent=self.quant_strategist,
             context=[crypto_task, review_task],
             output_pydantic=CryptoSection,
         )
 
-        polish_task = Task(
-            description=_POLISH_RULE,
-            expected_output="與輸入完全相同結構的 CryptoSection JSON，只有文字欄位經過潤稿。",
-            agent=self.writing_editor,
-            context=[final_report_task],
-            output_pydantic=CryptoSection,
-        )
-
         crew = Crew(
-            agents=[self.crypto_researcher, self.risk_critic, self.quant_strategist, self.writing_editor],
-            tasks=[crypto_task, review_task, final_report_task, polish_task],
+            agents=[self.crypto_researcher, self.risk_critic, self.quant_strategist],
+            tasks=[crypto_task, review_task, final_report_task],
             process=Process.sequential,
         )
-        kickoff_result = crew.kickoff()
-        # 優先用潤稿後輸出；若 writing_editor 失敗則退回 quant_strategist 輸出
-        try:
-            section = kickoff_to_pydantic(kickoff_result, CryptoSection)
-        except Exception as _polish_err:
-            logger.warning("Polish task parse failed (%s), falling back to quant_strategist output", _polish_err)
-            tasks_out = getattr(kickoff_result, "tasks_output", [])
-            if len(tasks_out) >= 3:
-                section = kickoff_to_pydantic(
-                    type("_R", (), {"tasks_output": [tasks_out[-2]], "pydantic": None})(),
-                    CryptoSection,
-                )
-            else:
-                raise
+        kickoff_result = crew.kickoff(inputs={"recent_lessons": recent_lessons})
+        section = kickoff_to_pydantic(kickoff_result, CryptoSection)
         section.chatter = _ensure_chatter_credibility(section.chatter)
         return section
 
@@ -810,7 +790,7 @@ class CryptoResearchCrew:
 class AIResearchCrew:
     def __init__(self, use_fallback_llm: bool = False):
         llms = _get_llms_for_crew(use_fallback_llm)
-        grok, gemini, gpt_nano = llms["grok"], llms["gemini"], llms["gpt_nano"]
+        grok, gemini = llms["grok"], llms["gemini"]
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
@@ -842,23 +822,21 @@ class AIResearchCrew:
         self.quant_strategist = Agent(
             role="機構策略主編（AI 市場）",
             goal="整合 AI 研究成果輸出戰報下半部。",
-            backstory="最終格式與可操作性守門。",
+            backstory="最終格式與可操作性守門；嚴守【思考區／展示區】與【機構級寫作】Bloomberg 式洗練。",
             llm=gemini,
             tools=[multi_timeframe_tool],
             verbose=_VERBOSE,
         )
 
-        self.writing_editor = Agent(
-            role="文稿潤稿主編（AI 市場）",
-            goal="潤稿文字欄位，確保繁體中文精煉專業，所有數字與結構原樣保留。",
-            backstory="精通機構金融報告文體的資深編輯，擅長在嚴格字數限制內提升可讀性。",
-            llm=gpt_nano,
-            allow_delegation=False,
-            verbose=_VERBOSE,
-        )
-
-    def run(self, exclude_context: str | None = None, price_context: str = "",
-            agreed_regime: str | None = None):
+    def run(
+        self,
+        exclude_context: str | None = None,
+        price_context: str = "",
+        agreed_regime: str | None = None,
+        recent_lessons: str = (
+            "[系統反思記憶] 近期無停損紀錄，請維持客觀的風險控管。"
+        ),
+    ):
         excl = (
             f"\n【避免重複】昨日已涵蓋：\n{exclude_context}\n"
             if exclude_context else ""
@@ -922,40 +900,22 @@ class AIResearchCrew:
         )
 
         final_report_task = Task(
-            description=build_ai_structured_final_prompt(ctx=ctx, agreed_regime=agreed_regime),
+            description=build_ai_structured_final_prompt(ctx=ctx, agreed_regime=agreed_regime)
+            + "\n\n"
+            + _REFLECTION_DYNAMIC_RISK_RULE,
             expected_output="符合 AISection schema 的 JSON 物件；qsrec 為 EQUITY 建議陣列。",
             agent=self.quant_strategist,
             context=[ai_task, review_task],
             output_pydantic=AISection,
         )
 
-        polish_task = Task(
-            description=_POLISH_RULE,
-            expected_output="與輸入完全相同結構的 AISection JSON，只有文字欄位經過潤稿。",
-            agent=self.writing_editor,
-            context=[final_report_task],
-            output_pydantic=AISection,
-        )
-
         crew = Crew(
-            agents=[self.ai_researcher, self.risk_critic, self.quant_strategist, self.writing_editor],
-            tasks=[ai_task, review_task, final_report_task, polish_task],
+            agents=[self.ai_researcher, self.risk_critic, self.quant_strategist],
+            tasks=[ai_task, review_task, final_report_task],
             process=Process.sequential,
         )
-        kickoff_result = crew.kickoff()
-        # 優先用潤稿後輸出；若 writing_editor 失敗則退回 quant_strategist 輸出
-        try:
-            section = kickoff_to_pydantic(kickoff_result, AISection)
-        except Exception as _polish_err:
-            logger.warning("Polish task parse failed (%s), falling back to quant_strategist output", _polish_err)
-            tasks_out = getattr(kickoff_result, "tasks_output", [])
-            if len(tasks_out) >= 3:
-                section = kickoff_to_pydantic(
-                    type("_R", (), {"tasks_output": [tasks_out[-2]], "pydantic": None})(),
-                    AISection,
-                )
-            else:
-                raise
+        kickoff_result = crew.kickoff(inputs={"recent_lessons": recent_lessons})
+        section = kickoff_to_pydantic(kickoff_result, AISection)
         section.chatter = _ensure_chatter_credibility(section.chatter)
         return section
 

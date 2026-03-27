@@ -661,6 +661,79 @@ def check_and_update_positions(project_id: str = PROJECT_ID) -> list[dict]:
     return closed
 
 
+def get_recent_lessons(days: int = 3, project_id: str = PROJECT_ID) -> str:
+    """從 BigQuery 交易紀錄萃取近期「已平倉且虧損」建議，供 Quant Strategist 反思注入。
+
+    本表狀態無字面 ``CLOSED``：已平倉以 ``HIT_TARGET`` / ``HIT_STOP`` / ``EXPIRED`` 表示；
+    此處篩選 ``pnl_pct < 0`` 的列，並以 ``exit_date`` 落在最近 ``days`` 日內為準。
+
+    Returns:
+        單段繁中說明；無資料、略過 BQ 或查詢失敗時回傳固定中性句。
+    """
+    empty_msg = "[系統反思記憶] 近期無停損紀錄，請維持客觀的風險控管。"
+    if os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes"):
+        return empty_msg
+    try:
+        d_int = int(days)
+    except (TypeError, ValueError):
+        d_int = 3
+    d_int = max(1, min(d_int, 90))
+
+    try:
+        client = _get_bq_client(project_id)
+        # d_int 已夾在 1..90，與本模組其他 f-string BQ 查詢一致（避免僅測試環境缺少 QueryJobConfig）
+        rows = list(
+            client.query(
+                f"""
+                SELECT asset, direction, status, pnl_pct, exit_date
+                FROM `{RECOMMENDATIONS_TABLE}`
+                WHERE status IN ('HIT_STOP', 'HIT_TARGET', 'EXPIRED')
+                  AND pnl_pct IS NOT NULL
+                  AND pnl_pct < 0
+                  AND exit_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {d_int} DAY)
+                ORDER BY exit_date DESC, asset
+                LIMIT 24
+                """
+            ).result()
+        )
+    except Exception as e:
+        logger.warning("get_recent_lessons BigQuery query failed: %s", e)
+        return empty_msg
+
+    if not rows:
+        return empty_msg
+
+    fragments: list[str] = []
+    for row in rows:
+        raw = str(row.get("asset") or "").strip()
+        if not raw:
+            continue
+        sym = raw.upper().replace("$", "").replace(" ", "")
+        if not sym:
+            continue
+        label = f"${sym}"
+        direction = str(row.get("direction") or "N/A").upper()
+        pnl = float(row["pnl_pct"])
+        status = str(row.get("status") or "").upper()
+        if status == "HIT_STOP":
+            clause = "觸及停損"
+        elif status == "EXPIRED":
+            clause = "到期結算虧損"
+        else:
+            clause = "已平倉虧損"
+        fragments.append(f"在 {label}（{direction}）{clause}損失 {abs(pnl):.1f}%")
+
+    if not fragments:
+        return empty_msg
+
+    intro = f"[系統反思記憶] 過去 {d_int} 天內，系統"
+    body = "，".join(fragments) + "。"
+    tail = (
+        "請注意近期高 Beta 資產的波動性，並在今日決策中重新評估相關板塊的風險預算與信心水準。"
+    )
+    return f"{intro} {body}{tail}"
+
+
 def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
     """
     查詢最近一個交易日的 QSREC 建議，抓取當前價格，

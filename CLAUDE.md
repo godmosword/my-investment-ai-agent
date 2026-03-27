@@ -41,8 +41,8 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`schemas.py`](schemas.py) | Pydantic — `DailyBriefReport`, sections, QSREC |
 | [`config.py`](config.py) | `PROJECT_ID`, table IDs, model env names, `GATE_FAILURE_LOG_TABLE`, etc. |
 | [`report_render.py`](report_render.py) | Assemble + render Telegram HTML from crew output |
-| [`report_validator.py`](report_validator.py) | Gate: news, UTC+8, optional freshness, QSREC, rotation, consistency |
-| [`report_output_validator.py`](report_output_validator.py) | Parsing / assertion helpers |
+| [`report_html_gates.py`](report_html_gates.py) | HTML/env/BQ gate: `validate_report()` (news, UTC+8, freshness, QSREC, rotation, …) |
+| [`schemas.py`](schemas.py) | Pydantic contract + `ReportOutput` / `parse_report_output` + `validate_structured_report` + `DailyBriefReport` business rules |
 | [`report_judge.py`](report_judge.py) | Hard-pattern judge; optional `REPORT_LLM_JUDGE` |
 | [`report_editor.py`](report_editor.py) | Optional polish pass (`EDITOR_AGENT_ENABLED`) |
 | [`validation_rules.py`](validation_rules.py) | Shared regex / rule fragments for validation |
@@ -65,7 +65,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 
 | Path | Contents |
 |------|----------|
-| [`core/`](core/) | `report_validation.py` — Phase 3 / candidate validator entry |
+| [`core/`](core/) | Reserved package root (`__init__.py`); compare path uses `main._validate_report_candidate` → `report_html_gates.validate_report` |
 | [`templates/`](templates/) | `telegram_report.j2` |
 | [`docs/`](docs/) | Design docs, runbooks, SQL samples (see §5) |
 | [`scripts/`](scripts/) | `bench_autoresearch.sh`, `oss_scout_candidates.py`, `write_ml_weights.py`, `inject_test_data.py` |
@@ -118,7 +118,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 - **Gate failure artifacts**: `.qsilicon/last_gate_failure/` when `GATE_FAILURE_ARTIFACTS` enabled.
 - **Gate failure BigQuery**: `write_gate_failure_log` → `{PROJECT}.market_data.gate_failure_log`; toggle `GATE_FAILURE_BQ_LOG`, respect `SKIP_BIGQUERY`.
 - **Scratchpad**: `.qsilicon/scratchpad/*.jsonl` when `SCRATCHPAD_ENABLED`.
-- **News freshness** (optional): `STRICT_NEWS_FRESHNESS_GATE`, `NEWS_FRESHNESS_WINDOW_HOURS`, `NEWS_FRESHNESS_SOURCE_WHITELIST` — see [`report_validator.py`](report_validator.py), tests in [`test_news_freshness.py`](test_news_freshness.py).
+- **News freshness** (optional): `STRICT_NEWS_FRESHNESS_GATE`, `NEWS_FRESHNESS_WINDOW_HOURS`, `NEWS_FRESHNESS_SOURCE_WHITELIST` — see [`report_html_gates.py`](report_html_gates.py), tests in [`test_news_freshness.py`](test_news_freshness.py).
 
 ---
 

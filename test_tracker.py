@@ -1,7 +1,9 @@
 """Unit tests for tracker System A — JSON-based recommendation parsing."""
 
+import os
 import unittest
-from unittest.mock import patch
+from datetime import date
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
@@ -12,6 +14,7 @@ from tracker import (
     _compute_trade_metrics,
     _current_prices_for_assets,
     _validate_rec,
+    get_recent_lessons,
 )
 
 # ── realistic snippet mirroring actual LLM-generated report ──
@@ -217,6 +220,48 @@ class TestRiskControls(unittest.TestCase):
         }
         rec = _validate_rec(raw, "2026-03-12", "neutral")
         self.assertIsNone(rec)
+
+
+class TestGetRecentLessons(unittest.TestCase):
+    """Reflection loop: BQ loss rows → strategist memory string."""
+
+    def test_skip_bigquery_returns_neutral(self):
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": "1"}):
+            out = get_recent_lessons(3)
+        self.assertIn("近期無停損紀錄", out)
+        self.assertIn("客觀的風險控管", out)
+
+    @patch("tracker._get_bq_client")
+    def test_formats_negative_pnl_rows(self, mock_get_client):
+        mock_row = {
+            "asset": "NVDA",
+            "direction": "SHORT",
+            "status": "HIT_STOP",
+            "pnl_pct": -2.5,
+            "exit_date": date(2025, 3, 1),
+        }
+        mock_job = MagicMock()
+        mock_job.result.return_value = [mock_row]
+        mock_client = MagicMock()
+        mock_client.query.return_value = mock_job
+        mock_get_client.return_value = mock_client
+
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": ""}, clear=False):
+            out = get_recent_lessons(3)
+
+        self.assertIn("[系統反思記憶]", out)
+        self.assertIn("$NVDA", out)
+        self.assertIn("SHORT", out)
+        self.assertIn("觸及停損", out)
+        self.assertIn("2.5%", out)
+        self.assertIn("高 Beta", out)
+
+    @patch("tracker._get_bq_client")
+    def test_query_failure_returns_neutral(self, mock_get_client):
+        mock_get_client.side_effect = RuntimeError("bq down")
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": ""}, clear=False):
+            out = get_recent_lessons(3)
+        self.assertIn("近期無停損紀錄", out)
 
 
 if __name__ == "__main__":

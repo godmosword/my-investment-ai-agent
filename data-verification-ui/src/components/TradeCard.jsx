@@ -108,11 +108,13 @@ function Scenarios({ trade }) {
 // ── Main TradeCard ────────────────────────────────────────────────────────────
 export default function TradeCard({ trade }) {
   const [expanded, setExpanded] = useState(false);
+  const [aiExpanded, setAiExpanded] = useState(false);
   const isLong = trade.direction?.toUpperCase() === "LONG";
   const pnlColor = trade.pnl_pct > 0 ? "delta-up" : trade.pnl_pct < 0 ? "delta-down" : "delta-flat";
   const hasDims = SCORE_DIMS.some(({ key }) => trade[key] != null);
   const hasScorecard = hasDims || trade.selection_score != null;
   const hasScenarios = !!(trade.bull_scenario || trade.base_scenario || trade.bear_scenario);
+  const hasAiLogic = !!(trade.trigger || trade.invalidation || trade.narrative);
 
   return (
     <div className="trade-card">
@@ -177,15 +179,107 @@ export default function TradeCard({ trade }) {
         )}
       </div>
 
-      {/* Narrative */}
-      {trade.narrative && (
-        <div className="trade-narrative">{trade.narrative}</div>
+      {hasAiLogic && (
+        <button
+          type="button"
+          onClick={() => setAiExpanded((x) => !x)}
+          style={{
+            width: "100%",
+            background: "rgba(0,212,170,.06)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            color: "var(--accent)",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            padding: "8px 10px",
+            marginTop: 10,
+            textAlign: "center",
+          }}
+        >
+          {aiExpanded ? "▲ 收起 AI 決策邏輯" : "🤖 展開 AI 決策邏輯"}
+        </button>
       )}
 
-      {/* Expand toggle for scorecard + scenarios */}
+      {aiExpanded && hasAiLogic && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: "10px 12px",
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "rgba(255,255,255,.02)",
+          }}
+        >
+          {trade.trigger && (
+            <div style={{ marginBottom: 10 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 4,
+                }}
+              >
+                觸發條件（Trigger）
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.45, color: "var(--text)" }}>{trade.trigger}</div>
+            </div>
+          )}
+          {trade.invalidation && (
+            <div style={{ marginBottom: 10 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 4,
+                }}
+              >
+                失效條件（Invalidation）
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.45, color: "var(--text)" }}>{trade.invalidation}</div>
+            </div>
+          )}
+          {trade.narrative && (
+            <div>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 6,
+                }}
+              >
+                敘事邏輯（Narrative）
+              </div>
+              <blockquote
+                className="trade-narrative"
+                style={{
+                  margin: 0,
+                  padding: "10px 12px",
+                  borderLeft: "3px solid var(--accent)",
+                  background: "rgba(0,212,170,.08)",
+                  borderRadius: "0 8px 8px 0",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: "var(--text)",
+                }}
+              >
+                {trade.narrative}
+              </blockquote>
+            </div>
+          )}
+        </div>
+      )}
+
       {(hasScorecard || hasScenarios) && (
         <button
-          onClick={() => setExpanded(x => !x)}
+          type="button"
+          onClick={() => setExpanded((x) => !x)}
           style={{
             width: "100%",
             background: "none",

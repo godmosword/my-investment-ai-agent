@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from report_validator import _check_news_freshness
+from report_html_gates import _check_news_freshness
 
 
 def _news_line(date_part: str, body: str = "摘要") -> str:

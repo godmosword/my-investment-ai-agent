@@ -242,13 +242,14 @@ def get_report(report_date: str) -> dict[str, Any]:
 
 # ── /api/trades ──────────────────────────────────────────────────────────────
 
-@app.get("/api/trades")
-def list_trades(
-    status: str | None = Query(default=None, description="Filter: OPEN, HIT_TARGET, HIT_STOP, EXPIRED"),
-    days: int = Query(default=60, ge=1, le=365),
-    limit: int = Query(default=50, ge=1, le=200),
+
+def _fetch_trades(
+    *,
+    status: str | None,
+    days: int,
+    limit: int,
 ) -> list[dict[str, Any]]:
-    """Return trade recommendations with optional status filter."""
+    """Load recommendation rows from BigQuery (shared by /api/trades and /api/positions/open)."""
     where_clauses = [
         f"report_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)"
     ]
@@ -280,6 +281,25 @@ def list_trades(
         raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
 
     return _rows_to_dicts(rows)
+
+
+@app.get("/api/trades")
+def list_trades(
+    status: str | None = Query(default=None, description="Filter: OPEN, HIT_TARGET, HIT_STOP, EXPIRED"),
+    days: int = Query(default=60, ge=1, le=365),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[dict[str, Any]]:
+    """Return trade recommendations with optional status filter."""
+    return _fetch_trades(status=status, days=days, limit=limit)
+
+
+@app.get("/api/positions/open")
+def list_open_positions(
+    days: int = Query(default=90, ge=1, le=365),
+    limit: int = Query(default=200, ge=1, le=500),
+) -> list[dict[str, Any]]:
+    """OPEN positions only (portfolio health / PWA 部位紅綠燈)."""
+    return _fetch_trades(status="OPEN", days=days, limit=limit)
 
 
 @app.get("/api/trades/performance")
@@ -340,6 +360,32 @@ def get_trades_performance(
     except Exception as exc:
         logger.warning("Could not fetch category breakdown: %s", exc)
         stats["by_category"] = []
+
+    try:
+        eq_rows = client.query(f"""
+            WITH closed_trades AS (
+              SELECT exit_date AS d, pnl_pct
+              FROM `{RECOMMENDATIONS_TABLE}`
+              WHERE report_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
+                AND status IN ('HIT_TARGET', 'HIT_STOP', 'EXPIRED')
+                AND exit_date IS NOT NULL
+                AND pnl_pct IS NOT NULL
+            ),
+            daily_sum AS (
+              SELECT d, SUM(pnl_pct) AS day_pnl
+              FROM closed_trades
+              GROUP BY d
+            )
+            SELECT
+              d AS `date`,
+              SUM(day_pnl) OVER (ORDER BY d ROWS UNBOUNDED PRECEDING) AS cumulative_pnl
+            FROM daily_sum
+            ORDER BY d
+        """).result()
+        stats["equity_curve"] = _rows_to_dicts(eq_rows)
+    except Exception as exc:
+        logger.warning("Could not fetch equity curve: %s", exc)
+        stats["equity_curve"] = []
 
     return stats
 

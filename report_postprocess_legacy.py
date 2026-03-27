@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from report_validator import (
+from report_html_gates import (
     _allow_partial_news_gate,
     _count_effective_news_items,
     _count_news_tags_only,

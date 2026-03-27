@@ -36,7 +36,7 @@
 - **為什麼要跑很久（15–30+ 分鐘）？**  
   雙 Crew、多 Agent、多工具呼叫與 Gate 重試屬正常；可從 `LOG_LEVEL=DEBUG` 觀察階段。  
 - **Gate 擋下來怎麼辦？**  
-  看終端 `issues` 列表；可開 `GATE_FAILURE_ARTIFACTS=1` 在 `.qsilicon/last_gate_failure/` 留底。新聞則數、UTC+8、`trade_watch` 規則見 [`report_validator.py`](report_validator.py) 與 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)。  
+  看終端 `issues` 列表；可開 `GATE_FAILURE_ARTIFACTS=1` 在 `.qsilicon/last_gate_failure/` 留底。新聞則數、UTC+8、`trade_watch` 規則見 [`report_html_gates.py`](report_html_gates.py) 與 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)。  
 - **選幣／選股看起來每天很像？**  
   見 [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md) 與 [`TODOS.md`](TODOS.md) 橫切說明；可選 env 加嚴輪動（`ENV_TEMPLATE.txt` 內 `PICK_ROLLING_*`、`STRICT_PICK_*`）。  
 - **CoinGlass 回 401？**  
@@ -141,9 +141,9 @@ flowchart TB
 | [`crew.py`](crew.py) | 兩段 Crew、Agent/Task、LiteLLM fallback 鏈 |
 | [`tools.py`](tools.py) | 搜尋、新聞、CoinGlass、鏈上、宏觀、Financial Datasets、量化等；快取與 traced 呼叫 |
 | [`api_schema.py`](api_schema.py) | 工具 JSON 結構防呆 |
-| [`schemas.py`](schemas.py) | `DailyBriefReport`、QSREC 等 Pydantic |
+| [`schemas.py`](schemas.py) | `DailyBriefReport`、QSREC、`ReportOutput`／`parse_report_output`、結構化 `@model_validator` |
 | [`report_render.py`](report_render.py) | 組裝與 Telegram HTML 渲染 |
-| [`report_validator.py`](report_validator.py) | Gate：新聞、UTC+8、可選新鮮度、QSREC、輪動、一致性等 |
+| [`report_html_gates.py`](report_html_gates.py) | Gate：新聞、UTC+8、可選新鮮度、QSREC、輪動、一致性等 |
 | [`report_editor.py`](report_editor.py) | 可選潤稿（`EDITOR_AGENT_ENABLED`） |
 | [`report_judge.py`](report_judge.py) | 硬規則審核；可選 `REPORT_LLM_JUDGE` |
 | [`scratchpad.py`](scratchpad.py) | Run 級 JSONL、工具上限／重複偵測 |
@@ -237,7 +237,7 @@ flowchart TB
 | 本機 artifact | `.qsilicon/last_gate_failure/`（見 `GATE_FAILURE_ARTIFACTS`） |
 | BigQuery | `write_gate_failure_log` — 分類 bucket、`fingerprint`、issues 預覽等（見 `bigquery_writer.py`） |
 
-細節以 `report_validator.py`、`main.py`、`docs/DAILY_BRIEF_V2.md` 為準。週聚合範例 SQL → [`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)。選幣輪動語意 → [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md)。
+細節以 `report_html_gates.py`、`schemas.py`、`main.py`、`docs/DAILY_BRIEF_V2.md` 為準。週聚合範例 SQL → [`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)。選幣輪動語意 → [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md)。
 
 ---
 
@@ -258,12 +258,12 @@ python3 -m pytest -v            # 全量（root 下 test_*.py）
 
 ```
 .
-├── main.py, crew.py, tools.py, config.py, schemas.py
+├── main.py, crew.py, tools.py, config.py, schemas.py, report_html_gates.py
 ├── report_*.py, telegram_sender.py, bigquery_writer.py, tracker.py
 ├── scratchpad.py, api.py, api_schema.py, dashboard.py
 ├── signal_weights_store.py, crew_company.py, company_ops_schemas.py
 ├── monitor_intraday.py, visualizer.py, backtest.py, backfill_data.py
-├── core/report_validation.py
+├── core/                  # 預留 domain 模組（`__init__.py`）
 ├── requirements-monitor.txt # 盤中監控 Action 專用（無 CrewAI）
 ├── scripts/              # bench_autoresearch.sh, write_ml_weights.py, inject_test_data.py, oss_scout_candidates.py
 ├── docs/                 # 規格、runbook、SQL、路線圖

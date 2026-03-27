@@ -21,7 +21,7 @@
 
 ## 與本 repo 的接點
 
-- 戰報品質：**`report_validator.validate_report`**、`.qsilicon/last_gate_failure/`、`GATE_FAILURE_BQ_LOG`。  
+- 戰報品質：**`report_html_gates.validate_report`**、`.qsilicon/last_gate_failure/`、`GATE_FAILURE_BQ_LOG`。  
 - 輕量 bench：**`scripts/bench_autoresearch.sh`**（僅輸出尾端 `METRIC key=value` 作為官方指標）。  
 - 完整管線：需金鑰，不納入預設 bench。
 

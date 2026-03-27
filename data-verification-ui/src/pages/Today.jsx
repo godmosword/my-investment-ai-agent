@@ -1,4 +1,4 @@
-import { useMetricsLatest, useReport } from "../hooks/useApi";
+import { useMetricsLatest, useReport, useOpenPositions } from "../hooks/useApi";
 import MetricCard from "../components/MetricCard";
 import TradeCard from "../components/TradeCard";
 import { regimeInfo } from "../utils/regime";
@@ -7,6 +7,12 @@ export default function Today() {
   const today = new Date().toISOString().slice(0, 10);
   const { data: metrics, isLoading: mLoading, error: mError } = useMetricsLatest();
   const { data: report, isLoading: rLoading } = useReport(today);
+  const { data: openPos, isLoading: oLoading, error: oError } = useOpenPositions(90);
+
+  const longCount =
+    openPos?.filter((t) => t.direction?.toUpperCase() === "LONG").length ?? 0;
+  const shortCount =
+    openPos?.filter((t) => t.direction?.toUpperCase() === "SHORT").length ?? 0;
 
   if (mLoading) return <div className="loading">載入中…</div>;
   if (mError) return <div className="error-msg">無法連線至 API：{mError.message}</div>;
@@ -97,6 +103,41 @@ export default function Today() {
           <div className="section-header">🤖 AI 產業情報</div>
           <div className="summary-block">{metrics.gpt_summary}</div>
         </>
+      )}
+
+      <div className="section-header">部位健康度（Portfolio Health）</div>
+      {oLoading && <div className="loading">載入運行中部位…</div>}
+      {oError && (
+        <div className="error-msg" style={{ marginBottom: 12 }}>
+          無法載入部位：{oError.message}
+        </div>
+      )}
+      {!oLoading && !oError && Array.isArray(openPos) && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+            marginBottom: 18,
+            alignItems: "center",
+          }}
+        >
+          <span
+            className="trade-direction direction-long"
+            style={{ fontSize: 13, padding: "6px 14px", borderRadius: 8 }}
+          >
+            多單 {longCount} 筆
+          </span>
+          <span
+            className="trade-direction direction-short"
+            style={{ fontSize: 13, padding: "6px 14px", borderRadius: 8 }}
+          >
+            空單 {shortCount} 筆
+          </span>
+          {longCount === 0 && shortCount === 0 && (
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>目前無運行中部位</span>
+          )}
+        </div>
       )}
 
       {!rLoading && report?.recommendations?.length > 0 && (

@@ -5,7 +5,7 @@
 | 機制 | 資料來源 | 觸發條件 | 目的 |
 |------|-----------|----------|------|
 | **近 3 日排除清單** | [`bigquery_writer.fetch_exclusion_context`](../bigquery_writer.py) 查 `RECOMMENDATIONS_TABLE` 近 3 日 `DISTINCT asset` | 注入 crew 提示區「過去 3 天已建議的標的」 | 引導 LLM **優先**選清單外標的；仍可在「重大催化」下重複，並需寫「重複選用理由」 |
-| **昨日集合輪動 Gate** | [`report_validator._fetch_yesterday_qsrec_canonical_set`](../report_validator.py) 查 **昨日** 同日 `DISTINCT asset`（依 `category`） | 今日 QSREC canonical 集合與 **昨日完全相同** | **機檢**：須換標或通過同標覆核（`重複選用理由` + `score_gap` + `repeat_days`/`selection_score` 門檻） |
+| **昨日集合輪動 Gate** | [`report_html_gates._fetch_yesterday_qsrec_canonical_set`](../report_html_gates.py) 查 **昨日** 同日 `DISTINCT asset`（依 `category`） | 今日 QSREC canonical 集合與 **昨日完全相同** | **機檢**：須換標或通過同標覆核（`重複選用理由` + `score_gap` + `repeat_days`/`selection_score` 門檻） |
 
 兩者語意不同：**3 日清單**是「近期出現過的代號集合」；**昨日 Gate**是「上一個交易日是否整包重複」。因此可能出现：標的未出現在「近 3 日」文案中（邊界日／查詢差異），但與昨日 QSREC 相同而觸發輪動 Gate。
 

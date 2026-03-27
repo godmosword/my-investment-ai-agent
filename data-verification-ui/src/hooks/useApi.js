@@ -67,3 +67,12 @@ export function useTradesPerformance(days = 90) {
     retry: 1,
   });
 }
+
+export function useOpenPositions(days = 90) {
+  return useQuery({
+    queryKey: ["positions", "open", days],
+    queryFn: () => apiFetch(`/api/positions/open?days=${days}`),
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}

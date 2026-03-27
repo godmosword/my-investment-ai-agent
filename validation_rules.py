@@ -74,8 +74,15 @@ HAS_SIGNAL_SCORE_RE = re.compile(
     r"Signal\s*Score[：:]\s*(?:<code>)?\s*\d+(?:\.\d+)?(?:\s*/\s*100)?(?:</code>)?",
     re.IGNORECASE,
 )
-HAS_SIGNAL_CONFLICT_RE = re.compile(r"[訊信]號衝突(?:摘要|分析)?[：:]")
-HAS_RISK_BUDGET_RE = re.compile(r"今日風險預算[：:]")
+# 允許 <b>訊號衝突摘要</b>：等 HTML 包裝
+HAS_SIGNAL_CONFLICT_RE = re.compile(
+    r"[訊信]號衝突(?:摘要|分析)?(?:\s*</b>)?\s*[：:]|[訊信]號衝突(?:摘要|分析)?\s*(?:<[^>]+>)?\s*[：:]",
+    re.IGNORECASE,
+)
+HAS_RISK_BUDGET_RE = re.compile(
+    r"今日風險預算(?:\s*</b>)?\s*[：:]|今日風險預算\s*(?:<[^>]+>)?\s*[：:]",
+    re.IGNORECASE,
+)
 NA_TOKEN_RE = re.compile(r"\bN/A\b")
 HAS_LOW_CONFIDENCE_RE = re.compile(r"低置信度|低信心")
 NUMERIC_INVESTMENT_LINE_RE = re.compile(r"投資解讀[：:][^\n]*(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)")

@@ -2,7 +2,7 @@ import unittest
 
 from pydantic import ValidationError
 
-from report_output_validator import (
+from schemas import (
     ReportOutput,
     assert_report_output,
     assert_sample_output,

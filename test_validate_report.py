@@ -4,7 +4,9 @@ import os
 import unittest
 from unittest.mock import patch
 
-from report_validator import (
+from pydantic import ValidationError
+
+from report_html_gates import (
     _count_effective_news_items,
     _normalize_regime_token,
     _qsrec_consistency_issues,
@@ -299,7 +301,7 @@ class TestHasNewsTimezoneUtc8(unittest.TestCase):
 class TestPickRotation(unittest.TestCase):
     """與昨日 BQ QSREC 標的完全相同時須改選或寫「重複選用理由」。"""
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_crypto_same_as_yesterday_fails_without_phrase(self, mock_y):
         mock_y.return_value = {"BTC", "BTC/SOL"}
         recs = [
@@ -314,7 +316,7 @@ class TestPickRotation(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("輪動", err)
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_crypto_same_ok_with_repeat_phrase(self, mock_y):
         mock_y.return_value = {"BTC", "BTC/SOL"}
         recs = [
@@ -328,7 +330,7 @@ class TestPickRotation(unittest.TestCase):
         ok, _ = _pick_rotation_crypto_ok(body, recs)
         self.assertTrue(ok)
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_equity_rotation(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
@@ -341,7 +343,7 @@ class TestPickRotation(unittest.TestCase):
         good = base + "本日選擇理由：重複選用理由：政策面仍主導故連日維持；\n今日風險預算："
         self.assertTrue(_pick_rotation_equity_ok(good, recs)[0])
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_equity_same_ok_with_repeat_stock_phrase_synonym(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
@@ -352,7 +354,7 @@ class TestPickRotation(unittest.TestCase):
         good = base + "本日選擇理由：重複選股理由：財報週期主導故維持 NVDA／MSFT。\n訊號衝突摘要：無顯著多空衝突。"
         self.assertTrue(_pick_rotation_equity_ok(good, recs)[0])
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_repeat_requires_min_score_gap(self, mock_y):
         mock_y.return_value = {"BTC"}
         recs = [{"asset": "BTC", "category": "CRYPTO", "selection_score": 72, "alt_candidate_score": 66, "score_gap": 6, "repeat_days": 1}]
@@ -362,7 +364,7 @@ class TestPickRotation(unittest.TestCase):
         self.assertIn("分差不足", err)
         self.assertGreater(_pick_rotation_override_min_gap(), 0)
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_repeat_requires_quality_anchor(self, mock_y):
         mock_y.return_value = {"BTC"}
         recs = [{"asset": "BTC", "category": "CRYPTO", "selection_score": 74, "alt_candidate_score": 61, "score_gap": 13, "repeat_days": 3}]
@@ -373,7 +375,7 @@ class TestPickRotation(unittest.TestCase):
 
     # Bug 4: LLM omits `repeat_days` from QSREC JSON — schema default is 0, so
     # _has_repeat_quality_anchor should treat absence as repeat_days=0 (still fresh).
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_repeat_ok_when_repeat_days_absent_defaults_to_zero(self, mock_y):
         mock_y.return_value = {"BTC"}
         # repeat_days intentionally omitted — LLM output may not include optional fields
@@ -382,7 +384,7 @@ class TestPickRotation(unittest.TestCase):
         ok, err = _pick_rotation_crypto_ok(body, recs)
         self.assertTrue(ok, f"should pass when repeat_days absent (defaults to 0): {err}")
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_equity_repeat_ok_when_repeat_days_absent_defaults_to_zero(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         # repeat_days intentionally omitted on both records
@@ -395,7 +397,7 @@ class TestPickRotation(unittest.TestCase):
         ok, err = _pick_rotation_equity_ok(good, recs)
         self.assertTrue(ok, f"should pass when repeat_days absent (defaults to 0): {err}")
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_score_gap_boundary_11_fails(self, mock_y):
         """gap=11 嚴格低於門檻 12，應 fail。"""
         mock_y.return_value = {"BTC", "SOL"}
@@ -410,7 +412,7 @@ class TestPickRotation(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("分差不足", err)
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_score_gap_boundary_12_passes(self, mock_y):
         """gap=12 剛好達標，應 pass（邊界值）。"""
         mock_y.return_value = {"BTC", "SOL"}
@@ -588,10 +590,11 @@ class TestValidateReport(unittest.TestCase):
         result = validate_report(report)
         self.assertTrue(any("QSREC" in i for i in result["issues"]))
 
-    def test_missing_source_health(self):
+    def test_missing_source_health_does_not_block(self):
+        """讀者版戰報不強制出現 Source 三行；僅後台 logger 追蹤。"""
         report = _make_report(include_source_health=False)
         result = validate_report(report)
-        self.assertTrue(any("SourceHealth" in i for i in result["issues"]))
+        self.assertFalse(any("SourceHealth" in i for i in result["issues"]))
 
     def test_missing_signal_conflict(self):
         report = _make_report(include_signal_conflict=False)
@@ -747,7 +750,7 @@ class TestDailyBriefV2Helpers(unittest.TestCase):
         issues = _qsrec_opposing_direction_same_asset(recs)
         self.assertTrue(any("互斥" in i for i in issues))
 
-    @patch("report_validator._strict_pick_scoring", return_value=False)
+    @patch("report_html_gates._strict_pick_scoring", return_value=False)
     def test_qsrec_opposing_in_consistency_issues_by_default(self, _mock_scoring):
         recs = [
             {
@@ -774,7 +777,7 @@ class TestDailyBriefV2Helpers(unittest.TestCase):
             issues = _qsrec_consistency_issues("【今日市場模式】risk_on\n", recs)
         self.assertTrue(any("互斥" in i for i in issues))
 
-    @patch("report_validator._strict_pick_scoring", return_value=False)
+    @patch("report_html_gates._strict_pick_scoring", return_value=False)
     def test_qsrec_opposing_skipped_when_env_allow(self, _mock_scoring):
         recs = [
             {
@@ -814,7 +817,7 @@ class TestHasCryptoTradeSection(unittest.TestCase):
 
 
 class TestAiBoundaryAndWatchMutex(unittest.TestCase):
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_equity_rotation_accepts_ai_variant_heading(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
@@ -830,7 +833,7 @@ class TestAiBoundaryAndWatchMutex(unittest.TestCase):
         )
         self.assertTrue(_pick_rotation_equity_ok(report, recs)[0])
 
-    @patch("report_validator._fetch_yesterday_qsrec_canonical_set")
+    @patch("report_html_gates._fetch_yesterday_qsrec_canonical_set")
     def test_equity_rotation_prefers_first_ai_section_when_duplicated(self, mock_y):
         mock_y.return_value = {"NVDA", "MSFT"}
         recs = [
@@ -1066,6 +1069,16 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
                 editor_consensus="Positive on BTC.",
             )
 
+        _scores = {
+            "selection_score": 80.0,
+            "catalyst_score": 70.0,
+            "flow_score": 75.0,
+            "technical_score": 72.0,
+            "risk_fit_score": 68.0,
+            "execution_score": 77.0,
+            "alt_candidate_score": 60.0,
+            "score_gap": 20.0,
+        }
         qsrec = (
             [
                 TradeRecommendation(
@@ -1077,6 +1090,7 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
                     stop=91000,
                     confidence=4,
                     category="CRYPTO",
+                    **_scores,
                 )
             ]
             if has_qsrec_recs
@@ -1088,7 +1102,9 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
             narrative_of_day="BTC 上漲",
             dashboard=[MetricLine(label="BTC", value="$95000")],
             news=[_ni(i) for i in range(1, crypto_news + 1)],
-            pick_reason="ETF 淨流入超過 1.2B，鏈上 SOPR 回升",
+            pick_reason=(
+                "ETF 淨流入超過 12 億美元且鏈上 SOPR 回升，短期風險偏好延續有利風險資產配置"
+            ),
             risk_budget_summary="risk_on 模式下總倉位 15%",
             signal_conflict_summary="無顯著衝突",
             qsrec=qsrec,
@@ -1096,7 +1112,9 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
         ai_sec = AISection(
             dashboard=[MetricLine(label="NVDA", value="$890")],
             news=[_ni(i) for i in range(4, 4 + ai_news)],
-            pick_reason="NVDA 財報前瞻 GPU 拉貨新聞強化",
+            pick_reason=(
+                "NVDA 財報前瞻與 GPU 拉貨動能見於主流媒體，資料中心 Capex 敘事強化，故優先佈局 NVDA 核心部位"
+            ),
             signal_conflict_summary="無衝突",
         )
         return DailyBriefReport(
@@ -1106,48 +1124,28 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
         )
 
     def test_structured_crypto_news_insufficient(self):
-        from report_validator import validate_structured_report
-
-        report = self._make_minimal_structured_report(crypto_news=1, ai_news=3)
-        result = validate_structured_report(report)
-        self.assertTrue(
-            any(i.startswith("結構化加密新聞不足") for i in result["issues"]),
-            result["issues"],
-        )
+        with self.assertRaises(ValidationError) as ctx:
+            self._make_minimal_structured_report(crypto_news=1, ai_news=3)
+        self.assertIn("結構化加密新聞不足", str(ctx.exception))
 
     def test_structured_ai_news_insufficient(self):
-        from report_validator import validate_structured_report
-
-        report = self._make_minimal_structured_report(crypto_news=3, ai_news=1)
-        result = validate_structured_report(report)
-        self.assertTrue(
-            any(i.startswith("結構化 AI 新聞不足") for i in result["issues"]),
-            result["issues"],
-        )
+        with self.assertRaises(ValidationError) as ctx:
+            self._make_minimal_structured_report(crypto_news=3, ai_news=1)
+        self.assertIn("結構化 AI 新聞不足", str(ctx.exception))
 
     def test_structured_news_total_insufficient(self):
-        from report_validator import validate_structured_report
-
-        report = self._make_minimal_structured_report(crypto_news=2, ai_news=2, partial_tier=False)
-        result = validate_structured_report(report)
-        self.assertTrue(
-            any(i.startswith("結構化新聞總數") for i in result["issues"]),
-            result["issues"],
-        )
+        with self.assertRaises(ValidationError) as ctx:
+            self._make_minimal_structured_report(crypto_news=2, ai_news=2, partial_tier=False)
+        self.assertIn("結構化新聞總數", str(ctx.exception))
 
     def test_structured_qsrec_empty(self):
-        from report_validator import validate_structured_report
-
-        report = self._make_minimal_structured_report(has_qsrec_recs=False)
-        result = validate_structured_report(report)
-        self.assertTrue(
-            any(i.startswith("結構化 qsrec 為空") for i in result["issues"]),
-            result["issues"],
-        )
+        with self.assertRaises(ValidationError) as ctx:
+            self._make_minimal_structured_report(has_qsrec_recs=False)
+        self.assertIn("結構化 qsrec 為空", str(ctx.exception))
 
     def test_regime_token_surface_variants_pass(self):
         """risk_budget_summary surface variants (space/hyphen/mixed-case) should NOT trigger regime gate."""
-        from report_validator import validate_structured_report
+        from schemas import validate_structured_report
 
         variants = [
             "Risk On 模式，總倉位 60%",    # space, title-case
@@ -1167,7 +1165,7 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
 
     def test_regime_token_missing_fails(self):
         """risk_budget_summary with no regime token mention must trigger the gate."""
-        from report_validator import validate_structured_report
+        from schemas import validate_structured_report
 
         report = self._make_minimal_structured_report()
         report.crypto.risk_budget_summary = "總倉位維持 20%，謹慎操作"
@@ -1207,7 +1205,7 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
 
 class TestPlanRollingAndScenarioGates(unittest.TestCase):
     def test_pick_rolling_blocks_when_past_days_over_cap(self):
-        from report_validator import _pick_rolling_frequency_category_ok
+        from report_html_gates import _pick_rolling_frequency_category_ok
 
         recs = [{"asset": "BTC", "category": "CRYPTO"}]
         with patch.dict(
@@ -1220,7 +1218,7 @@ class TestPlanRollingAndScenarioGates(unittest.TestCase):
             clear=False,
         ):
             with patch(
-                "report_validator._fetch_distinct_days_per_asset_rolling",
+                "report_html_gates._fetch_distinct_days_per_asset_rolling",
                 return_value={"BTC": 2},
             ):
                 ok, err = _pick_rolling_frequency_category_ok(recs, "CRYPTO")
@@ -1228,7 +1226,7 @@ class TestPlanRollingAndScenarioGates(unittest.TestCase):
         self.assertIn("滾動頻率", err)
 
     def test_pick_rolling_skips_when_gate_off(self):
-        from report_validator import _pick_rolling_frequency_category_ok
+        from report_html_gates import _pick_rolling_frequency_category_ok
 
         recs = [{"asset": "BTC", "category": "CRYPTO"}]
         with patch.dict(
@@ -1237,14 +1235,14 @@ class TestPlanRollingAndScenarioGates(unittest.TestCase):
             clear=False,
         ):
             with patch(
-                "report_validator._fetch_distinct_days_per_asset_rolling",
+                "report_html_gates._fetch_distinct_days_per_asset_rolling",
                 return_value={"BTC": 99},
             ):
                 ok, _ = _pick_rolling_frequency_category_ok(recs, "CRYPTO")
         self.assertTrue(ok)
 
     def test_qsrec_scenario_strict_missing_bull(self):
-        from report_validator import _qsrec_consistency_issues
+        from report_html_gates import _qsrec_consistency_issues
 
         recs = [
             {

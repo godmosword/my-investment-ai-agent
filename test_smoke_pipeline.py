@@ -1,7 +1,7 @@
 import pytest
 
 from main import sanitize_telegram_html, validate_report
-from report_output_validator import assert_sample_output
+from schemas import assert_sample_output
 from tools import _CACHE, _get_cache, _set_cache
 
 
@@ -31,7 +31,6 @@ def _minimal_valid_report() -> str:
         "投資解讀：BTC 日線 RSI 55，ETF 流入 $120M\n"
         "區塊③【呢喃與傳聞】\n"
         "· 低信噪比，暫無高可信傳聞（未確認）｜可信度：C\n"
-        "【SourceHealth】 ok\n【SourceErrors】 none\n【SourceQuota】 ok\n"
         "[QSREC_START]\n"
         "["
         "{\"asset\":\"BTC\",\"direction\":\"LONG\",\"current_price\":95000,\"entry\":94500,"
@@ -39,12 +38,14 @@ def _minimal_valid_report() -> str:
         "\"narrative\":\"test\",\"trigger\":\"x\",\"invalidation\":\"y\",\"position_pct\":5,\"timeframe\":\"3d\","
         "\"selection_score\":78,\"catalyst_score\":80,\"flow_score\":76,\"technical_score\":75,"
         "\"risk_fit_score\":74,\"execution_score\":79,\"alt_candidate_score\":63,\"score_gap\":15,\"repeat_days\":1,"
+        "\"rr_ratio\":2.0,\"max_drawdown_pct\":-3.0,\"expected_win_rate\":55,\"signal_score\":70,"
         "\"regime\":\"risk_on\"},"
         "{\"asset\":\"NVDA\",\"direction\":\"LONG\",\"current_price\":890,\"entry\":885,"
         "\"target\":950,\"stop\":860,\"confidence\":4,\"category\":\"EQUITY\","
         "\"narrative\":\"test\",\"trigger\":\"x\",\"invalidation\":\"y\",\"position_pct\":5,\"timeframe\":\"5d\","
         "\"selection_score\":81,\"catalyst_score\":84,\"flow_score\":78,\"technical_score\":80,"
         "\"risk_fit_score\":77,\"execution_score\":82,\"alt_candidate_score\":65,\"score_gap\":16,\"repeat_days\":1,"
+        "\"rr_ratio\":2.0,\"max_drawdown_pct\":-3.0,\"expected_win_rate\":55,\"signal_score\":70,"
         "\"regime\":\"risk_on\"}"
         "]\n"
         "[QSREC_END]\n"

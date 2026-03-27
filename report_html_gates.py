@@ -1,7 +1,7 @@
-"""Report validation gate: validate_report() and all its helper functions.
+"""HTML / env / BigQuery report gates: validate_report() and helpers.
 
-Extracted from main.py to reduce module size. This module contains the
-full validation pipeline for checking report quality before Telegram push.
+Migrated from legacy report_validator.py. Structured (Pydantic) business rules
+live in schemas.py on DailyBriefReport.
 
 Dependencies: config.py, validation_rules.py, tracker.py, tools.py
 Does NOT import from main.py (to avoid circular imports).
@@ -1269,7 +1269,7 @@ def _has_source_observability_conflicts(text: str) -> bool:
         if re.search(r'(?:【)?Source(?:Health|Errors|Quota)', ln)
     ]
     if not src_lines:
-        return True
+        return False
 
     def _norm(line: str, key: str) -> str:
         line = re.sub(r'^[·\-\s]*', '', line)
@@ -1607,10 +1607,20 @@ def validate_report(text: str) -> dict:
     has_qsrec_markers = bool(QSREC_MARKERS_RE.search(text))
     parsed_qsrec = tracker.extract_recommendations_json(text) if has_qsrec_markers else []
     has_valid_qsrec = bool(parsed_qsrec)
-    has_rr = bool(HAS_RR_RE.search(text))
-    has_max_drawdown = bool(HAS_MAX_DRAWDOWN_RE.search(text))
-    has_expected_win_rate = bool(HAS_EXPECTED_WIN_RATE_RE.search(text))
-    has_signal_score = bool(HAS_SIGNAL_SCORE_RE.search(text))
+    _qsrec_blob_m = QSREC_MARKERS_RE.search(text)
+    _qsrec_blob = _qsrec_blob_m.group(0) if _qsrec_blob_m else ""
+    has_rr = bool(HAS_RR_RE.search(text)) or bool(
+        re.search(r'"rr_ratio"\s*:\s*[0-9]', _qsrec_blob)
+    )
+    has_max_drawdown = bool(HAS_MAX_DRAWDOWN_RE.search(text)) or bool(
+        re.search(r'"max_drawdown_pct"\s*:\s*-?[0-9]', _qsrec_blob)
+    )
+    has_expected_win_rate = bool(HAS_EXPECTED_WIN_RATE_RE.search(text)) or bool(
+        re.search(r'"expected_win_rate"\s*:\s*[0-9]', _qsrec_blob)
+    )
+    has_signal_score = bool(HAS_SIGNAL_SCORE_RE.search(text)) or bool(
+        re.search(r'"signal_score"\s*:\s*[0-9]', _qsrec_blob)
+    )
     has_signal_conflict = bool(HAS_SIGNAL_CONFLICT_RE.search(text))
     has_risk_budget = bool(HAS_RISK_BUDGET_RE.search(text))
     has_rumor_grade = _has_rumor_grade_marker(text)
@@ -1778,8 +1788,7 @@ def validate_report(text: str) -> dict:
         issues.append("缺少今日風險預算摘要")
     if (not trade_watch_mode) and (not has_numeric_in_investment):
         issues.append("投資解讀缺少當日量化數據引用")
-    if not has_source_health or not has_source_errors or not has_source_quota:
-        issues.append("缺少來源健康欄位（SourceHealth/SourceErrors/SourceQuota）")
+    # Telegram 讀者版不再注入 SourceHealth 三行（改由後台 logger / 營運追蹤），故不強制出現在 HTML。
     if has_mixed_regime:
         issues.append(f"報告內 market_regime 不一致：{', '.join(sorted(unique_regimes))}")
     if malformed_invalidation:
@@ -1918,96 +1927,4 @@ def validate_report(text: str) -> dict:
         "pick_rolling_freq_equity_ok": pick_equity_roll_freq_ok,
         "n_data_missing_tags": n_data_missing_tags,
         "ai_fundamentals_citation_ok": fund_cite_ok,
-    }
-
-
-def validate_structured_report(report: object) -> dict:
-    """以 Pydantic 組裝結果做屬性級檢查，與 validate_report(HTML) 並行。"""
-    from schemas import DailyBriefReport
-
-    if not isinstance(report, DailyBriefReport):
-        return {"valid": False, "issues": ["report 非 DailyBriefReport"]}
-    issues: list[str] = []
-    cr, ai_sec = report.crypto, report.ai
-    if len(cr.news) < 3:
-        issues.append(f"結構化加密新聞不足（{len(cr.news)}/3）")
-    if len(ai_sec.news) < 3:
-        issues.append(f"結構化 AI 新聞不足（{len(ai_sec.news)}/3）")
-    tagged = len(cr.news) + len(ai_sec.news)
-    if tagged < 6 and not report.report_tier_partial_news:
-        issues.append(f"結構化新聞總數 {tagged}/6 且未標記 partial tier")
-    if report.report_tier_partial_news and not (3 <= tagged <= 5):
-        issues.append(f"partial tier 僅允許 3~5 則新聞，當前為 {tagged}")
-    if not report.all_qsrec():
-        issues.append("結構化 qsrec 為空")
-    if not (cr.pick_reason or "").strip():
-        issues.append("加密本日選擇理由為空")
-    if not (ai_sec.pick_reason or "").strip():
-        issues.append("AI 本日選擇理由為空")
-
-    if len((cr.pick_reason or "").strip()) < 34:
-        issues.append("加密本日選擇理由過短（<34）")
-    if len((ai_sec.pick_reason or "").strip()) < 38:
-        issues.append("AI 本日選擇理由過短（<38）")
-    # Allow surface variants: "risk_on", "risk on", "risk-on", "Risk On", "RISK_ON", etc.
-    _regime_pattern = re.escape(cr.market.regime).replace(r"_", r"[\s_\-]+")
-    if not re.search(_regime_pattern, cr.risk_budget_summary or "", re.IGNORECASE):
-        issues.append("加密今日風險預算未包含主 regime token")
-
-    def _norm_asset(a: str) -> str:
-        return str(a or "").upper().replace("$", "").replace("-", "/").replace(" ", "")
-
-    def _check_section_alignment(section, category: str, label: str) -> None:
-        leg_map: dict[str, str] = {}
-        for leg in section.trade_legs:
-            leg_map[_norm_asset(leg.asset)] = str(leg.direction or "").upper()
-
-        seen: dict[str, str] = {}
-        for idx, rec in enumerate(section.qsrec, start=1):
-            cat = str(rec.category or "").upper()
-            if cat != category:
-                issues.append(f"{label} qsrec 第 {idx} 筆 category={cat} 應為 {category}")
-            asset = _norm_asset(rec.asset)
-            direction = str(rec.direction or "").upper()
-            prev = seen.get(asset)
-            if prev and prev != direction:
-                issues.append(f"{label} qsrec 同資產 {asset} 出現相反方向 {prev}/{direction}")
-            seen[asset] = direction
-            if asset in leg_map and leg_map[asset] != direction:
-                issues.append(
-                    f"{label} 交易條目與 qsrec 方向不一致：{asset} leg={leg_map[asset]} qsrec={direction}"
-                )
-
-            for f in (
-                "selection_score",
-                "catalyst_score",
-                "flow_score",
-                "technical_score",
-                "risk_fit_score",
-                "execution_score",
-                "alt_candidate_score",
-                "score_gap",
-            ):
-                if getattr(rec, f) is None:
-                    issues.append(f"{label} qsrec 第 {idx} 筆缺少可量化評分欄位：{f}")
-
-    # Gate: star_rating ≥ 2 時三情境分析（bull/base/bear）必填
-    for section_label, section in (("加密", cr), ("AI", ai_sec)):
-        for leg in section.trade_legs:
-            if leg.star_rating >= 2 and not all(
-                [leg.bull_scenario, leg.base_scenario, leg.bear_scenario]
-            ):
-                issues.append(
-                    f"{section_label}交易腿 {leg.asset} star_rating={leg.star_rating}≥2"
-                    f" 但缺少三情境分析（bull/base/bear）"
-                )
-
-    _check_section_alignment(cr, "CRYPTO", "加密")
-    _check_section_alignment(ai_sec, "EQUITY", "AI")
-    # All structured validation issues are blocking (schema-level integrity).
-    return {
-        "valid": len(issues) == 0,
-        "blocking_issues": issues,
-        "warning_issues": [],
-        "issues": issues,
     }

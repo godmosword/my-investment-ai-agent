@@ -1,7 +1,4 @@
 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {{ crypto.report_title_date|tg_escape }}</i>
-{% if source_observability_block %}
-{{ source_observability_block }}
-{% endif %}
 {% if crypto.exec_summary %}
 <b>📋 執行摘要</b>
 {% for line in crypto.exec_summary %}
@@ -63,24 +60,13 @@
 訊號衝突摘要：{{ crypto.signal_conflict_summary|tg_escape }}
 {% if crypto.trade_legs %}
 {% for leg in crypto.trade_legs %}
-· <b>${{ leg.asset|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>{{ leg.current_price|tg_escape }}</code>｜信心水準：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+· <b>${{ leg.asset|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ leg.current_price|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
-· 進場：<code>{{ leg.entry|tg_escape }}</code>｜目標：<code>{{ leg.target|tg_escape }}</code>｜停損：<code>{{ leg.stop|tg_escape }}</code>
-· 風控：<code>R:R = {{ leg.rr|tg_escape }}</code>｜最大回撤風險：<code>{{ leg.max_drawdown_pct|tg_escape }}</code>｜預期勝率：<code>{{ leg.expected_win_rate|tg_escape }}</code>｜Signal Score：<code>{{ leg.signal_score|tg_escape }}</code>
-· 觸發模式：{{ leg.trigger|tg_escape }}
-· 建倉邏輯：{{ leg.sizing_logic|tg_escape }}
-· 失效條件：<code>{{ leg.invalidation|tg_escape }}</code>
-· 倉位建議：{{ leg.position_pct|tg_escape }}
-· 敘事邏輯：{{ leg.narrative|tg_escape }}
-{% if leg.bull_scenario or leg.base_scenario or leg.bear_scenario %}
-· 情境分析：
-{% if leg.bull_scenario %}  🐂 牛：{{ leg.bull_scenario|tg_escape }}
-{% endif %}
-{% if leg.base_scenario %}  ⚖️ 基：{{ leg.base_scenario|tg_escape }}
-{% endif %}
-{% if leg.bear_scenario %}  🐻 熊：{{ leg.bear_scenario|tg_escape }}
-{% endif %}
-{% endif %}
+· <b>計畫</b>：進場 <code>{{ leg.entry|tg_escape }}</code> 🎯 目標 <code>{{ leg.target|tg_escape }}</code> 🛑 停損 <code>{{ leg.stop|tg_escape }}</code>（建議倉位 {{ leg.position_pct|tg_escape }}）
+
+· <b>執行</b>：{{ leg.trigger|tg_escape }}{% if leg.invalidation %}。若 <code>{{ leg.invalidation|tg_escape }}</code> 則失效。{% endif %}
+
+· <b>敘事</b>：{{ leg.narrative|tg_escape }}
 
 {% endfor %}
 {% else %}
@@ -134,24 +120,13 @@
 {% endif %}
 {% if ai.trade_legs %}
 {% for leg in ai.trade_legs %}
-· <b>${{ leg.asset|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>{{ leg.current_price|tg_escape }}</code>｜信心水準：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+· <b>${{ leg.asset|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ leg.current_price|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
-· 進場：<code>{{ leg.entry|tg_escape }}</code>｜目標：<code>{{ leg.target|tg_escape }}</code>｜停損：<code>{{ leg.stop|tg_escape }}</code>
-· 風控：<code>R:R = {{ leg.rr|tg_escape }}</code>｜最大回撤風險：<code>{{ leg.max_drawdown_pct|tg_escape }}</code>｜預期勝率：<code>{{ leg.expected_win_rate|tg_escape }}</code>｜Signal Score：<code>{{ leg.signal_score|tg_escape }}</code>
-· 觸發模式：{{ leg.trigger|tg_escape }}
-· 建倉邏輯：{{ leg.sizing_logic|tg_escape }}
-· 失效條件：<code>{{ leg.invalidation|tg_escape }}</code>
-· 倉位建議：{{ leg.position_pct|tg_escape }}
-· 敘事邏輯：{{ leg.narrative|tg_escape }}
-{% if leg.bull_scenario or leg.base_scenario or leg.bear_scenario %}
-· 情境分析：
-{% if leg.bull_scenario %}  🐂 牛：{{ leg.bull_scenario|tg_escape }}
-{% endif %}
-{% if leg.base_scenario %}  ⚖️ 基：{{ leg.base_scenario|tg_escape }}
-{% endif %}
-{% if leg.bear_scenario %}  🐻 熊：{{ leg.bear_scenario|tg_escape }}
-{% endif %}
-{% endif %}
+· <b>計畫</b>：進場 <code>{{ leg.entry|tg_escape }}</code> 🎯 目標 <code>{{ leg.target|tg_escape }}</code> 🛑 停損 <code>{{ leg.stop|tg_escape }}</code>（建議倉位 {{ leg.position_pct|tg_escape }}）
+
+· <b>執行</b>：{{ leg.trigger|tg_escape }}{% if leg.invalidation %}。若 <code>{{ leg.invalidation|tg_escape }}</code> 則失效。{% endif %}
+
+· <b>敘事</b>：{{ leg.narrative|tg_escape }}
 
 {% endfor %}
 {% else %}

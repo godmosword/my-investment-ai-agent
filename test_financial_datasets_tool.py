@@ -45,7 +45,7 @@ if "crewai" not in sys.modules:
     sys.modules["crewai"] = _crewai_mod
     sys.modules["crewai.tools"] = _crewai_tools_mod
 
-from report_validator import _ai_fundamentals_citation_ok  # noqa: E402
+from report_html_gates import _ai_fundamentals_citation_ok  # noqa: E402
 from tools import _CACHE, financial_datasets_tool  # noqa: E402
 
 
@@ -147,7 +147,7 @@ class TestFinancialDatasetsToolEdgeCases(unittest.TestCase):
 
 
 class TestAiFundamentalsCitationGate(unittest.TestCase):
-    """Tests for _ai_fundamentals_citation_ok gate in report_validator."""
+    """Tests for _ai_fundamentals_citation_ok gate in report_html_gates."""
 
     _AI_PREFIX = "🤖 AI 市場\n"
     _REASON_FUNDAMENTAL = "本日選擇理由：NVDA 營收強勁，自由現金流創高。\n"
