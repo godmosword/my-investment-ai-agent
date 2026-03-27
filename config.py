@@ -22,5 +22,8 @@ LLM_RUN_LOG_TABLE = f"{PROJECT_ID}.market_data.llm_run_log"
 MODEL_GROK = _env_model("MODEL_GROK", default="xai/grok-4-1-fast-reasoning")
 # 相容舊慣例：OPENAI_MODEL 優先，其次 MODEL_GPT
 MODEL_GPT = _env_model("OPENAI_MODEL", "MODEL_GPT", default="openai/gpt-4o-mini")
-MODEL_GEMINI = _env_model("MODEL_GEMINI", default="gemini/gemini-2.5-pro")
+# Risk Critic + Quant Strategist 使用 Gemini 3 Flash（支援 thinking + structured outputs）
+MODEL_GEMINI = _env_model("MODEL_GEMINI", default="gemini/gemini-3-flash-preview")
 MODEL_CLAUDE = _env_model("MODEL_CLAUDE", default="anthropic/claude-sonnet-4-20250514")
+# 文稿潤稿主編（Writing Editor）：輕量快速，僅做文字改寫
+MODEL_GPT_NANO = _env_model("MODEL_GPT_NANO", default="openai/gpt-5.4-nano-2026-03-17")
