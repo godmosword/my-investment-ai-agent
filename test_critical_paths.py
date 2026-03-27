@@ -9,6 +9,7 @@ from main import (
     sanitize_telegram_html,
     _balance_telegram_html_tags,
     _send_telegram_report,
+    _validate_critical_env_strict,
     _validate_env_types,
     _validate_required_keys,
 )
@@ -189,6 +190,58 @@ class TestEnvValidation(unittest.TestCase):
     def test_validate_env_types_ok_for_valid_number(self):
         # Should not raise
         _validate_env_types()
+
+    @patch.dict(os.environ, {"NEWS_FRESHNESS_WINDOW_HOURS": "not_int"})
+    def test_validate_env_types_raises_for_bad_news_freshness_window(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            _validate_env_types()
+        self.assertIn("NEWS_FRESHNESS_WINDOW_HOURS", str(ctx.exception))
+
+    @patch.dict(os.environ, {
+        "PIPELINE_STRICT_ENV": "1",
+        "SKIP_TELEGRAM": "1",
+        "SKIP_BIGQUERY": "1",
+    }, clear=False)
+    def test_validate_critical_env_strict_ok_when_both_skipped(self):
+        _validate_critical_env_strict()
+
+    @patch.dict(os.environ, {
+        "PIPELINE_STRICT_ENV": "1",
+        "SKIP_TELEGRAM": "",
+        "TELEGRAM_BOT_TOKEN": "",
+        "TELEGRAM_CHAT_ID": "",
+        "SKIP_BIGQUERY": "1",
+    }, clear=False)
+    def test_validate_critical_env_strict_raises_without_telegram_when_not_skipped(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            _validate_critical_env_strict()
+        self.assertIn("TELEGRAM", str(ctx.exception).upper())
+
+    @patch.dict(os.environ, {
+        "PIPELINE_STRICT_ENV": "1",
+        "SKIP_TELEGRAM": "1",
+        "SKIP_BIGQUERY": "",
+        "GCP_PROJECT_ID": "",
+        "GCP_SA_KEY": "",
+        "GOOGLE_APPLICATION_CREDENTIALS": "",
+    }, clear=False)
+    def test_validate_critical_env_strict_raises_without_gcp_when_bq_not_skipped(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            _validate_critical_env_strict()
+        self.assertIn("GCP_PROJECT_ID", str(ctx.exception))
+
+    @patch.dict(os.environ, {
+        "PIPELINE_STRICT_ENV": "1",
+        "SKIP_TELEGRAM": "1",
+        "SKIP_BIGQUERY": "",
+        "GCP_PROJECT_ID": "my-project",
+        "GCP_SA_KEY": "",
+        "GOOGLE_APPLICATION_CREDENTIALS": "",
+    }, clear=False)
+    def test_validate_critical_env_strict_raises_without_sa_when_bq_not_skipped(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            _validate_critical_env_strict()
+        self.assertIn("GCP_SA_KEY", str(ctx.exception))
 
     @patch.dict(os.environ, {
         "XAI_API_KEY": "",
