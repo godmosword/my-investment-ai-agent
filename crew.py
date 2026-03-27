@@ -6,7 +6,7 @@ from textwrap import dedent
 
 from crewai import Agent, Crew, LLM, Process, Task
 
-from config import MODEL_CLAUDE, MODEL_GEMINI, MODEL_GROK, MODEL_GPT
+from config import MODEL_CLAUDE, MODEL_GEMINI, MODEL_GROK, MODEL_GPT, MODEL_GPT_NANO
 from crew_output_parse import kickoff_to_pydantic
 from schemas import AISection, CryptoSection
 from tools import (
@@ -41,16 +41,19 @@ _VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
 
 # 每個角色的 LLM fallback chain：主 LLM 失敗時依序嘗試下一個
 _FALLBACK_CHAINS: dict[str, list[str]] = {
-    "grok": [MODEL_GROK, MODEL_CLAUDE, MODEL_GPT],
-    "gpt": [MODEL_GPT, MODEL_CLAUDE, MODEL_GROK],
-    "gemini": [MODEL_GEMINI, MODEL_GPT, MODEL_CLAUDE],
+    "grok":     [MODEL_GROK, MODEL_CLAUDE, MODEL_GPT],
+    "gpt":      [MODEL_GPT, MODEL_CLAUDE, MODEL_GROK],
+    "gemini":   [MODEL_GEMINI, MODEL_GPT, MODEL_CLAUDE],
+    # 文稿潤稿主編：nano → 標準 GPT → Claude 降級
+    "gpt_nano": [MODEL_GPT_NANO, MODEL_GPT, MODEL_CLAUDE],
 }
 
 _API_KEY_MAP: dict[str, str] = {
-    MODEL_GROK: "XAI_API_KEY",
-    MODEL_GPT: "OPENAI_API_KEY",
-    MODEL_GEMINI: "GEMINI_API_KEY",
-    MODEL_CLAUDE: "ANTHROPIC_API_KEY",
+    MODEL_GROK:     "XAI_API_KEY",
+    MODEL_GPT:      "OPENAI_API_KEY",
+    MODEL_GEMINI:   "GEMINI_API_KEY",
+    MODEL_CLAUDE:   "ANTHROPIC_API_KEY",
+    MODEL_GPT_NANO: "OPENAI_API_KEY",
 }
 
 _TELEGRAM_FMT = dedent("""\
@@ -547,6 +550,28 @@ _AI_LAYOUT_RULE = dedent("""\
          每次必須說明「本日選擇理由：…」（**僅寫於本 AI 段**，完整規則見【validate_report 動態選幣／選股】；須寫在訊號衝突／美股部位框／第一筆 · $ 交易行之前）
     3) 最後必須輸出 QSREC JSON 區塊""")
 
+# ── 文稿潤稿主編 prompt ──────────────────────────────────────────────────────
+_POLISH_RULE = dedent("""\
+    【文稿潤稿主編 — 最終品質把關】
+    你是一位精通繁體中文的機構研究編輯，擅長精煉金融報告文字。
+    上一任務已輸出完整的 JSON 物件，你的唯一職責是：
+    在不改變任何數字、標的、方向、評分或結構欄位的前提下，
+    只潤稿以下文字欄位，使其精煉、專業、不含內部思考標籤：
+
+    【必須潤稿的欄位（其他欄位原樣照搬）】
+    1. narrative_of_day — ≤45字，一句點出今日市場核心催化，語氣機構
+    2. 每筆 trade_legs[i].narrative — ≤80字，一句點出進場根本原因，禁止條列式
+    3. signal_conflict_summary — ≤160字，格式固定：「最強空方論點：XXX\n多方反駁核心：XXX」
+    4. 每則 news[i].editor_consensus — ≤28字，點名具體標的，嚴禁「💎主編共識：」前綴
+
+    【輸出規則】
+    · 嚴格輸出符合 schema 的完整 JSON，所有欄位齊全，不得缺欄
+    · 所有數字欄位（entry/target/stop/star_rating/score 等）原值照搬，絕對不得修改
+    · 禁止新增或刪除任何陣列元素（news/trade_legs/qsrec 長度必須與輸入完全一致）
+    · 禁止 Markdown / HTML / ``` 包裝
+    · 若某欄位文字已符合規範（≤字限、無標籤），可直接保留原文
+""")
+
 
 def _make_llm(model: str, *, max_retries: int = 3, timeout: int = 120) -> LLM:
     """建立單一 LLM 實例，自動從環境變數取得對應 API key。"""
@@ -573,22 +598,26 @@ def _make_llm_with_fallback(role: str, *, max_retries: int = 3, timeout: int = 1
 def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
     """Primary 依 fallback chain 選可用 LLM；use_fallback_llm=True 時全用 GPT 降低凌晨靜默失敗。
 
-    正常路徑僅建立 Grok + Gemini：兩段 Crew 的 researcher 用 Grok，risk_critic / quant_strategist 用 Gemini；
-    不預先實例化 GPT 槽位（仍須 OPENAI_API_KEY 供 main、sentiment、可選 judge 等）。
+    正常路徑：
+      researcher       → Grok（real-time 資料 + tool calling）
+      risk_critic      → Gemini 3 Flash（thinking + 長上下文辯論）
+      quant_strategist → Gemini 3 Flash（thinking + structured outputs）
+      writing_editor   → GPT Nano（輕量文字改寫，fallback GPT-4o-mini）
     """
     if use_fallback_llm:
         gpt = _make_llm(MODEL_GPT)
-        return {"grok": gpt, "gpt": gpt, "gemini": gpt}
+        return {"grok": gpt, "gpt": gpt, "gemini": gpt, "gpt_nano": gpt}
     return {
-        "grok": _make_llm_with_fallback("grok"),
-        "gemini": _make_llm_with_fallback("gemini", max_retries=5, timeout=180),
+        "grok":     _make_llm_with_fallback("grok"),
+        "gemini":   _make_llm_with_fallback("gemini", max_retries=5, timeout=180),
+        "gpt_nano": _make_llm_with_fallback("gpt_nano", max_retries=3, timeout=60),
     }
 
 
 class CryptoResearchCrew:
     def __init__(self, use_fallback_llm: bool = False):
         llms = _get_llms_for_crew(use_fallback_llm)
-        grok, gemini = llms["grok"], llms["gemini"]
+        grok, gemini, gpt_nano = llms["grok"], llms["gemini"], llms["gpt_nano"]
 
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
@@ -615,6 +644,15 @@ class CryptoResearchCrew:
             backstory="最終排版與風控守門員。",
             llm=gemini,
             tools=[coinglass_data_tool, ml_quant_tool, multi_timeframe_tool],
+            verbose=_VERBOSE,
+        )
+
+        self.writing_editor = Agent(
+            role="文稿潤稿主編（加密市場）",
+            goal="潤稿文字欄位，確保繁體中文精煉專業，所有數字與結構原樣保留。",
+            backstory="精通機構金融報告文體的資深編輯，擅長在嚴格字數限制內提升可讀性。",
+            llm=gpt_nano,
+            allow_delegation=False,
             verbose=_VERBOSE,
         )
 
@@ -720,12 +758,33 @@ class CryptoResearchCrew:
             output_pydantic=CryptoSection,
         )
 
+        polish_task = Task(
+            description=_POLISH_RULE,
+            expected_output="與輸入完全相同結構的 CryptoSection JSON，只有文字欄位經過潤稿。",
+            agent=self.writing_editor,
+            context=[final_report_task],
+            output_pydantic=CryptoSection,
+        )
+
         crew = Crew(
-            agents=[self.crypto_researcher, self.risk_critic, self.quant_strategist],
-            tasks=[crypto_task, review_task, final_report_task],
+            agents=[self.crypto_researcher, self.risk_critic, self.quant_strategist, self.writing_editor],
+            tasks=[crypto_task, review_task, final_report_task, polish_task],
             process=Process.sequential,
         )
-        section = kickoff_to_pydantic(crew.kickoff(), CryptoSection)
+        kickoff_result = crew.kickoff()
+        # 優先用潤稿後輸出；若 writing_editor 失敗則退回 quant_strategist 輸出
+        try:
+            section = kickoff_to_pydantic(kickoff_result, CryptoSection)
+        except Exception as _polish_err:
+            logger.warning("Polish task parse failed (%s), falling back to quant_strategist output", _polish_err)
+            tasks_out = getattr(kickoff_result, "tasks_output", [])
+            if len(tasks_out) >= 3:
+                section = kickoff_to_pydantic(
+                    type("_R", (), {"tasks_output": [tasks_out[-2]], "pydantic": None})(),
+                    CryptoSection,
+                )
+            else:
+                raise
         section.chatter = _ensure_chatter_credibility(section.chatter)
         return section
 
@@ -733,7 +792,7 @@ class CryptoResearchCrew:
 class AIResearchCrew:
     def __init__(self, use_fallback_llm: bool = False):
         llms = _get_llms_for_crew(use_fallback_llm)
-        grok, gemini = llms["grok"], llms["gemini"]
+        grok, gemini, gpt_nano = llms["grok"], llms["gemini"], llms["gpt_nano"]
 
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
@@ -768,6 +827,15 @@ class AIResearchCrew:
             backstory="最終格式與可操作性守門。",
             llm=gemini,
             tools=[multi_timeframe_tool],
+            verbose=_VERBOSE,
+        )
+
+        self.writing_editor = Agent(
+            role="文稿潤稿主編（AI 市場）",
+            goal="潤稿文字欄位，確保繁體中文精煉專業，所有數字與結構原樣保留。",
+            backstory="精通機構金融報告文體的資深編輯，擅長在嚴格字數限制內提升可讀性。",
+            llm=gpt_nano,
+            allow_delegation=False,
             verbose=_VERBOSE,
         )
 
@@ -841,12 +909,33 @@ class AIResearchCrew:
             output_pydantic=AISection,
         )
 
+        polish_task = Task(
+            description=_POLISH_RULE,
+            expected_output="與輸入完全相同結構的 AISection JSON，只有文字欄位經過潤稿。",
+            agent=self.writing_editor,
+            context=[final_report_task],
+            output_pydantic=AISection,
+        )
+
         crew = Crew(
-            agents=[self.ai_researcher, self.risk_critic, self.quant_strategist],
-            tasks=[ai_task, review_task, final_report_task],
+            agents=[self.ai_researcher, self.risk_critic, self.quant_strategist, self.writing_editor],
+            tasks=[ai_task, review_task, final_report_task, polish_task],
             process=Process.sequential,
         )
-        section = kickoff_to_pydantic(crew.kickoff(), AISection)
+        kickoff_result = crew.kickoff()
+        # 優先用潤稿後輸出；若 writing_editor 失敗則退回 quant_strategist 輸出
+        try:
+            section = kickoff_to_pydantic(kickoff_result, AISection)
+        except Exception as _polish_err:
+            logger.warning("Polish task parse failed (%s), falling back to quant_strategist output", _polish_err)
+            tasks_out = getattr(kickoff_result, "tasks_output", [])
+            if len(tasks_out) >= 3:
+                section = kickoff_to_pydantic(
+                    type("_R", (), {"tasks_output": [tasks_out[-2]], "pydantic": None})(),
+                    AISection,
+                )
+            else:
+                raise
         section.chatter = _ensure_chatter_credibility(section.chatter)
         return section
 
