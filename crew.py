@@ -33,7 +33,6 @@ from tools import (
     rumor_scanner_tool,
     sentiment_score_tool,
     valuation_anchor_tool,
-    x_search_tool,
 )
 
 logger = logging.getLogger(__name__)
@@ -596,7 +595,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, x_search_tool, onchain_metrics_tool, sentiment_score_tool, correlation_matrix_tool, valuation_anchor_tool, cot_positioning_tool, grayscale_premium_tool, historical_analog_tool],
+            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, onchain_metrics_tool, sentiment_score_tool, correlation_matrix_tool, valuation_anchor_tool, cot_positioning_tool, grayscale_premium_tool, historical_analog_tool],
             verbose=_VERBOSE,
         )
 
@@ -660,9 +659,8 @@ class CryptoResearchCrew:
                 · gnews_tool('Ethereum altcoin DeFi Layer2 crypto market')（多語言 + 山寨幣補充）
                 · rumor_scanner_tool('crypto whale ETF flow OR altcoin catalyst OR DeFi exploit OR Layer2 upgrade')
                 · market_search_tool('crypto market altcoin DeFi Layer2 catalyst liquidity derivatives')
-                · x_search_tool('crypto ETF bitcoin ethereum altcoin DeFi liquidation whale')（供 X 推文精選區塊使用）
                 · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
-                · sentiment_score_tool(news_and_tweets=<將上方新聞標題 + X 推文拼接後傳入>)（可選 / optional：若時間緊迫可跳過；社群情緒量化 -1 到 +1）
+                · sentiment_score_tool(news_and_tweets=<將上方新聞標題與摘要拼接後傳入>)（可選：時間緊可跳過；情緒 -1～+1）
                 · correlation_matrix_tool()（BTC 與 SPX/DXY/GLD/NDX 30日相關係數，識別當前市場模式）
                 · valuation_anchor_tool()（MVRV proxy + NVT Ratio + BTC Dominance；提供估值錨，判斷當前是否高估/低估）
                 · cot_positioning_tool()（CFTC COT 報告：CME 比特幣期貨機構淨倉 + 週變化，辨別機構是加倉還是撤倉）
@@ -750,7 +748,6 @@ class AIResearchCrew:
                 ai_momentum_tool,
                 financial_datasets_tool,
                 rumor_scanner_tool,
-                x_search_tool,
             ],
             verbose=_VERBOSE,
         )
@@ -806,7 +803,6 @@ class AIResearchCrew:
                 · market_search_tool('AI data center GPU semiconductor infrastructure {year}')
                 · market_search_tool('data center power supply nuclear energy AI {year}')
                 · rumor_scanner_tool('AI infrastructure supply chain risk')
-                · x_search_tool('NVIDIA AI GPU data center OpenAI Anthropic Microsoft')（取得 AI 板塊 X/Twitter 即時推文）
 
                 產出 AI 新聞 3 則，每則格式：
                 {_NEWS_FMT}

@@ -88,8 +88,17 @@ def get_metrics_latest() -> dict[str, Any]:
     latest = serialised[0]
     prev = serialised[1] if len(serialised) > 1 else None
 
-    # Compute deltas
-    delta_keys = ["dxy", "etf_flow_millions", "avg_risk_score", "mvrv_z_score"]
+    # Compute deltas（與 PWA Today 第二排 KPI 對齊）
+    delta_keys = [
+        "dxy",
+        "etf_flow_millions",
+        "avg_risk_score",
+        "mvrv_z_score",
+        "sentiment_score",
+        "sopr",
+        "exchange_netflow",
+        "regime_score",
+    ]
     deltas: dict[str, float | None] = {}
     if prev:
         for k in delta_keys:
