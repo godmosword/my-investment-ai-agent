@@ -80,6 +80,62 @@ def _news_freshness_whitelist() -> frozenset[str]:
     return frozenset(s.strip().upper() for s in raw.split(",") if s.strip())
 
 
+def _strict_exec_summary_html_gate() -> bool:
+    """HTML 正文須含【執行摘要】且至少兩條要點。STRICT_EXEC_SUMMARY_HTML_GATE=1 啟用。"""
+    return os.getenv("STRICT_EXEC_SUMMARY_HTML_GATE", "0").lower() in ("1", "true", "yes")
+
+
+def _pipeline_report_date_anchor_utc() -> datetime | None:
+    """PIPELINE_REPORT_DATE=YYYY-MM-DD 時，新聞新鮮度以該日 23:59:59 Asia/Hong_Kong 為參考時刻。"""
+    raw = os.getenv("PIPELINE_REPORT_DATE", "").strip()
+    if not raw:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+
+        d = datetime.strptime(raw, "%Y-%m-%d").date()
+        return datetime(
+            d.year,
+            d.month,
+            d.day,
+            23,
+            59,
+            59,
+            tzinfo=ZoneInfo("Asia/Hong_Kong"),
+        )
+    except Exception as e:
+        logger.warning("PIPELINE_REPORT_DATE invalid %r: %s", raw, e)
+        return None
+
+
+def _exec_summary_html_ok(text: str) -> tuple[bool, str]:
+    if not _strict_exec_summary_html_gate():
+        return True, ""
+    if "【執行摘要】" not in text:
+        return False, "缺少【執行摘要】區塊（STRICT_EXEC_SUMMARY_HTML_GATE=1）"
+    idx = text.find("【執行摘要】")
+    rest = text[idx + len("【執行摘要】") : idx + 2000]
+    stop_m = re.search(r"\n【", rest)
+    span = rest[: stop_m.start()] if stop_m else rest
+    lines = [
+        ln.strip()
+        for ln in span.splitlines()
+        if ln.strip() and not ln.strip().startswith("<")
+    ]
+    substantive = [
+        ln
+        for ln in lines
+        if len(ln) >= 8
+        and (ln.startswith(("·", "•", "▸", "-", "→")) or "→" in ln[:24])
+    ]
+    if len(substantive) < 2:
+        return (
+            False,
+            "【執行摘要】要點不足：須至少 2 條（以 ·／•／→ 等起頭之短句，STRICT_EXEC_SUMMARY_HTML_GATE=1）",
+        )
+    return True, ""
+
+
 # 支援格式：[YYYY-MM-DD HH:MM ...] [YYYY/MM/DD HH:MM ...] [MM/DD HH:MM ...] [MM/DD/YYYY HH:MM ...]
 _NEWS_TS_EXTRACT_RE = re.compile(
     r"〔新聞\s*\d+〕[^\[]*"
@@ -259,6 +315,56 @@ def _repeat_pick_min_score() -> float:
         return float(os.getenv("PICK_REPEAT_MIN_SELECTION_SCORE", "75"))
     except ValueError:
         return 75.0
+
+
+def _strict_pick_rolling_frequency_gate() -> bool:
+    """滾動視窗內同資產出現日數上限。PICK_ROLLING_FREQ_GATE=1 啟用。"""
+    return os.getenv("PICK_ROLLING_FREQ_GATE", "0").lower() in ("1", "true", "yes")
+
+
+def _pick_rolling_window_days() -> int:
+    try:
+        return max(1, int(os.getenv("PICK_ROLLING_WINDOW_DAYS", "5")))
+    except ValueError:
+        return 5
+
+
+def _pick_rolling_max_distinct_days() -> int:
+    """0=關閉。視窗內同一 asset 已出現的相異 report_date 數 ≥ 此值則擋本日再選。"""
+    try:
+        return max(0, int(os.getenv("PICK_ROLLING_MAX_DISTINCT_DAYS", "0")))
+    except ValueError:
+        return 0
+
+
+def _data_missing_count_gate_max() -> int:
+    """正文 [DATA_MISSING:...] 超過此個數則 blocking；0=關閉。"""
+    try:
+        return max(0, int(os.getenv("DATA_MISSING_COUNT_GATE_MAX", "0")))
+    except ValueError:
+        return 0
+
+
+def _strict_pair_trade_unit_blocking() -> bool:
+    """配對交易單位機檢由 warning 升格 blocking。STRICT_PAIR_TRADE_UNIT_GATE=1。"""
+    return os.getenv("STRICT_PAIR_TRADE_UNIT_GATE", "0").lower() in ("1", "true", "yes")
+
+
+def _strict_tool_evidence_gate() -> bool:
+    """加密段工具證據關鍵詞密度檢查。STRICT_TOOL_EVIDENCE_GATE=1。"""
+    return os.getenv("STRICT_TOOL_EVIDENCE_GATE", "0").lower() in ("1", "true", "yes")
+
+
+def _tool_evidence_min_hits() -> int:
+    try:
+        return max(1, int(os.getenv("STRICT_TOOL_EVIDENCE_MIN_HITS", "3")))
+    except ValueError:
+        return 3
+
+
+def _strict_qsrec_scenario_gate() -> bool:
+    """confidence≥3 時 QSREC 須含三情境欄位。STRICT_QSREC_SCENARIO_GATE=1。"""
+    return os.getenv("STRICT_QSREC_SCENARIO_GATE", "0").lower() in ("1", "true", "yes")
 
 
 # ── 動態選幣／選股：本日選擇理由驗證 ────────────────────────────────────
@@ -547,6 +653,50 @@ def _fetch_yesterday_qsrec_canonical_set(category: str) -> set[str] | None:
         return None
 
 
+def _fetch_distinct_days_per_asset_rolling(category: str, window_days: int) -> dict[str, int] | None:
+    """視窗內各 asset 的相異 report_date 數（不含今日台北日曆日）；失敗回 None。"""
+    if SKIP_BIGQUERY:
+        return None
+    cat = category.upper()
+    if cat not in ("CRYPTO", "EQUITY"):
+        return None
+    try:
+        from google.cloud import bigquery
+
+        client = bigquery.Client(project=PROJECT_ID)
+        job_cfg = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("cat", "STRING", cat),
+                bigquery.ScalarQueryParameter("win", "INT64", int(window_days)),
+            ]
+        )
+        rows = list(
+            client.query(
+                f"""
+                SELECT asset, COUNT(DISTINCT report_date) AS dcnt
+                FROM `{RECOMMENDATIONS_TABLE}`
+                WHERE UPPER(COALESCE(category, '')) = @cat
+                  AND report_date >= DATE_SUB(CURRENT_DATE('Asia/Taipei'), INTERVAL @win DAY)
+                  AND report_date < CURRENT_DATE('Asia/Taipei')
+                GROUP BY asset
+                """,
+                job_config=job_cfg,
+            ).result()
+        )
+        out: dict[str, int] = {}
+        for r in rows:
+            a = r.get("asset")
+            if not a:
+                continue
+            key = tracker.canonical_asset_key(str(a))
+            if key:
+                out[key] = int(r.get("dcnt") or 0)
+        return out
+    except Exception as e:
+        logger.warning("pick rolling frequency: BQ query failed: %s", e)
+        return None
+
+
 def _pick_rotation_crypto_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
     """今日加密 QSREC canonical 集合若與昨日完全相同，須改選或達成同標覆核。"""
     if not _strict_pick_rotation():
@@ -608,6 +758,63 @@ def _pick_rotation_equity_ok(text: str, recs: list[dict]) -> tuple[bool, str]:
             False,
             f"動態選股／輪動：同標延續需至少 1 筆滿足 repeat_days <= {_repeat_pick_days_max()} 且 selection_score >= {_repeat_pick_min_score():.0f}。",
         )
+    return True, ""
+
+
+_CRYPTO_TOOL_EVIDENCE_MARKERS: tuple[str, ...] = (
+    "資金費率",
+    "funding",
+    "COT",
+    "GBTC",
+    "ETHE",
+    "MVRV",
+    "SOPR",
+    "Fear",
+    "Greed",
+    "ETF",
+    "清算",
+    "OI",
+    "未平倉",
+    "多空比",
+    "相關係數",
+)
+
+
+def _crypto_tool_evidence_hits(text: str) -> int:
+    span = _crypto_report_prefix(text)
+    u = span.lower()
+    return sum(1 for m in _CRYPTO_TOOL_EVIDENCE_MARKERS if m.lower() in u)
+
+
+def _pick_rolling_frequency_category_ok(recs: list[dict], category: str) -> tuple[bool, str]:
+    """滾動視窗內同標出現日數上限（非 trade_watch 時由 validate_report 呼叫）。"""
+    if not _strict_pick_rolling_frequency_gate():
+        return True, ""
+    cap = _pick_rolling_max_distinct_days()
+    if cap <= 0:
+        return True, ""
+    counts = _fetch_distinct_days_per_asset_rolling(category, _pick_rolling_window_days())
+    if counts is None:
+        return True, ""
+    cat_u = category.upper()
+    label = "幣" if cat_u == "CRYPTO" else "股"
+    win = _pick_rolling_window_days()
+    for rec in recs:
+        if str(rec.get("category", "")).upper() != cat_u:
+            continue
+        raw = str(rec.get("asset", "") or "").strip()
+        if not raw:
+            continue
+        key = tracker.canonical_asset_key(raw)
+        if not key:
+            continue
+        past = int(counts.get(key, 0))
+        if past >= cap:
+            return (
+                False,
+                f"動態選{label}／滾動頻率：{raw} 在近 {win} 日內已於 {past} 個相異交易日出現於 QSREC"
+                f"（上限 {cap}，見 PICK_ROLLING_MAX_DISTINCT_DAYS）；請輪換或關閉 PICK_ROLLING_FREQ_GATE。",
+            )
     return True, ""
 
 
@@ -717,6 +924,16 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
         missing = [k for k in required if rec.get(k) in (None, "", [])]
         if missing:
             issues.append(f"QSREC 第 {i} 筆缺少必要欄位：{', '.join(missing)}")
+
+        try:
+            conf_i = int(float(rec.get("confidence"))) if rec.get("confidence") is not None else 0
+        except (TypeError, ValueError):
+            conf_i = 0
+        if _strict_qsrec_scenario_gate() and conf_i >= 3:
+            for fld in ("bull_scenario", "base_scenario", "bear_scenario"):
+                v = rec.get(fld)
+                if not (isinstance(v, str) and v.strip()):
+                    issues.append(f"QSREC 第 {i} 筆 confidence≥3 時須填非空 {fld}")
 
         pos = rec.get("position_pct")
         try:
@@ -1382,6 +1599,7 @@ def validate_report(text: str) -> dict:
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
     has_data_missing = bool(HAS_DATA_MISSING_RE.search(text))
     data_missing_fields = sorted(set(DATA_MISSING_FIELDS_RE.findall(text)))
+    n_data_missing_tags = len(DATA_MISSING_FIELDS_RE.findall(text))
     # 交易觀望：放寬 R:R／勝率等「可執行欄位」檢查（與「新聞不足分段」解耦）
     trade_watch_mode = text_has_positive_trade_watch_mode(text)
     partial_news_ok = _partial_news_ok(text)
@@ -1397,7 +1615,11 @@ def validate_report(text: str) -> dict:
     has_risk_budget = bool(HAS_RISK_BUDGET_RE.search(text))
     has_rumor_grade = _has_rumor_grade_marker(text)
     has_utc8 = _has_news_timezone_utc8(text)
-    news_freshness_ok, news_freshness_err = _check_news_freshness(text)
+    _fresh_anchor = _pipeline_report_date_anchor_utc()
+    news_freshness_ok, news_freshness_err = _check_news_freshness(
+        text, report_dt=_fresh_anchor
+    )
+    exec_summary_ok, exec_summary_err = _exec_summary_html_ok(text)
     too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
     has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
@@ -1455,6 +1677,16 @@ def validate_report(text: str) -> dict:
         pick_crypto_rot_ok, pick_crypto_rot_err = _pick_rotation_crypto_ok(text, parsed_qsrec)
         pick_equity_rot_ok, pick_equity_rot_err = _pick_rotation_equity_ok(text, parsed_qsrec)
 
+    pick_crypto_roll_freq_ok, pick_crypto_roll_freq_err = True, ""
+    pick_equity_roll_freq_ok, pick_equity_roll_freq_err = True, ""
+    if _strict_pick_rolling_frequency_gate() and not trade_watch_mode and has_valid_qsrec:
+        pick_crypto_roll_freq_ok, pick_crypto_roll_freq_err = _pick_rolling_frequency_category_ok(
+            parsed_qsrec, "CRYPTO"
+        )
+        pick_equity_roll_freq_ok, pick_equity_roll_freq_err = _pick_rolling_frequency_category_ok(
+            parsed_qsrec, "EQUITY"
+        )
+
     fund_cite_ok, fund_cite_err = True, ""
     if _strict_ai_fundamentals_citation():
         fund_cite_ok, fund_cite_err = _ai_fundamentals_citation_ok(text)
@@ -1485,6 +1717,18 @@ def validate_report(text: str) -> dict:
         issues.append("缺少 AI 市場段落")
     if not has_crypto_section:
         issues.append("缺少加密市場段落")
+    if (
+        _strict_tool_evidence_gate()
+        and not trade_watch_mode
+        and has_crypto_section
+        and len(text) >= 3000
+    ):
+        need = _tool_evidence_min_hits()
+        hits = _crypto_tool_evidence_hits(text)
+        if hits < need:
+            issues.append(
+                f"加密段工具證據關鍵詞不足（{hits}/{need}，見 STRICT_TOOL_EVIDENCE_GATE／STRICT_TOOL_EVIDENCE_MIN_HITS）"
+            )
     if not has_chatter:
         issues.append("缺少呢喃/傳聞區塊")
     if not has_qsrec_markers:
@@ -1504,12 +1748,24 @@ def validate_report(text: str) -> dict:
             issues.append(pick_crypto_rot_err)
         if not pick_equity_rot_ok:
             issues.append(pick_equity_rot_err)
+    if _strict_pick_rolling_frequency_gate() and not trade_watch_mode and has_valid_qsrec:
+        if not pick_crypto_roll_freq_ok:
+            issues.append(pick_crypto_roll_freq_err)
+        if not pick_equity_roll_freq_ok:
+            issues.append(pick_equity_roll_freq_err)
+    dm_max = _data_missing_count_gate_max()
+    if dm_max > 0 and n_data_missing_tags > dm_max:
+        issues.append(
+            f"資料缺失標記過多：偵測 {n_data_missing_tags} 個 [DATA_MISSING:…]（上限 {dm_max}，見 DATA_MISSING_COUNT_GATE_MAX）"
+        )
     if not fund_cite_ok:
         issues.append(fund_cite_err)
     if not has_utc8:
         issues.append("新聞時間未統一標示 UTC+8")
     if not news_freshness_ok:
         issues.append(news_freshness_err)
+    if not exec_summary_ok:
+        issues.append(exec_summary_err)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if not has_rumor_grade:
@@ -1533,9 +1789,12 @@ def validate_report(text: str) -> dict:
     if has_macro_outlier:
         issues.append("宏觀數值疑似異常（10Y/2Y/SOFR/利差超出合理範圍）")
     if has_macro_conflict:
-        # post_process already patches out-of-range yield values; residual 2Y/spread
-        # inconsistency is a data-quality note, not a delivery blocker.
-        logger.warning("validate_report: 宏觀段落前後矛盾（2Y/利差數值不一致）— logged only, not blocking")
+        if os.getenv("STRICT_MACRO_CONFLICT_GATE", "0").lower() in ("1", "true", "yes"):
+            issues.append("宏觀段落前後矛盾（2Y/利差數值不一致）；請核對或設 STRICT_MACRO_CONFLICT_GATE=0")
+        else:
+            logger.warning(
+                "validate_report: 宏觀段落前後矛盾（2Y/利差數值不一致）— logged only, not blocking"
+            )
     if has_source_observability_conflict:
         issues.append("Source observability 欄位重複或互相矛盾")
     if watch_trade_conflicts:
@@ -1547,8 +1806,15 @@ def validate_report(text: str) -> dict:
     if _conflicting_total_risk_budget_lines(text):
         issues.append("今日風險預算出現多組不一致的總風險預算百分比（請整併為單一總框或依【日報 V2】改為美股部位框）")
     if not pair_unit_ok:
-        # Format preference only; does not affect reader comprehension at delivery level.
-        logger.warning("validate_report: 配對交易單位不一致或未標註比值/價差單位 — logged only, not blocking")
+        if _strict_pair_trade_unit_blocking():
+            issues.append(
+                "配對交易單位不一致或未標註比值/價差單位（見 STRICT_PAIR_TRADE_UNIT_GATE）；"
+                "若為誤判可暫時關閉該環境變數。"
+            )
+        else:
+            logger.warning(
+                "validate_report: 配對交易單位不一致或未標註比值/價差單位 — logged only, not blocking"
+            )
     if not risk_off_star_ok:
         issues.append("risk_off 模式下出現超過上限的信心水準（4 顆星）")
     if too_many_na and (not has_low_confidence_tag or not has_missing_reason_proxy):
@@ -1648,6 +1914,9 @@ def validate_report(text: str) -> dict:
         "pick_justification_equity_ok": pick_equity_ok,
         "pick_rotation_crypto_ok": pick_crypto_rot_ok,
         "pick_rotation_equity_ok": pick_equity_rot_ok,
+        "pick_rolling_freq_crypto_ok": pick_crypto_roll_freq_ok,
+        "pick_rolling_freq_equity_ok": pick_equity_roll_freq_ok,
+        "n_data_missing_tags": n_data_missing_tags,
         "ai_fundamentals_citation_ok": fund_cite_ok,
     }
 

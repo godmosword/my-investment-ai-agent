@@ -55,6 +55,7 @@ def _make_report(
     include_chatter: bool = True,
     include_qsrec: bool = True,
     include_source_health: bool = True,
+    include_exec_summary: bool = True,
     include_signal_conflict: bool = True,
     include_rumor_grade: bool = True,
     include_rr: bool = True,
@@ -120,7 +121,14 @@ def _make_report(
     joined = "\n".join(sections)
     if inject_before_qsrec:
         joined = joined.replace("[QSREC_START]", inject_before_qsrec + "\n[QSREC_START]", 1)
-    body = news + joined + "\n" + extra
+    exec_hdr = ""
+    if include_exec_summary:
+        exec_hdr = (
+            "【執行摘要】\n"
+            "· 測試摘要甲：風險可控延續觀察 BTC 偏多結構\n"
+            "→ 測試摘要乙：美股以 NVDA 財報催化為主軸\n\n"
+        )
+    body = news + exec_hdr + joined + "\n" + extra
     # Pad to requested length
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
@@ -1195,6 +1203,84 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
             any(i.startswith("AI 段「本日選擇理由」含基本面用語") for i in result["blocking_issues"]),
             f"Should not block when catalysts ≥ 2: {result['blocking_issues']}",
         )
+
+
+class TestPlanRollingAndScenarioGates(unittest.TestCase):
+    def test_pick_rolling_blocks_when_past_days_over_cap(self):
+        from report_validator import _pick_rolling_frequency_category_ok
+
+        recs = [{"asset": "BTC", "category": "CRYPTO"}]
+        with patch.dict(
+            os.environ,
+            {
+                "PICK_ROLLING_FREQ_GATE": "1",
+                "PICK_ROLLING_MAX_DISTINCT_DAYS": "2",
+                "PICK_ROLLING_WINDOW_DAYS": "5",
+            },
+            clear=False,
+        ):
+            with patch(
+                "report_validator._fetch_distinct_days_per_asset_rolling",
+                return_value={"BTC": 2},
+            ):
+                ok, err = _pick_rolling_frequency_category_ok(recs, "CRYPTO")
+        self.assertFalse(ok)
+        self.assertIn("滾動頻率", err)
+
+    def test_pick_rolling_skips_when_gate_off(self):
+        from report_validator import _pick_rolling_frequency_category_ok
+
+        recs = [{"asset": "BTC", "category": "CRYPTO"}]
+        with patch.dict(
+            os.environ,
+            {"PICK_ROLLING_FREQ_GATE": "0", "PICK_ROLLING_MAX_DISTINCT_DAYS": "1"},
+            clear=False,
+        ):
+            with patch(
+                "report_validator._fetch_distinct_days_per_asset_rolling",
+                return_value={"BTC": 99},
+            ):
+                ok, _ = _pick_rolling_frequency_category_ok(recs, "CRYPTO")
+        self.assertTrue(ok)
+
+    def test_qsrec_scenario_strict_missing_bull(self):
+        from report_validator import _qsrec_consistency_issues
+
+        recs = [
+            {
+                "trigger": "t",
+                "invalidation": "i",
+                "position_pct": 1,
+                "timeframe": "d",
+                "confidence": 4,
+                "category": "CRYPTO",
+                "asset": "BTC",
+                "bull_scenario": "",
+                "base_scenario": "基準",
+                "bear_scenario": "悲觀",
+            }
+        ]
+        with patch.dict(os.environ, {"STRICT_QSREC_SCENARIO_GATE": "1"}, clear=False):
+            issues = _qsrec_consistency_issues("【今日市場模式】risk_on", recs)
+        self.assertTrue(any("bull_scenario" in i for i in issues))
+
+
+class TestStrictExecSummaryHtmlGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_EXEC_SUMMARY_HTML_GATE": "1"}, clear=False)
+    def test_passes_when_two_bullets_present(self):
+        t = _make_report()
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertFalse(any("STRICT_EXEC_SUMMARY_HTML_GATE" in i for i in issues))
+        self.assertFalse(any("【執行摘要】要點不足" in i for i in issues))
+        self.assertFalse(any("缺少【執行摘要】" in i for i in issues))
+
+    @patch.dict(os.environ, {"STRICT_EXEC_SUMMARY_HTML_GATE": "1"}, clear=False)
+    def test_fails_when_section_omitted(self):
+        t = _make_report(include_exec_summary=False)
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertTrue(any("【執行摘要】" in i for i in issues))
 
 
 if __name__ == "__main__":

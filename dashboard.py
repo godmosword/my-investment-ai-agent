@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from datetime import date, datetime, timedelta, timezone
 from dotenv import load_dotenv
 
-from config import PROJECT_ID
+from config import PROJECT_ID, RECOMMENDATIONS_TABLE
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -538,13 +538,41 @@ def load_risk_trend(days: int = 30) -> pd.DataFrame:
         logger.warning("load_risk_trend BigQuery failed: %s", e)
         return pd.DataFrame()
 
+@st.cache_data(ttl=600)
+def load_qsrec_asset_frequency(days: int = 7) -> pd.DataFrame:
+    """近 N 日 QSREC 建議資產出現次數（輪動可視化）。"""
+    try:
+        client = _get_bq_client()
+        q = f"""
+            SELECT asset, COUNT(*) AS pick_count
+            FROM `{RECOMMENDATIONS_TABLE}`
+            WHERE report_date >= DATE_SUB(CURRENT_DATE('Asia/Taipei'), INTERVAL {int(days)} DAY)
+            GROUP BY asset
+            ORDER BY pick_count DESC
+            LIMIT 40
+        """
+        return client.query(q).to_dataframe()
+    except Exception as e:
+        logger.warning("load_qsrec_asset_frequency failed: %s", e)
+        return pd.DataFrame()
+
+
 df_trend = load_risk_trend(days=trend_days)
 
 if df_trend.empty:
     st.info("尚無歷史指標數據，等待第一次戰報寫入後自動顯示。")
 else:
-    tab_dxy, tab_etf, tab_mvrv, tab_risk, tab_sopr, tab_sent, tab_net = st.tabs(
-        ["💵 宏觀 DXY", "💸 幣圈 ETF 資金流", "🔗 幣圈 MVRV", "⚠️ 影響指數", "⛓ SOPR", "🎭 情緒", "🏦 交易所淨流"]
+    tab_dxy, tab_etf, tab_mvrv, tab_risk, tab_sopr, tab_sent, tab_net, tab_qsrec = st.tabs(
+        [
+            "💵 宏觀 DXY",
+            "💸 幣圈 ETF 資金流",
+            "🔗 幣圈 MVRV",
+            "⚠️ 影響指數",
+            "⛓ SOPR",
+            "🎭 情緒",
+            "🏦 交易所淨流",
+            "📌 QSREC 頻率",
+        ]
     )
     with tab_dxy:
         fig_dxy = px.line(
@@ -664,6 +692,26 @@ else:
             st.plotly_chart(fig_nf, use_container_width=True)
         else:
             st.info("尚無交易所淨流向歷史序列。")
+    with tab_qsrec:
+        st.caption("近 7 日 trade_recommendations 資產出現次數（輪動可視化；契約見 docs/DASHBOARD_CONTRACT.md）")
+        df_q = load_qsrec_asset_frequency(days=7)
+        if df_q.empty:
+            st.info("尚無 QSREC 歷史或 BigQuery 無法連線（本機可略過）。")
+        else:
+            fig_q = px.bar(
+                df_q.head(20),
+                x="asset",
+                y="pick_count",
+                title="近 7 日 QSREC 資產出現次數（Top 20）",
+                labels={"asset": "資產", "pick_count": "次數"},
+                color="pick_count",
+                color_continuous_scale=[COLORS["blue"], COLORS["purple"], COLORS["yellow"]],
+            )
+            fig_q.update_traces(marker_line_width=0, opacity=0.92)
+            _style_plotly(fig_q, height=400)
+            st.plotly_chart(fig_q, use_container_width=True)
+            with st.expander("完整列表（最多 40 列）"):
+                st.dataframe(df_q, use_container_width=True)
 
 st.divider()
 

@@ -2,37 +2,78 @@
 
 機構級 **日報管線**：**Python + CrewAI + LiteLLM** 並行產出 **加密市場** 與 **前沿 AI（含美股基本面）** 研究 → **規則 Gate** → 可選 **潤稿／LLM 評分** → **Telegram HTML**；指標與日誌寫入 **BigQuery**；**Streamlit** 與 **PWA** 呈現戰情室。
 
-| 你需要 | 說明 |
-|--------|------|
-| 跑完整管線 | 多組 LLM + 資料 API 金鑰（見下方「必填」）；單次約 **15–30+ 分鐘** |
-| 本機乾跑 | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1` 仍須 **四個必填金鑰**（LLM + Apify） |
-| 只看儀表板 | `streamlit run dashboard.py` — **可不設金鑰**（BQ 區塊降級） |
+**紅線**：可驗證的價格、技術與宏觀數字須由 **工具層** 取得並注入 Context；LLM **不得捏造**客觀數據。日報主線 **不依賴 X/Twitter**（見 [`.cursorrules`](.cursorrules)）。Telegram 僅允許白名單 HTML — 見 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)。
 
-**紅線**：可驗證的價格、技術與宏觀數字須由 **工具層** 取得並注入 Context；LLM **不得捏造**客觀數據。日報主線 **不依賴 X/Twitter**（`.cursorrules`）。Telegram 僅允許白名單 HTML — 見 [`.cursorrules`](.cursorrules)、[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)。
+**索引**：[`TODOS.md`](TODOS.md) · [`CHANGELOG.md`](CHANGELOG.md) · [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) · [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)
 
-**索引**：[`TODOS.md`](TODOS.md)（待辦與 Backlog） · [`CHANGELOG.md`](CHANGELOG.md) · [`CLAUDE.md`](CLAUDE.md)（開發者導覽） · [`AGENTS.md`](AGENTS.md)（雲端／CoinGlass 備忘） · [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)（完整環境變數）
+---
+
+## 新手專區
+
+若你**第一次**接觸本專案，建議依下列順序進行，不必一次備齊所有金鑰。
+
+### 你現在在哪一種情境？
+
+| 我想… | 先做這件事 | 需要金鑰？ |
+|--------|------------|------------|
+| **看看介面長怎樣** | 跑 [Streamlit 戰情室](#快速開始) | **不需要**（BigQuery 區塊會顯示降級提示） |
+| **確認程式能跑、CI 同款** | `ruff check .` 與 `pytest -m smoke`（見 [開發與測試](#開發與測試)） | **不需要** |
+| **在本機乾跑一輪管線**（不推 Telegram、不寫 BQ） | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` | 仍須 **四個啟動必填** LLM + Apify（見 [環境變數](#環境變數)） |
+| **正式產報＋推播＋寫入雲端** | 備齊 Telegram、GCP、資料源金鑰；生產建議 `PIPELINE_STRICT_ENV=1` | **是**（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)） |
+
+### 建議學習路徑（約 30–60 分鐘）
+
+1. **讀專案紅線**：[`.cursorrules`](.cursorrules) 前兩節（數據來源、Telegram HTML）— 之後看 Gate 錯誤訊息會快很多。  
+2. **開戰情室**：`streamlit run dashboard.py --server.port 8501 --server.headless true` — 熟悉 KPI／趨勢 Tab；契約說明見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。  
+3. **準備環境**：`cp ENV_TEMPLATE.txt .env`，先填 **啟動必填** 四項；其餘依你要不要 CoinGlass、新聞源等再補。  
+4. **跑測試**：`python3 -m pytest -m smoke -q` — 與 PR CI 一致，通過代表核心契約未壞。  
+5. **再跑 `main.py`**：第一次建議加 `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1`，等 Gate／日誌都熟悉後再打開推送與 BQ。
+
+### 常見新手問題
+
+- **為什麼一跑就 `RuntimeError` 缺 key？**  
+  啟動會檢查 `XAI_API_KEY`、`OPENAI_API_KEY`、`GEMINI_API_KEY`、`APIFY_API_TOKEN`；與是否 `SKIP_*` 無關。  
+- **為什麼要跑很久（15–30+ 分鐘）？**  
+  雙 Crew、多 Agent、多工具呼叫與 Gate 重試屬正常；可從 `LOG_LEVEL=DEBUG` 觀察階段。  
+- **Gate 擋下來怎麼辦？**  
+  看終端 `issues` 列表；可開 `GATE_FAILURE_ARTIFACTS=1` 在 `.qsilicon/last_gate_failure/` 留底。新聞則數、UTC+8、`trade_watch` 規則見 [`report_validator.py`](report_validator.py) 與 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)。  
+- **選幣／選股看起來每天很像？**  
+  見 [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md) 與 [`TODOS.md`](TODOS.md) 橫切說明；可選 env 加嚴輪動（`ENV_TEMPLATE.txt` 內 `PICK_ROLLING_*`、`STRICT_PICK_*`）。  
+- **CoinGlass 回 401？**  
+  多半是方案不含該端點，非網址拼錯；見下方 [CoinGlass API v4](#coinglass-api-v4) 與 [`AGENTS.md`](AGENTS.md)。
+
+### 下一步讀哪裡？
+
+| 目的 | 文件 |
+|------|------|
+| 日報版面與用語 | [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) |
+| 部署與排程 | [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) |
+| 開發者導覽（模組、指令） | [`CLAUDE.md`](CLAUDE.md) |
+| 雲端／CoinGlass 備忘 | [`AGENTS.md`](AGENTS.md) |
+| 工程待辦與路線 | [`TODOS.md`](TODOS.md)、[`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) |
 
 ---
 
 ## 目次
 
-1. [快速開始](#快速開始)  
-2. [架構概覽](#架構概覽)  
-3. [核心模組](#核心模組)  
-4. [Agent 與模型](#agent-與模型)  
-5. [環境變數](#環境變數)  
-6. [驗證、Gate 與觀測](#驗證gate-與觀測)  
-7. [開發與測試](#開發與測試)  
-8. [目錄結構](#目錄結構)  
-9. [Docker](#docker)  
-10. [CI／Deploy](#cideploygithub-actions)  
-11. [資料流](#資料流)  
-12. [輔助腳本](#輔助腳本)  
-13. [文件索引](#文件索引)  
-14. [CoinGlass API v4](#coinglass-api-v4)  
-15. [安全與維運](#安全與維運)  
-16. [War Room PWA 與 API](#war-room-pwa-與-api)  
-17. [gstack（選用）](#gstack選用)  
+1. [新手專區](#新手專區)  
+2. [快速開始](#快速開始)  
+3. [架構概覽](#架構概覽)  
+4. [核心模組](#核心模組)  
+5. [Agent 與模型](#agent-與模型)  
+6. [環境變數](#環境變數)  
+7. [驗證、Gate 與觀測](#驗證gate-與觀測)  
+8. [開發與測試](#開發與測試)  
+9. [目錄結構](#目錄結構)  
+10. [Docker](#docker)  
+11. [CI／Deploy](#cideploygithub-actions)  
+12. [資料流](#資料流)  
+13. [輔助腳本](#輔助腳本)  
+14. [文件索引](#文件索引)  
+15. [CoinGlass API v4](#coinglass-api-v4)  
+16. [安全與維運](#安全與維運)  
+17. [War Room PWA 與 API](#war-room-pwa-與-api)  
+18. [gstack（選用）](#gstack選用)  
 
 ---
 
@@ -161,7 +202,7 @@ flowchart TB
 | AI 基本面 | `FINANCIAL_DATASETS_API_KEY` |
 | 推送／雲端 | `TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`、`GCP_PROJECT_ID`、`GCP_SA_KEY` 或 `GOOGLE_APPLICATION_CREDENTIALS` |
 
-**完整註解**以 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 為準。
+**完整註解**以 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 為準。可選 **加嚴 Gate**（資料缺失計數、輪動頻率、工具證據等）見模板內 `DATA_MISSING_COUNT_GATE_MAX`、`PICK_ROLLING_*`、`STRICT_*` 註解。
 
 ### 管線、Gate、觀測（摘錄）
 
@@ -174,7 +215,7 @@ flowchart TB
 | `SCRATCHPAD_ENABLED` | JSONL 軌跡 |
 | `MAX_TOOL_CALLS_PER_RUN` / `REPEATED_CALL_THRESHOLD` | 防工具跑飛 |
 | `ALLOW_PARTIAL_NEWS_GATE` | 3–5 則新聞分段模式（預設開） |
-| `STRICT_NEWS_FRESHNESS_GATE` / `NEWS_FRESHNESS_WINDOW_HOURS` / `NEWS_FRESHNESS_SOURCE_WHITELIST` | 可選新聞新鮮度 |
+| `STRICT_NEWS_FRESHNESS_GATE` / `NEWS_FRESHNESS_WINDOW_HOURS` / `NEWS_FRESHNESS_SOURCE_WHITELIST` | 可選新聞新鮮度（生產建議見 [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)） |
 | `GATE_FAILURE_ARTIFACTS` | 失敗時寫 `.qsilicon/last_gate_failure/` |
 | `GATE_FAILURE_BQ_LOG` | 結構化寫入 BQ `gate_failure_log`（預設開；`SKIP_BIGQUERY=1` 略過） |
 | `REPORT_LLM_JUDGE` / `REPORT_LLM_JUDGE_BLOCKING` | 可選 LLM 評分 |
@@ -196,7 +237,7 @@ flowchart TB
 | 本機 artifact | `.qsilicon/last_gate_failure/`（見 `GATE_FAILURE_ARTIFACTS`） |
 | BigQuery | `write_gate_failure_log` — 分類 bucket、`fingerprint`、issues 預覽等（見 `bigquery_writer.py`） |
 
-細節以 `report_validator.py`、`main.py`、`docs/DAILY_BRIEF_V2.md` 為準。週聚合範例 SQL → [`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)。
+細節以 `report_validator.py`、`main.py`、`docs/DAILY_BRIEF_V2.md` 為準。週聚合範例 SQL → [`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)。選幣輪動語意 → [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md)。
 
 ---
 
@@ -228,7 +269,7 @@ python3 -m pytest -v            # 全量（root 下 test_*.py）
 ├── docs/                 # 規格、runbook、SQL、路線圖
 ├── templates/            # telegram_report.j2
 ├── data-verification-ui/ # Vite + React PWA
-├── .github/workflows/    # ci, deploy, scheduler, monitor-intraday
+├── .github/workflows/    # ci, deploy, scheduler, monitor-intraday, weekly-scout / weekly-backtest（手動）
 ├── Dockerfile, docker-compose.yml
 ├── ENV_TEMPLATE.txt, TODOS.md, CHANGELOG.md, CLAUDE.md, AGENTS.md
 └── .cursor/rules/        # Cursor 專案規則
@@ -255,6 +296,8 @@ docker run --env-file .env q-silicon-agent
 | [`deploy.yml`](.github/workflows/deploy.yml) | `push main`（paths 篩選）或手動 | CI 通過後 build／push 映像、`gcloud run jobs deploy`；`environment: production` |
 | [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) | 手動 | Cloud Scheduler |
 | [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | cron（預設每 **2** 小時）／手動 | 盤中 BTC／VIX；依賴 [`requirements-monitor.txt`](requirements-monitor.txt)（**非**全量 `requirements.txt`，省 Actions 分鐘） |
+| [`weekly-scout.yml`](.github/workflows/weekly-scout.yml) | 手動 | OSS 候選腳本（輔助；見 `scripts/oss_scout_candidates.py`） |
+| [`weekly-backtest.yml`](.github/workflows/weekly-backtest.yml) | 手動 | `backtest.py --optimize --write-signal-weights`（需 repository secret `GCP_SA_KEY`） |
 
 **GitHub Actions 免費額度／磁碟**：排程 workflow 若每次 `pip install` 全量依賴會耗分鐘；盤中監控已改輕量依賴 + 較低頻率。若出現 **`No space left on device`**（含 runner 無法寫 `_diag` log），workflow 已內建 **釋放預裝 SDK 磁碟** 與 **`pip install --no-cache-dir`**；**自架 runner** 仍須在本機擴充分區或清快取。
 
@@ -286,7 +329,7 @@ Streamlit / PWA / api.py
 | [`scripts/write_ml_weights.py`](scripts/write_ml_weights.py) | ML 權重寫入 store |
 | [`scripts/inject_test_data.py`](scripts/inject_test_data.py) | BQ 測試資料 |
 | [`scripts/oss_scout_candidates.py`](scripts/oss_scout_candidates.py) | GitHub Search 候選（Scout 輔助） |
-| `python backtest.py` | 回測（BQ + CoinGecko） |
+| `python backtest.py` | 回測（BQ + CoinGecko）；可 `--write-signal-weights` 寫入權重 store |
 | `python backfill_data.py` | 歷史指標回填 BQ |
 
 ---
@@ -300,6 +343,9 @@ Streamlit / PWA / api.py
 | 日報規格 | [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) |
 | 儀表／API 契約 | [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) |
 | 部署 | [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) |
+| Critical env／加嚴 Gate | [`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) |
+| 選幣輪動語意 | [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md) |
+| 長期路線備忘（1B／2B／Company） | [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) |
 | 路線／商業化 | [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)、[`docs/COMMERCE_PLAYBOOK.md`](docs/COMMERCE_PLAYBOOK.md)、[`docs/COMMERCE_NEXT_STEPS.md`](docs/COMMERCE_NEXT_STEPS.md) |
 | Autoresearch | [`docs/AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md)、[`docs/autoresearch.plan.md`](docs/autoresearch.plan.md) |
 | 工具拆分計畫 | [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) |

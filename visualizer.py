@@ -4,6 +4,7 @@ import logging
 import warnings
 from datetime import datetime
 
+import requests
 import yfinance as yf
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -71,12 +72,43 @@ def _ensure_warn_compat() -> None:
     warnings.warn = _warn_wrapped
 
 
+def _fetch_btc_funding_pct_series(limit: int = 120) -> tuple[list, list] | None:
+    """Binance USDT-M 永續 BTC 資金費率（8h），回傳 (datetimes_utc, funding_pct)；失敗則 None。"""
+    try:
+        resp = requests.get(
+            "https://fapi.binance.com/fapi/v1/fundingRate",
+            params={"symbol": "BTCUSDT", "limit": min(max(limit, 10), 1000)},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not isinstance(data, list) or not data:
+            return None
+        from datetime import datetime, timezone
+
+        xs: list = []
+        ys: list = []
+        for row in data:
+            t_ms = row.get("fundingTime")
+            if t_ms is None:
+                continue
+            xs.append(datetime.fromtimestamp(int(t_ms) / 1000.0, tz=timezone.utc))
+            ys.append(float(row.get("fundingRate", 0) or 0) * 100.0)
+        if not xs:
+            return None
+        return xs, ys
+    except Exception as e:
+        logger.warning("visualizer: Binance funding series failed: %s", e)
+        return None
+
+
 def generate_quant_chart(filename: str = "daily_chart.png") -> None:
     """
-    3 Panel 量化圖表：
-    Panel 1 (上): BTC-USD 收盤價 + 20日均線
-    Panel 2 (中): VIX 恐慌指數（帶危險區上色）
-    Panel 3 (下): SPY 成交額 vs 5日均值比率（ETF 資金流代理）
+    4 Panel 量化圖表：
+    Panel 1: BTC-USD 收盤價 + 20日均線
+    Panel 2: VIX 恐慌指數（帶危險區上色）
+    Panel 3: SPY 成交額 vs 5日均值比率（ETF 資金流代理）
+    Panel 4: BTC 永續資金費率（Binance 公開 API，非 LLM）
     """
     try:
         _ensure_warn_compat()
@@ -114,8 +146,8 @@ def generate_quant_chart(filename: str = "daily_chart.png") -> None:
         spy_aligned = spy_ratio.reindex(spy_common)
 
         plt.style.use("dark_background")
-        fig = plt.figure(figsize=(11, 8))
-        gs  = gridspec.GridSpec(3, 1, height_ratios=[3, 1.5, 1.5], hspace=0.08)
+        fig = plt.figure(figsize=(11, 10))
+        gs = gridspec.GridSpec(4, 1, height_ratios=[3, 1.35, 1.35, 1.15], hspace=0.10)
 
         # ── Panel 1: BTC + MA20
         ax1 = fig.add_subplot(gs[0])
@@ -160,12 +192,31 @@ def generate_quant_chart(filename: str = "daily_chart.png") -> None:
         ax3.legend(["SPY 量比 (藍>1=放量，紅<1=縮量)"], loc="upper left", fontsize=7, framealpha=0.3)
         _remove_spines(ax3)
 
+        # ── Panel 4: BTC funding rate (Binance)
+        ax4 = fig.add_subplot(gs[3])
+        fund = _fetch_btc_funding_pct_series(limit=120)
+        if fund:
+            fx, fy = fund
+            ax4.plot(fx, fy, color=_C["cyan"], linewidth=1.2, label="Funding % (8h)")
+            ax4.axhline(0, color="white", linewidth=0.4, linestyle=":", alpha=0.5)
+            ax4.set_ylabel("Funding %", color=_C["cyan"], fontsize=9)
+            ax4.tick_params(axis="y", colors=_C["cyan"], labelsize=8)
+            ax4.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d"))
+            ax4.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, len(fx) // 12)))
+            ax4.tick_params(axis="x", colors="gray", labelsize=7, rotation=25)
+            ax4.legend(loc="upper left", fontsize=7, framealpha=0.3)
+            ax4.set_title("BTC USDT-M 資金費率（Binance 公開 API）", color="white", fontsize=9, pad=4)
+        else:
+            ax4.text(0.5, 0.5, "Funding 資料暫無法取得", ha="center", va="center", color="gray", fontsize=9)
+            ax4.set_axis_off()
+        _remove_spines(ax4)
+
         fig.text(0.5, 0.5, "Q-Silicon Institutional Research",
                  fontsize=13, ha="center", va="center", alpha=0.06, rotation=20)
 
         fig.savefig(filename, dpi=130, bbox_inches="tight", facecolor="#0E0E0E")
         plt.close(fig)
-        logger.info("3-panel quant chart saved: %s", filename)
+        logger.info("4-panel quant chart saved: %s", filename)
 
     except Exception as e:
         logger.warning("visualizer: generate_quant_chart failed — %s", e)

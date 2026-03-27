@@ -1,0 +1,20 @@
+# OSS Scout：候選蒐集（Phase 2B）
+# 預設手動觸發；若需週期執行可改為 schedule 並設定 GITHUB_TOKEN secrets。
+name: weekly-scout-candidates
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run oss_scout_candidates
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/oss_scout_candidates.py || true
+        # 僅列印候選；開 PR 須另設 PAT 與提案 Agent（見 TODOS Direction 2B）

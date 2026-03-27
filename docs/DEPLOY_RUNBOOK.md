@@ -10,6 +10,13 @@
 1. 在 GitHub **Settings → Environments → production** 設定 **Required reviewers**（至少一人核准才會跑 deploy secrets／步驟）。  
 2. 確認 production secrets 與主線文件一致：`ENV_TEMPLATE.txt`、`README` 環境變數表。  
 3. 建議在排程／Cloud Run 等執行環境設 **`PIPELINE_STRICT_ENV=1`**，強制未 `SKIP_*` 時具備 Telegram 與 BigQuery 憑證（見 `main._validate_critical_env_strict`）。
+4. 新聞新鮮度：生產環境建議 **`STRICT_NEWS_FRESHNESS_GATE=1`**（必要時搭配 `NEWS_FRESHNESS_WINDOW_HOURS`／白名單）；細節見 [`ENV_TEMPLATE.txt`](../ENV_TEMPLATE.txt) 與 [`docs/CRITICAL_ENV_POLICY.md`](CRITICAL_ENV_POLICY.md)。
+5. **錨定報告日**（可選）：補跑／跨日邊界時設 **`PIPELINE_REPORT_DATE=YYYY-MM-DD`**，新聞新鮮度以該日 HKT 日末為參考，並注入 crew context（見 `main._run_pipeline_once`）。
+
+## 選幣輪動（staging 實驗）
+
+- 語意見 [`PICK_ROTATION_SEMANTICS.md`](PICK_ROTATION_SEMANTICS.md)。  
+- 建議在 staging 逐步開啟 **`PICK_ROLLING_FREQ_GATE=1`** 並調 `PICK_ROLLING_WINDOW_DAYS`／`PICK_ROLLING_MAX_DISTINCT_DAYS`，搭配 BigQuery `gate_failure_log` 觀察失敗率。
 
 ## 部署後煙測
 

@@ -89,7 +89,7 @@ class TradeRecommendation(BaseModel):
         description="CRYPTO for digital assets; EQUITY for US stocks.",
     )
     narrative: str = Field(
-        default="",
+        default="—",
         description=(
             "【≤80字】一句話說明進場的根本原因（技術面或基本面催化劑）。"
             "絕對禁止：條列式、出現「辯論摘要」「最強空方論點」「多方反駁」等內部思考標籤。"
@@ -166,7 +166,9 @@ class TradeRecommendation(BaseModel):
     @field_validator("narrative", mode="before")
     @classmethod
     def _truncate_narrative(cls, v: object) -> object:
-        """Auto-truncate narrative to 80 chars so LLM over-generation never fails validation."""
+        """Coerce empty narrative; auto-truncate to 80 chars so LLM over-generation never fails."""
+        if v is None or (isinstance(v, str) and not str(v).strip()):
+            v = "—"
         if isinstance(v, str) and len(v) > 80:
             import logging as _log
             _log.getLogger(__name__).warning(
@@ -356,7 +358,7 @@ class ExecutableTradeLeg(BaseModel):
     invalidation: str = Field(default="", description="Invalidation one line non-empty when actionable.")
     position_pct: str = Field(default="", description="Portfolio % guidance line.")
     narrative: str = Field(
-        default="",
+        default="—",
         description=(
             "【≤80字】一句話說明操作的根本原因。"
             "禁止出現「辯論摘要」「最強空方論點」「多方反駁」等內部思考標籤。"
@@ -378,7 +380,9 @@ class ExecutableTradeLeg(BaseModel):
     @field_validator("narrative", mode="before")
     @classmethod
     def _truncate_narrative(cls, v: object) -> object:
-        """Auto-truncate narrative to 80 chars so LLM over-generation never fails validation."""
+        """Coerce empty narrative; auto-truncate to 80 chars so LLM over-generation never fails."""
+        if v is None or (isinstance(v, str) and not str(v).strip()):
+            v = "—"
         if isinstance(v, str) and len(v) > 80:
             import logging as _log
             _log.getLogger(__name__).warning(
@@ -386,6 +390,18 @@ class ExecutableTradeLeg(BaseModel):
             )
             return v[:80]
         return v
+
+    @model_validator(mode="after")
+    def _require_scenarios_when_high_conviction(self) -> "ExecutableTradeLeg":
+        """P4：信心 ≥3 星須有三情境欄位（與 Gate STRICT_QSREC_SCENARIO_GATE 對齊 HTML 路徑）。"""
+        if self.star_rating >= 3:
+            for fld in ("bull_scenario", "base_scenario", "bear_scenario"):
+                val = getattr(self, fld, None)
+                if val is None or (isinstance(val, str) and not val.strip()):
+                    raise ValueError(
+                        f"ExecutableTradeLeg.{fld} 在 star_rating>={self.star_rating} 時須為非空字串"
+                    )
+        return self
 
 
 class MarketRegimeBlock(BaseModel):

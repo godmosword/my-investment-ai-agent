@@ -188,6 +188,7 @@ def build_crypto_structured_final_prompt(
 
         {_MTF_CONF_RULE}
         {_SCENARIO_RULE}
+        {_HIT_STOP_STRATEGIST_RULE}
 
         === 填入 CryptoSection 欄位 ===
         - report_title_date: 使用 {today_str}
@@ -230,6 +231,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
 
         {_MTF_CONF_RULE}
         {_SCENARIO_RULE}
+        {_HIT_STOP_STRATEGIST_RULE}
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段。
@@ -438,6 +440,20 @@ _AI_RISK_BRIDGE_RULE = dedent("""\
     【validate_report 硬性順序（區塊④）】本段**必須**在「訊號衝突摘要」「美股部位框」「第一筆 · $<b>… 交易行前」先寫獨立一行「本日選擇理由：…」（僅屬 AI/美股，不可沿用加密段那一句）。違者系統判定「AI 區缺少本日選擇理由」並阻擋推送。
     【覆寫上方「交易段落前今日風險預算」】本段交易區前不要重複輸出「今日風險預算：…」整行；在「本日選擇理由」之後輸出「訊號衝突摘要：…」，再輸出（可選）一行：
     · <b>美股部位框</b>：兩檔合計建議不超過總資金 <code>10%</code>（主 regime 為 neutral）、<code>15%</code>（risk_on）、<code>4%</code>（risk_off）；單筆仍須遵守【Regime 風險預算】之單筆上限；總組合曝險以上方加密段「今日風險預算」為準。
+    """)
+
+_ALT_PICK_DIVERSITY_RESEARCH_RULE = dedent("""\
+    【候選多樣性｜研究員】
+    在研判／新聞內文須至少點名 2 個「不在」【避免重複】中「過去 3 天已建議標的」清單內的替代代號（若該段未列出清單，則點名 2 個與你首選主線不同的代號），
+    各用一句說明為何未選為今日主線，再收斂至最終新聞焦點與標的。
+    若提示含「昨日」或 BigQuery 昨日 QSREC 主標／首選代號：上述 2 個候選須**明確異於**該主標（不可僅重述同一 ticker），除非後續區塊④已採「重複選用理由」路徑。
+    """)
+
+_HIT_STOP_STRATEGIST_RULE = dedent("""\
+    【停損系統回饋｜主編必答】
+    若前置蒐集或【避免重複】曾出現「觸及停損」或 HIT_STOP 相關列點：必須在 signal_conflict_summary 或 pick_reason 獨立一句明確回答
+    「因近期停損，是否調降該資產類別權重／信心：是或否」並附不超過一句理由。
+    若完全無停損列點，可寫「無近期停損回饋，權重未因 HIT_STOP 調整」。
     """)
 
 _GATE_VALIDATE_PICK_RULE = dedent("""\
@@ -705,6 +721,8 @@ class CryptoResearchCrew:
                 · grayscale_premium_tool()（GBTC/ETHE 折溢價；溢價高 = 機構需求旺，折價大 = 拋售壓力）
                 · historical_analog_tool()（搜尋與當前技術結構最相似的歷史時期，報告其後 30/60/90 日報酬作為參考基準）
 
+                {_ALT_PICK_DIVERSITY_RESEARCH_RULE}
+
                 === 幣圈新聞（3 則）===
                 {_NEWS_FMT}
                 研判：2~3 句，必須明確說明哪個標的受影響
@@ -871,6 +889,8 @@ class AIResearchCrew:
                 · market_search_tool('AI data center GPU semiconductor infrastructure {year}')
                 · market_search_tool('data center power supply nuclear energy AI {year}')
                 · rumor_scanner_tool('AI infrastructure supply chain risk')
+
+                {_ALT_PICK_DIVERSITY_RESEARCH_RULE}
 
                 產出 AI 新聞 3 則，每則格式：
                 {_NEWS_FMT}

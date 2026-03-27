@@ -17,7 +17,7 @@ tools/
 
 ## 遷移步驟（建議順序）
 
-1. 抽出 **`_cache` / `_http`**，`tools.py` 改為 import 轉發，跑全測試。  
+1. 抽出 **`_cache` / `_http`**，`tools.py` 改為 import 轉發，跑全測試。（**進行中**：[`tools_cache_http.py`](../tools_cache_http.py)）  
 2. 依 **import 圖** 將無上層依賴的葉節點先搬（例如單一 REST 工具）。  
 3. 每搬一組：**`pytest -m smoke`** + 管線乾跑（`SKIP_TELEGRAM=1 SKIP_BIGQUERY=1`）。  
 4. 最後刪減舊 `tools.py` 內文，僅留 re-export。

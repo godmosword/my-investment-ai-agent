@@ -10,6 +10,8 @@
 | 財經儀表板 | `load_daily_metrics()` → BigQuery | 頁面載入；自動刷新 5 分 | 顯示無資料提示 |
 | 鏈上情緒與衍生品快照 | 同 metrics + 內嵌文字摘要（funding 等） | 同上 | N/A 字樣 |
 | 每日指標趨勢 | `load_risk_trend(days)` → BQ | 同上 | 空圖表／提示 |
+| 鏈上三指標趨勢 | 同趨勢資料之 **SOPR／情緒分數／交易所淨流** 獨立 Tab（⛓／🎭／🏦） | 同上 | 與 `daily_metrics` 欄位一致 |
+| QSREC 頻率 | `load_qsrec_asset_frequency` → `RECOMMENDATIONS_TABLE` | 同上 | 無資料時提示 |
 | 鏈上巨鯨流向 | `load_whale_data()` → BQ | 同上 | 空表 |
 | 公司戰情（試點） | `load_company_war_room_snapshot`（本機 JSON） | 檔案 mtime | 區塊說明無檔案 |
 | 核心 Agent 戰略點評 | BQ 報告欄位 | 同上 | 提示 |
@@ -25,6 +27,7 @@
 | `GET /api/trades` | 交易列表 | |
 | `GET /api/trades/performance` | 績效彙總 | |
 | `GET /healthz` | 存活探測 | |
+| `POST /api/push/subscribe` | Web Push 訂閱（**預留**） | 預設 **501**；`WEB_PUSH_ENABLED=1` 時 noop 接受，持久化待實作 |
 
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。
 

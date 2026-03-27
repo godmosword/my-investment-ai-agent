@@ -161,16 +161,33 @@ def _send_telegram_report(text: str, token: str, chat_id: str, image_path: str =
                     time.sleep(5 * (attempt + 1))
 
     html_mode = True
+    history_url = (os.getenv("TELEGRAM_REPORT_HISTORY_URL") or "").strip()
     for i, raw_chunk in enumerate(_safe_chunks(text)):
         chunk = sanitize_telegram_html(raw_chunk)
         plain_chunk = strip_html(chunk)
         sent = False
+        reply_markup = None
+        if history_url and i == 0:
+            try:
+                from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+                kb = InlineKeyboardMarkup()
+                kb.add(InlineKeyboardButton(text="查看歷史", url=history_url))
+                reply_markup = kb
+            except Exception as e:
+                logger.warning("Telegram inline history keyboard skipped: %s", e)
         for attempt in range(4):
             try:
                 if html_mode:
-                    bot.send_message(chat_id, chunk, parse_mode="HTML", timeout=60)
+                    bot.send_message(
+                        chat_id,
+                        chunk,
+                        parse_mode="HTML",
+                        timeout=60,
+                        reply_markup=reply_markup,
+                    )
                 else:
-                    bot.send_message(chat_id, plain_chunk, timeout=60)
+                    bot.send_message(chat_id, plain_chunk, timeout=60, reply_markup=reply_markup)
                 sent = True
                 time.sleep(0.5)
                 break

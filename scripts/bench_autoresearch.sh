@@ -17,4 +17,12 @@ WALL=$((T1 - T0))
 echo "METRIC lint_pass=$([[ $RUFF -eq 0 ]] && echo 1 || echo 0)"
 echo "METRIC smoke_pass=$([[ $PY -eq 0 ]] && echo 1 || echo 0)"
 echo "METRIC wall_time_sec=$WALL"
+echo "METRIC bench_ts_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+if command -v git >/dev/null 2>&1; then
+  echo "METRIC bench_git_sha=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+else
+  echo "METRIC bench_git_sha=unknown"
+fi
+# plateau_hint：預留與歷次 METRIC 對照之錨點（0=本輪未做趨勢比對）
+echo "METRIC plateau_hint=0"
 exit $((RUFF || PY))

@@ -1,9 +1,9 @@
 import logging
 import os
 import re
+import threading
 import time
 import json
-import threading
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as _FuturesTimeout
 from datetime import datetime, timedelta, timezone
@@ -18,43 +18,24 @@ from google.cloud import bigquery
 from api_schema import require_json_dict, require_json_list, require_list
 from config import PROJECT_ID, METRICS_TABLE
 from scratchpad import traced_tool_execution
+from tools_cache_http import (
+    _get_cache,
+    _set_cache,
+    _http_get,
+    _response_json_dict,
+    _response_json_list,
+)
+import tools_cache_http as _tools_cache_http
 
 logger = logging.getLogger(__name__)
 
+# 與 tools_cache_http 同一物件／函式（供測試與診斷）
+_CACHE = _tools_cache_http._CACHE
+_CACHE_MAX_SIZE = _tools_cache_http._CACHE_MAX_SIZE
+_get_http_session = _tools_cache_http._get_http_session
 
-def _response_json_dict(resp: requests.Response, source: str) -> dict | None:
-    try:
-        raw = resp.json()
-    except ValueError as e:
-        logger.warning("%s JSON decode failed: %s", source, e)
-        return None
-    try:
-        return require_json_dict(raw, source=source)
-    except ValueError:
-        return None
-
-
-def _response_json_list(resp: requests.Response, source: str) -> list | None:
-    try:
-        raw = resp.json()
-    except ValueError as e:
-        logger.warning("%s JSON decode failed: %s", source, e)
-        return None
-    try:
-        return require_json_list(raw, source=source)
-    except ValueError:
-        return None
-
-
-def _http_get(
-    url: str,
-    *,
-    params: dict | None = None,
-    headers: dict | None = None,
-    timeout: float | int | tuple = 10,
-) -> requests.Response:
-    """模組級 Session 的 GET，供連線重用與統一出口。"""
-    return _get_http_session().get(url, params=params, headers=headers, timeout=timeout)
+# Lazy singletons（BigQuery / Apify 等）— 與 HTTP Session 鎖分離
+_INIT_LOCK = threading.Lock()
 
 # ── yfinance 下載超時包裝器 ────────────────────────────────────────────
 # yf.download 沒有原生 timeout 參數；用 ThreadPoolExecutor 設定硬上限，
@@ -76,11 +57,7 @@ def _yf_download_with_timeout(symbol: str, timeout: int = _YF_DOWNLOAD_TIMEOUT_S
             )
 
 
-# ── 模組級 in-memory cache（同一次執行內避免重複打外部 API）────────────
-# key: (tool_name, query_string)  value: (result_str, expire_timestamp)
-_CACHE: dict[tuple, tuple] = {}
-_CACHE_TTL = 600  # 10 分鐘內相同 query 直接回傳 cache
-_CACHE_MAX_SIZE = 256
+# in-memory cache 實體見 tools_cache_http
 _SOURCE_HEALTH: dict[str, dict[str, float | str]] = {
     "newsapi": {"ok": 0, "fail": 0},
     "gnews": {"ok": 0, "fail": 0},
@@ -125,43 +102,6 @@ _LOW_QUALITY_DOMAINS: frozenset[str] = frozenset({
 _SOURCE_HEALTH_SKIP_THRESHOLD: float = float(
     os.getenv("SOURCE_HEALTH_SKIP_THRESHOLD", "0.20")
 )
-
-_HTTP_SESSION: requests.Session | None = None
-
-_INIT_LOCK = threading.Lock()   # protects lazy-init singletons
-_CACHE_LOCK = threading.Lock()  # protects _CACHE mutations
-
-
-def _get_http_session() -> requests.Session:
-    global _HTTP_SESSION
-    if _HTTP_SESSION is None:
-        with _INIT_LOCK:
-            if _HTTP_SESSION is None:  # double-check
-                s = requests.Session()
-                s.headers.update({"User-Agent": "Q-Silicon/1.0"})
-                _HTTP_SESSION = s
-    return _HTTP_SESSION
-
-
-def _get_cache(key: tuple) -> str | None:
-    if key in _CACHE:
-        result, expire = _CACHE[key]
-        if time.time() < expire:
-            return result
-        with _CACHE_LOCK:
-            _CACHE.pop(key, None)
-    return None
-
-
-def _set_cache(key: tuple, value: str) -> None:
-    with _CACHE_LOCK:
-        if len(_CACHE) >= _CACHE_MAX_SIZE:
-            # Evict oldest entries (by expire timestamp)
-            oldest_keys = sorted(_CACHE, key=lambda k: _CACHE[k][1])[:len(_CACHE) // 4]
-            for k in oldest_keys:
-                del _CACHE[k]
-        _CACHE[key] = (value, time.time() + _CACHE_TTL)
-
 
 def _append_data_as_of(body: str, source_id: str) -> str:
     """在 tool 回傳字串末尾加上 data_as_of 供 main 做時效驗證（>2h 標記 STALE）。"""

@@ -157,13 +157,15 @@ class TestHttpSession(unittest.TestCase):
     """Test _get_http_session returns the same Session on repeated calls."""
 
     def setUp(self):
-        import tools
-        self._orig = tools._HTTP_SESSION
-        tools._HTTP_SESSION = None
+        import tools_cache_http
+
+        self._orig = tools_cache_http._HTTP_SESSION
+        tools_cache_http._HTTP_SESSION = None
 
     def tearDown(self):
-        import tools
-        tools._HTTP_SESSION = self._orig
+        import tools_cache_http
+
+        tools_cache_http._HTTP_SESSION = self._orig
 
     def test_returns_same_session(self):
         s1 = _get_http_session()
@@ -276,23 +278,23 @@ class TestSchemaGuards(unittest.TestCase):
     def tearDown(self):
         _CACHE.clear()
 
-    @patch("tools._get_http_session")
-    def test_fear_greed_non_dict_returns_data_missing(self, mock_session_fn):
+    @patch("tools._http_get")
+    def test_fear_greed_non_dict_returns_data_missing(self, mock_http_get):
         mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
         # Return a list instead of a dict — malformed
         mock_resp.json.return_value = [1, 2, 3]
-        mock_session_fn.return_value.get.return_value = mock_resp
+        mock_http_get.return_value = mock_resp
 
         result = fear_greed_tool()
         self.assertIn("DATA_MISSING", result)
 
-    @patch("tools._get_http_session")
-    def test_fear_greed_empty_data_returns_data_missing(self, mock_session_fn):
+    @patch("tools._http_get")
+    def test_fear_greed_empty_data_returns_data_missing(self, mock_http_get):
         mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
         mock_resp.json.return_value = {"data": []}
-        mock_session_fn.return_value.get.return_value = mock_resp
+        mock_http_get.return_value = mock_resp
 
         result = fear_greed_tool()
         self.assertIn("DATA_MISSING", result)
@@ -347,6 +349,39 @@ class TestBigQueryCredentialsError(unittest.TestCase):
         result = bigquery_writer.fetch_exclusion_context()
         self.assertIsNone(result)
         mock_client_cls.assert_not_called()
+
+
+class TestBacktestSignalWeightsPayload(unittest.TestCase):
+    def test_build_payload_from_scipy_optimal_weights(self):
+        from backtest import build_signal_weights_payload_from_opt
+
+        p = build_signal_weights_payload_from_opt(
+            {
+                "optimal_weights": {
+                    "sig_dxy": 0.25,
+                    "sig_etf": 0.25,
+                    "sig_risk": 0.25,
+                    "sig_mvrv": 0.25,
+                },
+                "optimal_sharpe": 1.2,
+            },
+            source="test",
+        )
+        self.assertIsNotNone(p)
+        assert p is not None
+        self.assertIn("dxy", p["weights"])
+        self.assertAlmostEqual(p["weights"]["dxy"], 0.25)
+
+    def test_build_payload_from_ml_weights_dict(self):
+        from backtest import build_signal_weights_payload_from_opt
+
+        p = build_signal_weights_payload_from_opt(
+            {"weights": {"dxy": 0.1, "etf_flow": 0.3}, "sharpe": 0.5},
+            source="test",
+        )
+        self.assertIsNotNone(p)
+        assert p is not None
+        self.assertEqual(p["weights"]["etf_flow"], 0.3)
 
 
 if __name__ == "__main__":

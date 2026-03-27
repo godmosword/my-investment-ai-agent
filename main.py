@@ -586,6 +586,8 @@ def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> 
 
     This runs AFTER Jinja2 rendering so it works regardless of LLM output quality.
     It is intentionally minimal: only patches what the gate would reject.
+
+    長期：可根因項目應上移至 crew prompt／report_validator，縮減 regex 依賴（TODOS P1）。
     """
     # ── 0. Credibility language normalization ────────────────────────
     # Normalize English "Credibility：X" / "Grade：X" to "可信度：X" for display consistency.
@@ -742,6 +744,12 @@ def _run_pipeline_once(
         _prewarm_tool_caches()
         price_context = get_realtime_quotes()
         trimmed_exclusion = _truncate_text(exclude_context, MAX_EXCLUSION_CONTEXT_CHARS)
+        _pipe_rd = os.getenv("PIPELINE_REPORT_DATE", "").strip()
+        if _pipe_rd:
+            trimmed_exclusion = (
+                f"【錨定報告日】{_pipe_rd}（新聞回溯與 STRICT_NEWS_FRESHNESS 機檢以此日 23:59 HKT 為參考；"
+                "非實時時鐘。）\n\n" + (trimmed_exclusion or "")
+            ).strip()
 
         prev_recs = ""
         if not SKIP_BIGQUERY:
@@ -787,6 +795,18 @@ def _run_pipeline_once(
 
             crypto_section = future_crypto.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
             ai_section = future_ai.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+
+        try:
+            _min_tc = int(os.getenv("MIN_TOOL_CALLS_PER_PIPELINE", "0") or "0")
+        except ValueError:
+            _min_tc = 0
+        if _min_tc > 0:
+            _n_tools = scratchpad.raw_tool_invocation_count()
+            if _n_tools < _min_tc:
+                raise RuntimeError(
+                    f"MIN_TOOL_CALLS_PER_PIPELINE={_min_tc} 但本輪僅 {_n_tools} 次工具呼叫"
+                    "（經 traced_tool_execution 計數）。"
+                )
 
         tagged = len(crypto_section.news) + len(ai_section.news)
         partial_tier = tagged < 6 and _allow_partial_news_gate() and 3 <= tagged

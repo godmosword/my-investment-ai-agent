@@ -1,0 +1,33 @@
+# 週期回測並寫入 signal_weights_store（需 BigQuery 歷史指標）。
+# 手動執行：Actions → 本 workflow → Run workflow。Repository secret：**GCP_SA_KEY**（JSON）。
+name: Weekly backtest → signal weights
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backtest:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Run backtest (optimize + write weights)
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GCP_SA_KEY:-}" ]; then
+            echo "GCP_SA_KEY secret 未設定，略過（請於 repo Secrets 加入服務帳戶 JSON）。"
+            exit 0
+          fi
+          mkdir -p "${RUNNER_TEMP}/gcp"
+          echo "$GCP_SA_KEY" > "${RUNNER_TEMP}/gcp/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="${RUNNER_TEMP}/gcp/sa.json"
+          python backtest.py --days 90 --optimize --write-signal-weights

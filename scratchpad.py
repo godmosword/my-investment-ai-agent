@@ -30,6 +30,7 @@ _CURRENT_FILE: Path | None = None
 _RUN_ID: str | None = None
 _FINALIZED: bool = False
 _TOOL_CALL_COUNT: int = 0
+_RAW_TOOL_INVOCATIONS: int = 0  # 每次 traced_tool_execution 遞增（不受 SCRATCHPAD 檔案影響）
 _TOOL_HISTORY: deque[tuple[str, str]] = deque(maxlen=64)
 _PIPELINE_T0: float | None = None
 
@@ -108,9 +109,10 @@ def begin_run(metadata: dict[str, Any] | None = None) -> str | None:
     開始一次新產報 run，建立 JSONL 檔並寫入 init。
     回傳 run_id；關閉或未啟用時回傳 None。
     """
-    global _CURRENT_FILE, _RUN_ID, _FINALIZED, _TOOL_CALL_COUNT, _TOOL_HISTORY, _PIPELINE_T0
+    global _CURRENT_FILE, _RUN_ID, _FINALIZED, _TOOL_CALL_COUNT, _RAW_TOOL_INVOCATIONS, _TOOL_HISTORY, _PIPELINE_T0
     _FINALIZED = False
     _TOOL_CALL_COUNT = 0
+    _RAW_TOOL_INVOCATIONS = 0
     _TOOL_HISTORY.clear()
     if not scratchpad_enabled():
         _PIPELINE_T0 = None
@@ -275,8 +277,15 @@ def _tool_guard_check(tool_name: str, args: dict[str, Any]) -> None:
         )
 
 
+def raw_tool_invocation_count() -> int:
+    """本 run 內經 traced_tool_execution 包裝的工具呼叫次數（含 SCRATCHPAD 關閉時）。"""
+    return _RAW_TOOL_INVOCATIONS
+
+
 def traced_tool_execution(tool_name: str, args: dict[str, Any], fn: Callable[[], str]) -> str:
     """執行 fn() 並記錄 tool_call / tool_result（供 tools.py 使用）。"""
+    global _RAW_TOOL_INVOCATIONS
+    _RAW_TOOL_INVOCATIONS += 1
     _tool_guard_check(tool_name, args)
     if not scratchpad_enabled() or _CURRENT_FILE is None:
         return fn()

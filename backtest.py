@@ -33,6 +33,7 @@ from google.cloud import bigquery
 
 from api_schema import require_json_dict, require_list
 from config import PROJECT_ID, METRICS_TABLE
+from signal_weights_store import write_weights
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -866,6 +867,41 @@ def print_report(
         logging.info("HTML report saved to backtest_report.html")
 
 
+def build_signal_weights_payload_from_opt(opt: dict[str, Any], *, source: str) -> dict[str, Any] | None:
+    """從 scipy optimal_weights（sig_*）或 ML optimize 回傳（weights）組裝 signal_weights_store 載荷。"""
+    if not opt:
+        return None
+    raw = opt.get("optimal_weights") or opt.get("weights") or opt.get("legacy_weights")
+    if not isinstance(raw, dict) or not raw:
+        return None
+    keymap = {
+        "sig_dxy": "dxy",
+        "sig_etf": "etf_flow",
+        "sig_risk": "risk",
+        "sig_mvrv": "mvrv",
+    }
+    mapped: dict[str, float] = {}
+    for k, v in raw.items():
+        nk = keymap.get(str(k), str(k))
+        try:
+            mapped[nk] = float(v)
+        except (TypeError, ValueError):
+            continue
+    if not mapped:
+        return None
+    ver = int(datetime.now(timezone.utc).timestamp()) % 1_000_000_000
+    return {
+        "version": ver,
+        "source": source,
+        "weights": mapped,
+        "meta": {
+            "sharpe": opt.get("sharpe"),
+            "optimal_sharpe": opt.get("optimal_sharpe"),
+            "legacy_sharpe": opt.get("legacy_sharpe"),
+        },
+    }
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # 入口
 # ══════════════════════════════════════════════════════════════════════════
@@ -878,6 +914,11 @@ def main() -> None:
     parser.add_argument("--optimize",       action="store_true", help="執行 scipy 權重最佳化（需較長時間）")
     parser.add_argument("--force-optimize", action="store_true", help="強制重新最佳化（忽略 24h 快取）")
     parser.add_argument("--walk-forward",  action="store_true", help="Walk-Forward 滾動優化 + 最後 20% Out-of-Sample 驗證")
+    parser.add_argument(
+        "--write-signal-weights",
+        action="store_true",
+        help="將本次 optimal/ML weights 寫入 signal_weights_store（對齊 scripts/write_ml_weights.py）",
+    )
     args = parser.parse_args()
 
     # 1. 取 BTC 價格
@@ -947,6 +988,16 @@ def main() -> None:
         oos_stats=oos_stats if oos_stats else None,
         attribution=attribution,
     )
+
+    if args.write_signal_weights:
+        payload = build_signal_weights_payload_from_opt(opt_result or {}, source="backtest.py")
+        if payload:
+            write_weights(payload, backup_previous=True)
+            logging.info("signal_weights_store updated from backtest (version=%s)", payload.get("version"))
+        else:
+            logging.warning(
+                "--write-signal-weights: 無可用 weights，請搭配 --optimize 或 --walk-forward 後重試"
+            )
 
 
 if __name__ == "__main__":

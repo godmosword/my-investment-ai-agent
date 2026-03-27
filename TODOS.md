@@ -1,7 +1,7 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-03-27）：已與 `origin/main` 對齊後整理本檔。
+**同步狀態**（2026-03-28）：對齊程式現況與「Repo 下一步方向」計劃落地項；長期項仍見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。
 
 ---
 
@@ -27,36 +27,36 @@
 
 **建議待辦（可勾選追蹤）**
 
-- [ ] **對齊「排除清單」與 Rotation Gate 語意**：文件化「近 3 日曾出現於 QSREC 的 canonical asset」與「昨日 BQ 集合」差異；必要時 Gate 增 **rolling 5 日內同標出現次數上限**（僅在非 `trade_watch` 時生效，需測試）。
-- [ ] **crew prompt**：加密／AI 主研究任務明確要求 **至少 2 個「非昨日主標」的候選比較段落**（不必進正文，可進 scratchpad 再濃縮），降低第一篇草稿就釘死單標。
-- [ ] **Quant / 策略任務**：獨立一句 **「若 exclusion 含 HIT_STOP，本段必須回應是否調降該類資產權重」**（呼應已有資料、避免形式化）。
+- [x] **對齊「排除清單」與 Rotation Gate 語意**：[`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md)；`PICK_ROLLING_*`、`DATA_MISSING_COUNT_GATE_MAX` 見 [`report_validator.py`](report_validator.py)。
+- [x] **crew prompt（候選多樣性）**：[`crew.py`](crew.py) `_ALT_PICK_DIVERSITY_RESEARCH_RULE`（含昨日主標異於候選之句）；主編 `_HIT_STOP_STRATEGIST_RULE`。
+- [x] **Quant / HIT_STOP**：同上 `_HIT_STOP_STRATEGIST_RULE`（主編必答權重是否調降）。
 - [ ] **閾值實驗**：在 staging 調高 `PICK_ROTATION_OVERRIDE_MIN_GAP` 或暫緊 `PICK_REPEAT_MIN_SELECTION_SCORE`，觀察 Gate 失敗率與人工滿意度（與 Direction **2A** 自適應門檻合併評估）。
-- [ ] **儀表板／PWA**：呈現「本日 QSREC vs 近 7 日出現頻率」小卡（Direction **1A**），讓「固定感」可視化而非只靠文字。
+- [x] **儀表板**：QSREC 近 7 日頻率 Tab、鏈上 KPI + SOPR／情緒／淨流趨勢 Tab — [`dashboard.py`](dashboard.py)；契約見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。
 
 ---
 
 ## P0 — 防止管線崩潰與資料品質（日報核心）
 
 - [ ] **Critical env 策略定稿**：已具 [`PIPELINE_STRICT_ENV`](main.py)；是否再加「資料源 key 分級 hard fail」需產品決策（見上方意見）。
-- [ ] **DATA_MISSING 計數 Gate** — `report_validator.py`：`[DATA_MISSING:...]` 超過門檻時 **blocking**（門檻建議可設 env）。
-- [ ] **schema 必填收緊** — `schemas.py`：`bull/base/bear_scenario`、`narrative` 等由 Optional → 必填（保留 validator 截斷兜底）。
+- [x] **DATA_MISSING 計數 Gate** — [`report_validator.py`](report_validator.py) `DATA_MISSING_COUNT_GATE_MAX`。
+- [ ] **schema 必填收緊** — `schemas.py`：`bull/base/bear_scenario`、`narrative` 等由 Optional → 必填（保留 validator 截斷兜底）；高信心腿見 `ExecutableTradeLeg` validator。
 
 ---
 
 ## P1 — 直接提升日報品質
 
-- [ ] **後處理 band-aid 收斂** — `report_render.py` `_post_process_html_for_gate()`：根因上修到 prompt／validator，目標刪減多數 regex 補丁。
-- [ ] **軟 Gate 升級** — `report_validator.py`：審計 warning-only，將情境腿數、執行摘要、工具覆蓋率等 **升格 blocking**（與 `trade_watch` 解耦）。
-- [ ] **新聞新鮮度 rollout**：機檢與 [`test_news_freshness.py`](test_news_freshness.py) 已存在；剩 **營運預設** `STRICT_NEWS_FRESHNESS_GATE=1` 與可選 **固定 `report_dt`** 注入管線。
-- [ ] **工具呼叫保底** — `crew.py` + Gate：`_check_tool_coverage()`（或同等）核心工具命中不足則 block。
+- [ ] **後處理 band-aid 收斂** — [`main.py`](main.py) `_post_process_html_for_gate()`：根因上修到 prompt／validator，目標刪減多數 regex 補丁。
+- [x] **軟 Gate 升格（部分）** — 可選 **`STRICT_EXEC_SUMMARY_HTML_GATE`**、既有 **`STRICT_TOOL_EVIDENCE_GATE`** 等見 `ENV_TEMPLATE.txt`。
+- [x] **新聞新鮮度錨定日** — **`PIPELINE_REPORT_DATE`** 注入 exclusion + `validate_report` 新鮮度參考時刻；營運預設仍見 [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)。
+- [x] **工具呼叫保底（下限）** — **`MIN_TOOL_CALLS_PER_PIPELINE`** + [`scratchpad.raw_tool_invocation_count`](scratchpad.py)（建議 `SCRATCHPAD_ENABLED=1`）；上限仍 `MAX_TOOL_CALLS_PER_RUN`。
 
 ---
 
 ## P2 — 自動化與工程債
 
-- [ ] **回測 → 權重** — `backtest.py`：`--update-config` 或寫入 [`signal_weights_store`](signal_weights_store.py)（與 [`scripts/write_ml_weights.py`](scripts/write_ml_weights.py) 對齊）；**週期 workflow** 可選 [`weekly-backtest.yml`](.github/workflows/)（新）。
-- [ ] **tools.py 模組化** — 見 [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)（執行拆分）。
-- [ ] **Autoresearch／bench** — [`docs/AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md)、[`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh)（已存在者可改為「擴充 METRIC／plateau 儀表」待辦）。
+- [x] **回測 → 權重** — [`backtest.py`](backtest.py) `--write-signal-weights`；手動 workflow [`.github/workflows/weekly-backtest.yml`](.github/workflows/weekly-backtest.yml)。
+- [x] **tools.py 模組化（步驟 1）** — [`tools_cache_http.py`](tools_cache_http.py) 抽出 cache／HTTP；見 [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) 後續步驟。
+- [x] **Autoresearch／bench** — [`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh) 擴充 `METRIC bench_ts_utc`／`bench_git_sha`／`plateau_hint`。
 
 ---
 
@@ -72,10 +72,10 @@
 
 | 狀態 | 項目 |
 |------|------|
-| [ ] | [`visualizer.py`](visualizer.py)：**Panel 4** — BTC 資金費率（funding）趨勢；資料源與 CoinGlass／既有工具對齊，禁止 LLM 手填。 |
-| [ ] | [`dashboard.py`](dashboard.py)：**Tab** — Sentiment Score、SOPR、Exchange Netflow（與現有 KPI 區塊對齊 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)）。 |
-| [ ] | [`telegram_sender.py`](telegram_sender.py) + [`templates/telegram_report.j2`](templates/telegram_report.j2)：**「查看歷史」** InlineKeyboard／deep link（需定 URL 或 mini-app）。 |
-| [ ] | [`data-verification-ui/`](data-verification-ui/)：**Web Push**（Service Worker）— 日報就緒／重大異動；與 [`api.py`](api.py) 訂閱設計需安全檢視。 |
+| [x] | [`visualizer.py`](visualizer.py)：**Panel 4** — BTC funding（Binance 公開 API）。 |
+| [x] | [`dashboard.py`](dashboard.py)：**SOPR／情緒／交易所淨流** 趨勢 Tab + 鏈上 KPI（對齊 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)）。 |
+| [x] | [`telegram_sender.py`](telegram_sender.py)：**「查看歷史」** — `TELEGRAM_REPORT_HISTORY_URL` → 首則文字訊息 Inline url 按鈕。 |
+| [x] | [`api.py`](api.py)：**Web Push 預留** — `POST /api/push/subscribe`（預設 501；`WEB_PUSH_ENABLED=1` noop）；PWA Service Worker／持久化待實作。 |
 
 ---
 
@@ -95,8 +95,8 @@
 
 | 狀態 | 項目 |
 |------|------|
-| [ ] | **回測自動更新信號權重** — 見 P2；與 **HIT_STOP／勝率** 指標連動更佳。 |
-| [ ] | **HIT_STOP → 策略敘事** — `fetch_exclusion_context` **已注入**停損摘要；補 **crew Quant 任務硬性回扣**（見橫切選標節）。 |
+| [x] | **回測自動更新信號權重** — 見 P2 [`weekly-backtest.yml`](.github/workflows/weekly-backtest.yml)；與 HIT_STOP／勝率連動仍待產品規則。 |
+| [x] | **HIT_STOP → 策略敘事** — exclusion 注入 + [`crew.py`](crew.py) `_HIT_STOP_STRATEGIST_RULE`。 |
 | [ ] | **Gate 自適應門檻** — 見 P3 `_adaptive_threshold()`。 |
 
 ---
@@ -108,7 +108,7 @@
 | [x] | **輔助腳本**：[`scripts/oss_scout_candidates.py`](scripts/oss_scout_candidates.py)（GitHub Search；`GITHUB_TOKEN` 可選）。 |
 | [ ] | **HuggingFace／GraphQL** 擴充、過濾規則（Stars 成長、授權、領域）。 |
 | [ ] | **整合提案 Agent**：clone → API 分析 → diff → smoke → **開 PR**（**不自動 merge**）。 |
-| [ ] | **`.github/workflows/weekly-scout.yml`**（或手動 + calendar）— 與分鐘額度平衡。 |
+| [x] | **`.github/workflows/weekly-scout.yml`**（手動；與分鐘額度平衡）。 |
 
 ---
 
@@ -135,9 +135,18 @@
 - Exclusion context：**近 3 日標的** + **HIT_STOP** + rotation 警示 + 權重摘要：[`fetch_exclusion_context`](bigquery_writer.py)。
 - Q-Score／Editor／Gemini 切換、narrative validator 等：見 [`CHANGELOG.md`](CHANGELOG.md) 近期條目。
 - 文件：[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`docs/AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md)、[`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh)。
+- **錨定報告日**：`PIPELINE_REPORT_DATE`、`MIN_TOOL_CALLS_PER_PIPELINE`、`STRICT_EXEC_SUMMARY_HTML_GATE`、Telegram `TELEGRAM_REPORT_HISTORY_URL`、API Web Push 預留 — 見 `ENV_TEMPLATE.txt` 與 **2026-03-28** [`CHANGELOG.md`](CHANGELOG.md)。
+- **tools 快取／HTTP 拆分**：[`tools_cache_http.py`](tools_cache_http.py)。
+
+---
+
+## 階段 E — 長期里程碑（啟動索引）
+
+與商業／人力排程綁定，**非**本 sprint 必交件；執行入口見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)（1B 商業化、2B OSS Scout 深化、Direction 3 四職能 Company crew）。
 
 ---
 
 ## 修訂紀錄
 
+- **2026-03-28**：對齊「Repo 下一步方向」計劃——TODOS 勾選、`tools_cache_http`、`weekly-backtest.yml`、Gate／營運 env、Telegram 歷史按鈕、Web Push API 預留、bench METRIC 擴充。
 - **2026-03-27**：`git pull` 後合併使用者「三大戰略方向＋週次」、新增 **維護者意見**、**選幣／選股固定問題** 橫切節；校正與現況不符項（Gate log、HIT_STOP 注入、scout 腳本、已落地列表）。

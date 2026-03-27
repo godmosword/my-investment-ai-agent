@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import bigquery
+from pydantic import BaseModel, Field
 
 from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
 
@@ -36,7 +37,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _CORS_ORIGINS],
     allow_credentials=True,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -348,3 +349,28 @@ def get_trades_performance(
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+class WebPushSubscribeBody(BaseModel):
+    """預留 Web Push 訂閱 payload（與 browser PushSubscription JSON 對齊）。"""
+
+    endpoint: str = Field(..., max_length=4096)
+    keys: dict[str, str] | None = None
+
+
+@app.post("/api/push/subscribe")
+def push_subscribe(_body: WebPushSubscribeBody) -> dict[str, Any]:
+    """Web Push 訂閱預留：須 VAPID、持久化與 rate limit 審核後才啟用。
+
+    設 **WEB_PUSH_ENABLED=1** 前一律 **501**，避免誤以為已可寫入生產訂閱。
+    """
+    if os.getenv("WEB_PUSH_ENABLED", "0").lower() not in ("1", "true", "yes"):
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "Web Push 未啟用。完成安全檢視後設 WEB_PUSH_ENABLED=1，"
+                "並實作 VAPID／訂閱儲存（見 TODOS Direction 1A）。"
+            ),
+        )
+    logger.warning("WEB_PUSH_ENABLED=1 but subscription persistence not implemented — no-op accept")
+    return {"ok": True, "stored": False}
