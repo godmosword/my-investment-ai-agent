@@ -3,6 +3,12 @@ import MetricCard from "../components/MetricCard";
 import TradeCard from "../components/TradeCard";
 import PositionHealthStrip from "../components/PositionHealthStrip";
 import { regimeInfo } from "../utils/regime";
+import {
+  useGlassboxDemoMode,
+  MOCK_METRICS_LATEST,
+  MOCK_OPEN_POSITIONS,
+  mockReportForDate,
+} from "../utils/mockToday";
 
 export default function Today() {
   const today = new Date().toISOString().slice(0, 10);
@@ -10,15 +16,24 @@ export default function Today() {
   const { data: report, isLoading: rLoading, error: rError } = useReport(today);
   const { data: openPos, isLoading: oLoading, error: oError } = useOpenPositions(90);
 
-  const openCount = Array.isArray(openPos) ? openPos.length : 0;
-  const longCount =
-    openPos?.filter((t) => t.direction?.toUpperCase() === "LONG").length ?? 0;
-  const shortCount =
-    openPos?.filter((t) => t.direction?.toUpperCase() === "SHORT").length ?? 0;
+  const forceDemo = useGlassboxDemoMode();
+  const allSettled = !mLoading && !rLoading && !oLoading;
+  const apiAllFailed = allSettled && Boolean(mError && rError && oError);
+  const useDemo = forceDemo || apiAllFailed;
 
-  const regime = regimeInfo(metrics?.avg_risk_score);
-  const ts = metrics?.timestamp
-    ? new Date(metrics.timestamp).toLocaleString("zh-TW", {
+  const effectiveMetrics = useDemo ? MOCK_METRICS_LATEST : mError ? null : metrics;
+  const effectiveOpen = useDemo ? MOCK_OPEN_POSITIONS : oError ? null : openPos;
+  const effectiveReport = useDemo ? mockReportForDate(today) : rError ? null : report;
+
+  const openCount = Array.isArray(effectiveOpen) ? effectiveOpen.length : 0;
+  const longCount =
+    effectiveOpen?.filter((t) => t.direction?.toUpperCase() === "LONG").length ?? 0;
+  const shortCount =
+    effectiveOpen?.filter((t) => t.direction?.toUpperCase() === "SHORT").length ?? 0;
+
+  const regime = regimeInfo(effectiveMetrics?.avg_risk_score);
+  const ts = effectiveMetrics?.timestamp
+    ? new Date(effectiveMetrics.timestamp).toLocaleString("zh-TW", {
         month: "numeric",
         day: "numeric",
         hour: "2-digit",
@@ -26,54 +41,79 @@ export default function Today() {
       })
     : null;
 
+  const showMetricsBlock =
+    useDemo || (!mLoading && !mError && metrics);
+  const metricsLoadingUi = !useDemo && mLoading && !mError;
+
   return (
     <>
-      <PositionHealthStrip openCount={openCount} loading={oLoading} error={oError} />
+      <PositionHealthStrip
+        openCount={openCount}
+        loading={useDemo ? false : oLoading}
+        error={useDemo ? null : oError}
+      />
+
+      {useDemo && (
+        <div className="glassbox-demo-banner glassbox-demo-banner--today" role="status">
+          {forceDemo ? (
+            <>
+              已啟用 <code>VITE_GLASSBOX_MOCK=1</code>：顯示<strong>示範戰情室資料</strong>（非 BigQuery 實盤）。
+            </>
+          ) : (
+            <>
+              後端 <code>/api/metrics/latest</code>、<code>/api/positions/open</code>、
+              <code>/api/reports/…</code> 目前皆無法使用，已自動載入<strong>示範資料</strong>以便預覽 UI。
+              請啟動 <code>uvicorn api:app</code> 並設定 <code>VITE_API_URL</code>（見專案 README）。
+            </>
+          )}
+        </div>
+      )}
 
       <div className="page-header">
         <div className="page-title">今日戰情室</div>
         {ts && <div className="page-subtitle">更新：{ts}</div>}
       </div>
 
-      {mError && (
+      {!useDemo && mError && (
         <div className="error-msg" style={{ marginBottom: 12 }}>
           無法載入最新指標（<code>/api/metrics/latest</code>）：{mError.message}
           <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
-            下方仍顯示部位與今日建議（若 API 可用）；請檢查後端或 <code>VITE_API_URL</code>。
+            請確認 FastAPI 已啟動、BigQuery 憑證就緒，並檢查 <code>VITE_API_URL</code>。
+            若僅預覽 UI，可設 <code>VITE_GLASSBOX_MOCK=1</code>。
           </div>
         </div>
       )}
 
-      {mLoading && !mError && <div className="loading">載入指標中…</div>}
+      {metricsLoadingUi && <div className="loading">載入指標中…</div>}
 
-      {!mLoading && !mError && metrics && (
+      {showMetricsBlock && effectiveMetrics && (
         <>
           <span className={`regime-badge ${regime.cls}`}>{regime.label}</span>
 
           <div className="metrics-grid">
             <MetricCard
               label="ICE DXY"
-              value={metrics?.dxy}
-              delta={metrics?.delta_dxy}
+              value={effectiveMetrics?.dxy}
+              delta={effectiveMetrics?.delta_dxy}
               format={(v) => v.toFixed(2)}
             />
             <MetricCard
               label="ETF 資金流"
-              value={metrics?.etf_flow_millions}
-              delta={metrics?.delta_etf_flow_millions}
+              value={effectiveMetrics?.etf_flow_millions}
+              delta={effectiveMetrics?.delta_etf_flow_millions}
               unit="億"
               format={(v) => (v > 0 ? `+${v}` : `${v}`)}
             />
             <MetricCard
               label="MVRV Z-Score"
-              value={metrics?.mvrv_z_score}
-              delta={metrics?.delta_mvrv_z_score}
+              value={effectiveMetrics?.mvrv_z_score}
+              delta={effectiveMetrics?.delta_mvrv_z_score}
               format={(v) => v.toFixed(2)}
             />
             <MetricCard
               label="風險評分"
-              value={metrics?.avg_risk_score}
-              delta={metrics?.delta_avg_risk_score}
+              value={effectiveMetrics?.avg_risk_score}
+              delta={effectiveMetrics?.delta_avg_risk_score}
               unit="/5"
               format={(v) => `${v.toFixed(1)}`}
             />
@@ -83,26 +123,26 @@ export default function Today() {
           <div className="metrics-grid">
             <MetricCard
               label="SOPR"
-              value={metrics?.sopr}
-              delta={metrics?.delta_sopr}
+              value={effectiveMetrics?.sopr}
+              delta={effectiveMetrics?.delta_sopr}
               format={(v) => v.toFixed(4)}
             />
             <MetricCard
               label="情緒分數"
-              value={metrics?.sentiment_score}
-              delta={metrics?.delta_sentiment_score}
+              value={effectiveMetrics?.sentiment_score}
+              delta={effectiveMetrics?.delta_sentiment_score}
               format={(v) => v.toFixed(3)}
             />
             <MetricCard
               label="交易所淨流向"
-              value={metrics?.exchange_netflow}
-              delta={metrics?.delta_exchange_netflow}
+              value={effectiveMetrics?.exchange_netflow}
+              delta={effectiveMetrics?.delta_exchange_netflow}
               format={(v) => v.toFixed(2)}
             />
             <MetricCard
               label="Regime score"
-              value={metrics?.regime_score}
-              delta={metrics?.delta_regime_score}
+              value={effectiveMetrics?.regime_score}
+              delta={effectiveMetrics?.delta_regime_score}
               format={(v) => v.toFixed(2)}
             />
           </div>
@@ -110,24 +150,24 @@ export default function Today() {
             BTC 資金費率為工具層即時查詢，請見 Streamlit 戰情室「資金費率」摺疊區或當日 Telegram 戰報。
           </p>
 
-          {metrics?.grok_summary && (
+          {effectiveMetrics?.grok_summary && (
             <>
               <div className="section-header">🔮 幣圈情報（Grok）</div>
-              <div className="summary-block">{metrics.grok_summary}</div>
+              <div className="summary-block">{effectiveMetrics.grok_summary}</div>
             </>
           )}
 
-          {metrics?.gpt_summary && (
+          {effectiveMetrics?.gpt_summary && (
             <>
               <div className="section-header">🤖 AI 產業情報</div>
-              <div className="summary-block">{metrics.gpt_summary}</div>
+              <div className="summary-block">{effectiveMetrics.gpt_summary}</div>
             </>
           )}
         </>
       )}
 
       <div className="section-header subtle">多空結構（OPEN）</div>
-      {!oLoading && !oError && Array.isArray(openPos) && (
+      {(useDemo || (!oLoading && !oError)) && Array.isArray(effectiveOpen) && (
         <div
           style={{
             display: "flex",
@@ -155,22 +195,26 @@ export default function Today() {
         </div>
       )}
 
-      {rError && (
+      {!useDemo && rError && (
         <div className="error-msg" style={{ marginBottom: 12 }}>
           無法載入今日報告：{rError.message}
         </div>
       )}
 
-      {!rLoading && !rError && report?.recommendations?.length > 0 && (
+      {((!useDemo && !rLoading && !rError && report?.recommendations?.length > 0) ||
+        (useDemo && effectiveReport?.recommendations?.length > 0)) && (
         <>
           <div className="section-header">💼 今日建議（QSREC）</div>
-          {report.recommendations.map((t, i) => (
+          {(useDemo ? effectiveReport : report).recommendations.map((t, i) => (
             <TradeCard key={i} trade={t} />
           ))}
         </>
       )}
 
-      {!rLoading && !rError && (!report?.recommendations?.length || report.recommendations.length === 0) && (
+      {!useDemo &&
+        !rLoading &&
+        !rError &&
+        (!report?.recommendations?.length || report.recommendations.length === 0) && (
         <p className="page-subtitle" style={{ opacity: 0.75, marginTop: 8 }}>
           今日尚無 QSREC 建議或報告尚未寫入。
         </p>

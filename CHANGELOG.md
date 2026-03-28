@@ -5,16 +5,22 @@
 
 ## 2026-03-29
 
-### Changed
-- **[`crew.py`](crew.py)**：Crypto／AI 研究員預設拆成多個 **`async_execution=True`** 子任務（CrewAI 於 `Process.sequential` 內並行後收斂至審計與主編）；**`CREW_DISABLE_ASYNC_RESEARCH=1`** 回退單一 Grok 巨任務（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）。[`main.py`](main.py) 雙 Crew 仍為既有 `ThreadPoolExecutor` 並行。
-  - **Crypto**：`tasks` 順序 **`crypto_data_task` → `crypto_macro_task` → `crypto_news_task`**；宏觀任務僅經濟日曆／相關係數／估值錨／COT／灰階／歷史類比；**`sentiment_score_tool`**（或 `PIPELINE_SKIP_SENTIMENT_SCORE` 對應說明）改列**新聞子任務**可選區；新聞子任務另要求短呢喃與固定 `expected_output` 字串。
-  - **AI**：**`ai_data_task`**（動能＋`financial_datasets` watchlist）與 **`ai_news_task`**（雙次 `market_search` + `newsapi`／`rss`／`gnews`／`rumor_scanner`）邊界分離；`review_task`／`final_report_task` 的 `context` 對齊兩（或三）個前驅輸出。
-
 ### Added
+- **Glassbox PWA（[`data-verification-ui/`](data-verification-ui/)）**：
+  - 儀表板視覺：深底＋青綠／電紫層次、卡片與 metric 漸層、底欄毛玻璃（[`src/index.css`](data-verification-ui/src/index.css)）。
+  - **`VITE_GLASSBOX_MOCK=1`**：今日戰情室與圖表頁示範資料（[`src/utils/mockToday.js`](data-verification-ui/src/utils/mockToday.js)、[`mockPerformance.js`](data-verification-ui/src/utils/mockPerformance.js)）。
+  - **API 全失敗 fallback**：未設 mock 時，[`Today.jsx`](data-verification-ui/src/pages/Today.jsx) 在三支 API 皆錯且 loading 結束後自動載入示範 KPI／OPEN／QSREC。
+  - **TradeCard**「展開 AI 決策邏輯」與 **Charts** 績效區骨架屏；靜態草圖 [`design/tradecard-ai-disclosure-mockup.html`](data-verification-ui/design/tradecard-ai-disclosure-mockup.html)。
+- **CI**：[`.gitignore`](.gitignore) 例外 **`tests/fixtures/reports/**/expected_validation.json`**；補齊各 case 之 **`expected_validation.json`**（[`test_validate_report_fixtures.py`](test_validate_report_fixtures.py)）。
 - **OSS 週期管線**：[`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py)（搜尋 → [`oss_repo_digest.py`](scripts/oss_repo_digest.py) → [`templates/oss_weekly_plan.md.j2`](templates/oss_weekly_plan.md.j2)）；[`scripts/oss_suitability.py`](scripts/oss_suitability.py) 啟發式適配度；合併勾選清單至 **`TODOS.md`**「OSS Scout 週報」區塊。
 - **測試**：[test_oss_weekly.py](test_oss_weekly.py)。
 
 ### Changed
+- **Glassbox PWA**：導入 **Tailwind CSS**（[`tailwind.config.js`](data-verification-ui/tailwind.config.js) `preflight: false` + [`postcss.config.js`](data-verification-ui/postcss.config.js)、[`src/index.css`](data-verification-ui/src/index.css) `@tailwind utilities`）；[`TradeCard.jsx`](data-verification-ui/src/components/TradeCard.jsx) 改為玻璃擬態卡片、三欄價格網格、`isExpanded` 手風琴（觸發／失效／敘事）與防禦性 `N/A`；[`package.json`](data-verification-ui/package.json) 新增 `tailwindcss`／`postcss`／`autoprefixer`。
+- **[`README.md`](README.md)**：War Room PWA 小節擴充為「最簡 mock／接 BQ／proxy 與 `VITE_API_URL`」分節；新手表新增 Glassbox 列。
+- **[`crew.py`](crew.py)**：Crypto／AI 研究員預設拆成多個 **`async_execution=True`** 子任務（CrewAI 於 `Process.sequential` 內並行後收斂至審計與主編）；**`CREW_DISABLE_ASYNC_RESEARCH=1`** 回退單一 Grok 巨任務（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）。[`main.py`](main.py) 雙 Crew 仍為既有 `ThreadPoolExecutor` 並行。
+  - **Crypto**：`tasks` 順序 **`crypto_data_task` → `crypto_macro_task` → `crypto_news_task`**；宏觀任務僅經濟日曆／相關係數／估值錨／COT／灰階／歷史類比；**`sentiment_score_tool`**（或 `PIPELINE_SKIP_SENTIMENT_SCORE` 對應說明）改列**新聞子任務**可選區；新聞子任務另要求短呢喃與固定 `expected_output` 字串。
+  - **AI**：**`ai_data_task`**（動能＋`financial_datasets` watchlist）與 **`ai_news_task`**（雙次 `market_search` + `newsapi`／`rss`／`gnews`／`rumor_scanner`）邊界分離；`review_task`／`final_report_task` 的 `context` 對齊兩（或三）個前驅輸出。
 - **[`scripts/oss_scout_candidates.py`](scripts/oss_scout_candidates.py)**：`SCOUT_SORT`、`SCOUT_PER_PAGE`、`--out-json`；預設 sort **stars**。
 - **[`.github/workflows/weekly-scout.yml`](.github/workflows/weekly-scout.yml)**：每週一 UTC cron、`contents: write` push、artifact；`pip install jinja2`。
 - **[`docs/oss_candidates/README.md`](docs/oss_candidates/README.md)**、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`TODOS.md`](TODOS.md) Direction 2B。

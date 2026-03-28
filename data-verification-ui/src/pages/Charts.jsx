@@ -38,6 +38,22 @@ function ChartCard({ title, children }) {
   );
 }
 
+/** 績效雙圖載入中：骨架屏（無閃白、輕量 pulse） */
+function PerfChartsSkeleton() {
+  return (
+    <div className="perf-charts-skeleton" aria-hidden>
+      <div className="card">
+        <div className="card-title">累計 PnL 曲線（已平倉加總 %）</div>
+        <div className="perf-charts-skeleton__block" />
+      </div>
+      <div className="card">
+        <div className="card-title">勝率分布（命中目標 vs 觸發停損）</div>
+        <div className="perf-charts-skeleton__block" />
+      </div>
+    </div>
+  );
+}
+
 const tooltipStyle = {
   backgroundColor: "var(--card)",
   border: "1px solid var(--border)",
@@ -131,8 +147,11 @@ export default function Charts() {
       )}
 
       {perfSectionLoading && (
-        <div className="loading" style={{ padding: "20px", marginBottom: 12 }}>
-          載入交易績效…
+        <div role="status" aria-live="polite" aria-busy="true">
+          <p className="page-subtitle" style={{ marginBottom: 10, opacity: 0.85 }}>
+            載入交易績效（<code>/api/trades/performance</code>）…
+          </p>
+          <PerfChartsSkeleton />
         </div>
       )}
 

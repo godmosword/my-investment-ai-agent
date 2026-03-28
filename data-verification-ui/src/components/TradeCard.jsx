@@ -1,13 +1,27 @@
 import { useState } from "react";
 
+/** 價格／數值：缺漏時 N/A */
 function fmt(v) {
-  if (v == null) return "—";
-  return Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 });
+  if (v == null || v === "") return "N/A";
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
-function Stars({ n }) {
-  if (n == null) return null;
-  return <span className="stars">{"★".repeat(n)}{"☆".repeat(Math.max(0, 4 - n))}</span>;
+/** 觸發／失效／敘事等字串 */
+function safeStr(v) {
+  if (v == null) return "N/A";
+  const s = String(v).trim();
+  return s === "" ? "N/A" : s;
+}
+
+function ConfidenceStars({ n }) {
+  if (n == null || n === "" || Number.isNaN(Number(n))) {
+    return <span>N/A</span>;
+  }
+  const c = Math.min(4, Math.max(0, Math.floor(Number(n))));
+  if (c <= 0) return <span>N/A</span>;
+  return <span className="text-yellow-400 tracking-tight">{"⭐".repeat(c)}</span>;
 }
 
 function StatusBadge({ status }) {
@@ -60,16 +74,14 @@ function Scorecard({ trade, hasDims }) {
   if (!hasDims && trade.selection_score == null) return null;
 
   return (
-    <div style={{ borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 6 }}>
+    <div className="mt-3 border-t border-gray-800 pt-3">
       {trade.selection_score != null && (
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 11 }}>
-          <span style={{ color: "var(--muted)" }}>選股總分</span>
-          <span style={{ fontWeight: 700, color: "var(--accent)" }}>
+        <div className="mb-2 flex justify-between text-[11px]">
+          <span className="text-gray-500">選股總分</span>
+          <span className="font-bold text-teal-400">
             {Math.round(trade.selection_score)}/100
             {trade.score_gap != null && (
-              <span style={{ color: "var(--muted)", fontWeight: 400, marginLeft: 4 }}>
-                (vs次佳 +{Math.round(trade.score_gap)})
-              </span>
+              <span className="ml-1 font-normal text-gray-500">(vs次佳 +{Math.round(trade.score_gap)})</span>
             )}
           </span>
         </div>
@@ -92,76 +104,84 @@ function Scenarios({ trade }) {
   if (!hasBull && !hasBase && !hasBear) return null;
 
   return (
-    <div style={{ borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 6 }}>
-      <div
-        style={{
-          fontSize: 10,
-          color: "var(--muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          marginBottom: 6,
-        }}
-      >
-        情境分析
-      </div>
+    <div className="mt-3 border-t border-gray-800 pt-3">
+      <div className="mb-2 text-[10px] uppercase tracking-wider text-gray-500">情境分析</div>
       {hasBull && (
-        <div style={{ fontSize: 11, marginBottom: 4, display: "flex", gap: 6 }}>
+        <div className="mb-1 flex gap-2 text-[11px]">
           <span>🐂</span>
-          <span style={{ color: "var(--green)", lineHeight: 1.4 }}>{trade.bull_scenario}</span>
+          <span className="leading-snug text-emerald-400">{trade.bull_scenario}</span>
         </div>
       )}
       {hasBase && (
-        <div style={{ fontSize: 11, marginBottom: 4, display: "flex", gap: 6 }}>
+        <div className="mb-1 flex gap-2 text-[11px]">
           <span>⚖️</span>
-          <span style={{ color: "var(--text)", lineHeight: 1.4 }}>{trade.base_scenario}</span>
+          <span className="leading-snug text-gray-200">{trade.base_scenario}</span>
         </div>
       )}
       {hasBear && (
-        <div style={{ fontSize: 11, marginBottom: 4, display: "flex", gap: 6 }}>
+        <div className="mb-1 flex gap-2 text-[11px]">
           <span>🐻</span>
-          <span style={{ color: "var(--red)", lineHeight: 1.4 }}>{trade.bear_scenario}</span>
+          <span className="leading-snug text-red-400">{trade.bear_scenario}</span>
         </div>
       )}
     </div>
   );
 }
 
-export default function TradeCard({ trade }) {
-  const [tradeDetailsOpen, setTradeDetailsOpen] = useState(false);
-  const [scoreOpen, setScoreOpen] = useState(false);
-  const [decisionOpen, setDecisionOpen] = useState(false);
+function directionBadgeClass(dir) {
+  const u = (dir || "").toUpperCase();
+  if (u === "LONG") return "bg-green-900/50 text-green-400 text-sm px-2 py-1 rounded font-medium";
+  if (u === "SHORT") return "bg-red-900/50 text-red-400 text-sm px-2 py-1 rounded font-medium";
+  return "bg-gray-800/50 text-gray-300 text-sm px-2 py-1 rounded font-medium";
+}
 
-  const isLong = trade.direction?.toUpperCase() === "LONG";
-  const pnlColor = trade.pnl_pct > 0 ? "delta-up" : trade.pnl_pct < 0 ? "delta-down" : "delta-flat";
+export default function TradeCard({ trade: tradeProp }) {
+  const trade = tradeProp ?? {};
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [scoreOpen, setScoreOpen] = useState(false);
+
+  const pnlColor =
+    trade.pnl_pct > 0 ? "text-emerald-400" : trade.pnl_pct < 0 ? "text-red-400" : "text-gray-400";
   const hasDims = SCORE_DIMS.some(({ key }) => trade[key] != null);
   const hasScorecard = hasDims || trade.selection_score != null;
   const hasScenarios = !!(trade.bull_scenario || trade.base_scenario || trade.bear_scenario);
-  const hasAiLogic = !!(trade.trigger || trade.invalidation || trade.narrative);
+
+  const assetLabel = trade.asset != null && String(trade.asset).trim() !== "" ? trade.asset : "N/A";
 
   return (
-    <div className="trade-card">
-      {/* Glassbox：預設僅標的、方向、部位、P&L、狀態 */}
-      <div className="trade-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="trade-asset">{trade.asset}</span>
-          <span className={`trade-direction direction-${isLong ? "long" : "short"}`}>
-            {trade.direction}
+    <div
+      className="mb-3 bg-gray-900 bg-opacity-60 backdrop-blur-md border border-gray-700 rounded-xl p-5 shadow-lg hover:border-gray-500 transition-colors"
+    >
+      {/* Header */}
+      <div className="flex justify-between items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <span className="text-xl font-bold text-white truncate">{assetLabel}</span>
+          <span className={directionBadgeClass(trade.direction)}>
+            {trade.direction != null && String(trade.direction).trim() !== ""
+              ? trade.direction
+              : "N/A"}
           </span>
           {trade.category && (
-            <span style={{ fontSize: 10, color: "var(--muted)" }}>{trade.category}</span>
+            <span className="text-[10px] text-gray-500 shrink-0">{trade.category}</span>
           )}
         </div>
-        <StatusBadge status={trade.status} />
+        <div className="text-right text-gray-400 text-sm shrink-0 space-y-0.5">
+          <div className="flex justify-end">
+            <ConfidenceStars n={trade.confidence} />
+          </div>
+          <div>
+            部位{" "}
+            {trade.position_pct != null && trade.position_pct !== ""
+              ? `${trade.position_pct}%`
+              : "N/A"}
+          </div>
+        </div>
       </div>
 
-      <div className="trade-compact-row">
-        {trade.position_pct != null && (
-          <span style={{ color: "var(--muted)" }}>
-            部位 <strong style={{ color: "var(--text)" }}>{trade.position_pct}%</strong>
-          </span>
-        )}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <StatusBadge status={trade.status} />
         {trade.pnl_pct != null && (
-          <span style={{ color: "var(--muted)" }}>
+          <span>
             當前 P&amp;L{" "}
             <strong className={pnlColor}>
               {trade.pnl_pct > 0 ? "+" : ""}
@@ -169,148 +189,70 @@ export default function TradeCard({ trade }) {
             </strong>
           </span>
         )}
-        {trade.position_pct == null && trade.pnl_pct == null && (
-          <span style={{ color: "var(--muted)", fontSize: 11 }}>尚無部位／損益欄位</span>
-        )}
       </div>
 
+      {/* Price grid */}
+      <div className="grid grid-cols-3 gap-4 my-4">
+        <div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">進場 · Entry</div>
+          <div className="text-lg font-mono text-gray-100">{fmt(trade.entry_price)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">目標 · Target</div>
+          <div className="text-lg font-mono text-gray-100">{fmt(trade.target_price)}</div>
+        </div>
+        <div>
+          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">停損 · Stop</div>
+          <div className="text-lg font-mono text-gray-100">{fmt(trade.stop_price)}</div>
+        </div>
+      </div>
+
+      {(trade.rr_ratio != null || trade.timeframe) && (
+        <div className="flex flex-wrap gap-3 text-[11px] text-gray-500 mb-1">
+          {trade.rr_ratio != null && (
+            <span>
+              R:R <strong className="text-gray-200">{trade.rr_ratio}</strong>
+            </span>
+          )}
+          {trade.timeframe && (
+            <span>
+              週期 <strong className="text-gray-200">{trade.timeframe}</strong>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* AI 決策邏輯 accordion */}
       <button
         type="button"
-        className="trade-accordion-btn trade-accordion-btn--ghost"
-        onClick={() => setTradeDetailsOpen((x) => !x)}
-        aria-expanded={tradeDetailsOpen}
+        className="w-full text-center text-sm text-blue-400 hover:text-blue-300 py-2 border-t border-gray-800 mt-2 bg-transparent cursor-pointer"
+        onClick={() => setIsExpanded((x) => !x)}
+        aria-expanded={isExpanded}
       >
-        {tradeDetailsOpen ? "▲ 收起交易細節（價格／週期）" : "▼ 展開交易細節（價格／週期）"}
+        {isExpanded ? "收起 ↑" : "展開 AI 決策邏輯 ↓"}
       </button>
 
-      {tradeDetailsOpen && (
-        <>
-          <div className="trade-prices" style={{ marginTop: 10 }}>
-            <div className="price-item">
-              <span className="price-label">進場</span>
-              <span className="price-value">{fmt(trade.entry_price)}</span>
-            </div>
-            <div className="price-item">
-              <span className="price-label">目標</span>
-              <span className="price-value" style={{ color: "var(--green)" }}>
-                {fmt(trade.target_price)}
-              </span>
-            </div>
-            <div className="price-item">
-              <span className="price-label">停損</span>
-              <span className="price-value" style={{ color: "var(--red)" }}>
-                {fmt(trade.stop_price)}
-              </span>
-            </div>
+      {isExpanded && (
+        <div className="bg-gray-800/50 rounded-lg p-4 mt-2 space-y-3 text-sm">
+          <div>
+            <div className="text-xs font-semibold text-amber-400 mb-1">觸發條件（Trigger）</div>
+            <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">{safeStr(trade.trigger)}</p>
           </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, marginBottom: 4 }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Stars n={trade.confidence} />
-            </span>
-            {trade.rr_ratio != null && (
-              <span style={{ color: "var(--muted)" }}>
-                R:R <strong style={{ color: "var(--text)" }}>{trade.rr_ratio}</strong>
-              </span>
-            )}
-            {trade.timeframe && (
-              <span style={{ color: "var(--muted)" }}>
-                週期 <strong style={{ color: "var(--text)" }}>{trade.timeframe}</strong>
-              </span>
-            )}
+          <div>
+            <div className="text-xs font-semibold text-red-400 mb-1">失效條件（Invalidation）</div>
+            <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">{safeStr(trade.invalidation)}</p>
           </div>
-        </>
-      )}
-
-      {hasAiLogic && (
-        <button
-          type="button"
-          className="trade-accordion-btn"
-          onClick={() => setDecisionOpen((x) => !x)}
-          aria-expanded={decisionOpen}
-        >
-          {decisionOpen ? "▲ 收起決策邏輯" : "▼ 展開決策邏輯（觸發／失效／敘事）"}
-        </button>
-      )}
-
-      {decisionOpen && hasAiLogic && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "rgba(255,255,255,.02)",
-          }}
-        >
-          {trade.trigger && (
-            <div style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  marginBottom: 4,
-                }}
-              >
-                觸發條件（Trigger）
-              </div>
-              <div style={{ fontSize: 12, lineHeight: 1.45, color: "var(--text)" }}>{trade.trigger}</div>
-            </div>
-          )}
-          {trade.invalidation && (
-            <div style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  marginBottom: 4,
-                }}
-              >
-                失效條件（Invalidation）
-              </div>
-              <div style={{ fontSize: 12, lineHeight: 1.45, color: "var(--text)" }}>{trade.invalidation}</div>
-            </div>
-          )}
-          {trade.narrative && (
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  marginBottom: 6,
-                }}
-              >
-                敘事邏輯（Narrative）
-              </div>
-              <blockquote
-                className="trade-narrative"
-                style={{
-                  margin: 0,
-                  padding: "10px 12px",
-                  borderLeft: "3px solid var(--accent)",
-                  background: "rgba(0,212,170,.08)",
-                  borderRadius: "0 8px 8px 0",
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                  color: "var(--text)",
-                }}
-              >
-                {trade.narrative}
-              </blockquote>
-            </div>
-          )}
+          <div>
+            <div className="text-xs font-semibold text-blue-400 mb-1">敘事邏輯（Narrative）</div>
+            <p className="text-gray-200 leading-relaxed whitespace-pre-wrap">{safeStr(trade.narrative)}</p>
+          </div>
         </div>
       )}
 
       {(hasScorecard || hasScenarios) && (
         <button
           type="button"
-          className="trade-accordion-btn trade-accordion-btn--ghost"
+          className="w-full text-center text-sm text-gray-400 hover:text-gray-300 py-2 border-t border-gray-800 mt-2 bg-transparent cursor-pointer"
           onClick={() => setScoreOpen((x) => !x)}
           aria-expanded={scoreOpen}
         >

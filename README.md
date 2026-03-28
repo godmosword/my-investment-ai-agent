@@ -17,6 +17,7 @@
 | 我想… | 先做這件事 | 需要金鑰？ |
 |--------|------------|------------|
 | **看看介面長怎樣** | 跑 [Streamlit 戰情室](#快速開始) | **不需要**（BigQuery 區塊會顯示降級提示） |
+| **看 Glassbox PWA（手機戰情室）** | [War Room PWA](#war-room-pwa-與-api)：`VITE_GLASSBOX_MOCK=1 npm run dev` | **不需要**（示範資料；非實盤） |
 | **確認程式能跑、CI 同款** | `ruff check .` 與 `pytest -m smoke`（見 [開發與測試](#開發與測試)） | **不需要** |
 | **在本機乾跑一輪管線**（不推 Telegram、不寫 BQ） | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` | 仍須 **四個啟動必填** LLM + Apify（見 [環境變數](#環境變數)） |
 | **正式產報＋推播＋寫入雲端** | 備齊 Telegram、GCP、資料源金鑰；生產建議 `PIPELINE_STRICT_ENV=1` | **是**（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)） |
@@ -380,11 +381,51 @@ FastAPI (api.py)  ←→  BigQuery
 React PWA (data-verification-ui/)
 ```
 
-**本機**：`uvicorn api:app --reload --port 8000`；前端 `cd data-verification-ui && npm install && npm run dev`（預設 proxy `/api` → `:8000`）。無 BQ 時 API 可能錯誤，UI 仍可開發。
+目錄：**[`data-verification-ui/`](data-verification-ui/)**（Vite + React + Recharts）。**Glassbox** 含今日 KPI、**部位健康度紅綠燈**（OPEN 筆數）、**累計 PnL／勝率圖表**、**TradeCard 漸進式揭露**（展開 AI 決策邏輯：觸發／失效／敘事）。靜態排版草圖（供對稿）：[`data-verification-ui/design/tradecard-ai-disclosure-mockup.html`](data-verification-ui/design/tradecard-ai-disclosure-mockup.html)。
 
-**端點與 KPI 對齊** → [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)（含 `/api/metrics/latest`、`/api/reports/...`、`/healthz` 等）。
+### 最簡啟動（不要後端、只看 UI）
 
-**生產**：`npm run build` 產 `dist/`；搭配 `CORS_ORIGINS`、`GCP_PROJECT_ID` 等。PWA 安裝：iOS「加入主畫面」、Android「安裝應用程式」。
+```bash
+cd data-verification-ui
+npm install
+VITE_GLASSBOX_MOCK=1 npm run dev
+```
+
+瀏覽器開終端機顯示的 **Local**（多為 `http://127.0.0.1:5173`）。**`VITE_GLASSBOX_MOCK=1`** 時「今日戰情室」與「圖表」頁使用**示範資料**（非 BigQuery）。亦可將同一行寫入 **`data-verification-ui/.env.local`** 後只跑 `npm run dev`。
+
+若**未**設 mock、也未開 API，[`Today`](data-verification-ui/src/pages/Today.jsx) 在 **`/api/metrics/latest`、`/api/positions/open`、`/api/reports/{date}` 三者皆失敗**且請求結束後，會**自動**帶入示範戰情室（避免整頁空白）。
+
+### 本機接真實 API（BigQuery）
+
+**終端 1 — 專案根目錄**（需 GCP 服務帳戶可讀 BigQuery）：
+
+```bash
+pip install -r requirements.txt
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/sa-key.json"   # 你的金鑰路徑
+uvicorn api:app --reload --port 8000
+```
+
+**終端 2 — 前端**：
+
+```bash
+cd data-verification-ui
+npm install
+npm run dev
+```
+
+開發時 **`VITE_API_URL` 可不設**：請求走同源 **`/api/...`**，由 [Vite `server.proxy`](data-verification-ui/vite.config.js) 轉發至 `http://localhost:8000`。若部署前後端不同網域，再設 **`VITE_API_URL=https://你的 API 原點`**（勿尾隨斜線）。
+
+### 端點與契約
+
+**端點與 KPI 對齊** → [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)（含 `/api/metrics/latest`、`/api/trades/performance`、`/api/positions/open`、`/api/reports/...`、`/healthz` 等）。
+
+### 生產建置
+
+```bash
+cd data-verification-ui && npm run build
+```
+
+產物在 **`dist/`**；搭配 **`CORS_ORIGINS`**、**`GCP_PROJECT_ID`** 等。PWA：iOS「加入主畫面」、Android「安裝應用程式」。預覽打包結果：`npm run preview`（靜態，無後端時請用 mock 或接受示範 fallback）。
 
 ---
 
