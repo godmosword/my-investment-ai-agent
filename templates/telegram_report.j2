@@ -60,11 +60,14 @@
 訊號衝突摘要：{{ crypto.signal_conflict_summary|tg_escape }}
 {% if crypto.trade_legs %}
 {% for leg in crypto.trade_legs %}
-· <b>${{ leg.asset|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ leg.current_price|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+· <b>${{ (leg.asset|string|replace('$', ''))|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|replace('$', ''))|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
 · <b>計畫</b>：進場 <code>{{ leg.entry|tg_escape }}</code> 🎯 目標 <code>{{ leg.target|tg_escape }}</code> 🛑 停損 <code>{{ leg.stop|tg_escape }}</code>（建議倉位 {{ leg.position_pct|tg_escape }}）
 
-· <b>執行</b>：{{ leg.trigger|tg_escape }}{% if leg.invalidation %}。若 <code>{{ leg.invalidation|tg_escape }}</code> 則失效。{% endif %}
+· <b>執行</b>：{{ (leg.trigger|string|default(''))|replace('。。', '。')|tg_escape }}
+{% if leg.invalidation %}
+· <b>失效</b>：{{ (leg.invalidation|string)|replace('若 ', '')|replace('則失效。', '')|replace('。。', '。')|tg_escape }}
+{% endif %}
 
 · <b>敘事</b>：{{ leg.narrative|tg_escape }}
 
@@ -120,11 +123,14 @@
 {% endif %}
 {% if ai.trade_legs %}
 {% for leg in ai.trade_legs %}
-· <b>${{ leg.asset|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ leg.current_price|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+· <b>${{ (leg.asset|string|replace('$', ''))|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|replace('$', ''))|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
 · <b>計畫</b>：進場 <code>{{ leg.entry|tg_escape }}</code> 🎯 目標 <code>{{ leg.target|tg_escape }}</code> 🛑 停損 <code>{{ leg.stop|tg_escape }}</code>（建議倉位 {{ leg.position_pct|tg_escape }}）
 
-· <b>執行</b>：{{ leg.trigger|tg_escape }}{% if leg.invalidation %}。若 <code>{{ leg.invalidation|tg_escape }}</code> 則失效。{% endif %}
+· <b>執行</b>：{{ (leg.trigger|string|default(''))|replace('。。', '。')|tg_escape }}
+{% if leg.invalidation %}
+· <b>失效</b>：{{ (leg.invalidation|string)|replace('若 ', '')|replace('則失效。', '')|replace('。。', '。')|tg_escape }}
+{% endif %}
 
 · <b>敘事</b>：{{ leg.narrative|tg_escape }}
 
