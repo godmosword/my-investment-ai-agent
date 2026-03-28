@@ -16,6 +16,7 @@
 - **測試**：[test_api_push.py](test_api_push.py)、[`test_validate_report.py`](test_validate_report.py) `TestStrictExecSummaryHtmlGate`。
 
 ### Changed
+- **產報效能預設**（[`main.py`](main.py)／[`crew.py`](crew.py)／[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）：`CREW_FUTURE_TIMEOUT_SEC` 預設 **2400**（40m）、`PIPELINE_HARD_DEADLINE_SEC` **13200**（3h40m，對齊 4h Cloud Run）；`BACKOFF_BASE_SEC` 預設 **25**；Gemini `max_retries` **4**。可選 **`PIPELINE_SKIP_SENTIMENT_SCORE=1`** 略過 `sentiment_score_tool` 以縮短加密段。
 - **Gate 模組拆分**：[`report_html_gates.py`](report_html_gates.py) 承接原 `validate_report()`（HTML／環境變數／BigQuery）；結構化業務規則與 `ReportOutput`／`parse_report_output`／`assert_*` 收斂至 [`schemas.py`](schemas.py)（`DailyBriefReport` `@model_validator`）。已移除舊檔 `report_validator.py`、`report_output_validator.py`、`core/report_validation.py`、`check_report.py`。
 - **[`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml)**：關閉 **`schedule` cron**（預設不再每 2 小時自動跑），僅保留 **`workflow_dispatch`**；要恢復排程可取消 YAML 內註解。[`README.md`](README.md) 表格已對齊。
 - **[`TODOS.md`](TODOS.md)**：勾選與「已落地」對齊現況；新增 **階段 E** 長期索引（對 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)）。

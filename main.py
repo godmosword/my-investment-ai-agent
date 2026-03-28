@@ -89,14 +89,15 @@ GATE_WARN_THRESHOLD = int(os.getenv("GATE_WARN_THRESHOLD", "3"))
 # 重試常數（集中管理，方便調參）
 MAX_REPORT_RETRIES = int(os.getenv("MAX_REPORT_RETRIES", "2"))
 MAX_503_RETRIES = int(os.getenv("MAX_503_RETRIES", "3"))
-BACKOFF_BASE_SEC = int(os.getenv("BACKOFF_BASE_SEC", "30"))
+BACKOFF_BASE_SEC = int(os.getenv("BACKOFF_BASE_SEC", "25"))
 ERROR_PREFIX = "🚨 Q-Silicon 智庫執行失敗，請檢查系統日誌。\n錯誤訊息："
 MAX_EXCLUSION_CONTEXT_CHARS = int(os.getenv("MAX_EXCLUSION_CONTEXT_CHARS", "1000"))
 MAX_PREV_RECS_CHARS = int(os.getenv("MAX_PREV_RECS_CHARS", "1200"))
-# 降低單次 crew kickoff 上限（原 2700s / 45 min 過高；3 次重試 × 45 min > Cloud Run 3600s）
-CREW_FUTURE_TIMEOUT_SEC = int(os.getenv("CREW_FUTURE_TIMEOUT_SEC", "1500"))
-# 全 pipeline 硬截止（Cloud Run task timeout = 3600s；保留 300s buffer）
-PIPELINE_HARD_DEADLINE_SEC = int(os.getenv("PIPELINE_HARD_DEADLINE_SEC", "3300"))
+# 雙 Crew 並行時，單軌 wall-clock 上限（較慢的軌決定總等待）。預設 40min：避免慢 LLM／多工具日誤觸發 TimeoutError。
+# Cloud Run Job 已預設 4h task timeout；此值應小於 (PIPELINE_HARD_DEADLINE / 預期嘗試次數)。
+CREW_FUTURE_TIMEOUT_SEC = int(os.getenv("CREW_FUTURE_TIMEOUT_SEC", "2400"))
+# 整段產報（含 validate 重試、503 退避）的牆鐘預算；達上限後不再開新一趟 kickoff。預設對齊 4h Cloud Run 留 ~20min 緩衝。
+PIPELINE_HARD_DEADLINE_SEC = int(os.getenv("PIPELINE_HARD_DEADLINE_SEC", "13200"))
 
 # 除錯用環境變數：LOG_LEVEL=DEBUG | DEBUG=1 | CREW_VERBOSE=1（Agent 步驟）| SKIP_TELEGRAM=1 | SKIP_BIGQUERY=1
 
@@ -1109,7 +1110,7 @@ def _validate_env_types() -> None:
     numeric_vars = {
         "MAX_REPORT_RETRIES": "2",
         "MAX_503_RETRIES": "3",
-        "BACKOFF_BASE_SEC": "30",
+        "BACKOFF_BASE_SEC": "25",
         "NEWSAPI_DAILY_CALL_LIMIT": "120",
         "GNEWS_DAILY_CALL_LIMIT": "120",
         "APIFY_DAILY_CALL_LIMIT": "30",
@@ -1119,6 +1120,8 @@ def _validate_env_types() -> None:
         "MAX_EXCLUSION_CONTEXT_CHARS": "1000",
         "MAX_PREV_RECS_CHARS": "1200",
         "NEWS_FRESHNESS_WINDOW_HOURS": "48",
+        "CREW_FUTURE_TIMEOUT_SEC": "2400",
+        "PIPELINE_HARD_DEADLINE_SEC": "13200",
     }
     for var, default in numeric_vars.items():
         raw = os.getenv(var)

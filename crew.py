@@ -38,6 +38,38 @@ from tools import (
 logger = logging.getLogger(__name__)
 
 _VERBOSE = os.getenv("CREW_VERBOSE", "").lower() in ("1", "true", "yes")
+# 1=加密研究員不掛載 sentiment_score_tool（少一輪 LLM 呼叫；BigQuery sentiment_score 可能為空）
+_PIPELINE_SKIP_SENTIMENT_SCORE = os.getenv("PIPELINE_SKIP_SENTIMENT_SCORE", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+
+def _crypto_researcher_tools():
+    core = [
+        market_search_tool,
+        newsapi_tool,
+        rss_feed_tool,
+        gnews_tool,
+        coinglass_data_tool,
+        rumor_scanner_tool,
+        cryptopanic_tool,
+        fear_greed_tool,
+        etf_flow_tool,
+        econ_calendar_tool,
+        onchain_metrics_tool,
+    ]
+    tail = [
+        correlation_matrix_tool,
+        valuation_anchor_tool,
+        cot_positioning_tool,
+        grayscale_premium_tool,
+        historical_analog_tool,
+    ]
+    if _PIPELINE_SKIP_SENTIMENT_SCORE:
+        return core + tail
+    return core + [sentiment_score_tool] + tail
 
 # 每個角色的 LLM fallback chain：主 LLM 失敗時依序嘗試下一個
 _FALLBACK_CHAINS: dict[str, list[str]] = {
@@ -624,7 +656,8 @@ def _get_llms_for_crew(use_fallback_llm: bool) -> dict:
         return {"grok": gpt, "gpt": gpt, "gemini": gpt, "gpt_nano": gpt}
     return {
         "grok":     _make_llm_with_fallback("grok"),
-        "gemini":   _make_llm_with_fallback("gemini", max_retries=5, timeout=180),
+        # 5→4：503/超時重試尾延遲在長管線中會明顯疊加；仍保留足夠韌性
+        "gemini":   _make_llm_with_fallback("gemini", max_retries=4, timeout=180),
         "gpt_nano": _make_llm_with_fallback("gpt_nano", max_retries=3, timeout=60),
     }
 
@@ -639,7 +672,7 @@ class CryptoResearchCrew:
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
             backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
             llm=grok,
-            tools=[market_search_tool, newsapi_tool, rss_feed_tool, gnews_tool, coinglass_data_tool, rumor_scanner_tool, cryptopanic_tool, fear_greed_tool, etf_flow_tool, econ_calendar_tool, onchain_metrics_tool, sentiment_score_tool, correlation_matrix_tool, valuation_anchor_tool, cot_positioning_tool, grayscale_premium_tool, historical_analog_tool],
+            tools=_crypto_researcher_tools(),
             verbose=_VERBOSE,
         )
 
@@ -687,6 +720,11 @@ class CryptoResearchCrew:
             f" 全文 regime 欄位必須一律使用 {agreed_regime}，嚴禁輸出其他 regime 值。\n"
             if agreed_regime else ""
         )
+        _sentiment_instr = (
+            "· sentiment_score_tool(news_and_tweets=<將上方新聞標題與摘要拼接後傳入>)（可選：時間緊可跳過；情緒 -1～+1）\n"
+            if not _PIPELINE_SKIP_SENTIMENT_SCORE
+            else "· （PIPELINE_SKIP_SENTIMENT_SCORE：勿呼叫 sentiment_score_tool）情緒維度請綜合 fear_greed_tool 與新聞語意於研判中簡述。\n"
+        )
 
         crypto_task = Task(
             description=dedent(f"""
@@ -712,7 +750,7 @@ class CryptoResearchCrew:
                 · rumor_scanner_tool('crypto whale ETF flow OR altcoin catalyst OR DeFi exploit OR Layer2 upgrade')
                 · market_search_tool('crypto market altcoin DeFi Layer2 catalyst liquidity derivatives')
                 · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
-                · sentiment_score_tool(news_and_tweets=<將上方新聞標題與摘要拼接後傳入>)（可選：時間緊可跳過；情緒 -1～+1）
+                {_sentiment_instr}\
                 · correlation_matrix_tool()（BTC 與 SPX/DXY/GLD/NDX 30日相關係數，識別當前市場模式）
                 · valuation_anchor_tool()（MVRV proxy + NVT Ratio + BTC Dominance；提供估值錨，判斷當前是否高估/低估）
                 · cot_positioning_tool()（CFTC COT 報告：CME 比特幣期貨機構淨倉 + 週變化，辨別機構是加倉還是撤倉）

@@ -70,7 +70,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # REPORT_COMPARE_MODE=0   # Phase 3：1=每次 validate 後額外跑候選路徑並 log 差異（不切 Telegram/BQ 決策）
 # MAX_REPORT_RETRIES=2
 # MAX_503_RETRIES=3
-# BACKOFF_BASE_SEC=30
+# BACKOFF_BASE_SEC=25
 # VERIFY_API_KEYS=1   # 啟動後對 NewsAPI、Apify 做輕量連線探測；另見日誌「API key inventory」
 # NEWSAPI_DAILY_CALL_LIMIT=120
 # GNEWS_DAILY_CALL_LIMIT=120
@@ -100,7 +100,9 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # SCRATCHPAD_DIR=.qsilicon/scratchpad  # scratchpad 目錄（相對專案根）
 # MAX_TOOL_CALLS_PER_RUN=80   # 單次產報 run 內 traced_tool_execution 上限；0=不限制
 # REPEATED_CALL_THRESHOLD=3    # 連續相同 tool+參數次數達此值則中止；0=關閉
-# CREW_FUTURE_TIMEOUT_SEC=2700 # 雙 Crew ThreadPoolExecutor future.result 逾時（秒）
+# CREW_FUTURE_TIMEOUT_SEC=2400 # 雙 Crew 單軌 future.result 逾時（秒）；預設 40m，對齊慢 LLM／多工具
+# PIPELINE_HARD_DEADLINE_SEC=13200 # 整段產報牆鐘預算（秒）；預設 3h40m，對齊 4h Cloud Run Job
+# PIPELINE_SKIP_SENTIMENT_SCORE=0 # 1=加密研究員不掛 sentiment_score_tool（省一輪 LLM；BQ sentiment_score 可能為空）
 # STRICT_AI_FUNDAMENTALS_CITATION=0  # 1=AI「本日選擇理由」含基本面用語時須在 AI 段出現 FinancialDatasets 標記
 # REPORT_LLM_JUDGE=0           # 1=產線結構驗證後呼叫 LLM rubric 評分（寫入 scratchpad judge_result）
 # REPORT_LLM_JUDGE_MODEL=openai/gpt-4o-mini
