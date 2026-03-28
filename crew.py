@@ -7,6 +7,7 @@ from textwrap import dedent
 from crewai import Agent, Crew, LLM, Process, Task
 
 from config import MODEL_CLAUDE, MODEL_GEMINI, MODEL_GROK, MODEL_GPT, MODEL_GPT_NANO
+import scratchpad
 from crew_output_parse import kickoff_to_pydantic
 from schemas import AISection, CryptoSection
 from tools import (
@@ -44,6 +45,11 @@ _PIPELINE_SKIP_SENTIMENT_SCORE = os.getenv("PIPELINE_SKIP_SENTIMENT_SCORE", "").
     "true",
     "yes",
 )
+
+
+def _crew_parallel_research_enabled() -> bool:
+    """啟用研究員 Task 拆分 + CrewAI async_execution 並行；CREW_DISABLE_ASYNC_RESEARCH=1 回退單一任務。"""
+    return os.getenv("CREW_DISABLE_ASYNC_RESEARCH", "").lower() not in ("1", "true", "yes")
 
 
 def _crypto_researcher_tools():
@@ -193,9 +199,14 @@ _STRUCTURED_IO_HEADER = dedent("""\
 
 # Quant Strategist 最終任務追加；{recent_lessons} 由 crew.kickoff(inputs=...) 代入（勿改為 f-string）。
 _REFLECTION_DYNAMIC_RISK_RULE = dedent("""\
-    【昨日反思與動態風控】
+    【Reflection Loop｜停損記憶與動態風控】
+    以下為系統自 BigQuery 聚合之資料（可能為單行 JSON，或中性「無紀錄」句）：
     {recent_lessons}
-    請你作為頂級基金經理人，務必在閱讀上述「系統反思記憶」後進行今日決策。若發現某板塊近期連續停損，今日該板塊的操作必須強制降級倉位（position_pct）或轉為觀望（Neutral）。
+
+    You are equipped with a **Reflection Loop**. When the payload is JSON, treat `by_sector` / `by_ticker` as **recent stopped-out clusters** (status HIT_STOP only).
+    You **MUST** dynamically **reduce** risk budget and exposure (lower `position_pct`, fewer legs, or explicit neutral/watch) for any sector or ticker where `suggestion` is **reduce_exposure** or `stop_loss_count` is clearly elevated—**unless** a **strong, tool-backed** macro or idiosyncratic catalyst in your narrative **clearly** overrides it; if you override, state that override **explicitly** in `pick_reason` or `signal_conflict_summary` in one short sentence.
+    **Differentiate** thesis invalidation vs. short-term market noise / whipsaw: prefer `monitor` buckets for single-stop names unless the JSON already flags `reduce_exposure`.
+    若上列為中性繁中句（無 JSON）：維持一般風控，並可在 `signal_conflict_summary` 註明「無近期 HIT_STOP 聚合需調降」。
     """)
 
 
@@ -726,47 +737,131 @@ class CryptoResearchCrew:
             else "· （PIPELINE_SKIP_SENTIMENT_SCORE：勿呼叫 sentiment_score_tool）情緒維度請綜合 fear_greed_tool 與新聞語意於研判中簡述。\n"
         )
 
-        crypto_task = Task(
-            description=dedent(f"""
-                【加密市場情報收集 — Grok】
-                {ctx}
+        _crypto_common_header = dedent(f"""
+            {_DATA_RULES}
+            {_TOOL_TRUTH_RULE}
+            {_QUOTE_RULE}
+            {excl}
+        """).strip()
 
-                {_DATA_RULES}
-                {_TOOL_TRUTH_RULE}
-                {_QUOTE_RULE}
-                {excl}
-                === 數據來源（必須全部呼叫）===
-                · coinglass_data_tool：支援多幣種查詢，格式 'metric:SYMBOL'（預設 BTC）
-                  必查 BTC：funding_rate / liquidations / long_short_ratio / options_info
-                  若新聞涉及 ETH/SOL 等山寨幣，額外查詢該幣衍生品：如 'funding_rate:ETH'、'liquidations:SOL'
-                · fear_greed_tool()（恐懼與貪婪指數）
-                · etf_flow_tool()（BTC Spot ETF 每日資金流，禁止自行猜測 ETF 數據）
-                · econ_calendar_tool()（本週宏觀經濟日曆，禁止自行猜測 FOMC/CPI 日期）
-                · cryptopanic_tool('bitcoin')（BTC 原生新聞）
-                · cryptopanic_tool('ethereum altcoin defi')（ETH / 山寨幣 / DeFi 新聞，補充多幣種視角）
-                · rss_feed_tool('crypto')（CoinDesk / TheBlock / Cointelegraph 免費 RSS，優先取用）
-                · newsapi_tool('crypto ETF regulation blockchain market')（主流財經：幣圈監管/ETF/機構動態）
-                · gnews_tool('Ethereum altcoin DeFi Layer2 crypto market')（多語言 + 山寨幣補充）
-                · rumor_scanner_tool('crypto whale ETF flow OR altcoin catalyst OR DeFi exploit OR Layer2 upgrade')
-                · market_search_tool('crypto market altcoin DeFi Layer2 catalyst liquidity derivatives')
-                · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
-                {_sentiment_instr}\
-                · correlation_matrix_tool()（BTC 與 SPX/DXY/GLD/NDX 30日相關係數，識別當前市場模式）
-                · valuation_anchor_tool()（MVRV proxy + NVT Ratio + BTC Dominance；提供估值錨，判斷當前是否高估/低估）
-                · cot_positioning_tool()（CFTC COT 報告：CME 比特幣期貨機構淨倉 + 週變化，辨別機構是加倉還是撤倉）
-                · grayscale_premium_tool()（GBTC/ETHE 折溢價；溢價高 = 機構需求旺，折價大 = 拋售壓力）
-                · historical_analog_tool()（搜尋與當前技術結構最相似的歷史時期，報告其後 30/60/90 日報酬作為參考基準）
+        if _crew_parallel_research_enabled():
+            logger.info("CryptoResearchCrew: parallel researcher tasks (async_execution x3) enabled")
+            crypto_data_task = Task(
+                description=dedent(f"""
+                    【加密市場 — 純數據與鏈上（Grok｜可與其他子任務並行）】
+                    {ctx}
+                    {_crypto_common_header}
+                    === 必須呼叫 ===
+                    · coinglass_data_tool：格式 'metric:SYMBOL'（預設 BTC）
+                      必查 BTC：funding_rate / liquidations / long_short_ratio / options_info
+                      若研判涉及 ETH/SOL 等，額外查 'funding_rate:ETH'、'liquidations:SOL' 等
+                    · fear_greed_tool()
+                    · etf_flow_tool()（禁止猜測 ETF 數字）
+                    · onchain_metrics_tool()（SOPR / 交易所淨流向 / 活躍地址 / NUPL）
 
-                {_ALT_PICK_DIVERSITY_RESEARCH_RULE}
+                    產出：結構化 bullet 摘要（數值須來自工具回傳）；禁止捏造。
+                """),
+                expected_output="加密市場數據指標摘要",
+                agent=self.crypto_researcher,
+                async_execution=True,
+            )
+            crypto_macro_task = Task(
+                description=dedent(f"""
+                    【加密市場 — 宏觀與機構籌碼（Grok｜可並行）】
+                    {ctx}
+                    {_crypto_common_header}
+                    === 必須呼叫 ===
+                    · econ_calendar_tool()
+                    · correlation_matrix_tool()
+                    · valuation_anchor_tool()
+                    · cot_positioning_tool()
+                    · grayscale_premium_tool()
+                    · historical_analog_tool()
 
-                === 幣圈新聞（3 則）===
-                {_NEWS_FMT}
-                研判：2~3 句，必須明確說明哪個標的受影響
-                禁止捏造來源。
-            """),
-            expected_output="3 則幣圈新聞結構化初稿。",
-            agent=self.crypto_researcher,
-        )
+                    產出：宏觀日曆、相關係數、估值錨、COT、GBTC/ETHE、歷史類比之摘要 bullet；禁止捏造。
+                """),
+                expected_output="加密市場宏觀與籌碼指標摘要",
+                agent=self.crypto_researcher,
+                async_execution=True,
+            )
+            crypto_news_task = Task(
+                description=dedent(f"""
+                    【加密市場 — 新聞、傳聞與情緒（Grok｜可並行）】
+                    {ctx}
+                    {_crypto_common_header}
+                    === 必須呼叫 ===
+                    · cryptopanic_tool('bitcoin')
+                    · cryptopanic_tool('ethereum altcoin defi')
+                    · rss_feed_tool('crypto')
+                    · newsapi_tool('crypto ETF regulation blockchain market')
+                    · gnews_tool('Ethereum altcoin DeFi Layer2 crypto market')
+                    · rumor_scanner_tool('crypto whale ETF flow OR altcoin catalyst OR DeFi exploit OR Layer2 upgrade')
+                    · market_search_tool('crypto market altcoin DeFi Layer2 catalyst liquidity derivatives')
+
+                    {_ALT_PICK_DIVERSITY_RESEARCH_RULE}
+
+                    === 幣圈新聞（3 則）===
+                    {_NEWS_FMT}
+                    每則研判 2~3 句，必須點名受影響標的；禁止捏造來源。
+
+                    === 可選（時間緊可略過）===
+                    {_sentiment_instr}
+
+                    另附 1～2 句市場呢喃式短評（口語、非標題），供主編參考。
+                """),
+                expected_output="3 則加密貨幣新聞結構化初稿與呢喃",
+                agent=self.crypto_researcher,
+                async_execution=True,
+            )
+            crypto_research_tasks = [crypto_data_task, crypto_macro_task, crypto_news_task]
+            review_context = crypto_research_tasks
+            final_context = [*crypto_research_tasks]
+        else:
+            logger.info("CryptoResearchCrew: single-block researcher (CREW_DISABLE_ASYNC_RESEARCH)")
+            crypto_task = Task(
+                description=dedent(f"""
+                    【加密市場情報收集 — Grok】
+                    {ctx}
+
+                    {_DATA_RULES}
+                    {_TOOL_TRUTH_RULE}
+                    {_QUOTE_RULE}
+                    {excl}
+                    === 數據來源（必須全部呼叫）===
+                    · coinglass_data_tool：支援多幣種查詢，格式 'metric:SYMBOL'（預設 BTC）
+                      必查 BTC：funding_rate / liquidations / long_short_ratio / options_info
+                      若新聞涉及 ETH/SOL 等山寨幣，額外查詢該幣衍生品：如 'funding_rate:ETH'、'liquidations:SOL'
+                    · fear_greed_tool()（恐懼與貪婪指數）
+                    · etf_flow_tool()（BTC Spot ETF 每日資金流，禁止自行猜測 ETF 數據）
+                    · econ_calendar_tool()（本週宏觀經濟日曆，禁止自行猜測 FOMC/CPI 日期）
+                    · cryptopanic_tool('bitcoin')（BTC 原生新聞）
+                    · cryptopanic_tool('ethereum altcoin defi')（ETH / 山寨幣 / DeFi 新聞，補充多幣種視角）
+                    · rss_feed_tool('crypto')（CoinDesk / TheBlock / Cointelegraph 免費 RSS，優先取用）
+                    · newsapi_tool('crypto ETF regulation blockchain market')（主流財經：幣圈監管/ETF/機構動態）
+                    · gnews_tool('Ethereum altcoin DeFi Layer2 crypto market')（多語言 + 山寨幣補充）
+                    · rumor_scanner_tool('crypto whale ETF flow OR altcoin catalyst OR DeFi exploit OR Layer2 upgrade')
+                    · market_search_tool('crypto market altcoin DeFi Layer2 catalyst liquidity derivatives')
+                    · onchain_metrics_tool()（P2 鏈上深度：SOPR / 交易所淨流向 / 活躍地址數 / NUPL）
+                    {_sentiment_instr}
+                    · correlation_matrix_tool()（BTC 與 SPX/DXY/GLD/NDX 30日相關係數，識別當前市場模式）
+                    · valuation_anchor_tool()（MVRV proxy + NVT Ratio + BTC Dominance；提供估值錨，判斷當前是否高估/低估）
+                    · cot_positioning_tool()（CFTC COT 報告：CME 比特幣期貨機構淨倉 + 週變化，辨別機構是加倉還是撤倉）
+                    · grayscale_premium_tool()（GBTC/ETHE 折溢價；溢價高 = 機構需求旺，折價大 = 拋售壓力）
+                    · historical_analog_tool()（搜尋與當前技術結構最相似的歷史時期，報告其後 30/60/90 日報酬作為參考基準）
+
+                    {_ALT_PICK_DIVERSITY_RESEARCH_RULE}
+
+                    === 幣圈新聞（3 則）===
+                    {_NEWS_FMT}
+                    研判：2~3 句，必須明確說明哪個標的受影響
+                    禁止捏造來源。
+                """),
+                expected_output="3 則幣圈新聞結構化初稿。",
+                agent=self.crypto_researcher,
+            )
+            crypto_research_tasks = [crypto_task]
+            review_context = [crypto_task]
+            final_context = [crypto_task]
 
         review_task = Task(
             description=dedent(f"""
@@ -796,7 +891,7 @@ class CryptoResearchCrew:
             """),
             expected_output="宏觀框架、風險審計與可審計 regime 評分卡；末尾兩句多空結論（勿再用╌辯論摘要╌框架）。",
             agent=self.risk_critic,
-            context=[crypto_task],
+            context=review_context,
         )
 
         final_report_task = Task(
@@ -810,16 +905,20 @@ class CryptoResearchCrew:
             + _REFLECTION_DYNAMIC_RISK_RULE,
             expected_output="符合 CryptoSection schema 的 JSON 物件；qsrec 為 CRYPTO 建議陣列。",
             agent=self.quant_strategist,
-            context=[crypto_task, review_task],
+            context=[*final_context, review_task],
             output_pydantic=CryptoSection,
         )
 
         crew = Crew(
             agents=[self.crypto_researcher, self.risk_critic, self.quant_strategist],
-            tasks=[crypto_task, review_task, final_report_task],
+            tasks=[*crypto_research_tasks, review_task, final_report_task],
             process=Process.sequential,
         )
-        kickoff_result = crew.kickoff(inputs={"recent_lessons": recent_lessons})
+        try:
+            scratchpad.set_tool_invocation_lane("crypto")
+            kickoff_result = crew.kickoff(inputs={"recent_lessons": recent_lessons})
+        finally:
+            scratchpad.set_tool_invocation_lane(None)
         section = kickoff_to_pydantic(kickoff_result, CryptoSection)
         section.chatter = _ensure_chatter_credibility(section.chatter)
         return section
@@ -887,34 +986,89 @@ class AIResearchCrew:
             if agreed_regime else ""
         )
 
-        ai_task = Task(
-            description=dedent(f"""
-                【AI 市場情報收集 — Grok】
-                {ctx}
+        _ai_common_header = dedent(f"""
+            {_DATA_RULES}
+            {_TOOL_TRUTH_RULE}
+            {_QUOTE_RULE}
+            {excl}
+        """).strip()
 
-                {_DATA_RULES}
-                {_TOOL_TRUTH_RULE}
-                {_QUOTE_RULE}
-                {excl}
-                呼叫 ai_momentum_tool('openrouter_rankings')。
-                必呼叫 financial_datasets_tool：query 留空或 \"watchlist\"（一次取 NVDA、MSFT、AAPL 年度摘要）；若新聞點名其他美股，追加 financial_datasets_tool('TICKER') 或 financial_datasets_tool('TICKER:quarterly')。
-                搜尋：
-                · rss_feed_tool('ai')（TechCrunch / VentureBeat AI RSS，優先取用）
-                · newsapi_tool('AI data center GPU cloud computing semiconductor')（Bloomberg / Reuters AI 報導）
-                · gnews_tool('artificial intelligence GPU infrastructure semiconductor')（多語言補充）
-                · market_search_tool('AI data center GPU semiconductor infrastructure {year}')
-                · market_search_tool('data center power supply nuclear energy AI {year}')
-                · rumor_scanner_tool('AI infrastructure supply chain risk')
+        if _crew_parallel_research_enabled():
+            logger.info("AIResearchCrew: parallel researcher tasks (async_execution x2) enabled")
+            ai_data_task = Task(
+                description=dedent(f"""
+                    【AI 市場 — 財報與模型熱度（Grok｜可與新聞子任務並行）】
+                    {ctx}
+                    {_ai_common_header}
+                    === 必須呼叫 ===
+                    · ai_momentum_tool('openrouter_rankings')
+                    · financial_datasets_tool：query 留空或 \"watchlist\"（一次取 NVDA、MSFT、AAPL 年度摘要）
 
-                {_ALT_PICK_DIVERSITY_RESEARCH_RULE}
+                    產出：模型熱度榜與 watchlist 財務要點之結構化摘要；禁止捏造數字。
+                """),
+                expected_output="AI 模型熱度與相關美股財務摘要",
+                agent=self.ai_researcher,
+                async_execution=True,
+            )
+            ai_news_task = Task(
+                description=dedent(f"""
+                    【AI 市場 — 新聞與傳聞（Grok｜可並行）】
+                    {ctx}
+                    {_ai_common_header}
+                    === 必須呼叫 ===
+                    · market_search_tool('AI data center GPU semiconductor infrastructure {year}')
+                    · market_search_tool('data center power supply nuclear energy AI {year}')
+                    · newsapi_tool('AI data center GPU cloud computing semiconductor')
+                    · rss_feed_tool('ai')（TechCrunch / VentureBeat AI RSS，優先取用）
+                    · gnews_tool('artificial intelligence GPU infrastructure semiconductor')
+                    · rumor_scanner_tool('AI infrastructure supply chain risk')
 
-                產出 AI 新聞 3 則，每則格式：
-                {_NEWS_FMT}
-                🤖 研判：2~3 句，必須點名受影響美股或 ETF
-            """),
-            expected_output="3 則 AI 新聞結構化初稿。",
-            agent=self.ai_researcher,
-        )
+                    {_ALT_PICK_DIVERSITY_RESEARCH_RULE}
+
+                    產出 AI 新聞 3 則，每則格式：
+                    {_NEWS_FMT}
+                    🤖 研判：2~3 句，必須點名受影響美股或 ETF；禁止捏造來源。
+                """),
+                expected_output="3 則 AI 產業新聞結構化初稿",
+                agent=self.ai_researcher,
+                async_execution=True,
+            )
+            ai_research_tasks = [ai_data_task, ai_news_task]
+            review_context_ai = ai_research_tasks
+            final_context_ai = [*ai_research_tasks]
+        else:
+            logger.info("AIResearchCrew: single-block researcher (CREW_DISABLE_ASYNC_RESEARCH)")
+            ai_task = Task(
+                description=dedent(f"""
+                    【AI 市場情報收集 — Grok】
+                    {ctx}
+
+                    {_DATA_RULES}
+                    {_TOOL_TRUTH_RULE}
+                    {_QUOTE_RULE}
+                    {excl}
+                    呼叫 ai_momentum_tool('openrouter_rankings')。
+                    必呼叫 financial_datasets_tool：query 留空或 \"watchlist\"（一次取 NVDA、MSFT、AAPL 年度摘要）；若新聞點名其他美股，追加 financial_datasets_tool('TICKER') 或 financial_datasets_tool('TICKER:quarterly')。
+                    搜尋：
+                    · rss_feed_tool('ai')（TechCrunch / VentureBeat AI RSS，優先取用）
+                    · newsapi_tool('AI data center GPU cloud computing semiconductor')（Bloomberg / Reuters AI 報導）
+                    · gnews_tool('artificial intelligence GPU infrastructure semiconductor')（多語言補充）
+                    · market_search_tool('AI data center GPU semiconductor infrastructure {year}')
+                    · market_search_tool('data center power supply nuclear energy AI {year}')
+                    · rumor_scanner_tool('AI infrastructure supply chain risk')
+
+                    {_ALT_PICK_DIVERSITY_RESEARCH_RULE}
+
+                    產出 AI 新聞 3 則，每則格式：
+                    {_NEWS_FMT}
+                    🤖 研判：2~3 句，必須點名受影響美股或 ETF
+                """),
+                expected_output="3 則 AI 新聞結構化初稿。",
+                agent=self.ai_researcher,
+            )
+            ai_research_tasks = [ai_task]
+            review_context_ai = [ai_task]
+            final_context_ai = [ai_task]
 
         review_task = Task(
             description=dedent(f"""
@@ -934,7 +1088,7 @@ class AIResearchCrew:
             """),
             expected_output="宏觀框架分析、3 則 AI 新聞辯論觀點，末尾含╌辯論摘要╌兩行。",
             agent=self.risk_critic,
-            context=[ai_task],
+            context=review_context_ai,
         )
 
         final_report_task = Task(
@@ -943,16 +1097,20 @@ class AIResearchCrew:
             + _REFLECTION_DYNAMIC_RISK_RULE,
             expected_output="符合 AISection schema 的 JSON 物件；qsrec 為 EQUITY 建議陣列。",
             agent=self.quant_strategist,
-            context=[ai_task, review_task],
+            context=[*final_context_ai, review_task],
             output_pydantic=AISection,
         )
 
         crew = Crew(
             agents=[self.ai_researcher, self.risk_critic, self.quant_strategist],
-            tasks=[ai_task, review_task, final_report_task],
+            tasks=[*ai_research_tasks, review_task, final_report_task],
             process=Process.sequential,
         )
-        kickoff_result = crew.kickoff(inputs={"recent_lessons": recent_lessons})
+        try:
+            scratchpad.set_tool_invocation_lane("ai")
+            kickoff_result = crew.kickoff(inputs={"recent_lessons": recent_lessons})
+        finally:
+            scratchpad.set_tool_invocation_lane(None)
         section = kickoff_to_pydantic(kickoff_result, AISection)
         section.chatter = _ensure_chatter_credibility(section.chatter)
         return section

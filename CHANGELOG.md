@@ -5,6 +5,11 @@
 
 ## 2026-03-29
 
+### Changed
+- **[`crew.py`](crew.py)**：Crypto／AI 研究員預設拆成多個 **`async_execution=True`** 子任務（CrewAI 於 `Process.sequential` 內並行後收斂至審計與主編）；**`CREW_DISABLE_ASYNC_RESEARCH=1`** 回退單一 Grok 巨任務（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）。[`main.py`](main.py) 雙 Crew 仍為既有 `ThreadPoolExecutor` 並行。
+  - **Crypto**：`tasks` 順序 **`crypto_data_task` → `crypto_macro_task` → `crypto_news_task`**；宏觀任務僅經濟日曆／相關係數／估值錨／COT／灰階／歷史類比；**`sentiment_score_tool`**（或 `PIPELINE_SKIP_SENTIMENT_SCORE` 對應說明）改列**新聞子任務**可選區；新聞子任務另要求短呢喃與固定 `expected_output` 字串。
+  - **AI**：**`ai_data_task`**（動能＋`financial_datasets` watchlist）與 **`ai_news_task`**（雙次 `market_search` + `newsapi`／`rss`／`gnews`／`rumor_scanner`）邊界分離；`review_task`／`final_report_task` 的 `context` 對齊兩（或三）個前驅輸出。
+
 ### Added
 - **OSS 週期管線**：[`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py)（搜尋 → [`oss_repo_digest.py`](scripts/oss_repo_digest.py) → [`templates/oss_weekly_plan.md.j2`](templates/oss_weekly_plan.md.j2)）；[`scripts/oss_suitability.py`](scripts/oss_suitability.py) 啟發式適配度；合併勾選清單至 **`TODOS.md`**「OSS Scout 週報」區塊。
 - **測試**：[test_oss_weekly.py](test_oss_weekly.py)。
