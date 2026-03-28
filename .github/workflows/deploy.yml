@@ -17,9 +17,12 @@ on:
       - ".github/workflows/ci.yml"
       - ".github/workflows/deploy.yml"
 
+# false：對 main 連續 push 時「排隊」完成，避免前一筆 build-and-deploy 被
+# 「Canceling since a higher priority waiting request…」腰斬導致映像未更新。
+# 若只要最新 tip、可接受丟棄進行中部署，可改回 cancel-in-progress: true。
 concurrency:
   group: deploy-main-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   GCP_PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
