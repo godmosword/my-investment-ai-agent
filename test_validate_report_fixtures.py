@@ -1,6 +1,8 @@
 """Offline eval: fixed report fixtures vs validate_report (ADOPTION Phase 4).
 
 Each case under tests/fixtures/reports/<name>/ has report.txt + expected_validation.json.
+Regenerate JSON: export SKIP_BIGQUERY=1 (and match _stable_gate_env vars), then import main
+and call validate_report(report_txt); ``*.json`` is gitignored except these paths (see .gitignore).
 """
 
 from __future__ import annotations
