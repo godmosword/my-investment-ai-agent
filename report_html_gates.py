@@ -245,9 +245,14 @@ def _allow_repeat_pick_override() -> bool:
 def _pick_rotation_override_min_gap() -> float:
     """同標延續的最低分差門檻（selection_score - alt_candidate_score）。"""
     try:
-        return float(os.getenv("PICK_ROTATION_OVERRIDE_MIN_GAP", "12"))
-    except ValueError:
-        return 12.0
+        from adaptive_gate_thresholds import effective_pick_rotation_override_min_gap
+
+        return float(effective_pick_rotation_override_min_gap())
+    except Exception:
+        try:
+            return float(os.getenv("PICK_ROTATION_OVERRIDE_MIN_GAP", "12"))
+        except ValueError:
+            return 12.0
 
 
 def _strict_pick_scoring() -> bool:

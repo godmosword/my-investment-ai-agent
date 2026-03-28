@@ -96,7 +96,7 @@
 
 ---
 
-## Phase 4：離線 Eval fixtures（規劃中）
+## Phase 4：離線 Eval fixtures（4a–4c 已落地）
 
 | Done | `eval/` 或 `tests/fixtures/reports/` + runner。 |
 | 驗證 | CI job 跑 eval；合併前不得降低通過率（可 artifact 比對）。 |
@@ -156,9 +156,9 @@
 | Phase 1 | Scratchpad 可追溯 | 10 | 10 |
 | Phase 2 | Pre-flight Checklist | 0 | 6 |
 | Phase 3 | 防跑飛 / Step limit | 0 | 4 |
-| Phase 4 | 離線 Eval fixtures | 0 | 7 |
+| Phase 4 | 離線 Eval fixtures | 10 | 10 |
 | Phase 5 | 營運指標閉環 | 0 | 3 |
-| **合計** | | **20/60** | **40/60** |
+| **合計** | | **40/60** | **43/60** |
 
 *建議試做順序：Phase 4（fixtures 立即可驗證 validate_report）→ Phase 2（checklist 強化品質）→ Phase 3（防跑飛）→ Phase 5（營運閉環）。*
 

@@ -3,12 +3,22 @@ import { useQuery } from "@tanstack/react-query";
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
 async function apiFetch(path) {
-  const res = await fetch(`${BASE}${path}`);
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Network error (${msg})`);
+  }
   if (!res.ok) {
     const msg = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status}: ${msg}`);
   }
-  return res.json();
+  try {
+    return await res.json();
+  } catch (e) {
+    throw new Error("Invalid JSON from API");
+  }
 }
 
 export function useMetricsLatest() {

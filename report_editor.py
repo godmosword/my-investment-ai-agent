@@ -1,5 +1,5 @@
 """
-日報 HTML 潤稿（Direction 橫切）：render + post_process 之後、validate 之前。
+日報 HTML 潤稿（Direction 橫切）：render + ``report_html_postprocess.post_process_html_for_gate`` 之後、validate 之前。
 
 環境變數：
   EDITOR_AGENT_ENABLED=1        啟用（預設關）

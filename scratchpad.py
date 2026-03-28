@@ -31,6 +31,9 @@ _RUN_ID: str | None = None
 _FINALIZED: bool = False
 _TOOL_CALL_COUNT: int = 0
 _RAW_TOOL_INVOCATIONS: int = 0  # 每次 traced_tool_execution 遞增（不受 SCRATCHPAD 檔案影響）
+_TOOL_INVOCATIONS_CRYPTO: int = 0  # kickoff 階段 CryptoResearchCrew（見 set_tool_invocation_lane）
+_TOOL_INVOCATIONS_AI: int = 0  # kickoff 階段 AIResearchCrew
+_TOOL_LANE_LOCAL = threading.local()
 _TOOL_HISTORY: deque[tuple[str, str]] = deque(maxlen=64)
 _PIPELINE_T0: float | None = None
 
@@ -104,15 +107,37 @@ def _write_event(event_type: str, payload: dict[str, Any]) -> None:
         logger.warning("scratchpad write failed: %s", e)
 
 
+def set_tool_invocation_lane(lane: str | None) -> None:
+    """標記目前執行緒的工具呼叫歸屬（crypto／ai），供 MIN_TOOL_CALLS_PER_CREW 統計。prewarm 等請傳 None。"""
+    if lane is not None and lane not in ("crypto", "ai"):
+        raise ValueError("lane must be 'crypto', 'ai', or None")
+    _TOOL_LANE_LOCAL.name = lane
+
+
+def raw_tool_invocation_count_crypto() -> int:
+    """本 run 內、lane=crypto 時經 traced_tool_execution 的呼叫次數。"""
+    with _LOCK:
+        return _TOOL_INVOCATIONS_CRYPTO
+
+
+def raw_tool_invocation_count_ai() -> int:
+    """本 run 內、lane=ai 時經 traced_tool_execution 的呼叫次數。"""
+    with _LOCK:
+        return _TOOL_INVOCATIONS_AI
+
+
 def begin_run(metadata: dict[str, Any] | None = None) -> str | None:
     """
     開始一次新產報 run，建立 JSONL 檔並寫入 init。
     回傳 run_id；關閉或未啟用時回傳 None。
     """
-    global _CURRENT_FILE, _RUN_ID, _FINALIZED, _TOOL_CALL_COUNT, _RAW_TOOL_INVOCATIONS, _TOOL_HISTORY, _PIPELINE_T0
+    global _CURRENT_FILE, _RUN_ID, _FINALIZED, _TOOL_CALL_COUNT, _RAW_TOOL_INVOCATIONS
+    global _TOOL_INVOCATIONS_CRYPTO, _TOOL_INVOCATIONS_AI, _TOOL_HISTORY, _PIPELINE_T0
     _FINALIZED = False
     _TOOL_CALL_COUNT = 0
     _RAW_TOOL_INVOCATIONS = 0
+    _TOOL_INVOCATIONS_CRYPTO = 0
+    _TOOL_INVOCATIONS_AI = 0
     _TOOL_HISTORY.clear()
     if not scratchpad_enabled():
         _PIPELINE_T0 = None
@@ -284,8 +309,14 @@ def raw_tool_invocation_count() -> int:
 
 def traced_tool_execution(tool_name: str, args: dict[str, Any], fn: Callable[[], str]) -> str:
     """執行 fn() 並記錄 tool_call / tool_result（供 tools.py 使用）。"""
-    global _RAW_TOOL_INVOCATIONS
-    _RAW_TOOL_INVOCATIONS += 1
+    global _RAW_TOOL_INVOCATIONS, _TOOL_INVOCATIONS_CRYPTO, _TOOL_INVOCATIONS_AI
+    lane = getattr(_TOOL_LANE_LOCAL, "name", None)
+    with _LOCK:
+        _RAW_TOOL_INVOCATIONS += 1
+        if lane == "crypto":
+            _TOOL_INVOCATIONS_CRYPTO += 1
+        elif lane == "ai":
+            _TOOL_INVOCATIONS_AI += 1
     _tool_guard_check(tool_name, args)
     if not scratchpad_enabled() or _CURRENT_FILE is None:
         return fn()

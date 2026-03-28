@@ -111,6 +111,32 @@ class TestScratchpad(unittest.TestCase):
                 scratchpad.traced_tool_execution("t3", {}, lambda: "c")
             scratchpad.finalize_run("aborted")
 
+    def test_tool_invocation_lane_counts_per_crew(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "SCRATCHPAD_DIR": str(self._path / "spl"),
+                "SCRATCHPAD_ENABLED": "1",
+                "MAX_TOOL_CALLS_PER_RUN": "0",
+                "REPEATED_CALL_THRESHOLD": "0",
+            },
+        ):
+            scratchpad.begin_run({})
+            scratchpad.traced_tool_execution("pre", {}, lambda: "x")
+            self.assertEqual(scratchpad.raw_tool_invocation_count(), 1)
+            self.assertEqual(scratchpad.raw_tool_invocation_count_crypto(), 0)
+            self.assertEqual(scratchpad.raw_tool_invocation_count_ai(), 0)
+            scratchpad.set_tool_invocation_lane("crypto")
+            scratchpad.traced_tool_execution("c1", {}, lambda: "a")
+            scratchpad.set_tool_invocation_lane(None)
+            scratchpad.set_tool_invocation_lane("ai")
+            scratchpad.traced_tool_execution("a1", {}, lambda: "b")
+            scratchpad.set_tool_invocation_lane(None)
+            self.assertEqual(scratchpad.raw_tool_invocation_count(), 3)
+            self.assertEqual(scratchpad.raw_tool_invocation_count_crypto(), 1)
+            self.assertEqual(scratchpad.raw_tool_invocation_count_ai(), 1)
+            scratchpad.finalize_run("ok")
+
     def test_tool_guard_repeated_args(self):
         with mock.patch.dict(
             os.environ,

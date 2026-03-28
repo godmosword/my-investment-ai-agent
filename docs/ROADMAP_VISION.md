@@ -47,7 +47,7 @@
 
 ## 橫切：日報潤稿 Agent
 
-在 `render` + `_post_process_html_for_gate` 之後、`validate_report` 之前，可選執行 [`report_editor.py`](../report_editor.py)（`EDITOR_AGENT_ENABLED=1`）。詳見 `ENV_TEMPLATE.txt` 與 [`test_report_editor.py`](../test_report_editor.py)。
+在 `render` + [`report_html_postprocess.post_process_html_for_gate()`](../report_html_postprocess.py) 之後、`validate_report` 之前，可選執行 [`report_editor.py`](../report_editor.py)（`EDITOR_AGENT_ENABLED=1`）。詳見 `ENV_TEMPLATE.txt` 與 [`test_report_editor.py`](../test_report_editor.py)。
 
 ---
 

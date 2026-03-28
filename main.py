@@ -10,6 +10,7 @@ import yfinance as yf
 from pathlib import Path
 
 from crew import AIResearchCrew, CryptoResearchCrew
+from report_html_postprocess import post_process_html_for_gate
 from report_render import assemble_daily_brief_report, render_telegram_daily_brief
 from schemas import (
     DailyBriefReport,
@@ -534,191 +535,6 @@ def _inject_gate_warning_banner(html: str, warning_issues: list[str]) -> str:
     return banner + html
 
 
-# ── Module-level constants for _post_process_html_for_gate ───────────────────
-_PP_CRED_RE = re.compile(r'可信度[：:]\s*(?:A|B|C|[0-9]{1,3})\b', re.IGNORECASE)
-# Normalize English "Credibility：X" to "可信度：X" for display consistency.
-_PP_CRED_EN_RE = re.compile(r'(?:Credibility|Grade)\s*[：:]\s*', re.IGNORECASE)
-_PP_CHATTER_LINE_RE = re.compile(r'^(· [^\n]+?（未確認）)', re.MULTILINE)
-_PP_CHATTER3_RE = re.compile(r'(區塊③【[^】]+】\n)')
-_PP_YIELD_MIN, _PP_YIELD_MAX = 0.1, 9.0  # matches tools.py; 20.0 was too wide (19.84% was passing)
-_PP_MACRO_YIELD_RES = [
-    re.compile(r'(10Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
-    re.compile(r'(10Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
-    re.compile(r'(2Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
-    re.compile(r'(2Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%', re.IGNORECASE),
-]
-_PP_REGIME_TOKEN_RE = re.compile(r'\b(risk_on|risk_off|neutral)\b', re.IGNORECASE)
-_PP_CONDITIONAL_LINE_RE = re.compile(
-    r'(?:若|如果|假設|when|if)\s.{0,80}(?:risk_on|risk_off|neutral)',
-    re.IGNORECASE,
-)
-# Fix 5: UTC+8 — matches 〔新聞 N〕[date time] that lacks a HK timezone, including closing "]"
-# Negative lookahead ensures we skip brackets that already carry UTC/GMT+8 / HKT / 香港時間 etc.
-_PP_NEWS_TS_RE = re.compile(
-    r'(〔新聞\s*\d+〕[\s\u3000]*\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{4})?)'
-    r'\s+\d{1,2}:\d{2}(?::\d{2})?)'
-    r'(?!\s*(?:UTC|GMT)\s*[+＋]\s*0?8|\s*HKT\b|\s*(?:香港|北京|台北)時間)'
-    r'\]',
-    re.IGNORECASE,
-)
-# Fix 6: Signal conflict
-_PP_SIGNAL_CONFLICT_RE = re.compile(r'[訊信]號衝突(?:摘要|分析)?[：:]')
-# Fix 7: Malformed (empty) invalidation condition
-_PP_MALFORMED_INVAL_RE = re.compile(
-    r'(失效條件[：:]\s*)(?:<code>)?\s*(?:</code>)?\s*(?=\n|$)',
-    re.MULTILINE,
-)
-
-
-def _post_process_html_for_gate(html: str, agreed_regime: str | None = None) -> str:
-    """
-    Post-render safety net that patches 7 common gate failures BEFORE validate_report:
-
-    1. 傳聞區缺少可信度分級 — injects credibility marker if none found in rendered text.
-    2. 宏觀數值疑似異常     — replaces out-of-range 10Y/2Y values on 美債 lines with N/A.
-    3. N/A 過多低置信度     — injects 低置信度 block if N/A count > 3 and markers missing.
-    4. Regime 不一致        — normalizes all authoritative regime tokens to agreed_regime.
-    5. 新聞時間缺 UTC+8     — appends " UTC+8" to news timestamp brackets missing timezone.
-    6. 缺少訊號衝突摘要     — injects minimal 訊號衝突摘要 block before [QSREC_START].
-    7. 空白失效條件         — fills empty 失效條件：with default invalidation text.
-
-    This runs AFTER Jinja2 rendering so it works regardless of LLM output quality.
-    It is intentionally minimal: only patches what the gate would reject.
-
-    長期：可根因項目應上移至 crew prompt／schemas，縮減 HTML regex 依賴（TODOS P1）。
-    """
-    # ── 0. Credibility language normalization ────────────────────────
-    # Normalize English "Credibility：X" / "Grade：X" to "可信度：X" for display consistency.
-    if _PP_CRED_EN_RE.search(html):
-        html = _PP_CRED_EN_RE.sub("可信度：", html)
-        logger.info("post_process: normalized English credibility labels to 可信度：")
-
-    # ── 1. Chatter credibility ────────────────────────────────────────
-    if not _PP_CRED_RE.search(html):
-        # Find first chatter bullet line that ends with （未確認） and append credibility.
-        # Uses MULTILINE (not DOTALL) to avoid crossing section boundaries.
-        m = _PP_CHATTER_LINE_RE.search(html)
-        if m:
-            html = html[:m.end()] + '｜可信度：C' + html[m.end():]
-            logger.warning("post_process: injected missing chatter credibility marker")
-        else:
-            # Fallback: inject a minimal chatter entry under the chatter section header.
-            html = _PP_CHATTER3_RE.sub(
-                r'\1· 低信噪比，暫無高可信傳聞（未確認）｜可信度：C\n',
-                html, count=1,
-            )
-            logger.warning("post_process: injected fallback chatter entry with credibility")
-
-    # ── 2. Macro outlier values ──────────────────────────────────────
-    # Mirror the exact patterns used by _has_macro_outlier_values so we only
-    # patch what the validator would reject.
-    def _fix_yield_match(m: re.Match) -> str:
-        try:
-            val = float(m.group(2).replace(",", ""))
-        except ValueError:
-            return m.group(0)
-        if not (_PP_YIELD_MIN <= val <= _PP_YIELD_MAX):
-            logger.warning("post_process: replacing out-of-range yield %.3f%% with N/A", val)
-            g2_start = m.start(2) - m.start(0)
-            return m.group(0)[:g2_start] + "N/A"
-        return m.group(0)
-
-    patched_lines = []
-    for line in html.splitlines():
-        if "美債" in line:
-            for pat in _PP_MACRO_YIELD_RES:
-                line = pat.sub(_fix_yield_match, line)
-        patched_lines.append(line)
-    html = "\n".join(patched_lines)
-
-    # ── 3. N/A count + low-confidence label ─────────────────────────
-    na_count = len(re.findall(r'\bN/A\b', html))
-    has_low_conf = bool(re.search(r'低置信度|低信心', html))
-    has_proxy = bool(re.search(
-        r'資料缺失原因[\s\S]{0,800}?替代指標|替代指標[\s\S]{0,800}?資料缺失原因',
-        html, re.IGNORECASE,
-    ))
-
-    if na_count > 3 and not (has_low_conf and has_proxy):
-        injection = (
-            "\n⚠️ 低置信度聲明\n"
-            "資料缺失原因：本日部分數據源（yfinance / CoinGlass / NewsAPI）未回應，"
-            "相關欄位以 N/A 標示。\n"
-            "替代指標：N/A 欄位請參考 Binance 備援數據或 CME FedWatch Tool 補充。\n"
-        )
-        if "[QSREC_START]" in html:
-            html = html.replace("[QSREC_START]", injection + "[QSREC_START]", 1)
-        else:
-            logger.warning("post_process: [QSREC_START] sentinel missing — appending 低置信度 block at end")
-            html += injection
-        logger.warning(
-            "post_process: injected 低置信度 block (N/A count=%d, had_low_conf=%s, had_proxy=%s)",
-            na_count, has_low_conf, has_proxy,
-        )
-
-    # ── 4. Regime normalization ──────────────────────────────────────
-    # Replace all authoritative (non-conditional) regime tokens with agreed_regime.
-    # Conditional lines like「若轉為 risk_off 則…」are left untouched.
-    # Fallback: if agreed_regime was not determined upstream (scorecard failed),
-    # infer it from the 【今日市場模式】 line already rendered in the report.
-    _effective_regime = agreed_regime
-    if not _effective_regime:
-        _mode_m = re.search(
-            r'【今日市場模式】[^(risk_on|risk_off|neutral)]*?(risk_on|risk_off|neutral)',
-            html,
-            re.IGNORECASE,
-        )
-        if _mode_m:
-            _effective_regime = _mode_m.group(1).lower().replace("-", "_").replace(" ", "_")
-            logger.warning(
-                "post_process: agreed_regime was None; inferred fallback regime=%s from 市場模式 line",
-                _effective_regime,
-            )
-    if _effective_regime:
-        fixed_lines = []
-        for line in html.splitlines():
-            if _PP_CONDITIONAL_LINE_RE.search(line):
-                fixed_lines.append(line)
-            else:
-                fixed_lines.append(_PP_REGIME_TOKEN_RE.sub(_effective_regime, line))
-        html = "\n".join(fixed_lines)
-        logger.info("post_process: regime normalized to %s", _effective_regime)
-
-    # ── 5. UTC+8 timezone injection ───────────────────────────────
-    # Append " UTC+8" to news timestamp brackets that lack a HK timezone marker.
-    # _PP_NEWS_TS_RE captures (group 1) up to the end of the time digits then matches "]".
-    # Replacement: group(1) + " UTC+8]" — the original "]" is consumed by the pattern.
-    utc8_count = [0]
-
-    def _inject_utc8(m: re.Match) -> str:
-        utc8_count[0] += 1
-        return m.group(1) + " UTC+8]"
-
-    html = _PP_NEWS_TS_RE.sub(_inject_utc8, html)
-    if utc8_count[0]:
-        logger.warning("post_process: injected UTC+8 into %d news timestamp bracket(s)", utc8_count[0])
-
-    # ── 6. Signal conflict summary injection ─────────────────────
-    # If the gate-required 訊號衝突摘要 block is missing, inject a minimal one.
-    if not _PP_SIGNAL_CONFLICT_RE.search(html):
-        _signal_block = "\n訊號衝突摘要：暫無重大訊號衝突，多空數據基本一致。\n"
-        if "[QSREC_START]" in html:
-            html = html.replace("[QSREC_START]", _signal_block + "[QSREC_START]", 1)
-        else:
-            html += _signal_block
-        logger.warning("post_process: injected missing 訊號衝突摘要 block")
-
-    # ── 7. Malformed invalidation condition fill ──────────────────
-    # Replace empty 失效條件：（含 <code></code> 殼）with a safe default.
-    _inval_default = r"\g<1><code>跌破關鍵支撐位或重大利空事件出現</code>"
-    new_html = _PP_MALFORMED_INVAL_RE.sub(_inval_default, html)
-    if new_html != html:
-        html = new_html
-        logger.warning("post_process: filled empty 失效條件 with default invalidation text")
-
-    return html
-
-
 def _run_pipeline_once(
     exclude_context: str | None,
     use_fallback_llm: bool = False,
@@ -764,7 +580,16 @@ def _run_pipeline_once(
             _reflect_days = 3
         _reflect_days = max(1, min(_reflect_days, 90))
         lessons_str = get_recent_lessons(_reflect_days)
-        logger.info("Injected recent_lessons for crew (%d chars, days=%d).", len(lessons_str), _reflect_days)
+        if not (lessons_str or "").strip():
+            lessons_str = (
+                "[系統反思記憶] 近期無停損紀錄，請維持客觀的風險控管。"
+            )
+        logger.info(
+            "Injected recent_lessons for crew (%d chars, days=%d, json_payload=%s).",
+            len(lessons_str),
+            _reflect_days,
+            str(lessons_str).lstrip().startswith("{"),
+        )
 
         from concurrent.futures import ThreadPoolExecutor
 
@@ -802,6 +627,19 @@ def _run_pipeline_once(
                     "（經 traced_tool_execution 計數）。"
                 )
 
+        try:
+            _min_crew = int(os.getenv("MIN_TOOL_CALLS_PER_CREW", "0") or "0")
+        except ValueError:
+            _min_crew = 0
+        if _min_crew > 0:
+            _nc = scratchpad.raw_tool_invocation_count_crypto()
+            _na = scratchpad.raw_tool_invocation_count_ai()
+            if _nc < _min_crew or _na < _min_crew:
+                raise RuntimeError(
+                    f"MIN_TOOL_CALLS_PER_CREW={_min_crew} 但本輪 crypto={_nc}、ai={_na} "
+                    "（僅統計 crew.kickoff 階段、scratchpad.set_tool_invocation_lane 標記之 traced 呼叫）。"
+                )
+
         tagged = len(crypto_section.news) + len(ai_section.news)
         partial_tier = tagged < 6 and _allow_partial_news_gate() and 3 <= tagged
         _so = (source_observability_lines() or "").strip()
@@ -813,9 +651,10 @@ def _run_pipeline_once(
             previous_recs_html=prev_recs or "",
             source_observability_block="",
             report_tier_partial_news=partial_tier,
+            agreed_regime=agreed_regime,
         )
         html = render_telegram_daily_brief(report_model)
-        html = _post_process_html_for_gate(html, agreed_regime=agreed_regime)
+        html = post_process_html_for_gate(html, agreed_regime=agreed_regime)
         return html, None, report_model
     except Exception as e:
         return "", e, None

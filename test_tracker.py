@@ -223,20 +223,19 @@ class TestRiskControls(unittest.TestCase):
 
 
 class TestGetRecentLessons(unittest.TestCase):
-    """Reflection loop: BQ loss rows → strategist memory string."""
+    """Reflection loop: BQ HIT_STOP rows → compact JSON for strategist context."""
 
-    def test_skip_bigquery_returns_neutral(self):
+    def test_skip_bigquery_returns_empty(self):
         with patch.dict(os.environ, {"SKIP_BIGQUERY": "1"}):
             out = get_recent_lessons(3)
-        self.assertIn("近期無停損紀錄", out)
-        self.assertIn("客觀的風險控管", out)
+        self.assertEqual(out, "")
 
     @patch("tracker._get_bq_client")
-    def test_formats_negative_pnl_rows(self, mock_get_client):
+    def test_hit_stop_single_row_json_monitor(self, mock_get_client):
         mock_row = {
             "asset": "NVDA",
+            "category": "EQUITY",
             "direction": "SHORT",
-            "status": "HIT_STOP",
             "pnl_pct": -2.5,
             "exit_date": date(2025, 3, 1),
         }
@@ -246,22 +245,65 @@ class TestGetRecentLessons(unittest.TestCase):
         mock_client.query.return_value = mock_job
         mock_get_client.return_value = mock_client
 
-        with patch.dict(os.environ, {"SKIP_BIGQUERY": ""}, clear=False):
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": "", "REFLECTION_MIN_STOPS_REDUCE": "2"}, clear=False):
             out = get_recent_lessons(3)
 
-        self.assertIn("[系統反思記憶]", out)
-        self.assertIn("$NVDA", out)
-        self.assertIn("SHORT", out)
-        self.assertIn("觸及停損", out)
-        self.assertIn("2.5%", out)
-        self.assertIn("高 Beta", out)
+        self.assertTrue(out.startswith("{"))
+        self.assertIn("recent_lessons", out)
+        self.assertIn("NVDA", out)
+        self.assertIn("monitor", out)
+        self.assertIn("ai_semis", out)
 
     @patch("tracker._get_bq_client")
-    def test_query_failure_returns_neutral(self, mock_get_client):
+    def test_hit_stop_two_same_ticker_reduce_exposure(self, mock_get_client):
+        rows = [
+            {
+                "asset": "NVDA",
+                "category": "EQUITY",
+                "direction": "LONG",
+                "pnl_pct": -3.0,
+                "exit_date": date(2025, 3, 2),
+            },
+            {
+                "asset": "$NVDA",
+                "category": "EQUITY",
+                "direction": "LONG",
+                "pnl_pct": -2.0,
+                "exit_date": date(2025, 3, 1),
+            },
+        ]
+        mock_job = MagicMock()
+        mock_job.result.return_value = rows
+        mock_client = MagicMock()
+        mock_client.query.return_value = mock_job
+        mock_get_client.return_value = mock_client
+
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": "", "REFLECTION_MIN_STOPS_REDUCE": "2"}, clear=False):
+            out = get_recent_lessons(3)
+
+        self.assertIn("reduce_exposure", out)
+        self.assertIn('"stop_loss_count":2', out)
+
+    @patch("tracker._get_bq_client")
+    def test_query_failure_returns_empty(self, mock_get_client):
         mock_get_client.side_effect = RuntimeError("bq down")
         with patch.dict(os.environ, {"SKIP_BIGQUERY": ""}, clear=False):
             out = get_recent_lessons(3)
-        self.assertIn("近期無停損紀錄", out)
+        self.assertEqual(out, "")
+
+    def test_aggregate_hit_stop_lessons_crypto_sector(self):
+        from tracker import _aggregate_hit_stop_lessons
+
+        rows = [
+            {"asset": "BTC", "category": "CRYPTO", "direction": "LONG", "pnl_pct": -4.0},
+            {"asset": "ETH", "category": "CRYPTO", "direction": "LONG", "pnl_pct": -1.0},
+        ]
+        payload = _aggregate_hit_stop_lessons(rows, window_days=3, min_reduce=2)
+        self.assertEqual(payload["recent_lessons"]["by_sector"]["crypto"]["stop_loss_count"], 2)
+        self.assertEqual(
+            payload["recent_lessons"]["by_sector"]["crypto"]["suggestion"],
+            "reduce_exposure",
+        )
 
 
 if __name__ == "__main__":

@@ -133,6 +133,9 @@ def _sample_qsrec_crypto() -> TradeRecommendation:
         max_drawdown_pct=-4.0,
         expected_win_rate=55.0,
         signal_score=70.0,
+        bull_scenario="突破 100 量能延續看多。",
+        base_scenario="區間 95–105 機率 50%。",
+        bear_scenario="跌破 95 多頭失效。",
     )
 
 
@@ -164,6 +167,9 @@ def _sample_qsrec_equity() -> TradeRecommendation:
         max_drawdown_pct=-4.0,
         expected_win_rate=55.0,
         signal_score=72.0,
+        bull_scenario="財報優於預期延續漲勢。",
+        base_scenario="橫盤等待指引機率 55%。",
+        bear_scenario="指引失望則回調。",
     )
 
 

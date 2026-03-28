@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
 from schemas import AISection, CryptoSection, DailyBriefReport, QSREC_JSON_EXCLUDE_FIELDS
+from validation_rules import (
+    normalize_authoritative_regime_tokens_multiline,
+    sanitize_lines_with_us_treasury_keyword,
+)
+
+_AGREED_REGIME_TOKENS = frozenset({"risk_on", "risk_off", "neutral"})
 
 
 def tg_escape(value: object) -> str:
@@ -18,6 +25,141 @@ def tg_escape(value: object) -> str:
     return html.escape(str(value), quote=False)
 
 
+def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str:
+    """Approximate HTML N/A density for the same Gate threshold as validate_report."""
+    parts: list[str] = []
+    for row in crypto.dashboard:
+        parts.extend((row.label, row.value))
+    for row in ai.dashboard:
+        parts.extend((row.label, row.value))
+    for line in crypto.macro_framework_lines:
+        parts.append(line)
+    for line in ai.macro_bridge_lines:
+        parts.append(line)
+    parts.extend(
+        (
+            crypto.narrative_of_day,
+            crypto.pick_reason,
+            crypto.risk_budget_summary,
+            crypto.signal_conflict_summary,
+            ai.pick_reason,
+            ai.signal_conflict_summary,
+        )
+    )
+    if ai.us_equity_allocation_note:
+        parts.append(ai.us_equity_allocation_note)
+    for leg in crypto.trade_legs:
+        for f in (
+            leg.current_price,
+            leg.entry,
+            leg.target,
+            leg.stop,
+            leg.trigger,
+            leg.invalidation,
+            leg.narrative,
+        ):
+            parts.append(str(f))
+    for leg in ai.trade_legs:
+        for f in (
+            leg.current_price,
+            leg.entry,
+            leg.target,
+            leg.stop,
+            leg.trigger,
+            leg.invalidation,
+            leg.narrative,
+        ):
+            parts.append(str(f))
+    for r in list(crypto.qsrec) + list(ai.qsrec):
+        parts.append(r.narrative or "")
+        parts.append(r.trigger or "")
+    for n in crypto.news:
+        parts.extend((n.title, n.summary, n.investment_takeaway, n.editor_consensus))
+    for n in ai.news:
+        parts.extend((n.title, n.summary, n.investment_takeaway, n.editor_consensus))
+    for c in crypto.chatter:
+        parts.append(c.text)
+    for c in ai.chatter:
+        parts.append(c.text)
+    return "\n".join(parts)
+
+
+def _low_confidence_disclaimer_plain(crypto: CryptoSection, ai: AISection) -> str:
+    blob = _flatten_brief_text_for_na_gate(crypto, ai)
+    na_count = len(re.findall(r"\bN/A\b", blob))
+    has_low_conf = bool(re.search(r"低置信度|低信心", blob))
+    has_proxy = bool(
+        re.search(
+            r"資料缺失原因[\s\S]{0,800}?替代指標|替代指標[\s\S]{0,800}?資料缺失原因",
+            blob,
+            re.IGNORECASE,
+        )
+    )
+    if na_count <= 3 or (has_low_conf and has_proxy):
+        return ""
+    return (
+        "⚠️ 低置信度聲明\n"
+        "資料缺失原因：本日部分數據源（yfinance / CoinGlass / NewsAPI）未回應，"
+        "相關欄位以 N/A 標示。\n"
+        "替代指標：N/A 欄位請參考 Binance 備援數據或 CME FedWatch Tool 補充。\n"
+    )
+
+
+def _coerce_sections_for_gate(
+    crypto: CryptoSection,
+    ai: AISection,
+    *,
+    agreed_regime: str | None,
+) -> tuple[CryptoSection, AISection]:
+    """Align structured sections with scorecard regime and macro outlier rules (P1)."""
+    if agreed_regime and agreed_regime in _AGREED_REGIME_TOKENS:
+        nr = agreed_regime
+        m = crypto.market.model_copy(update={"regime": nr})
+        m = m.model_copy(
+            update={
+                "scorecard_lines": [
+                    normalize_authoritative_regime_tokens_multiline(x, nr) for x in m.scorecard_lines
+                ],
+            }
+        )
+        crypto = crypto.model_copy(
+            update={
+                "market": m,
+                "narrative_of_day": normalize_authoritative_regime_tokens_multiline(
+                    crypto.narrative_of_day, nr
+                ),
+                "pick_reason": normalize_authoritative_regime_tokens_multiline(crypto.pick_reason, nr),
+                "risk_budget_summary": normalize_authoritative_regime_tokens_multiline(
+                    crypto.risk_budget_summary, nr
+                ),
+                "macro_framework_lines": [
+                    normalize_authoritative_regime_tokens_multiline(x, nr)
+                    for x in crypto.macro_framework_lines
+                ],
+            }
+        )
+        ai_updates: dict = {
+            "pick_reason": normalize_authoritative_regime_tokens_multiline(ai.pick_reason, nr),
+            "macro_bridge_lines": [
+                normalize_authoritative_regime_tokens_multiline(x, nr) for x in ai.macro_bridge_lines
+            ],
+        }
+        if ai.us_equity_allocation_note:
+            ai_updates["us_equity_allocation_note"] = normalize_authoritative_regime_tokens_multiline(
+                ai.us_equity_allocation_note, nr
+            )
+        ai = ai.model_copy(update=ai_updates)
+    if crypto.macro_framework_lines:
+        sm = sanitize_lines_with_us_treasury_keyword(list(crypto.macro_framework_lines))
+        if sm != crypto.macro_framework_lines:
+            crypto = crypto.model_copy(update={"macro_framework_lines": sm})
+    if ai.macro_bridge_lines:
+        sm = sanitize_lines_with_us_treasury_keyword(list(ai.macro_bridge_lines))
+        if sm != ai.macro_bridge_lines:
+            ai = ai.model_copy(update={"macro_bridge_lines": sm})
+    return crypto, ai
+
+
 def assemble_daily_brief_report(
     crypto: CryptoSection,
     ai: AISection,
@@ -25,13 +167,17 @@ def assemble_daily_brief_report(
     previous_recs_html: str,
     source_observability_block: str,
     report_tier_partial_news: bool,
+    agreed_regime: str | None = None,
 ) -> DailyBriefReport:
+    crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
+    disclaimer = _low_confidence_disclaimer_plain(crypto, ai)
     return DailyBriefReport(
         crypto=crypto,
         ai=ai,
         previous_recs_html=(previous_recs_html or "").strip(),
         source_observability_block=(source_observability_block or "").strip(),
         report_tier_partial_news=report_tier_partial_news,
+        low_confidence_disclaimer=disclaimer,
     )
 
 
@@ -65,6 +211,7 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
             source_observability_block=report.source_observability_block,
             report_tier_partial_news=report.report_tier_partial_news,
             tagged_news_count=report.tagged_news_count(),
+            low_confidence_disclaimer=report.low_confidence_disclaimer or "",
             qsrec_json=json.dumps(qsrec_list, ensure_ascii=False),
         )
     except TemplateError as exc:

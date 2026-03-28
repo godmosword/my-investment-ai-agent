@@ -13,6 +13,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from validation_rules import (
+    ensure_news_timestamp_line_utc8,
+    sanitize_us_treasury_yield_tokens_in_line,
+)
+
 logger = logging.getLogger(__name__)
 
 # Stripped from Telegram [QSREC_START]…[QSREC_END] JSON (internal CoT only).
@@ -244,6 +249,24 @@ class TradeRecommendation(BaseModel):
             return v[:50]
         return v
 
+    @model_validator(mode="after")
+    def _require_scenarios_and_narrative_when_high_confidence(self) -> "TradeRecommendation":
+        """confidence≥3：三情境與對外 narrative 必填（對齊 QSREC／HTML Gate）。"""
+        if self.confidence < 3:
+            return self
+        for fld in ("bull_scenario", "base_scenario", "bear_scenario"):
+            val = getattr(self, fld, None)
+            if val is None or (isinstance(val, str) and not str(val).strip()):
+                raise ValueError(
+                    f"TradeRecommendation.{fld} 在 confidence>=3 時須為非空字串"
+                )
+        nar = (self.narrative or "").strip()
+        if not nar or nar == "—":
+            raise ValueError(
+                "TradeRecommendation.narrative 在 confidence>=3 時須為有效展示句（不可為空或「—」）"
+            )
+        return self
+
 
 class NewsItem(BaseModel):
     """One core news row; plain text only — templates add Telegram HTML."""
@@ -298,6 +321,13 @@ class NewsItem(BaseModel):
             return ""
         return _cap_internal_field(v, max_len=2000)
 
+    @field_validator("timestamp_line", mode="after")
+    @classmethod
+    def _ensure_timestamp_line_has_utc8(cls, v: object) -> object:
+        if isinstance(v, str):
+            return ensure_news_timestamp_line_utc8(v)
+        return v
+
 
 class MetricLine(BaseModel):
     """Single dashboard row."""
@@ -325,6 +355,24 @@ class MetricLine(BaseModel):
             # Replace literal two-char sequence backslash+n, then real newlines
             return v.replace("\\n", " ").replace("\n", " ").replace("\r", " ").strip()
         return v
+
+    @model_validator(mode="after")
+    def _sanitize_treasury_yield_in_value(self) -> "MetricLine":
+        """Gate macro outlier：儀表板美債／10Y／2Y 列之 value 異常百分比改 N/A。"""
+        label = self.label or ""
+        label_u = label.upper()
+        if not (
+            "美債" in label
+            or "10Y" in label_u
+            or "2Y" in label_u
+            or "UST" in label_u
+        ):
+            return self
+        val = self.value or ""
+        nv = sanitize_us_treasury_yield_tokens_in_line(val)
+        if nv != val:
+            self.value = nv
+        return self
 
 
 _CHATTER_CRED_INLINE_RE = re.compile(
@@ -575,6 +623,12 @@ class ExecutableTradeLeg(BaseModel):
                     )
         return self
 
+    @model_validator(mode="after")
+    def _default_invalidation_when_actionable_star(self) -> "ExecutableTradeLeg":
+        if self.star_rating >= 2 and not (self.invalidation or "").strip():
+            self.invalidation = "跌破關鍵支撐位或重大利空事件出現"
+        return self
+
 
 class MarketRegimeBlock(BaseModel):
     """Regime header + optional scorecard lines (plain text)."""
@@ -698,6 +752,13 @@ class CryptoSection(BaseModel):
                 v = v[:160]
         return v
 
+    @field_validator("signal_conflict_summary", mode="after")
+    @classmethod
+    def _default_empty_signal_conflict(cls, v: object) -> object:
+        if isinstance(v, str) and v.strip():
+            return v
+        return "暫無重大訊號衝突，多空數據基本一致。"
+
     @model_validator(mode="after")
     def _warn_consensus_direction_mismatch(self) -> "CryptoSection":
         _check_consensus_direction(self.news, self.trade_legs)
@@ -765,6 +826,13 @@ class AISection(BaseModel):
                 )
                 v = v[:160]
         return v
+
+    @field_validator("signal_conflict_summary", mode="after")
+    @classmethod
+    def _default_empty_signal_conflict(cls, v: object) -> object:
+        if isinstance(v, str) and v.strip():
+            return v
+        return "暫無重大訊號衝突，多空數據基本一致。"
 
     us_equity_allocation_note: str | None = Field(
         default=None,
@@ -891,6 +959,13 @@ class DailyBriefReport(BaseModel):
     report_tier_partial_news: bool = Field(
         default=False,
         description="When True, template emits [REPORT_TIER:PARTIAL_NEWS] and 新聞資料狀態 block.",
+    )
+    low_confidence_disclaimer: str = Field(
+        default="",
+        description=(
+            "Plain-text block (escaped in Jinja) inserted before QSREC when N/A density exceeds Gate "
+            "threshold; filled by assemble_daily_brief_report, not LLM."
+        ),
     )
 
     @model_validator(mode="after")

@@ -16,12 +16,11 @@ function StatusBadge({ status }) {
   return <span className={`status-badge status-${key}`}>{status.replace("_", " ")}</span>;
 }
 
-// ── Scorecard dimension bars ─────────────────────────────────────────────────
 const SCORE_DIMS = [
-  { key: "catalyst_score",  label: "催化" },
-  { key: "flow_score",      label: "資金" },
+  { key: "catalyst_score", label: "催化" },
+  { key: "flow_score", label: "資金" },
   { key: "technical_score", label: "技術" },
-  { key: "risk_fit_score",  label: "風控" },
+  { key: "risk_fit_score", label: "風控" },
   { key: "execution_score", label: "執行" },
 ];
 
@@ -31,12 +30,27 @@ function ScoreBar({ label, value }) {
   const color = pct >= 70 ? "var(--green)" : pct >= 45 ? "var(--yellow)" : "var(--red)";
   return (
     <div style={{ marginBottom: 5 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginBottom: 2 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 10,
+          color: "var(--muted)",
+          marginBottom: 2,
+        }}
+      >
         <span>{label}</span>
         <span style={{ color }}>{Math.round(pct)}</span>
       </div>
       <div style={{ height: 4, borderRadius: 2, background: "var(--border)", overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 2, transition: "width 0.4s" }} />
+        <div
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: color,
+            borderRadius: 2,
+          }}
+        />
       </div>
     </div>
   );
@@ -71,7 +85,6 @@ function Scorecard({ trade, hasDims }) {
   );
 }
 
-// ── Three-scenario display ───────────────────────────────────────────────────
 function Scenarios({ trade }) {
   const hasBull = !!trade.bull_scenario;
   const hasBase = !!trade.base_scenario;
@@ -80,7 +93,15 @@ function Scenarios({ trade }) {
 
   return (
     <div style={{ borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 6 }}>
-      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--muted)",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          marginBottom: 6,
+        }}
+      >
         情境分析
       </div>
       {hasBull && (
@@ -105,10 +126,11 @@ function Scenarios({ trade }) {
   );
 }
 
-// ── Main TradeCard ────────────────────────────────────────────────────────────
 export default function TradeCard({ trade }) {
-  const [expanded, setExpanded] = useState(false);
-  const [aiExpanded, setAiExpanded] = useState(false);
+  const [tradeDetailsOpen, setTradeDetailsOpen] = useState(false);
+  const [scoreOpen, setScoreOpen] = useState(false);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+
   const isLong = trade.direction?.toUpperCase() === "LONG";
   const pnlColor = trade.pnl_pct > 0 ? "delta-up" : trade.pnl_pct < 0 ? "delta-down" : "delta-flat";
   const hasDims = SCORE_DIMS.some(({ key }) => trade[key] != null);
@@ -118,9 +140,9 @@ export default function TradeCard({ trade }) {
 
   return (
     <div className="trade-card">
-      {/* Header */}
+      {/* Glassbox：預設僅標的、方向、部位、P&L、狀態 */}
       <div className="trade-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span className="trade-asset">{trade.asset}</span>
           <span className={`trade-direction direction-${isLong ? "long" : "short"}`}>
             {trade.direction}
@@ -129,79 +151,88 @@ export default function TradeCard({ trade }) {
             <span style={{ fontSize: 10, color: "var(--muted)" }}>{trade.category}</span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Stars n={trade.confidence} />
-          <StatusBadge status={trade.status} />
-        </div>
+        <StatusBadge status={trade.status} />
       </div>
 
-      {/* Price row */}
-      <div className="trade-prices">
-        <div className="price-item">
-          <span className="price-label">進場</span>
-          <span className="price-value">{fmt(trade.entry_price)}</span>
-        </div>
-        <div className="price-item">
-          <span className="price-label">目標</span>
-          <span className="price-value" style={{ color: "var(--green)" }}>
-            {fmt(trade.target_price)}
-          </span>
-        </div>
-        <div className="price-item">
-          <span className="price-label">停損</span>
-          <span className="price-value" style={{ color: "var(--red)" }}>
-            {fmt(trade.stop_price)}
-          </span>
-        </div>
-      </div>
-
-      {/* Meta row */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, marginBottom: 4 }}>
-        {trade.rr_ratio != null && (
-          <span style={{ color: "var(--muted)" }}>
-            R:R <strong style={{ color: "var(--text)" }}>{trade.rr_ratio}</strong>
-          </span>
-        )}
-        {trade.timeframe && (
-          <span style={{ color: "var(--muted)" }}>
-            週期 <strong style={{ color: "var(--text)" }}>{trade.timeframe}</strong>
-          </span>
-        )}
+      <div className="trade-compact-row">
         {trade.position_pct != null && (
           <span style={{ color: "var(--muted)" }}>
-            倉位 <strong style={{ color: "var(--text)" }}>{trade.position_pct}%</strong>
+            部位 <strong style={{ color: "var(--text)" }}>{trade.position_pct}%</strong>
           </span>
         )}
         {trade.pnl_pct != null && (
-          <span>
-            P&L <strong className={pnlColor}>{trade.pnl_pct > 0 ? "+" : ""}{trade.pnl_pct}%</strong>
+          <span style={{ color: "var(--muted)" }}>
+            當前 P&amp;L{" "}
+            <strong className={pnlColor}>
+              {trade.pnl_pct > 0 ? "+" : ""}
+              {trade.pnl_pct}%
+            </strong>
           </span>
         )}
+        {trade.position_pct == null && trade.pnl_pct == null && (
+          <span style={{ color: "var(--muted)", fontSize: 11 }}>尚無部位／損益欄位</span>
+        )}
       </div>
+
+      <button
+        type="button"
+        className="trade-accordion-btn trade-accordion-btn--ghost"
+        onClick={() => setTradeDetailsOpen((x) => !x)}
+        aria-expanded={tradeDetailsOpen}
+      >
+        {tradeDetailsOpen ? "▲ 收起交易細節（價格／週期）" : "▼ 展開交易細節（價格／週期）"}
+      </button>
+
+      {tradeDetailsOpen && (
+        <>
+          <div className="trade-prices" style={{ marginTop: 10 }}>
+            <div className="price-item">
+              <span className="price-label">進場</span>
+              <span className="price-value">{fmt(trade.entry_price)}</span>
+            </div>
+            <div className="price-item">
+              <span className="price-label">目標</span>
+              <span className="price-value" style={{ color: "var(--green)" }}>
+                {fmt(trade.target_price)}
+              </span>
+            </div>
+            <div className="price-item">
+              <span className="price-label">停損</span>
+              <span className="price-value" style={{ color: "var(--red)" }}>
+                {fmt(trade.stop_price)}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, marginBottom: 4 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Stars n={trade.confidence} />
+            </span>
+            {trade.rr_ratio != null && (
+              <span style={{ color: "var(--muted)" }}>
+                R:R <strong style={{ color: "var(--text)" }}>{trade.rr_ratio}</strong>
+              </span>
+            )}
+            {trade.timeframe && (
+              <span style={{ color: "var(--muted)" }}>
+                週期 <strong style={{ color: "var(--text)" }}>{trade.timeframe}</strong>
+              </span>
+            )}
+          </div>
+        </>
+      )}
 
       {hasAiLogic && (
         <button
           type="button"
-          onClick={() => setAiExpanded((x) => !x)}
-          style={{
-            width: "100%",
-            background: "rgba(0,212,170,.06)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            color: "var(--accent)",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-            padding: "8px 10px",
-            marginTop: 10,
-            textAlign: "center",
-          }}
+          className="trade-accordion-btn"
+          onClick={() => setDecisionOpen((x) => !x)}
+          aria-expanded={decisionOpen}
         >
-          {aiExpanded ? "▲ 收起 AI 決策邏輯" : "🤖 展開 AI 決策邏輯"}
+          {decisionOpen ? "▲ 收起決策邏輯" : "▼ 展開決策邏輯（觸發／失效／敘事）"}
         </button>
       )}
 
-      {aiExpanded && hasAiLogic && (
+      {decisionOpen && hasAiLogic && (
         <div
           style={{
             marginTop: 10,
@@ -279,25 +310,15 @@ export default function TradeCard({ trade }) {
       {(hasScorecard || hasScenarios) && (
         <button
           type="button"
-          onClick={() => setExpanded((x) => !x)}
-          style={{
-            width: "100%",
-            background: "none",
-            border: "none",
-            borderTop: "1px solid var(--border)",
-            color: "var(--muted)",
-            fontSize: 11,
-            cursor: "pointer",
-            padding: "6px 0 0",
-            marginTop: 8,
-            textAlign: "center",
-          }}
+          className="trade-accordion-btn trade-accordion-btn--ghost"
+          onClick={() => setScoreOpen((x) => !x)}
+          aria-expanded={scoreOpen}
         >
-          {expanded ? "▲ 收起" : "▼ 展開評分 & 情境分析"}
+          {scoreOpen ? "▲ 收起評分與情境" : "▼ 展開評分與情境分析"}
         </button>
       )}
 
-      {expanded && (
+      {scoreOpen && (
         <>
           <Scorecard trade={trade} hasDims={hasDims} />
           <Scenarios trade={trade} />

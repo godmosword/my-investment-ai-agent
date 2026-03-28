@@ -140,6 +140,10 @@
 【新聞資料狀態】
 以〔新聞 N〕標籤計入的新聞為 <code>{{ tagged_news_count }}</code> 則／目標 <code>6</code> 則（幣圈 3 + AI 3）。已啟用資料不足保護：不補虛構新聞。若實際已寫滿 6 則但格式未統一為〔新聞 N〕，請主編下一版改為規定格式以便系統計數。
 {% endif %}
+{% if low_confidence_disclaimer %}
+
+{{ low_confidence_disclaimer|tg_escape }}
+{% endif %}
 
 [QSREC_START]
 {{ qsrec_json }}

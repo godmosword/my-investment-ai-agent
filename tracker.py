@@ -6,6 +6,7 @@
   3. 每日回查 OPEN 狀態建議，抓最新價格，更新 HIT_TARGET / HIT_STOP / EXPIRED
   4. 生成週度績效摘要 Telegram HTML
   5. 生成上期建議追蹤區塊，注入當日報告
+  6. **Reflection Loop**：`get_recent_lessons()` 聚合近期 HIT_STOP → JSON；`main.py` 注入 Quant Strategist
 """
 
 import json
@@ -104,6 +105,30 @@ _REGIME_POSITION_CAP: dict[str, float] = {
     "risk_off": 5.0,
     "neutral": 10.0,
     "risk_on": 15.0,
+}
+
+# Reflection Loop：美股 ticker → 粗粒度板塊（BQ 無 sector 欄位時用於聚合，降低單筆雜訊）
+_EQUITY_SECTOR_BY_TICKER: dict[str, str] = {
+    "NVDA": "ai_semis",
+    "AMD": "ai_semis",
+    "AVGO": "ai_semis",
+    "ASML": "ai_semis",
+    "TSM": "ai_semis",
+    "INTC": "ai_semis",
+    "MSFT": "megacap_tech",
+    "META": "megacap_tech",
+    "GOOGL": "megacap_tech",
+    "GOOG": "megacap_tech",
+    "AAPL": "megacap_tech",
+    "AMZN": "megacap_tech",
+    "TSLA": "consumer_discretionary",
+    "NFLX": "consumer_discretionary",
+    "XOM": "energy",
+    "CVX": "energy",
+    "COP": "energy",
+    "SMCI": "ai_infra",
+    "DELL": "ai_infra",
+    "ORCL": "ai_infra",
 }
 
 # BigQuery trade_recommendations schema
@@ -661,18 +686,102 @@ def check_and_update_positions(project_id: str = PROJECT_ID) -> list[dict]:
     return closed
 
 
-def get_recent_lessons(days: int = 3, project_id: str = PROJECT_ID) -> str:
-    """從 BigQuery 交易紀錄萃取近期「已平倉且虧損」建議，供 Quant Strategist 反思注入。
+def _reflection_sector_key(category: str | None, asset: str) -> str:
+    """板塊鍵：加密統一 crypto；美股依 ticker 對照粗板塊，其餘 equity_us。"""
+    c = (category or "").upper().strip()
+    canon = canonical_asset_key(asset)
+    base = canon.split("/")[0].strip() if canon else ""
+    if c == "CRYPTO" or base in _get_crypto_assets() or _parse_pair_asset(asset):
+        return "crypto"
+    if not base:
+        return "equity_us"
+    return _EQUITY_SECTOR_BY_TICKER.get(base, "equity_us")
 
-    本表狀態無字面 ``CLOSED``：已平倉以 ``HIT_TARGET`` / ``HIT_STOP`` / ``EXPIRED`` 表示；
-    此處篩選 ``pnl_pct < 0`` 的列，並以 ``exit_date`` 落在最近 ``days`` 日內為準。
+
+def _reflection_suggestion(stop_count: int, min_reduce: int) -> str:
+    """連續／多次停損才建議降曝險，單次視為 monitor 以降低洗盤過擬合。"""
+    return "reduce_exposure" if stop_count >= min_reduce else "monitor"
+
+
+def _aggregate_hit_stop_lessons(
+    rows: list,
+    *,
+    window_days: int,
+    min_reduce: int,
+    max_tickers: int = 6,
+) -> dict:
+    """將 HIT_STOP 列聚合為精簡 JSON 可序列化 dict。"""
+    sector_counts: dict[str, int] = {}
+    ticker_stats: dict[str, dict[str, float]] = {}
+
+    for row in rows:
+        asset_raw = str(row.get("asset") or "").strip()
+        if not asset_raw:
+            continue
+        tkey = canonical_asset_key(asset_raw)
+        if not tkey or tkey == "UNKNOWN":
+            continue
+        cat = str(row.get("category") or "")
+        sk = _reflection_sector_key(cat, asset_raw)
+        sector_counts[sk] = sector_counts.get(sk, 0) + 1
+
+        pnl_raw = row.get("pnl_pct")
+        try:
+            pnl_f = float(pnl_raw) if pnl_raw is not None else 0.0
+        except (TypeError, ValueError):
+            pnl_f = 0.0
+        loss_mag = abs(pnl_f)
+
+        if tkey not in ticker_stats:
+            ticker_stats[tkey] = {"stop_loss_count": 0, "total_loss_pct": 0.0}
+        ticker_stats[tkey]["stop_loss_count"] += 1
+        ticker_stats[tkey]["total_loss_pct"] = round(
+            ticker_stats[tkey]["total_loss_pct"] + loss_mag, 2
+        )
+
+    by_sector: dict[str, dict[str, str | int]] = {}
+    for sec, cnt in sorted(sector_counts.items(), key=lambda x: (-x[1], x[0])):
+        by_sector[sec] = {
+            "stop_loss_count": cnt,
+            "suggestion": _reflection_suggestion(cnt, min_reduce),
+        }
+
+    # 僅保留停損次數最多的前 max_tickers 個標的，避免 context 膨脹
+    tick_sorted = sorted(
+        ticker_stats.items(),
+        key=lambda kv: (-kv[1]["stop_loss_count"], -kv[1]["total_loss_pct"], kv[0]),
+    )[:max_tickers]
+    by_ticker: dict[str, dict[str, str | int | float]] = {}
+    for tk, st in tick_sorted:
+        sc = int(st["stop_loss_count"])
+        by_ticker[tk] = {
+            "stop_loss_count": sc,
+            "total_loss_pct": float(st["total_loss_pct"]),
+            "suggestion": _reflection_suggestion(sc, min_reduce),
+        }
+
+    return {
+        "recent_lessons": {
+            "window_days": window_days,
+            "hit_stop_rows": len(rows),
+            "by_sector": by_sector,
+            "by_ticker": by_ticker,
+        }
+    }
+
+
+def get_recent_lessons(days: int = 3, project_id: str = PROJECT_ID) -> str:
+    """從 BigQuery 聚合近期 ``HIT_STOP`` 紀錄，供 Quant Strategist Reflection Loop。
+
+    僅統計 ``status = 'HIT_STOP'`` 且 ``exit_date`` 落在最近 ``days`` 日內之列，依板塊／標的聚合，
+    避免把單筆洗盤當成結構失效（``REFLECTION_MIN_STOPS_REDUCE``：達閾值才 ``reduce_exposure``）。
 
     Returns:
-        單段繁中說明；無資料、略過 BQ 或查詢失敗時回傳固定中性句。
+        精簡單行 JSON 字串；``SKIP_BIGQUERY``、查詢失敗、無列時回傳 ``""``（由 ``main.py`` 再套中性 fallback）。
     """
-    empty_msg = "[系統反思記憶] 近期無停損紀錄，請維持客觀的風險控管。"
     if os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes"):
-        return empty_msg
+        logger.info("get_recent_lessons: SKIP_BIGQUERY set, returning empty string.")
+        return ""
     try:
         d_int = int(days)
     except (TypeError, ValueError):
@@ -680,58 +789,52 @@ def get_recent_lessons(days: int = 3, project_id: str = PROJECT_ID) -> str:
     d_int = max(1, min(d_int, 90))
 
     try:
+        min_reduce = int(os.getenv("REFLECTION_MIN_STOPS_REDUCE", "2") or "2")
+    except ValueError:
+        min_reduce = 2
+    min_reduce = max(1, min(min_reduce, 20))
+
+    try:
         client = _get_bq_client(project_id)
-        # d_int 已夾在 1..90，與本模組其他 f-string BQ 查詢一致（避免僅測試環境缺少 QueryJobConfig）
         rows = list(
             client.query(
                 f"""
-                SELECT asset, direction, status, pnl_pct, exit_date
+                SELECT asset, category, direction, pnl_pct, exit_date
                 FROM `{RECOMMENDATIONS_TABLE}`
-                WHERE status IN ('HIT_STOP', 'HIT_TARGET', 'EXPIRED')
-                  AND pnl_pct IS NOT NULL
-                  AND pnl_pct < 0
+                WHERE status = 'HIT_STOP'
+                  AND exit_date IS NOT NULL
                   AND exit_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {d_int} DAY)
-                ORDER BY exit_date DESC, asset
-                LIMIT 24
+                ORDER BY exit_date DESC, asset ASC
+                LIMIT 500
                 """
             ).result()
         )
     except Exception as e:
         logger.warning("get_recent_lessons BigQuery query failed: %s", e)
-        return empty_msg
+        return ""
 
     if not rows:
-        return empty_msg
+        logger.info(
+            "get_recent_lessons: raw_hit_stop_rows=0 window_days=%d (empty payload).",
+            d_int,
+        )
+        return ""
 
-    fragments: list[str] = []
-    for row in rows:
-        raw = str(row.get("asset") or "").strip()
-        if not raw:
-            continue
-        sym = raw.upper().replace("$", "").replace(" ", "")
-        if not sym:
-            continue
-        label = f"${sym}"
-        direction = str(row.get("direction") or "N/A").upper()
-        pnl = float(row["pnl_pct"])
-        status = str(row.get("status") or "").upper()
-        if status == "HIT_STOP":
-            clause = "觸及停損"
-        elif status == "EXPIRED":
-            clause = "到期結算虧損"
-        else:
-            clause = "已平倉虧損"
-        fragments.append(f"在 {label}（{direction}）{clause}損失 {abs(pnl):.1f}%")
-
-    if not fragments:
-        return empty_msg
-
-    intro = f"[系統反思記憶] 過去 {d_int} 天內，系統"
-    body = "，".join(fragments) + "。"
-    tail = (
-        "請注意近期高 Beta 資產的波動性，並在今日決策中重新評估相關板塊的風險預算與信心水準。"
+    payload = _aggregate_hit_stop_lessons(
+        rows,
+        window_days=d_int,
+        min_reduce=min_reduce,
     )
-    return f"{intro} {body}{tail}"
+    out = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    logger.info(
+        "get_recent_lessons: raw_hit_stop_rows=%d window_days=%d min_reduce=%d json_len=%d payload=%s",
+        len(rows),
+        d_int,
+        min_reduce,
+        len(out),
+        out[:800] + ("…" if len(out) > 800 else ""),
+    )
+    return out
 
 
 def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:

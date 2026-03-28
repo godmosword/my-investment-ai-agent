@@ -1,0 +1,55 @@
+〔新聞 1〕[03/01 10:00 UTC+8] 來源
+測試新聞標題 1 內容夠長超過十字元
+
+〔新聞 2〕[03/02 10:00 UTC+8] 來源
+測試新聞標題 2 內容夠長超過十字元
+
+〔新聞 3〕[03/03 10:00 UTC+8] 來源
+測試新聞標題 3 內容夠長超過十字元
+
+〔新聞 4〕[03/04 10:00 UTC+8] 來源
+測試新聞標題 4 內容夠長超過十字元
+
+〔新聞 5〕[03/05 10:00 UTC+8] 來源
+測試新聞標題 5 內容夠長超過十字元
+
+〔新聞 6〕[03/06 10:00 UTC+8] 來源
+測試新聞標題 6 內容夠長超過十字元
+
+〔新聞 7〕[03/07 10:00 UTC+8] 來源
+測試新聞標題 7 內容夠長超過十字元
+
+〔新聞 8〕[03/08 10:00 UTC+8] 來源
+測試新聞標題 8 內容夠長超過十字元
+
+【執行摘要】
+觀望模式：本日波動偏高，暫採審慎觀望；以下僅供結構測試。
+· 測試摘要甲：風險可控延續觀察 BTC 偏多結構
+→ 測試摘要乙：美股以 NVDA 財報催化為主軸
+
+【今日市場模式】 risk_on
+DXY 104.5 ｜ BTC OI $18.5B ｜ 資金費率 0.01% ｜ RSI 55 ｜ Fear & Greed 45
+區塊④ 資金流向與精準操作 (Crypto)
+本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。
+· $BTC (LONG)｜現價：$95000｜進場：$94500｜目標：$100000｜停損：$91000
+────────────
+🤖 AI 市場
+AI 數據儀表板
+· FinancialDatasets NVDA 年度損益：營收 $61B
+AI 產業鏈精準操作 (US Equities)
+本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。
+· $NVDA (LONG)｜現價：$890
+加密市場核心新聞
+呢喃與傳聞掃描
+訊號衝突摘要：短期動能與中期結構分歧
+可信度：B
+今日風險預算：risk_on 模式下總倉位上限 15%
+投資解讀：BTC 日線 RSI 55，ETF 流入 $120M
+【SourceHealth】 5/5 正常
+【SourceErrors】 0 次
+【SourceQuota】 NewsAPI 82%
+[QSREC_START]
+[{"asset":"BTC","direction":"LONG","current_price":95000,"entry":94500,"target":100000,"stop":91000,"confidence":4,"category":"CRYPTO","narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"3d","regime":"risk_on","selection_score":78,"catalyst_score":80,"flow_score":76,"technical_score":75,"risk_fit_score":74,"execution_score":79,"alt_candidate_score":63,"score_gap":15,"repeat_days":1},{"asset":"NVDA","direction":"LONG","current_price":890,"entry":885,"target":950,"stop":860,"confidence":4,"category":"EQUITY","narrative":"test","trigger":"x","invalidation":"y","position_pct":5,"timeframe":"5d","regime":"risk_on","selection_score":81,"catalyst_score":84,"flow_score":78,"technical_score":80,"risk_fit_score":77,"execution_score":82,"alt_candidate_score":65,"score_gap":16,"repeat_days":1}]
+[QSREC_END]
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

@@ -98,3 +98,78 @@ MALFORMED_INVALIDATION_RE = re.compile(r"失效條件[：:]\s*(?:<code>)?\s*(?:<
 UNACTIONABLE_TRADE_RE = re.compile(r"·\s*\$[A-Z0-9/]+[\s\S]*?(?:現價|進場|目標|停損)[：:]\s*(?:<code>)?\s*N/A")
 CODE_LEAK_RE = re.compile(r"multi_timeframe_tool\s*\(")
 IMPACT_LEAK_RE = re.compile(r"\[IMPACT:|🎯\s*IMPACT|📍\s*受影響資產|📈\s*做多機會|📉\s*做空風險")
+
+# ── Pre-render / post-render coercions (align with report_html_gates macro outlier band) ──
+MACRO_YIELD_MIN_PCT, MACRO_YIELD_MAX_PCT = 0.1, 9.0
+MACRO_YIELD_SUB_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(10Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%", re.IGNORECASE),
+    re.compile(r"(10Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%", re.IGNORECASE),
+    re.compile(r"(2Y\s*[:：]\s*)([0-9,]+(?:\.[0-9]+)?)\s*%", re.IGNORECASE),
+    re.compile(r"(2Y\D{0,22}?)([0-9,]+(?:\.[0-9]+)?)\s*%", re.IGNORECASE),
+)
+
+_NEWS_TIMESTAMP_LINE_MISSING_TZ_RE = re.compile(
+    r"^(\[(?:\d{4}[/\-]\d{1,2}[/\-]\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{4})?)\s+\d{1,2}:\d{2}(?::\d{2})?)"
+    r"(?!\s*(?:UTC|GMT)\s*[+＋]\s*0?8|\s*HKT\b|\s*(?:香港|北京|台北)時間)"
+    r"(\])$",
+    re.IGNORECASE,
+)
+
+
+def sanitize_us_treasury_yield_tokens_in_line(line: str) -> str:
+    """Replace out-of-range 10Y/2Y percentage tokens with N/A (matches tools.py sane band)."""
+
+    def _fix_yield_match(m: re.Match[str]) -> str:
+        try:
+            val = float(m.group(2).replace(",", ""))
+        except ValueError:
+            return m.group(0)
+        if not (MACRO_YIELD_MIN_PCT <= val <= MACRO_YIELD_MAX_PCT):
+            g2_start = m.start(2) - m.start(0)
+            return m.group(0)[:g2_start] + "N/A"
+        return m.group(0)
+
+    out = line
+    for pat in MACRO_YIELD_SUB_PATTERNS:
+        out = pat.sub(_fix_yield_match, out)
+    return out
+
+
+def sanitize_lines_with_us_treasury_keyword(lines: list[str]) -> list[str]:
+    """Only touch lines mentioning 美債 to avoid accidental edits elsewhere."""
+    return [
+        sanitize_us_treasury_yield_tokens_in_line(line) if "美債" in line else line for line in lines
+    ]
+
+
+def ensure_news_timestamp_line_utc8(timestamp_line: str) -> str:
+    """If bracketed time lacks HK-style tz, append `` UTC+8`` before closing bracket (Gate 新聞時區)."""
+    if not isinstance(timestamp_line, str):
+        return timestamp_line
+    s = timestamp_line.strip()
+    m = _NEWS_TIMESTAMP_LINE_MISSING_TZ_RE.match(s)
+    if m:
+        return m.group(1) + " UTC+8" + m.group(2)
+    return timestamp_line
+
+
+# Align with ``report_html_postprocess`` / Gate: skip conditional regime sentences.
+_CONDITIONAL_REGIME_IN_LINE_RE = re.compile(
+    r"(?:若|如果|假設|when|if)\s*.{0,80}(?:risk_on|risk_off|neutral)",
+    re.IGNORECASE,
+)
+_REGIME_TOKEN_BOUNDARY_RE = re.compile(r"\b(risk_on|risk_off|neutral)\b", re.IGNORECASE)
+
+
+def normalize_authoritative_regime_tokens_multiline(text: str, regime: str) -> str:
+    """Replace standalone risk_on/risk_off/neutral tokens with ``regime``; keep conditional lines."""
+    if not isinstance(text, str) or not text.strip() or not (regime or "").strip():
+        return text
+    lines = text.split("\n")
+    out: list[str] = []
+    for line in lines:
+        if _CONDITIONAL_REGIME_IN_LINE_RE.search(line):
+            out.append(line)
+        else:
+            out.append(_REGIME_TOKEN_BOUNDARY_RE.sub(regime, line))
+    return "\n".join(out)

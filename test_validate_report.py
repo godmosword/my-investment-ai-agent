@@ -1090,6 +1090,14 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
                     stop=91000,
                     confidence=4,
                     category="CRYPTO",
+                    narrative="ETF 流入延續偏多。",
+                    trigger="突破前高",
+                    invalidation="跌破支撐",
+                    position_pct=5.0,
+                    timeframe="3d",
+                    bull_scenario="量能延續看 100k。",
+                    base_scenario="區間震盪機率 50%。",
+                    bear_scenario="跌破 91k 退場。",
                     **_scores,
                 )
             ]
