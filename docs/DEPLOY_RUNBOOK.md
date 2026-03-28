@@ -4,6 +4,7 @@
 
 - Workflow：[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)。  
 - `deploy` job 已使用 `environment: production`（**DONE-C1**）。
+- **Cloud Run Job `task-timeout`**：`deploy.yml` 內 `gcloud run jobs deploy --task-timeout`（秒）。日報管線若出現 *Terminating task because it has reached the maximum timeout of 3600 seconds* 類訊息，代表執行超過當前上限；請提高該值（目前預設 **14400**，即 4 小時）後重新部署。亦可於 GCP Console → Cloud Run → Job → 編輯 → **Task timeout** 調整。
 
 ## 營運必做（人工閘門）
 

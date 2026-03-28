@@ -103,12 +103,14 @@ jobs:
           # REMOVE_VARS="$REMOVE_VARS,CRYPTOQUANT_API_KEY,FRED_API_KEY,FINANCIAL_DATASETS_API_KEY"
           # REMOVE_VARS="$REMOVE_VARS,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID"
 
+          # 日報管線含雙 Crew、多輪 LLM 與重試，實測常超過 1h；3600s 會被 Cloud Run 硬殺。
+          # Cloud Run Jobs 單一 task 上限可至 168h；此處 4h 為安全預設，仍不足可再調高。
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
             --image "$IMAGE_URI" \
             --region "${{ env.GCP_REGION }}" \
             --service-account="${{ secrets.GCP_RUNTIME_SA_EMAIL }}" \
             --cpu 2 \
             --memory 2Gi \
-            --task-timeout 3600 \
+            --task-timeout 14400 \
             --set-secrets="$SECRETS" \
             --quiet

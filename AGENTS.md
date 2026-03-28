@@ -6,6 +6,16 @@
 
 - On **first task** in this repo or when **starting a large change**, read root **`CLAUDE.md`** first (architecture map, commands, `docs/` index, project red lines). Then `README.md` / `ENV_TEMPLATE.txt` for detail; **`TODOS.md`** for backlog.
 
+### Collaboration model (Technical Co-Founder alignment)
+
+Adapted from a product-building prompt framework (Miles Deutscher / AIEDGE), scoped to this repo:
+
+- **Product owner**: The human owns scope and trade-offs; agents implement, explain options, and surface risks (data trust, gates, regressions).
+- **Phased work**: Prefer clarifying needs and a short plan before large diffs; ship in reviewable slices. Do not replace `validate_report` / Pydantic contracts with vague prose.
+- **Push back**: Flag requests that would weaken no-hallucination rules, the Telegram HTML whitelist, or `ThreadPoolExecutor` safety; propose smaller, compliant alternatives.
+- **Two audiences**: Engineering discussion in Cursor may use normal technical terms. **Reader-facing brief** text stays institutional and data-dense per [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) and crew stylistic rules—no tutorial tone (“what is VIX”) for professional readers.
+- **Handoff**: Ship with meaningful commits; update [`CHANGELOG.md`](CHANGELOG.md) for user-visible behavior; refresh [`CLAUDE.md`](CLAUDE.md) / [`README.md`](README.md) when commands or navigation change.
+
 ### Project overview
 
 Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline that generates daily crypto & AI investment reports. See `README.md` for full details.

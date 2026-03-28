@@ -2,7 +2,7 @@
 
 **Claude Code** discovers this file at the repo root as project context; **Cursor** loads `.cursor/rules/claude-md-bootstrap.mdc` + `.cursorrules` §0 so agents are nudged to read this file before substantive work.
 
-Concise orientation for coding agents. **Authoritative product/README detail** → [`README.md`](README.md). **Backlog & shipped features** → [`TODOS.md`](TODOS.md). **Human changelog** → [`CHANGELOG.md`](CHANGELOG.md). **Cursor-specific** → [`AGENTS.md`](AGENTS.md).
+Concise orientation for coding agents. **Authoritative product/README detail** → [`README.md`](README.md). **Backlog & shipped features** → [`TODOS.md`](TODOS.md). **Human changelog** → [`CHANGELOG.md`](CHANGELOG.md). **Cursor-specific** → [`AGENTS.md`](AGENTS.md) (includes **Collaboration model / Technical Co-Founder** alignment for agent–human roles).
 
 ---
 
