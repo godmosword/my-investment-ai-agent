@@ -1,0 +1,65 @@
+# OSS 週度研究 — {{ date }}（自動草稿）
+
+- **搜尋查詢**：`{{ query }}`（sort={{ sort }}，per_page={{ per_page }}）
+- **候選數**：{{ repos|length }}（total_count≈{{ total_count }}）
+- **產物**：[`docs/oss_candidates/{{ date }}-candidates.json`](docs/oss_candidates/{{ date }}-candidates.json)、[`{{ date }}-digest.json`](docs/oss_candidates/{{ date }}-digest.json)
+
+---
+
+## 候選對照與適配度（啟發式 1–5，非 LLM）
+
+| Repo | Stars | 適配 | 標籤 | 摘要 |
+|------|-------|------|------|------|
+{% for r in repos %}
+| [{{ r.full_name }}]({{ r.html_url }}) | {{ r.stargazers_count or "—" }} | {{ r.fit_score }}/5 | {{ r.fit_label }} | {{ (r.description or "")[:120] }}{% if (r.description or "")|length > 120 %}…{% endif %} |
+{% endfor %}
+
+---
+
+## 可借鏡點（僅來自已拉取之 README 摘錄，附連結）
+
+{% for r in repos %}
+### {{ r.full_name }}（{{ r.fit_label }}）
+
+- **README**：{% if r.readme_html_url %}[連結]({{ r.readme_html_url }}){% else %}無／未取{% endif %}｜**授權**：{{ r.license_spdx or "—" }}
+- **摘錄**（截斷）：
+
+<blockquote>
+
+{{ r.readme_blurb }}
+
+</blockquote>
+
+{% endfor %}
+
+---
+
+## 與本專案衝突／紅線（靜態提醒）
+
+- **無數據幻覺**：日報數字須來自 Python 工具／API，不得因參考外部 repo 而改寫為「推測報價」。
+- **Telegram HTML**：僅白名單標籤；外部專案 UI 範例不可直接貼入戰報。
+- **合併前**：License 相容、維護度、依賴與外連行為見 [`docs/oss_candidates/README.md`](docs/oss_candidates/README.md) 威脅清單。
+
+---
+
+## 建議 spike 範圍（適配 ≥4 優先）
+
+{% if repos_high %}
+{% for r in repos_high %}
+- **{{ r.full_name }}**：fork 只讀審閱 → 對照 [`CLAUDE.md`](CLAUDE.md) 模組邊界；可開 issue 記「是否抽工具／是否僅文件借鏡」。
+{% endfor %}
+{% else %}
+- （本週無 ≥4 分候選，可調整 `SCOUT_GITHUB_QUERY` 後重跑 `oss_weekly_pipeline.py`）
+{% endif %}
+
+---
+
+## 不採納／暫緩理由（低分或異常）
+
+{% if repos_low %}
+{% for r in repos_low %}
+- **{{ r.full_name }}**：{{ r.fit_rationale }}{% if r.error %}（error: {{ r.error }}）{% endif %}
+{% endfor %}
+{% else %}
+- （無）
+{% endif %}

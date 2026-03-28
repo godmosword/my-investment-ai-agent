@@ -1,14 +1,14 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-03-28）：對齊程式現況與「Repo 下一步方向」計劃落地項；長期項仍見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。
+**同步狀態**（2026-03-29）：對齊程式現況與「Repo 下一步方向」計劃落地項；長期項仍見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。
 
 ---
 
 ## 維護者意見（執行順序與取捨）
 
 1. **先穩「選標多樣性 + Gate 可信」再堆功能**：Direction **1A／2A** 與下方「選幣選股過於固定」直接影響使用者對日報的信任；**1B 付費牆**應在 API 契約與視覺化一致後再上，符合 [`ROADMAP_VISION`](docs/ROADMAP_VISION.md)「付費與日報解耦」。
-2. **Direction 2B「自動開 PR」**：必須保留 **人類 merge**；現有 [`scripts/oss_scout_candidates.py`](scripts/oss_scout_candidates.py) 與 [`docs/oss_candidates/README.md`](docs/oss_candidates/README.md) 可當 Phase 0，再談 GraphQL／HF Hub 與提案 Agent。
+2. **Direction 2B**：**每週** [`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 將候選與研究稿寫入 `docs/oss_candidates/`，並在 **`TODOS.md`「OSS Scout 週報」** 插入可勾選項（**不自動 merge 程式碼**）。「自動開 PR」仍須 **人類 merge**；GraphQL／HF Hub 與提案 Agent 見表內未勾項。
 3. **Direction 3**：已有 **Growth 試點** [`crew_company.py`](crew_company.py) + [`company_ops_schemas.py`](company_ops_schemas.py)；擴到四職能前建議先量測 **`CREW_FUTURE_TIMEOUT_SEC`** 與 token，避免管線常態逾時。
 4. **P0「全 API hard fail」**：與「缺資料允許 `[DATA_MISSING]`」產品假設衝突；較務實的是 **維持 [`PIPELINE_STRICT_ENV`](main.py) + 金鑰盤點**，僅對 **排程／生產** 強制；其餘 key 維持工具層 N/A。
 
@@ -108,7 +108,7 @@
 | [x] | **輔助腳本**：[`scripts/oss_scout_candidates.py`](scripts/oss_scout_candidates.py)（GitHub Search；`GITHUB_TOKEN` 可選）。 |
 | [ ] | **HuggingFace／GraphQL** 擴充、過濾規則（Stars 成長、授權、領域）。 |
 | [ ] | **整合提案 Agent**：clone → API 分析 → diff → smoke → **開 PR**（**不自動 merge**）。 |
-| [x] | **`.github/workflows/weekly-scout.yml`**（手動；與分鐘額度平衡）。 |
+| [x] | **`.github/workflows/weekly-scout.yml`** — 每週一 UTC 排程 + `workflow_dispatch`；[`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 搜尋 → README digest → 研究稿 → **合併勾選清單至 [`TODOS.md`](TODOS.md)「OSS Scout 週報」**（`contents: write` push；**不自動 merge 程式碼**）。 |
 
 ---
 
@@ -148,5 +148,6 @@
 
 ## 修訂紀錄
 
+- **2026-03-29**：**OSS Scout 週期**：[`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 每週寫入 `docs/oss_candidates/*` 並在 **`TODOS.md` 新增「OSS Scout 週報（自動）」** 勾選清單；[`weekly-scout.yml`](.github/workflows/weekly-scout.yml) 排程 + artifact。
 - **2026-03-28**：對齊「Repo 下一步方向」計劃——TODOS 勾選、`tools_cache_http`、`weekly-backtest.yml`、Gate／營運 env、Telegram 歷史按鈕、Web Push API 預留、bench METRIC 擴充。
 - **2026-03-27**：`git pull` 後合併使用者「三大戰略方向＋週次」、新增 **維護者意見**、**選幣／選股固定問題** 橫切節；校正與現況不符項（Gate log、HIT_STOP 注入、scout 腳本、已落地列表）。

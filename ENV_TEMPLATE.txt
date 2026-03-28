@@ -120,5 +120,15 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # SIGNAL_WEIGHTS_DIR=.qsilicon
 # COMPANY_CREW_ENABLED=0     # 1=main 啟動時 prepend Growth 敘事至 exclusion context；寫入 .qsilicon/company_run_latest.json
 
+# ---------- OSS Scout（本機／weekly-scout workflow；見 docs/oss_candidates/README.md）----------
+# GITHUB_TOKEN=            # GitHub Search／REST；Actions 內建 secrets.GITHUB_TOKEN
+# SCOUT_GITHUB_QUERY=topic:quantitative-finance stars:>20
+# SCOUT_SORT=stars         # stars | forks | help-wanted-issues | updated
+# SCOUT_PER_PAGE=20        # 1–100
+# OSS_README_MAX_CHARS=8000
+# OSS_SCOUT_DATE=          # YYYY-MM-DD 覆寫報告日（預設 UTC 今日）
+# OSS_WEEKLY_SKIP_TODOS=0  # 1=oss_weekly_pipeline 不寫入 TODOS.md
+# OSS_WEEKLY_MAX_WEEKS=8   # TODOS「OSS Scout 週報」區塊保留週數上限
+
 # ---------- PWA / API（選填）----------
 # WEB_PUSH_ENABLED=0   # 1=POST /api/push/subscribe 改為 200 noop（訂閱持久化仍待實作；預設 501）

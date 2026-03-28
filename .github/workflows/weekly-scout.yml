@@ -1,20 +1,59 @@
-# OSS Scout：候選蒐集（Phase 2B）
-# 預設手動觸發；若需週期執行可改為 schedule 並設定 GITHUB_TOKEN secrets。
+# OSS Scout：每週搜尋 GitHub → digest → 改版計畫 → 合併至 TODOS.md（可手動重跑）
+# 需 contents:write 以 push 候選 JSON／研究稿／TODOS 更新。
 name: weekly-scout-candidates
 
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: "0 6 * * 1" # 每週一 06:00 UTC
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-scout-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   scout:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Run oss_scout_candidates
+
+      - name: Install minimal deps
+        run: pip install --no-cache-dir jinja2
+
+      - name: OSS weekly pipeline
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/oss_scout_candidates.py || true
-        # 僅列印候選；開 PR 須另設 PAT 與提案 Agent（見 TODOS Direction 2B）
+          SCOUT_SORT: stars
+          SCOUT_PER_PAGE: "15"
+        run: python scripts/oss_weekly_pipeline.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: oss-scout-${{ github.run_id }}
+          path: |
+            docs/oss_candidates/*-candidates.json
+            docs/oss_candidates/*-digest.json
+            docs/oss_candidates/*-revision-plan-draft.md
+          if-no-files-found: warn
+
+      - name: Commit and push TODOS + candidates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/oss_candidates TODOS.md
+          if git diff --staged --quiet; then
+            echo "No file changes to commit."
+          else
+            git commit -m "chore(oss-scout): weekly candidates $(date -u +%F)"
+            git push
+          fi
