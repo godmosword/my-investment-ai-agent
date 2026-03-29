@@ -45,6 +45,19 @@
 
 ---
 
+<a id="roadmap-evolution-condensed"></a>
+
+## 演進藍圖（跨階技術路線，精簡）
+
+由「日報／量化腳本管線」往「開源 SaaS 可跑、可執行、可圖像化與多媒體 IP」延伸的**第二條長軸**（與上方方向 1–3 並列參考）。**時程為規劃用**；與 Gate／資料紅線衝突時以本檔 [紅線](#紅線全路線共通) 與 [`TODOS.md`](../TODOS.md) [維護者意見](../TODOS.md#維護者意見執行順序與取捨) 為準。**可勾選細項與巢狀待辦**見 [`TODOS.md` — 演進藍圖](../TODOS.md#roadmap-technical-saas-execution-brain)。
+
+- **Phase 1（0–1 個月）— 開源與容錯**：`MOCK_APIS` + `tests/fixtures/mock_data/` + `api.py`／`tools.py` 外部 HTTP 短路；`BaseTool` + `plugins/` 動態掛載（對齊 `TOOLS_MODULARIZATION_PLAN`）；`docker-compose` 一鍵 **FastAPI + Vite PWA + Redis**。
+- **Phase 2（1–3 個月）— 訊號→執行**：獨立 **`execution_engine`**（CCXT、Alpaca 或 IBKR）、自 BQ 讀 **QSREC** 做 **TWAP／VWAP** 紙上／模擬；**Monitor V2** 以 **WebSocket** 為主、觸價（如擊穿 `stop`）→ 平倉路徑 + **Telegram** 緊急推播。
+- **Phase 3（3–6 個月）— 次世代大腦**：**LangGraph**（或同等）試點重構 `crew.py`，**Conditional Edge** 驅動查證子任務；**Bull／Bear** 三輪辯論 + Strategist 收斂，輸出仍過 **`validate_report`**。
+- **Phase 4（6 個月以上）— 觀測與 IP**：**Glassbox** 導入 **lightweight-charts**，K 線疊 **Entry／Target／Stop**；**RAG**（戰報／停損向量化 + 前端問答）；**語音晨報**（講稿 Agent + TTS + Telegram）。
+
+---
+
 ## 橫切：日報潤稿 Agent
 
 在 `render` + [`report_html_postprocess.post_process_html_for_gate()`](../report_html_postprocess.py) 之後、`validate_report` 之前，可選執行 [`report_editor.py`](../report_editor.py)（`EDITOR_AGENT_ENABLED=1`）。詳見 `ENV_TEMPLATE.txt` 與 [`test_report_editor.py`](../test_report_editor.py)。
@@ -53,4 +66,5 @@
 
 ## 修訂紀錄
 
+- 2026-03-29：新增 [演進藍圖（精簡）](#roadmap-evolution-condensed)（Phase 1–4），與 [`TODOS.md`](../TODOS.md) 演進藍圖章節雙向對照。
 - 2026-03：初版，對齊三方向計劃與 repo 落地檔案。

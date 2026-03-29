@@ -17,6 +17,29 @@ from validation_rules import (
 
 _AGREED_REGIME_TOKENS = frozenset({"risk_on", "risk_off", "neutral"})
 
+# Anchored pattern: strip leading 若 (with or without trailing space) only at the
+# start of the invalidation string.  Using an anchored sub avoids corrupting Chinese
+# compound words such as 如若, 假若, 縱若 that contain 若 mid-string.
+_INVALIDATION_LEADING_RUO_RE = re.compile(r"^若\s*")
+
+
+def _clean_invalidation(text: object) -> str:
+    """Normalize invalidation text for Telegram display.
+
+    - Strip leading conditional marker 若 (with/without space) using an anchored
+      regex so compound words like 如若 are preserved.
+    - Strip 則失效 / 則失效。 wherever it appears (unanchored: handles both trailing
+      and mid-string occurrences, e.g. "若跌破則失效。反之突破則看漲").
+    - Collapse double Chinese full-stops (。。 → 。).
+    """
+    if text is None:
+        return ""
+    s = str(text).strip()
+    s = _INVALIDATION_LEADING_RUO_RE.sub("", s)
+    s = s.replace("則失效。", "").replace("則失效", "")
+    s = s.replace("。。", "。")
+    return s.strip()
+
 
 def tg_escape(value: object) -> str:
     """Escape dynamic text for Telegram HTML (no raw < > & in user strings)."""
@@ -190,6 +213,7 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
         lstrip_blocks=True,
     )
     env.filters["tg_escape"] = tg_escape
+    env.filters["clean_invalidation"] = _clean_invalidation
 
     qsrec_list = [
         r.model_dump(exclude_none=True, exclude=QSREC_JSON_EXCLUDE_FIELDS)

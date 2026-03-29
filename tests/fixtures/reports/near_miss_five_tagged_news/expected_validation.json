@@ -1,0 +1,8 @@
+{
+  "valid": false,
+  "issues_count": 2,
+  "issues_substrings_any": ["5/6"],
+  "result_flags": {
+    "news_count": 5
+  }
+}

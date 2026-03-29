@@ -1223,6 +1223,32 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
             f"Expected equity pick justification OK for infra narrative: {result.get('issues')}",
         )
 
+    def test_equity_pick_exactly_two_infra_keywords_passes(self):
+        """Boundary: exactly 2 new infra keywords (SMR + 核電) should satisfy the ≥2 threshold."""
+        report = _make_report()
+        report = report.replace(
+            "本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+            "本日選擇理由：NVDA 對齊 SMR 與核電長線敘事，電力基礎設施配比拉升，點名 NVDA。",
+        )
+        result = validate_report(report)
+        self.assertTrue(
+            result["pick_justification_equity_ok"],
+            f"Exactly 2 new infra keywords should pass equity pick gate: {result.get('issues')}",
+        )
+
+    def test_equity_pick_single_infra_keyword_alone_blocks(self):
+        """Negative: only 1 new infra keyword, no fallback, short reason — should block."""
+        report = _make_report()
+        report = report.replace(
+            "本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+            "本日選擇理由：NVDA 符合 SMR 敘事，故選之。",
+        )
+        result = validate_report(report)
+        self.assertFalse(
+            result["pick_justification_equity_ok"],
+            "Single new infra keyword without fallback or long text should block equity pick gate",
+        )
+
 
 class TestPlanRollingAndScenarioGates(unittest.TestCase):
     def test_pick_rolling_blocks_when_past_days_over_cap(self):

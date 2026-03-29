@@ -1,7 +1,7 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-03-28）：對齊程式現況與「Repo 下一步方向」計劃落地項；**已完成項細節**見 [`CHANGELOG.md`](CHANGELOG.md)；長期項仍見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。
+**同步狀態**（2026-03-29）：對齊程式現況與「Repo 下一步方向」計劃落地項；**已完成項細節**見 [`CHANGELOG.md`](CHANGELOG.md)；長期項仍見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**跨階產品演進（Mock／Plugin／執行層／LangGraph 等）**見下方 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
 
 ---
 
@@ -45,6 +45,8 @@
 | **9** | 2B **HuggingFace／GraphQL** | 工程 | 人力可負荷時 |
 | **10** | 2B **整合提案 Agent** | 工程 | 建議在 (9) 之後 |
 | **11** | Direction **3**（四職能、Arbiter、War Room） | 長期 | 先量測 timeout／token |
+| **12** | Jinja **trade leg `$` 審計** | 工程 | `position_pct`、`rr`、`max_drawdown_pct` 等欄位尚未加 `replace('$', '')`；entry/target/stop 已在 2026-03-29 修正，其餘欄位因 Pydantic 型別保護風險低但不一致。見 [`templates/telegram_report.j2`](templates/telegram_report.j2) 行 63–65、126–128。 |
+| **13** | Template **台股代號 `$` 前綴** | 工程 | 模板硬寫 `<b>${{ leg.asset }}</b>` 對 US/Crypto 正確，但對台股（`2330.TW`、`0050.TW`）會渲染成 `$2330.TW`。解法：render 層加 `_format_asset_display(asset)` 判斷是否需 `$` 前綴（數字開頭或含 `.` 則省略）。目前 QSREC 以 US/Crypto 為主，觸發率低。見 [`templates/telegram_report.j2`](templates/telegram_report.j2) 行 63、126。 |
 | *—* | *1B 商業化* | *長期* | *見階段 E，本 sprint 不排* |
 
 ---
@@ -188,8 +190,73 @@
 
 ---
 
+<a id="roadmap-technical-saas-execution-brain"></a>
+
+## 演進藍圖 — 技術路線（開源 SaaS × 執行層 × 次世代大腦）
+
+由目前「高階量化分析腳本／日報管線」邁向「企業級開源 SaaS」與「全自動交易大腦」的規劃路徑。**時程僅供排程參考**；與上方 P0–P3、Direction、Gate 衝突時，以 [**維護者意見**](#維護者意見執行順序與取捨) 與 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) 為準。**同主題精簡版**（便於簡報／對外）：[`ROADMAP_VISION` — 演進藍圖（精簡）](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[`PHASE_F_BACKLOG` — Phase 1–4（精簡）](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)。
+
+### Phase 1：開源生態與容錯基礎設施（0–1 個月）
+
+**目標**：降低社群貢獻門檻，讓任何人能「一鍵 Clone、零成本跑起來」。
+
+- [ ] **Mock-Driven Development（降級模式）**
+  - [ ] 在 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)（若另維護 `.env.example` 則同步）新增 **`MOCK_APIS=True`**（或同等命名）說明與預設行為。
+  - [ ] 修改 [`api.py`](api.py) 與 [`tools.py`](tools.py)：偵測 Mock 模式時攔截／短路外部 HTTP，改讀替身資料。
+  - [ ] 建立 **`tests/fixtures/mock_data/`**，存放 NewsAPI、CoinGlass 等靜態 JSON 作為替身資料源。
+- [ ] **Tool Plugin System（動態工具掛載）**
+  - [ ] 重構 [`tools.py`](tools.py)（對齊 [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)）：定義 **`BaseTool`**（或同等 Protocol／ABC）。
+  - [ ] 以 **`importlib`**（或 pkgutil）掃描 **`plugins/`** 並註冊客製工具；載入失敗須可觀測、不拖垮主程序。
+- [ ] **Docker Compose 全端容器化**
+  - [ ] 撰寫／完善 [`docker-compose.yml`](docker-compose.yml)。
+  - [ ] 一鍵啟動 **FastAPI**（[`api.py`](api.py)）、**React Vite**（[`data-verification-ui/`](data-verification-ui/)）、**Redis**（預留未來 Task Queue／快取）。
+
+### Phase 2：跨越「訊號」到「執行」（1–3 個月）
+
+**目標**：從產出 JSON／QSREC 戰報，進化為可接軌真實下單路徑（實盤或模擬）。
+
+- [ ] **實盤／模擬盤解耦（Execution Layer）**
+  - [ ] 新增獨立模組 **`execution_engine.py`**（或 `execution/` package），與日報 render／Gate 分層。
+  - [ ] 整合 **CCXT**（加密）與 **Alpaca** 或 **Interactive Brokers API**（美股）；金鑰與權限模型須與現有 Secret／BQ 慣例對齊。
+  - [ ] 自 **BigQuery** 讀取 **QSREC** 歷史／當日建議，轉為基礎 **TWAP／VWAP** 拆單策略（先做紙上／模擬驗證）。
+- [ ] **WebSocket 即時狀態機（Intraday Monitor V2）**
+  - [ ] 升級 [`monitor_intraday.py`](monitor_intraday.py)：以 **WebSocket 訂閱** 取代純 Cron 輪詢為主路徑（可保留 fallback）。
+  - [ ] 價格／觸價邏輯：**擊穿 `trade.stop`** 等條件時觸發平倉 API（或模擬層）+ **Telegram 緊急推播**；須符合現有 HTML／告警白名單規範。
+
+### Phase 3：次世代大腦架構（3–6 個月）
+
+**目標**：突破純循序 Crew 天花板，引入可分支、可反思、可二次查證的工作流。
+
+- [ ] **Graph-Based Workflow（LangGraph 等）**
+  - [ ] 評估並試點 **LangGraph**（或同等）重構 [`crew.py`](crew.py) 主流程；保留與 **`CREW_DISABLE_ASYNC_RESEARCH`**／timeout 的營運退路。
+  - [ ] 設計 **Conditional Edge**：例如 **`risk_critic`** 偵測數據矛盾時，動態 spawn 子任務呼叫 **Deep Research／查證 Agent**。
+- [ ] **多空紅藍軍對抗（Multi-Agent Debate）**
+  - [ ] 兩個獨立 Agent：**Bull**（極度樂觀）與 **Bear**（極度悲觀）。
+  - [ ] 記憶體內 **3 輪** 針對同一新聞／命題的對話交鋒機制（可觀測、可寫入 scratchpad／BQ 審計）。
+  - [ ] 優化 **Strategist／主編** prompt：從對抗紀錄收斂決策，降低 **confirmation bias**；輸出仍須通過 **`validate_report`**／結構化契約。
+
+### Phase 4：終極觀測儀表與 IP 矩陣（6 個月以上）
+
+**目標**：機構級視覺與多媒體輸出，將文字戰報延伸為可互動、可聽的 IP。
+
+- [ ] **TradingView 圖表深度整合（Glassbox UI V2）**
+  - [ ] 於 [`data-verification-ui/`](data-verification-ui/) 導入 **lightweight-charts**（或同等）。
+  - [ ] K 線上疊加 **Entry／Target／Stop** 水平線與多空區塊（對齊 QSREC／trade leg 契約）。
+  - [ ] 圖表互動：點擊進場標記 → 彈出 **AI 決策敘事**（手風琴／drawer；不洩漏 `internal_reasoning` 至未授權端點）。
+- [ ] **Chat with the Report（RAG）**
+  - [ ] 向量庫（**ChromaDB**／**Pinecone** 等）選型與部署策略（自架 vs 受管）。
+  - [ ] 排程將每日戰報與停損／反思紀錄 **向量化** 寫入索引。
+  - [ ] 前端對話框：使用者可查歷史決策脈絡（例：「為何上週在 66k 停損 BTC？」）；權限與多租戶須對齊階段 E 商業化決策。
+- [ ] **自動化語音晨報（Audio Generation）**
+  - [ ] **`Script_Writer_Agent`**：日報結構化 JSON → **約 3 分鐘**口語講稿。
+  - [ ] 串接 **OpenAI TTS** 或 **ElevenLabs** 產出音檔；成本與留存策略須可觀測。
+  - [ ] **Telegram Bot** 每日早晨推播語音（附文字摘要 fallback）；遵守 Telegram HTML 白名單與 chunk 限制。
+
+---
+
 ## 修訂紀錄
 
+- **2026-03-29**：**演進藍圖** — 新增 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)（Phase 1–4：Mock／Plugin／Compose、執行層與 Monitor V2、LangGraph／紅藍軍、Glassbox 圖表／RAG／語音晨報）；Mock 環境變數對齊 `ENV_TEMPLATE.txt`；精簡版同步寫入 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)。
 - **2026-03-29**：**OSS Scout 週期**：[`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 每週寫入 `docs/oss_candidates/*` 並在 **`TODOS.md` 新增「OSS Scout 週報（自動）」** 勾選清單；[`weekly-scout.yml`](.github/workflows/weekly-scout.yml) 排程 + artifact。
 - **2026-03-28**：**已完成項 → CHANGELOG** — P1 後處理 band-aid（階段 1–2）細節改寫入 [`CHANGELOG.md`](CHANGELOG.md) 同日條目；`TODOS` 改為勾選＋連結；Priority／波次 B 標註已落地。
 - **2026-03-28**：**商業化暫緩** — Direction 1B 移至階段 E；Priority／波次表改為不含付費牆；實作 `MIN_TOOL_CALLS_PER_CREW`、`adaptive_gate_thresholds`、QSREC schema 收緊與配套 docs。

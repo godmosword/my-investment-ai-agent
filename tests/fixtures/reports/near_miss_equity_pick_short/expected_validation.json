@@ -1,0 +1,8 @@
+{
+  "valid": false,
+  "issues_count": 1,
+  "issues_substrings_any": ["本日選擇理由（美股）過短"],
+  "result_flags": {
+    "news_count": 8
+  }
+}

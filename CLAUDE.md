@@ -82,6 +82,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | Lint | `ruff check .` |
 | Smoke tests (CI-aligned) | `python3 -m pytest -m smoke -v`（Actions 使用 [`requirements-ci.txt`](requirements-ci.txt) + `conftest` stub） |
 | Full tests | `python3 -m pytest -v`（nightly workflow 每日 full；deploy 前僅 smoke） |
+| Boundary / contract subset | `python3 -m pytest -m boundary -v`（markers 見 [`pytest.ini`](pytest.ini)；矩陣見 [`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md)） |
 | Dashboard | `streamlit run dashboard.py --server.port 8501 --server.headless true` |
 | Full pipeline | `python main.py` (many API keys; ~15–30+ min) |
 | Dry run | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` |
@@ -97,6 +98,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | Doc | Purpose |
 |-----|---------|
 | [`DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | Brief format / Telegram rules |
+| [`BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md) | Gate／HTTP／main 邊界測試盤點與 pytest marker |
 | [`ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) | Product directions |
 | [`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | Streamlit / API / PWA KPI contract |
 | [`DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) | Production deploy + GitHub Environment reviewers |

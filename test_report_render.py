@@ -302,3 +302,91 @@ def test_render_raises_helpful_error_on_template_syntax_error():
     with patch.object(jinja2.Environment, "get_template", return_value=broken_tmpl):
         with pytest.raises(RuntimeError, match="telegram_report.j2"):
             render_telegram_daily_brief(report)
+
+
+def test_render_strips_dollar_from_trade_leg_fields():
+    """entry/target/stop with a leading '$' should be stripped in rendered HTML."""
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="risk_on", score_suffix="（+4/6）"),
+        narrative_of_day="test",
+        macro_framework_lines=["macro"],
+        dashboard=[MetricLine(label="DXY", value="104")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason=(
+            "現貨 ETF 淨流入與交易所淨流出同向，資金費率支持短線偏多，新聞面以 BTC 催化最集中"
+        ),
+        risk_budget_summary="risk_on 模式下總倉位 15%",
+        signal_conflict_summary="無顯著多空衝突，維持原策略執行節奏",
+        trade_legs=[
+            ExecutableTradeLeg(
+                asset="BTC",
+                direction="LONG",
+                current_price="$95000",
+                star_rating=3,
+                entry="$94500",
+                target="$100000",
+                stop="$91000",
+                rr="1:2.5",
+                max_drawdown_pct="-4.0%",
+                expected_win_rate="55%",
+                signal_score="70/100",
+                trigger="突破前高",
+                sizing_logic="分批建倉",
+                invalidation="跌破 91000 則失效。",
+                position_pct="5%",
+                narrative="催化",
+                bull_scenario="突破前高延續。",
+                base_scenario="區間震盪。",
+                bear_scenario="跌破停損。",
+            )
+        ],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["bridge"],
+        dashboard=[MetricLine(label="熱度", value="N/A")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason=(
+            "NVDA 與 AMD 於主流新聞同時具備資料中心 CAPEX 與 GPU 拉貨能見度，財報前瞻形成共振"
+        ),
+        signal_conflict_summary="無顯著多空衝突，維持原策略執行節奏",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto, ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    html = render_telegram_daily_brief(report)
+    # entry/target/stop should appear without a leading '$' inside <code> tags
+    assert "<code>94500</code>" in html, "entry '$94500' should be stripped to '94500'"
+    assert "<code>100000</code>" in html, "target '$100000' should be stripped to '100000'"
+    assert "<code>91000</code>" in html, "stop '$91000' should be stripped to '91000'"
+    # The hardcoded '$' prefix on current_price should still appear
+    assert "$95000" in html
+
+
+def test_clean_invalidation_anchored_strip():
+    """_clean_invalidation: strips leading 若 only, preserves compound words."""
+    from report_render import _clean_invalidation
+
+    # Leading bare 若 with space — stripped
+    assert _clean_invalidation("若 BTC跌破50000則失效。") == "BTC跌破50000"
+    # Leading bare 若 without space — stripped
+    assert _clean_invalidation("若BTC跌破50000則失效。") == "BTC跌破50000"
+    # Compound word 如若 — 若 must NOT be stripped (would garble the word)
+    result = _clean_invalidation("如若BTC跌破50000則失效。")
+    assert result == "如若BTC跌破50000", f"Got: {result!r}"
+    # Mid-string 則失效。 — stripped even when not at end-of-string
+    result = _clean_invalidation("若跌破支撐則失效。反之突破則看漲")
+    assert "則失效" not in result, f"則失效 should be stripped mid-string; got: {result!r}"
+    assert "反之突破則看漲" in result, f"Text after 則失效 should be preserved; got: {result!r}"
+    # None input → empty string
+    assert _clean_invalidation(None) == ""
+    # Double period collapsed
+    assert _clean_invalidation("跌破50000。。") == "跌破50000。"

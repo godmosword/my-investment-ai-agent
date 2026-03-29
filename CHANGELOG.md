@@ -24,6 +24,7 @@
 ## 2026-03-29
 
 ### Added
+- **邊界條件測試**：[`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md)；pytest markers `boundary`／`slow`（[`pytest.ini`](pytest.ini)）；[`test_tools_http_contract.py`](test_tools_http_contract.py)、[`test_report_html_gates_boundaries.py`](test_report_html_gates_boundaries.py)、[`test_main_pipeline_boundaries.py`](test_main_pipeline_boundaries.py)、[`test_boundary_hypothesis.py`](test_boundary_hypothesis.py)（Hypothesis 僅針對 `sanitize_telegram_html`）；離線戰報 near-miss fixtures（`near_miss_equity_pick_short`、`near_miss_five_tagged_news`）。CI 依賴補 [`hypothesis`](requirements-ci.txt)。
 - **開源前檢查**：[docs/OPEN_SOURCE_CHECKLIST.md](docs/OPEN_SOURCE_CHECKLIST.md) 補齊 **本機清場清單**、`git filter-repo` 清 `.env.example` 歷史與 **清歷史後驗證**（gitleaks／TruffleHog）；並提醒除 XAI／OpenAI／Gemini／Telegram 外，曾出現在歷史中的其他 provider 亦須輪替。
 - **Glassbox PWA（[`data-verification-ui/`](data-verification-ui/)）**：
   - 儀表板視覺：深底＋青綠／電紫層次、卡片與 metric 漸層、底欄毛玻璃（[`src/index.css`](data-verification-ui/src/index.css)）。
@@ -35,7 +36,8 @@
 - **測試**：[test_oss_weekly.py](test_oss_weekly.py)。
 
 ### Changed
-- **美股選股理由 Gate**：[report_html_gates.py](report_html_gates.py) 擴充 `_EQUITY_PICK_KW`（核電、IPO、SMR、擴產、產能、基礎設施、能源、供電、液冷、電力、良率等），降低基礎設施敘事誤擋；[test_validate_report.py](test_validate_report.py) 新增僅依擴充詞通過之迴歸測試。
+- **Gate 阻擋語意**：[report_html_gates.py](report_html_gates.py) 將「資料缺失標記過多」納入 `_BLOCKING_PREFIXES`，使 `blocking_issues` 與 `main.run_pipeline_with_retries` 分數型重試語意一致（`valid=False` 時一併視為結構阻擋）。
+- **美股選股理由 Gate**：[report_html_gates.py](report_html_gates.py) `_EQUITY_PICK_KW` 以事件驅動語彙為主（核電、SMR、擴產、供電、液冷、良率等），並剔除易泛化之 IPO／產能／基礎設施／能源／電力等詞，避免惰性敘事繞過；[test_validate_report.py](test_validate_report.py) 迴歸對齊。
 - **Telegram 模板**：[templates/telegram_report.j2](templates/telegram_report.j2) 進場／目標／停損欄位防禦性去除 AI 帶入的 `$`；失效欄位補 `replace('若', '')` 與既有「若／則失效。／。。」清洗，避免雙錢號與重複句讀。
 - **Glassbox PWA**：導入 **Tailwind CSS**（[`tailwind.config.js`](data-verification-ui/tailwind.config.js) `preflight: false` + [`postcss.config.js`](data-verification-ui/postcss.config.js)、[`src/index.css`](data-verification-ui/src/index.css) `@tailwind utilities`）；[`TradeCard.jsx`](data-verification-ui/src/components/TradeCard.jsx) 改為玻璃擬態卡片、三欄價格網格、`isExpanded` 手風琴（觸發／失效／敘事）與防禦性 `N/A`；[`package.json`](data-verification-ui/package.json) 新增 `tailwindcss`／`postcss`／`autoprefixer`。
 - **[`README.md`](README.md)**：War Room PWA 小節擴充為「最簡 mock／接 BQ／proxy 與 `VITE_API_URL`」分節；新手表新增 Glassbox 列。

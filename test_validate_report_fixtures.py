@@ -76,4 +76,4 @@ def test_validate_report_fixture(case_dir: Path) -> None:
 @pytest.mark.smoke
 def test_fixtures_catalog_non_empty() -> None:
     dirs = _fixture_dirs()
-    assert len(dirs) >= 5, f"expected at least 5 report fixtures under {_FIXTURES_ROOT}"
+    assert len(dirs) >= 7, f"expected at least 7 report fixtures under {_FIXTURES_ROOT}"
