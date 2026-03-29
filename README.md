@@ -251,6 +251,8 @@ python3 -m pytest -v            # 全量（root 下 test_*.py）
 ./scripts/bench_autoresearch.sh # ruff + smoke，尾端官方 METRIC 行（見腳本註解）
 ```
 
+**CI 依賴**：GitHub Actions 使用輕量 [`requirements-ci.txt`](requirements-ci.txt)（無 CrewAI／Streamlit 等；測試靠 `conftest.py` stub）。本機完整管線仍以 [`requirements.txt`](requirements.txt) 為準。
+
 **習慣**：修 bug 先寫失敗測試再改到綠（見 [`CLAUDE.md`](CLAUDE.md)）。
 
 ---
@@ -266,11 +268,12 @@ python3 -m pytest -v            # 全量（root 下 test_*.py）
 ├── monitor_intraday.py, visualizer.py, backtest.py, backfill_data.py
 ├── core/                  # 預留 domain 模組（`__init__.py`）
 ├── requirements-monitor.txt # 盤中監控 Action 專用（無 CrewAI）
+├── requirements-ci.txt      # Actions：ruff/pytest 輕量依賴（見 conftest stub）
 ├── scripts/              # bench_autoresearch.sh, write_ml_weights.py, inject_test_data.py, oss_scout_candidates.py
 ├── docs/                 # 規格、runbook、SQL、路線圖
 ├── templates/            # telegram_report.j2
 ├── data-verification-ui/ # Vite + React PWA
-├── .github/workflows/    # ci, deploy, scheduler, monitor-intraday, weekly-scout（週排程）/ weekly-backtest（手動）
+├── .github/workflows/    # ci, deploy, nightly-ci, scheduler, monitor-intraday, weekly-scout / weekly-backtest（手動）
 ├── Dockerfile, docker-compose.yml
 ├── ENV_TEMPLATE.txt, TODOS.md, CHANGELOG.md, CLAUDE.md, AGENTS.md
 └── .cursor/rules/        # Cursor 專案規則
@@ -293,14 +296,15 @@ docker run --env-file .env q-silicon-agent
 
 | Workflow | 觸發 | 內容 |
 |----------|------|------|
-| [`ci.yml`](.github/workflows/ci.yml) | PR；`workflow_call` | PR：`ruff` + `pytest -m smoke`；被 deploy 呼叫時跑完整 `pytest -v` |
-| [`deploy.yml`](.github/workflows/deploy.yml) | `push main`（paths 篩選）或手動 | CI 通過後 build／push 映像、`gcloud run jobs deploy`；`environment: production` |
+| [`ci.yml`](.github/workflows/ci.yml) | PR（略過僅 `docs/**`、`data-verification-ui/**`）；`workflow_call` | 皆使用 [`requirements-ci.txt`](requirements-ci.txt)；PR／deploy 觸發：`ruff` + `pytest -m smoke`；`workflow_call` 且 `test_tier=full` 時跑 `pytest -v` |
+| [`deploy.yml`](.github/workflows/deploy.yml) | `push main`（paths 篩選）或手動 | 先呼叫 `ci.yml`（**smoke**）；Docker build 使用 **GHA cache**；`concurrency: cancel-in-progress: true` 避免連續 push 排隊燒分鐘 |
+| [`nightly-ci.yml`](.github/workflows/nightly-ci.yml) | 每日 02:00 UTC；手動 | 重用 `ci.yml` 並 **`test_tier: full`**，補齊非 smoke 測試 |
 | [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) | 手動 | Cloud Scheduler |
 | [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | **僅手動**（`workflow_dispatch`）；cron 於 YAML 內預設關閉 | 盤中 BTC／VIX；依賴 [`requirements-monitor.txt`](requirements-monitor.txt)（**非**全量 `requirements.txt`，省 Actions 分鐘） |
-| [`weekly-scout.yml`](.github/workflows/weekly-scout.yml) | 每週一 UTC + 手動 | OSS 週期：`oss_weekly_pipeline.py` → `docs/oss_candidates/` + **`TODOS.md` 勾選清單**（見 `docs/oss_candidates/README.md`） |
+| [`weekly-scout.yml`](.github/workflows/weekly-scout.yml) | 每月 1／15 日 06:00 UTC + 手動 | OSS 週期：`oss_weekly_pipeline.py` → `docs/oss_candidates/` + **`TODOS.md` 勾選清單**（見 `docs/oss_candidates/README.md`） |
 | [`weekly-backtest.yml`](.github/workflows/weekly-backtest.yml) | 手動 | `backtest.py --optimize --write-signal-weights`（需 repository secret `GCP_SA_KEY`） |
 
-**GitHub Actions 免費額度／磁碟**：排程 workflow 若每次 `pip install` 全量依賴會耗分鐘；盤中監控為輕量依賴，且 **cron 預設關閉**（需時於 Actions 手動執行或於 YAML 啟用排程）。若出現 **`No space left on device`**（含 runner 無法寫 `_diag` log），workflow 已內建 **釋放預裝 SDK 磁碟** 與 **`pip install --no-cache-dir`**；**自架 runner** 仍須在本機擴充分區或清快取。
+**GitHub Actions 免費額度／磁碟**：`ci.yml` 預設不再對 PR／deploy smoke 跑大型「釋放磁碟」步驟；**`test_tier=full`**（nightly）仍保留。盤中監控為輕量依賴，且 **cron 預設關閉**。若出現 **`No space left on device`**，可恢復對 smoke 也執行釋放步驟或檢查快取；**自架 runner** 仍須在本機擴充分區或清快取。
 
 生產人工閘門與 secrets 配置 → [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)。Cloud Run 為 **Job**（排程／手動），非長駐 HTTP。
 

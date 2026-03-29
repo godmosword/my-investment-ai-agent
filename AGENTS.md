@@ -36,7 +36,7 @@ Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline tha
 
 ### Lint and checks
 
-- **Automated tests**: `pytest` at repo root (`test_*.py`). **PR checks** (`.github/workflows/ci.yml`): `ruff check .` + `pytest -m smoke`. **Full suite** on `push` to `main` (and when `deploy.yml` calls `ci.yml`): `pytest -v`. Runtime validation of daily reports is still `validate_report()` in `main.py` (6 news tags by default; **partial news** = 3–5 tags with 〔新聞 1–3〕+ UTC+8 + no-fake-news declaration + optional `[REPORT_TIER:PARTIAL_NEWS]`; `ALLOW_PARTIAL_NEWS_GATE=0` disables. **Trade-field** relax (R:R, etc.) only under **trade watch** phrases, not from news footer alone).
+- **Automated tests**: `pytest` at repo root (`test_*.py`). **PR checks** (`.github/workflows/ci.yml`): `ruff check .` + `pytest -m smoke` with [`requirements-ci.txt`](requirements-ci.txt) (lighter than full `requirements.txt`; see `conftest.py` stubs). **Deploy** reuses `ci.yml` with **smoke only**; **full** `pytest -v` runs in [`nightly-ci.yml`](.github/workflows/nightly-ci.yml) (schedule + manual). Runtime validation of daily reports is still `validate_report()` in `main.py` (6 news tags by default; **partial news** = 3–5 tags with 〔新聞 1–3〕+ UTC+8 + no-fake-news declaration + optional `[REPORT_TIER:PARTIAL_NEWS]`; `ALLOW_PARTIAL_NEWS_GATE=0` disables. **Trade-field** relax (R:R, etc.) only under **trade watch** phrases, not from news footer alone).
 - Linting: `ruff check .` — there may be minor pre-existing warnings in some files; fix when touching those files.
 - Python version: the Dockerfile uses 3.11-slim, but the code runs fine on Python 3.12.
 

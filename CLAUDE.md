@@ -80,8 +80,8 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 |------|---------|
 | Install deps | `uv pip install -r requirements.txt --system` or `pip install -r requirements.txt` |
 | Lint | `ruff check .` |
-| Smoke tests (CI-aligned) | `python3 -m pytest -m smoke -v` |
-| Full tests | `python3 -m pytest -v` (~24 `test_*.py` modules at repo root) |
+| Smoke tests (CI-aligned) | `python3 -m pytest -m smoke -v`（Actions 使用 [`requirements-ci.txt`](requirements-ci.txt) + `conftest` stub） |
+| Full tests | `python3 -m pytest -v`（nightly workflow 每日 full；deploy 前僅 smoke） |
 | Dashboard | `streamlit run dashboard.py --server.port 8501 --server.headless true` |
 | Full pipeline | `python main.py` (many API keys; ~15–30+ min) |
 | Dry run | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` |

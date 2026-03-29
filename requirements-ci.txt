@@ -1,0 +1,20 @@
+# CI 專用：不含 CrewAI／Streamlit／sentence-transformers 等執行期重型套件。
+# 測試依賴 conftest.py 對 crewai、litellm、matplotlib、yfinance 等模組的 stub；
+# 與 pytest smoke + full 套件對齊（見 .github/workflows/ci.yml）。
+Jinja2>=3.1.0
+pydantic>=2.7.0
+pytest>=8.0.0
+pytest-mock>=3.12.0
+ruff>=0.4.0
+requests>=2.32.0
+python-dotenv>=1.0.0
+pyTelegramBotAPI>=4.22.0
+google-cloud-bigquery>=3.14.0
+pandas>=2.2.0
+numpy>=1.26.0
+db-dtypes>=1.3.0
+apify-client>=1.7.1
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+scipy>=1.13.0
+httpx>=0.27.0

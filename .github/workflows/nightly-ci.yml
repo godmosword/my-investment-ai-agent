@@ -1,0 +1,17 @@
+# 每日完整測試：補齊 deploy 改跑 smoke 後仍須覆蓋的非 smoke 案例。
+name: Nightly — Full test suite
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 每日 02:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: nightly-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full:
+    uses: ./.github/workflows/ci.yml
+    with:
+      test_tier: full

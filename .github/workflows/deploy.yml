@@ -10,19 +10,19 @@ on:
     paths:
       - "**/*.py"
       - "requirements.txt"
+      - "requirements-ci.txt"
       - "Dockerfile"
       - "docker-compose.yml"
       - ".dockerignore"
       - "assets_config.json"
       - ".github/workflows/ci.yml"
       - ".github/workflows/deploy.yml"
+      - ".github/workflows/nightly-ci.yml"
 
-# false：對 main 連續 push 時「排隊」完成，避免前一筆 build-and-deploy 被
-# 「Canceling since a higher priority waiting request…」腰斬導致映像未更新。
-# 若只要最新 tip、可接受丟棄進行中部署，可改回 cancel-in-progress: true。
+# true：連續 push 只保留最新一次完整 deploy，節省 Actions 分鐘（進行中 run 會被取消）。
 concurrency:
   group: deploy-main-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   GCP_PROJECT_ID:    ${{ secrets.GCP_PROJECT_ID }}
@@ -33,6 +33,8 @@ env:
 jobs:
   test:
     uses: ./.github/workflows/ci.yml
+    with:
+      test_tier: quick
 
   build-and-deploy:
     needs: [test]
@@ -68,22 +70,31 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6df18f # v3.11.1
+
       - name: Build and push Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.CLOUD_RUN_SERVICE }}:${{ github.sha }}
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.CLOUD_RUN_SERVICE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prune local Docker (runner disk)
         run: |
-          IMAGE_BASE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.CLOUD_RUN_SERVICE }}"
-          IMAGE_URI="${IMAGE_BASE}:${GITHUB_SHA}"
-          IMAGE_LATEST="${IMAGE_BASE}:latest"
-          echo "IMAGE_URI=${IMAGE_URI}" >> "$GITHUB_ENV"
-          docker build -t "${IMAGE_URI}" -t "${IMAGE_LATEST}" .
-          docker push "${IMAGE_URI}"
-          docker push "${IMAGE_LATEST}"
           docker builder prune -af || true
           docker system prune -af || true
           df -h
 
       - name: Deploy to Cloud Run Job
+        env:
+          IMAGE_URI: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.CLOUD_RUN_SERVICE }}:${{ github.sha }}
         run: |
-          # Secret Manager 金鑰已由上一步驟同步，此處直接引用 :latest 版本。
+          # Secret Manager 金鑰已由上一步驟同步；映像以當前 commit SHA 為準。
           SECRETS="XAI_API_KEY=XAI_API_KEY:latest"
           SECRETS="$SECRETS,OPENAI_API_KEY=OPENAI_API_KEY:latest"
           SECRETS="$SECRETS,OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest"

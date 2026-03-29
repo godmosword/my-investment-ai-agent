@@ -3,6 +3,18 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-03-30
+
+### Added
+- **CI 輕量依賴**：[`requirements-ci.txt`](requirements-ci.txt) — Actions 上 `ruff`／`pytest` 無需安裝 CrewAI／Streamlit／sentence-transformers 等（與 [`conftest.py`](conftest.py) stub 對齊；smoke + full 338 項已驗證）。
+- **Nightly 全測**：[`.github/workflows/nightly-ci.yml`](.github/workflows/nightly-ci.yml) — 每日 02:00 UTC（可 `workflow_dispatch`）呼叫 `ci.yml` 且 `test_tier: full`。
+
+### Changed
+- **[`.github/workflows/ci.yml`](.github/workflows/ci.yml)**：`pull_request` 略過僅 `docs/**`、`data-verification-ui/**`；`workflow_call` 新增輸入 `test_tier`（`quick`／`full`）；預設 `pip install -r requirements-ci.txt`；PR smoke 不再跑大型釋放磁碟步驟。
+- **[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)**：`test` job 以 `test_tier: quick` 呼叫 CI；`concurrency.cancel-in-progress: true`；Docker 改 `docker/build-push-action` + GHA cache；`paths` 納入 `requirements-ci.txt`。
+- **[`.github/workflows/weekly-scout.yml`](.github/workflows/weekly-scout.yml)**：cron 改為每月 **1 與 15 日** 06:00 UTC（較原每週一省分鐘）。
+- **[`README.md`](README.md)**、[`AGENTS.md`](AGENTS.md)、[`CLAUDE.md`](CLAUDE.md)：同步 CI／nightly／`requirements-ci.txt` 說明。
+
 ## 2026-03-29
 
 ### Added

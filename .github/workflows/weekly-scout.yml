@@ -5,7 +5,8 @@ name: weekly-scout-candidates
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: "0 6 * * 1" # 每週一 06:00 UTC
+    # 每月 1 日與 15 日 06:00 UTC（約雙週頻率，較原每週一省 Actions 分鐘）
+    - cron: "0 6 1,15 * *"
 
 permissions:
   contents: write
