@@ -437,6 +437,11 @@ _QUOTE_RULE = dedent("""\
     以及 RSI(14)、MA20/MA50、VIX 期限結構等技術指標，
     必須直接使用上方【系統強制即時報價】+【技術指標與結構】Context；不得自行捏造或改寫。""")
 
+# Crypto／AI 研究員 task 共用注入（與逐行展開等價，避免重複字面值）
+_CREW_RULE_BLOCK = (
+    _DATA_RULES.rstrip() + "\n" + _TOOL_TRUTH_RULE.rstrip() + "\n" + _QUOTE_RULE.rstrip()
+)
+
 _NARRATIVE_CONSISTENCY_RULE = dedent("""\
     【敘事與數據一致】引用 BTC/指數/均線時，須與【技術指標與結構】的趨勢描述一致：
     若 Context 為「多頭排列（價>MA20>MA50）」或現價高於 MA50，不得寫「跌破 MA50」或「跌破均線」；
@@ -748,9 +753,7 @@ class CryptoResearchCrew:
         )
 
         _crypto_common_header = dedent(f"""
-            {_DATA_RULES}
-            {_TOOL_TRUTH_RULE}
-            {_QUOTE_RULE}
+            {_CREW_RULE_BLOCK}
             {excl}
         """).strip()
 
@@ -833,9 +836,7 @@ class CryptoResearchCrew:
                     【加密市場情報收集 — Grok】
                     {ctx}
 
-                    {_DATA_RULES}
-                    {_TOOL_TRUTH_RULE}
-                    {_QUOTE_RULE}
+                    {_CREW_RULE_BLOCK}
                     {excl}
                     === 數據來源（必須全部呼叫）===
                     · coinglass_data_tool：支援多幣種查詢，格式 'metric:SYMBOL'（預設 BTC）
@@ -997,9 +998,7 @@ class AIResearchCrew:
         )
 
         _ai_common_header = dedent(f"""
-            {_DATA_RULES}
-            {_TOOL_TRUTH_RULE}
-            {_QUOTE_RULE}
+            {_CREW_RULE_BLOCK}
             {excl}
         """).strip()
 
@@ -1053,9 +1052,7 @@ class AIResearchCrew:
                     【AI 市場情報收集 — Grok】
                     {ctx}
 
-                    {_DATA_RULES}
-                    {_TOOL_TRUTH_RULE}
-                    {_QUOTE_RULE}
+                    {_CREW_RULE_BLOCK}
                     {excl}
                     呼叫 ai_momentum_tool('openrouter_rankings')。
                     必呼叫 financial_datasets_tool：query 留空或 \"watchlist\"（一次取 NVDA、MSFT、AAPL 年度摘要）；若新聞點名其他美股，追加 financial_datasets_tool('TICKER') 或 financial_datasets_tool('TICKER:quarterly')。

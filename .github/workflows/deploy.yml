@@ -47,7 +47,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      # 預設關閉以縮短 deploy（Docker GHA cache 已減少 rebuild）。若 build 因 runner 磁碟滿失敗，暫改 if: true。
       - name: Free disk space on runner
+        if: false
         run: |
           set -eux
           sudo docker system prune -af || true

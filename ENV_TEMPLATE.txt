@@ -18,6 +18,15 @@ ANTHROPIC_API_KEY=
 # MODEL_GEMINI=gemini/gemini-2.5-pro
 # MODEL_CLAUDE=anthropic/claude-sonnet-4-20250514
 
+# ---------- 省 LLM token／延遲（營運槓桿；不影響程式預設，按需開啟）----------
+# 優先順序建議：① 關閉非必要額外呼叫 ② 降階模型 ③ 再考慮改 prompt（須過 Gate／品質審閱）
+# · REPORT_LLM_JUDGE=0（預設）— 設 1 會多一輪結構後 rubric LLM
+# · EDITOR_AGENT_ENABLED=0（預設）— 設 1 會多一輪潤稿 LLM
+# · PIPELINE_SKIP_SENTIMENT_SCORE=1 — 加密段略過 sentiment_score_tool（少一輪工具／LLM；見下方同名變數）
+# · COMPANY_CREW_ENABLED=0 — Growth 試點會加長 exclusion context；非必要勿開
+# · MODEL_GROK／MODEL_GPT／MODEL_GEMINI／MODEL_CLAUDE — 改較小／較快 ID 可降費；日報品質與 Gate 通過率須自行觀察
+# · CREW_DISABLE_ASYNC_RESEARCH=1 — 單一巨型研究 task vs 多子任務；不保證總 token 下降（單次 context 可能更大），僅宜除錯／實驗
+
 # ---------- 資料/搜尋 API（工具會用到，缺則該工具回傳 DATA_MISSING）----------
 # CoinGlass API v4：Base open-api-v4.coinglass.com，Header CG-API-KEY。若 JSON 回 code=401、msg=Upgrade plan＝方案不含該端點（非 URL 錯），見 README / AGENTS.md
 COINGLASS_API_KEY=
