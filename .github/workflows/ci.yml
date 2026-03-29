@@ -40,8 +40,10 @@ jobs:
       - name: Run smoke tests
         run: pytest -m smoke -q --tb=short
 
+  # 可重用 workflow 內 github.event_name 繼承「呼叫端」事件（如 push／schedule），
+  # 不會是 workflow_call；故用「非 PR」判斷，讓 deploy／nightly 的 uses: 本檔時會實際跑測。
   callable:
-    if: github.event_name == 'workflow_call'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
