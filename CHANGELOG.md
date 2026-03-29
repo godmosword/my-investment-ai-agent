@@ -5,6 +5,9 @@
 
 ## 2026-03-30
 
+### Fixed
+- **Deploy 觸發 CI 全跳過**：[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 可重用流程內 `github.event_name` 繼承呼叫端（如 `push`）而非 `workflow_call`；`callable` job 改為 `if: github.event_name != 'pull_request'`，使 [`deploy.yml`](.github/workflows/deploy.yml)／[`nightly-ci.yml`](.github/workflows/nightly-ci.yml) 的 `uses:` 會實際執行 lint／pytest。
+
 ### Security
 - **Git 歷史淨化**：已以 `git filter-repo` 自全部本地分支之歷史移除 `.env.example`，再提交僅含占位符之範本；`main` 與既有本地分支已 **force-push** 至 `origin`。**所有協作者須刪除舊 clone 並重新 clone**（舊 commit SHA 已全部作廢）。建議在 GitHub 啟用 Secret scanning／Push protection。
 
