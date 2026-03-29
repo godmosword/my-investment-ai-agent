@@ -1,0 +1,13 @@
+# 降低誤報：僅排除已知無真鑰的 fixture／清單文件
+# 執行：gitleaks detect --source . -v
+title = "Q-Silicon gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fixtures and open-source checklist (placeholders only)"
+paths = [
+  '''tests/fixtures/''',
+  '''docs/OPEN_SOURCE_CHECKLIST\.md''',
+]

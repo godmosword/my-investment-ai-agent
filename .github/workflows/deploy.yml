@@ -94,7 +94,8 @@ jobs:
         env:
           IMAGE_URI: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.CLOUD_RUN_SERVICE }}:${{ github.sha }}
         run: |
-          # Secret Manager 金鑰已由上一步驟同步；映像以當前 commit SHA 為準。
+          # Secret Manager：須已建立與下列 env 名稱相同的 secret（值為最新金鑰）；映像以當前 commit SHA 為準。
+          # 新增 NEWSAPI_KEY／GNEWS_API_KEY／FMP_API_KEY／RAPIDAPI_KEY 後，掛載為 secret 並移除舊明文 value。
           SECRETS="XAI_API_KEY=XAI_API_KEY:latest"
           SECRETS="$SECRETS,OPENAI_API_KEY=OPENAI_API_KEY:latest"
           SECRETS="$SECRETS,OPENROUTER_API_KEY=OPENROUTER_API_KEY:latest"
@@ -108,10 +109,16 @@ jobs:
           SECRETS="$SECRETS,FINANCIAL_DATASETS_API_KEY=FINANCIAL_DATASETS_API_KEY:latest"
           SECRETS="$SECRETS,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest"
           SECRETS="$SECRETS,TELEGRAM_CHAT_ID=TELEGRAM_CHAT_ID:latest"
+          SECRETS="$SECRETS,NEWSAPI_KEY=NEWSAPI_KEY:latest"
+          SECRETS="$SECRETS,GNEWS_API_KEY=GNEWS_API_KEY:latest"
+          SECRETS="$SECRETS,FMP_API_KEY=FMP_API_KEY:latest"
+          SECRETS="$SECRETS,RAPIDAPI_KEY=RAPIDAPI_KEY:latest"
 
-          # 若這些金鑰先前是以普通 env var 形式存在，先移除以允許升級為 secret 型態。
-          # 注意：首次部署時不要加 --remove-env-vars，否則會因變數尚不存在而失敗。
-          # 後續更新若要清除舊的明文 env var，可取消下方 REMOVE_VARS 與對應參數的註解。
+          # 曾以 --set-env-vars 注入的明文 key，改掛 secret 後須刪除舊 value，避免 describe 仍見明文。
+          # 若你的 Job 從未存在這四個明文變數，首次 deploy 可能因 --remove-env-vars 報錯，請暫時刪除該旗標一行後再跑。
+          REMOVE_PLAIN="NEWSAPI_KEY,GNEWS_API_KEY,FMP_API_KEY,RAPIDAPI_KEY"
+
+          # 若曾混用明文與 secret，可再加：XAI_API_KEY,OPENAI_API_KEY,...（見 git 歷史註解）
           # REMOVE_VARS="XAI_API_KEY,OPENAI_API_KEY,OPENROUTER_API_KEY,GEMINI_API_KEY"
           # REMOVE_VARS="$REMOVE_VARS,TAVILY_API_KEY,X_BEARER_TOKEN,COINGLASS_API_KEY"
           # REMOVE_VARS="$REMOVE_VARS,CRYPTOQUANT_API_KEY,FRED_API_KEY,FINANCIAL_DATASETS_API_KEY"
@@ -127,4 +134,5 @@ jobs:
             --memory 2Gi \
             --task-timeout 14400 \
             --set-secrets="$SECRETS" \
+            --remove-env-vars="$REMOVE_PLAIN" \
             --quiet
