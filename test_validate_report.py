@@ -1210,6 +1210,19 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
             f"Should not block when catalysts ≥ 2: {result['blocking_issues']}",
         )
 
+    def test_equity_pick_infrastructure_keywords_passes_without_legacy_financial_kw(self):
+        """核電／SMR／IPO／供電等擴充詞可單獨滿足 ≥2 線索，不必依賴財報／新聞等舊關鍵字。"""
+        report = _make_report()
+        report = report.replace(
+            "本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+            "本日選擇理由：NVDA 對齊 SMR 與核電基礎設施長線敘事，IPO 窗口與供電／電力／能源配比重置帶動液冷擴產與產能良率追蹤，故點名 NVDA。",
+        )
+        result = validate_report(report)
+        self.assertTrue(
+            result["pick_justification_equity_ok"],
+            f"Expected equity pick justification OK for infra narrative: {result.get('issues')}",
+        )
+
 
 class TestPlanRollingAndScenarioGates(unittest.TestCase):
     def test_pick_rolling_blocks_when_past_days_over_cap(self):
