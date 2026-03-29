@@ -83,6 +83,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # STRICT_PICK_SCORING=1    # 預設開啟：QSREC 每筆需填 selection/catalyst/flow/technical/risk_fit/execution 分數（0~100）+ alt_candidate_score + score_gap
 # QSREC_ALLOW_OPPOSING_DIRECTIONS=0  # 預設關閉：設 1 時略過「同 category+asset 不得同時 LONG 與 SHORT」機檢（僅限明確知悉對沖語義時使用）
 # ALLOW_REPEAT_PICK_OVERRIDE=1  # 預設開啟：允許同標延續覆核（關閉後強制至少換一檔/一腿）
+# AUTO_REPEAT_PICK_DISCLAIMER=1   # 預設開啟：與昨日 BQ QSREC 標的相同且允許覆核時，若理由缺「重複選用理由」等片語，assemble 前自動前綴補註（設 0 關閉）
 # PICK_ROTATION_OVERRIDE_MIN_GAP=12  # 同標延續最低分差（score_gap）門檻
 # PICK_REPEAT_DAYS_MAX=2   # 同標延續時，至少 1 筆需滿足 repeat_days <= 此值
 # PICK_REPEAT_MIN_SELECTION_SCORE=75  # 同標延續時，至少 1 筆需滿足 selection_score >= 此值

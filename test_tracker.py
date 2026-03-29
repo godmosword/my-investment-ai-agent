@@ -11,6 +11,7 @@ from tracker import (
     extract_recommendations_json,
     strip_tracker_blocks,
     canonical_asset_key,
+    previous_rec_row_should_skip,
     _compute_trade_metrics,
     _current_prices_for_assets,
     _validate_rec,
@@ -51,6 +52,17 @@ class TestCanonicalAssetKey(unittest.TestCase):
     def test_normalizes_pair_and_dollar(self):
         self.assertEqual(canonical_asset_key("$BTC-SOL"), "BTC/SOL")
         self.assertEqual(canonical_asset_key(" btc "), "BTC")
+
+
+class TestPreviousRecRowShouldSkip(unittest.TestCase):
+    def test_skips_long_placeholder_100_vs_low_price(self):
+        self.assertTrue(previous_rec_row_should_skip("SKM", "LONG", 100.0, 29.92))
+
+    def test_keeps_reasonable_long(self):
+        self.assertFalse(previous_rec_row_should_skip("SKM", "LONG", 28.0, 29.92))
+
+    def test_skips_entry_outside_sanity_range(self):
+        self.assertTrue(previous_rec_row_should_skip("BTC", "LONG", 5000.0, 66000.0))
 
 REPORT_BAD_JSON = """\
 [QSREC_START]

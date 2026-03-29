@@ -1,5 +1,7 @@
 """Smoke for Jinja Telegram render + structured validation."""
 
+from unittest.mock import patch
+
 import pytest
 from report_render import assemble_daily_brief_report, render_telegram_daily_brief
 from report_html_gates import validate_report
@@ -171,6 +173,100 @@ def _sample_qsrec_equity() -> TradeRecommendation:
         base_scenario="橫盤等待指引機率 55%。",
         bear_scenario="指引失望則回調。",
     )
+
+
+def test_auto_repeat_pick_disclaimer_when_yesterday_matches():
+    """BQ 昨日標的與今日相同時自動前綴「重複選用理由」（略過 LLM 漏寫）。"""
+
+    def _yesterday(cat: str):
+        return {"BTC"} if cat == "CRYPTO" else {"NVDA"}
+
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        exec_summary=["→ 測試"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason=(
+            "僅寫催化與鏈上與估值錨，未含官方重複選用片語；仍點名 BTC 作為主倉配置。"
+        ),
+        risk_budget_summary="neutral 20%",
+        signal_conflict_summary="空｜多",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason=(
+            "財報與資料中心敘事延續，未寫跨日倉位延續說明；仍點名 NVDA 作為核心持倉標的。"
+        ),
+        signal_conflict_summary="無",
+        trade_legs=[_sample_trade_leg("NVDA")],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    with patch("report_html_gates._fetch_yesterday_qsrec_canonical_set", side_effect=_yesterday):
+        report = assemble_daily_brief_report(
+            crypto,
+            ai,
+            previous_recs_html="",
+            source_observability_block="",
+            report_tier_partial_news=False,
+        )
+    assert report.crypto.pick_reason.startswith("重複選用理由：")
+    assert report.ai.pick_reason.startswith("重複選用理由：")
+
+
+def test_auto_repeat_pick_disclaimer_skipped_when_env_off(monkeypatch):
+    monkeypatch.setenv("AUTO_REPEAT_PICK_DISCLAIMER", "0")
+
+    def _yesterday(cat: str):
+        return {"BTC"} if cat == "CRYPTO" else {"NVDA"}
+
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        exec_summary=["→ 測試"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason=(
+            "僅寫催化與鏈上與估值錨，未含官方重複選用片語；仍點名 BTC 作為主倉配置。"
+        ),
+        risk_budget_summary="neutral 20%",
+        signal_conflict_summary="空｜多",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason=(
+            "財報與資料中心敘事延續，未寫跨日倉位延續說明；仍點名 NVDA 作為核心持倉標的。"
+        ),
+        signal_conflict_summary="無",
+        trade_legs=[_sample_trade_leg("NVDA")],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    with patch("report_html_gates._fetch_yesterday_qsrec_canonical_set", side_effect=_yesterday):
+        report = assemble_daily_brief_report(
+            crypto,
+            ai,
+            previous_recs_html="",
+            source_observability_block="",
+            report_tier_partial_news=False,
+        )
+    assert not report.crypto.pick_reason.startswith("重複選用理由：")
+    assert not report.ai.pick_reason.startswith("重複選用理由：")
 
 
 def test_qsrec_json_excludes_internal_reasoning():

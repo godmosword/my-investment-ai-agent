@@ -40,6 +40,14 @@ class TestParseCoinglassFundingRate(unittest.TestCase):
         data = [{"close": 0.00005}]
         result = _parse_coinglass_funding_rate(data, "BTC")
         self.assertIn("中性", result)
+        self.assertIn("近零", result)
+        self.assertIn("0.005000%", result)
+
+    def test_tiny_rate_uses_six_decimals(self):
+        data = [{"close": 0.000001}]
+        result = _parse_coinglass_funding_rate(data, "BTC")
+        self.assertIn("0.000100%", result)
+        self.assertIn("近零", result)
 
     def test_empty_data(self):
         result = _parse_coinglass_funding_rate([], "BTC")

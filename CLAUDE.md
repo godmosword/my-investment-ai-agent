@@ -99,6 +99,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 |-----|---------|
 | [`DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | Brief format / Telegram rules |
 | [`BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md) | Gate／HTTP／main 邊界測試盤點與 pytest marker |
+| [`research/LAST30DAYS_SKILL.md`](docs/research/LAST30DAYS_SKILL.md) | 可選 [last30days-skill](https://github.com/mvanhorn/last30days-skill)：安裝、pilot、與日報管線信任邊界（預設 A+B，不進 `main.py`） |
 | [`ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) | Product directions |
 | [`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | Streamlit / API / PWA KPI contract |
 | [`DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) | Production deploy + GitHub Environment reviewers |
@@ -141,6 +142,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 
 ## 9. gstack — Browsing & Workflow Skills
 
+- **Optional social/trend research (not daily pipeline data)**: [last30days-skill](https://github.com/mvanhorn/last30days-skill) — install per upstream; scope and red-line alignment → [`docs/research/LAST30DAYS_SKILL.md`](docs/research/LAST30DAYS_SKILL.md).
 - **Browsing**: Prefer `/browse` from gstack for interactive web QA when applicable. Do not use legacy `mcp__claude-in-chrome__*` flows documented as deprecated in older setups.
 - **Setup** (first time): `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`
 - **Skills** (examples): `/browse`, `/review`, `/ship`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/design-consultation`, `/qa`, `/qa-only`, `/investigate`, `/retro`, `/codex`, `/office-hours`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/gstack-upgrade`, `/document-release`, `/setup-browser-cookies`.

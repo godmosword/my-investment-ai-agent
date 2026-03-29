@@ -144,6 +144,7 @@ def build_crypto_final_prompt(*, ctx: str, prev_recs_ctx: str, today_str: str) -
         {_BRIEF_V2_RULE}
         {_HEDGE_FUND_BRIEF_RULE}
         {_EXEC_SUMMARY_RULE}
+        {_X_HIGHLIGHTS_SECTION_LABEL_RULE}
         {_GATE_VALIDATE_PICK_RULE}
         {ctx}
         {prev_recs_ctx}
@@ -175,6 +176,7 @@ def build_ai_final_prompt(*, ctx: str) -> str:
         {_PAIR_TRADE_RULE}
         {_BRIEF_V2_RULE}
         {_HEDGE_FUND_BRIEF_RULE}
+        {_X_HIGHLIGHTS_SECTION_LABEL_RULE}
         {_GATE_VALIDATE_PICK_RULE}
         {_AI_RISK_BRIDGE_RULE}
         {ctx}
@@ -233,6 +235,7 @@ def build_crypto_structured_final_prompt(
         {_CRYPTO_TRADE_MUTEX_RULE}
         {_BRIEF_V2_RULE}
         {_GATE_VALIDATE_PICK_RULE}
+        {_X_HIGHLIGHTS_SECTION_LABEL_RULE}
         {ctx}
         {prev_recs_ctx}
 
@@ -244,11 +247,13 @@ def build_crypto_structured_final_prompt(
 
         === 填入 CryptoSection 欄位 ===
         - report_title_date: 使用 {today_str}
+        - exec_summary：3–5 則 bullet（見【Executive Summary】）；加密與美股主倉若方向明顯相反，其一則須框定跨資產組合邏輯。
         - market.regime / score_suffix / scorecard_lines：承接上一任務評分卡，regime 僅 risk_on|risk_off|neutral。
         - narrative_of_day：今日主敘事一句 ≤45 字。
         - macro_framework_lines：≤4 行宏觀 bullet。
         - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。
-        - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據。
+        - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據，且勿重複儀表板已列之同一讀數。
+        - x_highlights：選填；主題式摘要句，非 X 即時推文（見【區塊②b｜x_highlights】）。
         - chatter：2–3 則呢喃，含可信度與（未確認）。
         - pick_reason / risk_budget_summary / signal_conflict_summary：供區塊④，順序與 Gate 一致。
         - trade_legs：若可執行則填 ExecutableTradeLeg（含 internal_reasoning + narrative）；asset 勿含 $；R:R 等放於 rr 等字串欄位。
@@ -278,6 +283,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {_PAIR_TRADE_RULE}
         {_BRIEF_V2_RULE}
         {_GATE_VALIDATE_PICK_RULE}
+        {_X_HIGHLIGHTS_SECTION_LABEL_RULE}
         {_AI_RISK_BRIDGE_RULE}
         {ctx}
 
@@ -288,9 +294,10 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {_INSTITUTIONAL_VOICE_RULE}
 
         === 填入 AISection 欄位 ===
-        - macro_bridge_lines：承上宏觀，勿重貼完整美債段。
+        - macro_bridge_lines：承上宏觀，勿重貼完整美債段；勿再逐字複誦加密儀表板已給之 VIX/BTC 讀數，必要時指稱「見上方儀表板」。
         - dashboard：AI 儀表板 MetricLine 列表；若使用 financial_datasets_tool，每檔相關美股至少一行 label 含 FinancialDatasets 與代號。
-        - news：3 則 index 4–6，格式同加密新聞；每則可填 internal_reasoning（思考區）與對外三欄。
+        - news：3 則 index 4–6，格式同加密新聞；investment_takeaway 勿重複儀表板已列之同一讀數。
+        - x_highlights：選填；主題式摘要（見【區塊②b｜x_highlights】）。
         - chatter：2–3 產業鏈呢喃含可信度。
         - pick_reason / signal_conflict_summary / us_equity_allocation_note：遵守 AI 段 Gate（不重複今日風險預算整行）。
         - trade_legs：兩檔美股為主；每筆 internal_reasoning + narrative；star_rating 1–4；留空則渲染觀望。
@@ -350,7 +357,7 @@ _NEWS_FMT = dedent("""\
     - 幣圈與 AI 共 6 則新聞，使用連續索引：1..6（禁止用 1./2./3. 取代欄位）。
     - 每則需包含：index、timestamp（UTC+8）、title、source_and_nature、summary、investment_takeaway、editor_consensus。
     - summary：1 句核心事實（≤40 字，禁止主觀評論）。
-    - investment_takeaway：1~2 句（≤90 字），至少引用 1 個當日數據（如 funding/RSI/MA/ETF）。
+    - investment_takeaway：1~2 句（≤90 字），至少引用 1 個當日數據（如 funding/RSI/MA/ETF）；**區塊①儀表板已列之同一讀數（如 VIX、BTC 現價、MA 位階）勿在投資解讀逐字重複**，改寫「見上方儀表板」或僅寫**邊際變化／相對解讀**。
     - editor_consensus：1 句（≤28 字）且點名具體標的。
     - 禁止輸出任何 HTML/Markdown 標籤與排版符號，僅輸出可映射 schema 的純文字欄位值。""")
 
@@ -501,7 +508,9 @@ _BRIEF_V2_RULE = dedent("""\
     1) 【今日主敘事】緊接在【今日市場模式】與其評分卡明細之後，必須單獨一行：
        · 今日主敘事：<b>…</b>（僅 1 句、≤45 字；總結當日最大驅動與對倉位的含義；不得與主 regime 矛盾）
     2) 【語氣校準】主 regime 為 neutral／risk_on，或關鍵資料為 N/A 導致不確定時：禁止「歷史底部明確」「絕對」「確定暴漲／見頂」「絕佳進場點」「必漲／必跌」；改用「若…則…」「在…條件下」「機率偏…」「證據仍不足」。
-    3) 【儀表板可讀性】區塊①每行僅一個指標；若該數值為 <code>N/A</code>，【嚴禁】在同一行繼續寫原因！必須換行另起一小點（如：· 備註：第三方資料源未回傳），確保指標行的數字整齊對齊。
+    3) 【儀表板可讀性】區塊①每行僅一個指標；若該數值為 <code>N/A</code>，必須換行另起一小點，並使用人類分析師語氣說明。例如：
+       ✅ 正確：「· 備註：第三方 API 暫未提供最新下載數據」
+       ❌ 錯誤：「· 備註：數據源正常回傳 N/A」或「API 失敗」
     4) 【Source 三行】區塊①儀表板內禁止輸出整行【SourceHealth】/【SourceErrors】/【SourceQuota】；pipeline 僅於後台 logger 記錄，讀者版 Telegram 不顯示。儀表板內若要交代資料健康，僅能用一句自然語言。
     """)
 
@@ -531,14 +540,12 @@ _GATE_VALIDATE_PICK_RULE = dedent("""\
     3) **固定順序（AI 區塊④）**：`本日選擇理由：…` → `訊號衝突摘要：…` →（可選）`· <b>美股部位框</b>：…` → `· $<b>標的` 交易行。
     4) **加密理由**（純文字 ≥34 字）：須滿足下列**任一**——(a) 同句（或連續一段）內可讓系統辨識 **≥2 類**催化／鏈上線索關鍵詞，建議從「新聞／催化／ETF／監管／鏈上／交易所／淨流／資金費率／多空比／OI／未平倉／現貨／清算」等任選**兩個不同概念**寫入；(b) **1 類**催化＋明確 **大型幣／流動性／退階／缺乏其他催化** 等退階語；(c) **1 類**催化且全文 **≥72 字**並**逐一點名** QSREC 內**每一檔**加密 asset（含比值如 BTC/SOL 須**同時出現 BTC 與 SOL** 字樣）。
     5) **美股理由**（純文字 ≥38 字）：須滿足下列**任一**——(a) **≥2 類**基本面／新聞線索，請【務必】從以下關鍵詞池中直接選用至少兩個字眼寫入句子：「新聞／財報／法說／資料中心／GPU／拉貨／Capex／合約／指引／IPO／核電／基礎設施」；(b) **1 類**＋直接寫出「權值／大型股／ETF／BOTZ／ARKQ／流動性」等退階語；(c) **1 類**且 **≥80 字**並點名兩檔 ticker（與 QSREC EQUITY 一致）。
-    6) **與昨日 BigQuery QSREC 完全相同時**（加密或美股）：
-       - **優先換標**：至少換一檔或改配對腿（最簡單、最安全）。
-       - **若確有連持理由**：在該類別「本日選擇理由」**開頭**寫 **`重複選用理由：…`**（具體新催化或連日持有依據），**且同時滿足**：
-         * QSREC 每筆 `score_gap = selection_score − alt_candidate_score` **必須 ≥ 12**
-         * 具體作法：若 selection_score=85，則 alt_candidate_score **最高 73**；若 selection_score=80，最高 68；以此類推
-         * alt_candidate 必須是**真實存在的次佳選項**，不得為縮小差距而刻意調高其分數
-       - **若無法構造 ≥12 分差**，代表今日敘事不足以支撐連選 → **必須改選新標的**，不得強行填寫重複理由
-       - 違反以上任一條件，整報驗證失敗、無法推送。
+    6) **【最高警戒：昨日標的對照】** 若你今日推薦的代號與【避免重複】區塊的標的**完全相同**：
+       你【必須】在「本日選擇理由」的【最開頭前 6 個字】寫上「重複選用理由：」。
+       ✅ 正確範例：「重複選用理由：BTC 跌破 MA50，防禦性空單具備連日持有價值...」
+       ❌ 錯誤範例：「本日推薦 BTC 是因為...」或「World Foundation 大額減持...」
+       絕對禁止遺漏此前綴，否則系統將視為惡意重複推單並強制攔截！
+       （連持時 QSREC 分差 score_gap≥12、次佳分數真實性等仍依 validate_report 機檢與任務內說明，未滿足者整報仍會失敗。）
     7) **美股輪動（最常漏）**：若【上期建議追蹤】或任務提示顯示「昨日兩檔美股 ticker」與今日 QSREC **完全一致**，**🤖 AI 區塊④** 的 `本日選擇理由：` **整段內**必須含 **`重複選用理由：`**（或 **`重複選股理由：`**／**`連日維持`**／**`維持昨日兩檔`** 等系統認可片語）——**寫在加密段無效**；並確保兩檔 ticker 代號仍出現在理由或緊隨交易行。
     8) **禁止貼工具錯誤碼**：戰報正文嚴禁出現字面 **`[DATA_MISSING:`**（validate_report 會當成「資料缺失欄位」）；缺資料僅能寫 `<code>N/A</code>` 或一句「第三方資料源未回傳」。
     9) **QSREC 與區塊④方向一致**：JSON 內每一檔 `asset` 的 `LONG`/`SHORT` 須與對應 `· $` 交易行括號內方向相同；同一 category 下同一 ticker 不得在 QSREC 出現兩筆相反方向（機檢硬擋）。
@@ -552,6 +559,7 @@ _EXEC_SUMMARY_RULE = dedent("""\
     · 主要尾部風險（最可能讓部位失效的一個因子）
     · 宏觀立場（利率/美元/VIX 對今日操作的含義）
     · 市場模式摘要（regime + 主要訊號來源）
+    · **跨資產框定**：若加密主倉與美股主倉方向明顯相反（例：加密偏空、美股偏多），**必須**用其中一則 bullet（≤40 字）寫清**組合邏輯**（beta 對沖／sector tilt／期限或政策因子分離／僅小倉結構多 擇一），避免讀者以為自相矛盾。
     格式範例：「→ BTC 多頭排列完整，ETF 淨流入連三日，進場信心 4 星」
     ⚠️ 嚴禁重複正文內容、嚴禁泛泛而談（如「市場混亂」「保持謹慎」）。""")
 
@@ -562,6 +570,11 @@ _HEDGE_FUND_BRIEF_RULE = dedent("""\
     - 「本日選擇理由：」可為單行或連續短段，但**必須完整出現在**「今日風險預算／訊號衝突／第一筆 · $ 交易行」**之前**；並遵守【validate_report 動態選幣／選股】的長度與關鍵詞／點名規則。
     - 宏觀框架（🏛️）：≤4 行 bullet，每行 ≤60 字。
     - 呢喃／傳聞：維持每條 1 句，總長寧短勿長。
+    - **數字錨點**：VIX／BTC 現價／關鍵均線等已在區塊①列示者，核心新聞與呢喃**避免再次完整複誦同一數字**；必要時指稱「見儀表板」或只寫 delta／情境。
+    """)
+
+_X_HIGHLIGHTS_SECTION_LABEL_RULE = dedent("""\
+    【區塊②b｜x_highlights】選填；內容為**主編主題式觀點摘要**（非即時 X API 時間軸、亦非單則推文截錄）。無資料可留空；若有，每條須可獨立閱讀，勿宣稱為官方推文原文。
     """)
 
 _CRYPTO_LAYOUT_RULE = dedent("""\
@@ -582,7 +595,7 @@ _CRYPTO_LAYOUT_RULE = dedent("""\
          · 🏦 CME COT：機構 +X,XXX（週▲/▼）｜槓桿 +X,XXX（週▲/▼）（取自 cot_positioning_tool；若失敗填 N/A）
          · 🔒 GBTC X.XX%｜ETHE X.XX%（取自 grayscale_premium_tool；若失敗填 N/A）
        - 區塊② 核心新聞 3 則（〔新聞 1〕～〔新聞 3〕，套用新聞格式）
-       - 區塊②b X 推文精選（無資料可跳過）
+       - 區塊②b 主題式觀點摘要（x_highlights；無資料可跳過，見【區塊②b｜x_highlights】）
        - 區塊③ 市場呢喃與傳聞 2~3 條
        - 區塊④ 資金流向與精準操作：1 單邊 + 1 配對
          【動態選幣規則】禁止每次固定選 BTC/SOL。必須根據以下優先順序動態選出本日標的：
@@ -616,7 +629,7 @@ _AI_LAYOUT_RULE = dedent("""\
        - 主標題固定輸出 `🤖 AI 市場`；禁止改寫為「🤖 AI 與美股市場」或同義變體，且整篇只能出現一個 AI 主標題。
        - 區塊① AI 儀表板（HuggingFace / OpenRouter 模型熱度 Top5；缺值 <code>N/A</code>）
        - 區塊② AI 產業新聞 3 則：必須與幣圈完全相同格式，逐則以 `〔新聞 4〕[MM/DD HH:MM UTC+8]` … `〔新聞 6〕[MM/DD HH:MM UTC+8]` 開頭（嚴禁只用英文標題起句、嚴禁省略 UTC+8），主題涵蓋基建/投資案/模型各 1
-       - 區塊②b X 推文精選（無資料可跳過）
+       - 區塊②b 主題式觀點摘要（x_highlights；無資料可跳過，見【區塊②b｜x_highlights】）
        - 區塊③ 產業鏈呢喃 2~3 條（每條必含可信度：可寫「可信度：B」或「來源：B級」或 0~100 分，與加密呢喃／傳聞區格式對齊，供系統驗證）
        - 區塊④ AI 精準操作 2 檔：
          【新聞格式再確認】區塊②三則必須各以 `〔新聞 4〕`…`〔新聞 6〕` + `[MM/DD HH:MM UTC+8]` 開頭，含 <blockquote> 摘要，嚴禁縮成 `1. 2. 3.` 段落。

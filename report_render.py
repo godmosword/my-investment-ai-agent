@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
 from pathlib import Path
 
@@ -183,6 +184,46 @@ def _coerce_sections_for_gate(
     return crypto, ai
 
 
+def _apply_repeat_pick_disclaimer_if_needed(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
+    """When today's QSREC canonical set matches yesterday BQ and override is allowed, prepend 重複選用理由 if missing.
+
+    Reduces warn-pass / gate retries when the model omits the required phrase.  Opt out: AUTO_REPEAT_PICK_DISCLAIMER=0.
+    """
+    if os.getenv("AUTO_REPEAT_PICK_DISCLAIMER", "1").lower() in ("0", "false", "no"):
+        return crypto, ai
+    from report_html_gates import (  # noqa: PLC0415 — late import avoids cycles at module load
+        _REPEAT_PICK_REASON_RE,
+        _allow_repeat_pick_override,
+        _fetch_yesterday_qsrec_canonical_set,
+        _qsrec_canonical_set_for_category,
+        _strict_pick_rotation,
+    )
+
+    if not _strict_pick_rotation() or not _allow_repeat_pick_override():
+        return crypto, ai
+    recs = [r.model_dump(mode="json") for r in crypto.qsrec + ai.qsrec]
+    prefix = (
+        "重複選用理由：與昨日 BQ QSREC 標的組合相同；連日持有／敘事仍支持此配置"
+        "（pipeline 自動補註，主編次日應依催化更新改選或於理由內詳述）。"
+    )
+    for cat in ("CRYPTO", "EQUITY"):
+        y = _fetch_yesterday_qsrec_canonical_set(cat)
+        t = _qsrec_canonical_set_for_category(recs, cat)
+        if y is None or not t or not y or t != y:
+            continue
+        if cat == "CRYPTO":
+            reason = crypto.pick_reason or ""
+            if _REPEAT_PICK_REASON_RE.search(reason):
+                continue
+            crypto = crypto.model_copy(update={"pick_reason": prefix + reason})
+        else:
+            reason = ai.pick_reason or ""
+            if _REPEAT_PICK_REASON_RE.search(reason):
+                continue
+            ai = ai.model_copy(update={"pick_reason": prefix + reason})
+    return crypto, ai
+
+
 def assemble_daily_brief_report(
     crypto: CryptoSection,
     ai: AISection,
@@ -193,6 +234,7 @@ def assemble_daily_brief_report(
     agreed_regime: str | None = None,
 ) -> DailyBriefReport:
     crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
+    crypto, ai = _apply_repeat_pick_disclaimer_if_needed(crypto, ai)
     disclaimer = _low_confidence_disclaimer_plain(crypto, ai)
     return DailyBriefReport(
         crypto=crypto,

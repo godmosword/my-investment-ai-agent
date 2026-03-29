@@ -98,7 +98,54 @@ _PRICE_SANITY_RANGES: dict[str, tuple[float, float]] = {
     "GOOGL": (80,    500),
     "AMZN": (100,    500),
     "META": (100,    2_000),
+    # 常見小／中市值與題材股（防止 $100 占位進場污染「上期追蹤」）
+    "OKLO": (1.0, 500.0),
+    "SKM": (3.0, 250.0),
+    "RIOT": (2.0, 80.0),
+    "CIEN": (15.0, 200.0),
+    "FUTY": (20.0, 120.0),
 }
+
+
+def previous_rec_row_should_skip(
+    asset: str,
+    direction: str,
+    entry: float,
+    current: float | None,
+) -> bool:
+    """True = 不應顯示於「上期建議追蹤」（明顯占位價或超出合理進場帶）。"""
+    sym = str(asset or "").upper().strip().lstrip("$")
+    d = str(direction or "").upper()
+    if entry <= 0:
+        return True
+    if sym in _PRICE_SANITY_RANGES:
+        lo, hi = _PRICE_SANITY_RANGES[sym]
+        if not (lo <= entry <= hi):
+            logger.warning(
+                "Omitting %s from previous-recs: entry %.4f outside sanity $%.0f–$%.0f",
+                sym,
+                entry,
+                lo,
+                hi,
+            )
+            return True
+    # 美股常見占位：LONG @ $100 但現價遠低（歷史髒資料）
+    if d == "LONG" and current is not None and current > 0:
+        if entry == 100.0 and current < 45.0:
+            logger.warning(
+                "Omitting %s LONG from previous-recs: suspicious entry=100 vs current=%.2f",
+                sym,
+                current,
+            )
+            return True
+        if entry == 50.0 and current < 22.0:
+            logger.warning(
+                "Omitting %s LONG from previous-recs: suspicious entry=50 vs current=%.2f",
+                sym,
+                current,
+            )
+            return True
+    return False
 
 # 依市場模式限制單筆建議倉位（%）
 _REGIME_POSITION_CAP: dict[str, float] = {
@@ -933,6 +980,8 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
             continue
 
         current = current_prices.get(asset)
+        if previous_rec_row_should_skip(asset, direction, entry, current):
+            continue
 
         if current is None:
             pnl_str = "N/A"

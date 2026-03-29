@@ -29,6 +29,9 @@ _NARRATIVE_FEW_SHOT = (
     "✅「VIX 29.39 期限結構倒掛，急性避險升溫；高利率壓軟體估值，MSFT 防禦性空頭配置。」"
 )
 
+# Trade card / QSREC 對外 narrative：過短易被截斷難讀；過長影響 Telegram 密度。
+_NARRATIVE_DISPLAY_MAX_CHARS = 85
+
 
 def _cap_internal_field(v: object, *, max_len: int = 4000) -> object:
     if isinstance(v, str) and len(v) > max_len:
@@ -149,7 +152,7 @@ class TradeRecommendation(BaseModel):
     narrative: str = Field(
         default="—",
         description=(
-            "【展示區】對外敘事：依 internal_reasoning 榨乾後 1～2 句（系統截斷至 50 字）。"
+            f"【展示區】對外敘事：依 internal_reasoning 榨乾後 1～2 句（系統截斷至 {_NARRATIVE_DISPLAY_MAX_CHARS} 字）。"
             + _NARRATIVE_FEW_SHOT
             + "禁止因為／所以／值得注意的是／總結來說／我們認為等填充；禁止條列與算式；"
             "禁止字面【≤N字】等 prompt；禁止辯論框架標籤。"
@@ -239,14 +242,15 @@ class TradeRecommendation(BaseModel):
     @field_validator("narrative", mode="before")
     @classmethod
     def _truncate_narrative(cls, v: object) -> object:
-        """Coerce empty narrative; strip prompt echo; auto-truncate to 50 chars."""
+        """Coerce empty narrative; strip prompt echo; auto-truncate to _NARRATIVE_DISPLAY_MAX_CHARS."""
+        cap = _NARRATIVE_DISPLAY_MAX_CHARS
         if v is None or (isinstance(v, str) and not str(v).strip()):
             v = "—"
         if isinstance(v, str):
             v = _strip_prompt_instruction_echoes(v)
-        if isinstance(v, str) and len(v) > 50:
-            logger.warning("TradeRecommendation.narrative truncated %d→50 chars", len(v))
-            return v[:50]
+        if isinstance(v, str) and len(v) > cap:
+            logger.warning("TradeRecommendation.narrative truncated %d→%d chars", len(v), cap)
+            return v[:cap]
         return v
 
     @model_validator(mode="after")
@@ -566,7 +570,7 @@ class ExecutableTradeLeg(BaseModel):
     narrative: str = Field(
         default="—",
         description=(
-            "【展示區】對外一句（系統截斷至 50 字）。"
+            f"【展示區】對外一句（系統截斷至 {_NARRATIVE_DISPLAY_MAX_CHARS} 字）。"
             + _NARRATIVE_FEW_SHOT
             + "禁止條列、內部標籤與【≤N字】等 prompt 字面；禁止因為／所以／值得注意的是等填充。"
         ),
@@ -601,14 +605,15 @@ class ExecutableTradeLeg(BaseModel):
     @field_validator("narrative", mode="before")
     @classmethod
     def _truncate_narrative(cls, v: object) -> object:
-        """Coerce empty narrative; strip prompt echo; auto-truncate to 50 chars."""
+        """Coerce empty narrative; strip prompt echo; auto-truncate to _NARRATIVE_DISPLAY_MAX_CHARS."""
+        cap = _NARRATIVE_DISPLAY_MAX_CHARS
         if v is None or (isinstance(v, str) and not str(v).strip()):
             v = "—"
         if isinstance(v, str):
             v = _strip_prompt_instruction_echoes(v)
-        if isinstance(v, str) and len(v) > 50:
-            logger.warning("ExecutableTradeLeg.narrative truncated %d→50 chars", len(v))
-            return v[:50]
+        if isinstance(v, str) and len(v) > cap:
+            logger.warning("ExecutableTradeLeg.narrative truncated %d→%d chars", len(v), cap)
+            return v[:cap]
         return v
 
     @model_validator(mode="after")

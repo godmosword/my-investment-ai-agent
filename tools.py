@@ -1158,7 +1158,12 @@ def _parse_coinglass_funding_rate(data: list, symbol: str = "BTC") -> str:
         return f"[DATA_MISSING:funding_rate] CoinGlass {symbol} 資金費率格式異常。"
     hint = "多頭付費給空頭，情緒偏熱" if rate_pct > 0 else "空頭付費給多頭，情緒偏冷"
     level = "🔴 極度過熱" if rate_pct > 0.05 else ("🟡 偏熱" if rate_pct > 0.01 else ("🟢 中性" if rate_pct >= -0.01 else "🔵 偏冷"))
-    return f"{symbol} 資金費率 {rate_pct:.4f}% {level}，{hint}"
+    # 近零費率若只顯示兩位小數易被誤讀為「無數據」；拉長精度並標註
+    if abs(rate_pct) < 0.01:
+        rate_s = f"{rate_pct:.6f}%（近零）"
+    else:
+        rate_s = f"{rate_pct:.4f}%"
+    return f"{symbol} 資金費率 {rate_s} {level}，{hint}"
 
 
 def _parse_coinglass_liquidations(data: list, symbol: str = "BTC") -> str:
