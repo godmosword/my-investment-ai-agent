@@ -21,11 +21,12 @@ trufflehog git file://. --no-update
 
 歷史中的外洩有時驗證器無法線上確認；僅用 `--only-verified` 可能漏報，清歷史後請以 **第 3.3 節** 的指令再驗證。
 
-**本倉庫曾用 gitleaks 掃描之結論（供維護者內部追蹤）**
+**本倉庫狀態（供維護者內部追蹤）**
 
-- 目前 **HEAD** 之 [`.env.example`](../.env.example) 已為占位字串（`your_*_here`），與 [`ENV_TEMPLATE.txt`](../ENV_TEMPLATE.txt) 意圖一致。
-- **Git 歷史中**曾出現過含「可解析為真實金鑰格式」的 `.env.example`（舊 commit）。即使後來已修正檔案，**GitHub 仍可能透過 commit 瀏覽或 fork 還原該內容**。
-- **因此**：在設為 Public 之前，應 **(A) 假設該等金鑰已外洩並全部輪替**（XAI、OpenAI、Gemini、OpenRouter、CoinGlass、CryptoQuant、CryptoPanic、Telegram Bot、等），並 **(B) 視需要清除 Git 歷史**（見下文第 3 節）。
+- 目前 **HEAD** 之 [`.env.example`](../.env.example) 為占位字串（`your_*_here`），與 [`ENV_TEMPLATE.txt`](../ENV_TEMPLATE.txt) 意圖一致。
+- **Git 提交歷史**：已以 `git filter-repo` 自**全分支**移除舊版 `.env.example` 後再補回乾淨範本，並已 **force-push** 至 `origin`（見 [`CHANGELOG.md`](../CHANGELOG.md) Security 條目）。維護者以 `gitleaks detect --source . -c .gitleaks.toml` 掃描提交歷史應為 **0 findings**；`trufflehog git file://.` 亦應為 **0**。
+- **仍須留意**：在 **force-push 之前**產生的 **fork／鏡像／他人本機舊 clone**，其物件庫仍可能保留舊 blob；上游無法代為刪除，僅能請對方更新或刪 fork。
+- **金鑰輪替**：曾出現在舊歷史中的金鑰仍應視風險已發生而 **輪替**（維護者已輪替之 provider 亦建議保留在 Runbook 紀錄）。
 
 ---
 
@@ -70,7 +71,9 @@ trufflehog git file://. --no-update
 適用：舊 commit 的 `.env.example` 曾含真值，**目前 HEAD 已是占位符**。  
 工具：[git-filter-repo](https://github.com/newren/git-filter-repo)（優先於已進入維護模式的 filter-branch）。
 
-**事前**
+**本倉庫：此流程已由維護者執行完畢**（含 `git push --force --all`／`--tags`）。若你從 `origin` **新 clone**，取得的是淨化後歷史；若你手上是 **force-push 前的舊目錄**，請**刪除後重新 clone**，勿在舊倉上 merge。其他 fork 是否已更新，請各 fork 擁有者自行處理。
+
+**事前（其他專案複用本節時使用）**
 
 - [ ] 通知所有協作者：即將 **force-push**，完成後請 **刪除舊 clone 並重新 clone**（勿在舊倉上 merge）。
 - [ ] **備份**：`git clone --mirror <遠端URL> investment-ai-agent-backup.git`
