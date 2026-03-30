@@ -8,27 +8,22 @@
 ### Changed
 - **近 30 天績效週報**（[`tracker.py`](tracker.py) `generate_performance_summary`）：附 **指標說明**／**回撤說明**（加權平均、Expectancy、PF、複利淨值 Max DD 與單筆最差之區別）；**Regime 分層**對 `unknown` 與少於 10 筆分組加註樣本解讀，並附一句解讀建議。
 - **同標延續補註**（[`report_render.py`](report_render.py)）：自動前綴改為 **「連日維持（同昨日 BQ QSREC）…」**，避免 Telegram 模板「本日選擇理由：」與「重複選用理由：」雙重抬頭；仍符合 [`report_html_gates.py`](report_html_gates.py) `_REPEAT_PICK_REASON_RE`。
-- **Crew 寫作規則**（[`crew.py`](crew.py)）：儀表板規格補 **NVT 與 RSI 並存時**之尺度區分；呢喃格式統一 **（未確認）｜來源｜可信度｜二次驗證** 欄位順序。
+- **Crew 寫作規則**（[`crew.py`](crew.py)）：儀表板規格補 **NVT 與 RSI 並存時**之尺度區分；呢喃格式統一 **（未確認）｜來源｜可信度｜二次驗證** 欄位順序；`_DATA_RULES`／`_TOOL_TRUTH_RULE`／`_QUOTE_RULE` 三合一注入改為常數 `_CREW_RULE_BLOCK`（語意不變）。
+- **[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)**：預設**略過** job 內「Free disk space on runner」（節省約 1–3 分鐘；映像 build 若因 runner 磁碟不足失敗，可暫時還原該步驟）。
 
 ### Fixed
 - **結構化日報驗證**：`crypto.risk_budget_summary` 若僅中文、未含 `risk_on`／`risk_off`／`neutral` 等 canonical token，[`report_render.py`](report_render.py) 於 `_coerce_sections_for_gate` 依 `market.regime` 自動前綴補齊，避免 `DailyBriefReport` 拋「加密今日風險預算未包含主 regime token」；[`validation_rules.py`](validation_rules.py) 新增 `ensure_crypto_risk_budget_regime_token`；[`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)／[`test_report_render.py`](test_report_render.py) 補測。
 
 ### Maintenance
-- **[`TODOS.md`](TODOS.md)**：移除已完成 `[x]` 主列表（細節改以本檔 2026-03-28～30 與「已落地（備查）」為準）；新增 **OSS Scout 週報** `<!-- OSS_SCOUT_AUTO_BEGIN -->`／`<!-- OSS_SCOUT_AUTO_END -->`，與 [`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 合併邏輯對齊。
-
-### Changed
-- **[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)**：預設**略過** job 內「Free disk space on runner」（節省約 1–3 分鐘；映像 build 若因 runner 磁碟不足失敗，可暫時還原該步驟）。
+- **[`TODOS.md`](TODOS.md)**：移除已完成 `[x]` 主列表（細節改以本檔 2026-03-28～31 與「已落地（備查）」為準）；新增 **OSS Scout 週報** `<!-- OSS_SCOUT_AUTO_BEGIN -->`／`<!-- OSS_SCOUT_AUTO_END -->`，與 [`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 合併邏輯對齊。
 
 ### Docs
 - **LLM 成本／延遲（營運槓桿）**：[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 新增專節；[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) 對照說明（關閉 editor／judge、`PIPELINE_SKIP_SENTIMENT_SCORE`、`MODEL_*` 降階等）；Runbook **Deploy 併發**敘述與 [`deploy.yml`](.github/workflows/deploy.yml) `cancel-in-progress: true` 對齊。
 
-### Changed
-- **[`crew.py`](crew.py)**：`_DATA_RULES`／`_TOOL_TRUTH_RULE`／`_QUOTE_RULE` 三合一注入改為常數 `_CREW_RULE_BLOCK`，避免重複字面值（語意不變）。
-
 ## 2026-03-30
 
 ### Changed
-- **日報品質（無幻覺管線）**：[`report_render.py`](report_render.py) 在與昨日 BQ QSREC 標的相同且允許覆核時，若理由缺「重複選用理由」等片語則自動前綴補註（`AUTO_REPEAT_PICK_DISCLAIMER`，預設開；見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）；[`tracker.py`](tracker.py) 上期追蹤略過明顯占位進場價／合理區間外；[`tools.py`](tools.py) 資金費率絕對值小於 0.01% 時顯示六位小數並標「近零」；[`crew.py`](crew.py)／[`templates/telegram_report.j2`](templates/telegram_report.j2) 對齊執行摘要跨資產框定、減少與儀表板數字重複、區塊②b 改「主題式觀點摘要」敘述。
+- **日報品質（無幻覺管線）**：[`report_render.py`](report_render.py) 在與昨日 BQ QSREC 標的相同且允許覆核時，若理由缺輪動認可片語則自動前綴補註（`AUTO_REPEAT_PICK_DISCLAIMER`，預設開；見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）；初版用語為「重複選用理由：…」，**2026-03-31** 改為「連日維持…」以降低與模板「本日選擇理由：」重複感（見該日 **Changed**）。另：[`tracker.py`](tracker.py) 上期追蹤略過明顯占位進場價／合理區間外；[`tools.py`](tools.py) 資金費率絕對值小於 0.01% 時顯示六位小數並標「近零」；[`crew.py`](crew.py)／[`templates/telegram_report.j2`](templates/telegram_report.j2) 對齊執行摘要跨資產框定、減少與儀表板數字重複、區塊②b 改「主題式觀點摘要」敘述。
 
 ### Fixed
 - **Deploy 觸發 CI 全跳過**：[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 可重用流程內 `github.event_name` 繼承呼叫端（如 `push`）而非 `workflow_call`；`callable` job 改為 `if: github.event_name != 'pull_request'`，使 [`deploy.yml`](.github/workflows/deploy.yml)／[`nightly-ci.yml`](.github/workflows/nightly-ci.yml) 的 `uses:` 會實際執行 lint／pytest。

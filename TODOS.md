@@ -1,7 +1,7 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-03-31）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～30）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
+**同步狀態**（2026-03-31）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～**31**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
 
 ---
 
@@ -21,7 +21,7 @@
 | 波次 | 建議時機 | 項目（對照下方章節） |
 |------|----------|----------------------|
 | **A — 營運／產品決策** | 先開 1–2 週實驗 | **閾值實驗** [`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)；**Critical env** [`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) |
-| **B — 日報契約與品質** | 與 A 並行 | 契約與後處理已落地（CHANGELOG **2026-03-28**）；持續收斂見「已落地」 |
+| **B — 日報契約與品質** | 與 A 並行 | 契約與後處理已落地（CHANGELOG **2026-03-28**～**31**）；持續收斂見「已落地」 |
 | **C — 觀測與自適應** | 需穩定 `gate_failure_log` | **Gate 提示人審** [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md)；自適應 BQ 接線 [`adaptive_gate_thresholds.py`](adaptive_gate_thresholds.py) |
 | **D — OSS 深化** | 人力可負荷 | **2B** HuggingFace／GraphQL、**整合提案 Agent** |
 | **E — Company／前端** | 長期 | **3** 四職能、Arbiter、War Room；**1A** PWA Web Push 持久化 |
@@ -126,7 +126,7 @@
 
 ## 已落地（備查，不再重複開票）
 
-**2026-03-31**：自本檔主體移除之 `[x]` 項目（rotation 語意／crew 多樣性／HIT_STOP／儀表板、P0 DATA_MISSING+schema、P1 後處理／Gate／錨定日／工具下限、P2 回測／cache_http／bench／fixtures、P3 adaptive 骨架／per-crew tool 下限、Direction 1A 表列、2A 表列、2B 腳本+workflow、3 試點）— **詳見 [`CHANGELOG.md`](CHANGELOG.md) 2026-03-28～30** 與下列連結。
+**2026-03-31**：自本檔主體移除之 `[x]` 項目（rotation 語意／crew 多樣性／HIT_STOP／儀表板、P0 DATA_MISSING+schema、P1 後處理／Gate／錨定日／工具下限、P2 回測／cache_http／bench／fixtures、P3 adaptive 骨架／per-crew tool 下限、Direction 1A 表列、2A 表列、2B 腳本+workflow、3 試點）— **詳見 [`CHANGELOG.md`](CHANGELOG.md) 2026-03-28～31** 與下列連結。
 
 - API schema guard：[`api_schema.py`](api_schema.py)、[`test_api_schema.py`](test_api_schema.py)。
 - 盤中監控：[`monitor_intraday.py`](monitor_intraday.py)、[`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml)（[`requirements-monitor.txt`](requirements-monitor.txt)；cron 預設關閉）。
@@ -137,7 +137,8 @@
 - 權重：[`signal_weights_store.py`](signal_weights_store.py)、[`scripts/write_ml_weights.py`](scripts/write_ml_weights.py)、`WEIGHTS_CONTEXT_ENABLED`。
 - Exclusion：[`fetch_exclusion_context`](bigquery_writer.py)（近 3 日、HIT_STOP、rotation、權重摘要）。
 - **錨定報告日**、Telegram 歷史、Web Push 預留、tools 快取拆分、離線 Gate fixtures、後處理 band-aid — `ENV_TEMPLATE.txt`、CHANGELOG **2026-03-28**。
-- **日報品質（2026-03-30）**：重複選用補註、tracker、資金費率近零、crew／模板 — CHANGELOG **2026-03-30**。
+- **日報品質（2026-03-30）**：同標補註（初版「重複選用理由」）、tracker 進場價過濾、資金費率近零、crew／模板 — CHANGELOG **2026-03-30**。
+- **日報品質（2026-03-31）**：`crypto.risk_budget_summary` 缺 regime token 時 assemble 補 canonical；近 30 天績效週報附指標／回撤說明與 regime 小樣本註記；同標補註改 **「連日維持…」** 避免雙重抬頭；crew 補 NVT vs RSI、呢喃欄位順序；[`test_tracker.py`](test_tracker.py) 績效摘要 mock — CHANGELOG **2026-03-31**。
 - 文件：[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`docs/AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md)、[`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh)。
 
 ---
@@ -202,7 +203,7 @@
 
 ## 修訂紀錄
 
-- **2026-03-31**：**TODOS 精簡** — 移除已完成 `[x]` 主表（細節改以 CHANGELOG／「已落地」為準）；補 **OSS Scout 週報** `OSS_SCOUT_AUTO_BEGIN/END` 與 [`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 契約對齊。
+- **2026-03-31**：**TODOS 精簡** — 移除已完成 `[x]` 主表（細節改以 CHANGELOG／「已落地」為準）；補 **OSS Scout 週報** `OSS_SCOUT_AUTO_BEGIN/END` 與 [`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 契約對齊。**同日對齊 CHANGELOG 2026-03-31**：已落地條目補績效註解／risk_budget coerce／連日維持補註等；檔首與波次 B 日期區間更新為～31。
 - **2026-03-29**：**演進藍圖** — Phase 1–4；精簡版寫入 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)。
 - **2026-03-29**：**OSS Scout 週期**：`oss_weekly_pipeline.py`、`weekly-scout.yml`。
 - **2026-03-28**：**已完成項 → CHANGELOG**；商業化暫緩；Priority／fixtures／波次表。
