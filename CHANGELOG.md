@@ -5,6 +5,9 @@
 
 ## 2026-03-31
 
+### Fixed
+- **結構化日報驗證**：`crypto.risk_budget_summary` 若僅中文、未含 `risk_on`／`risk_off`／`neutral` 等 canonical token，[`report_render.py`](report_render.py) 於 `_coerce_sections_for_gate` 依 `market.regime` 自動前綴補齊，避免 `DailyBriefReport` 拋「加密今日風險預算未包含主 regime token」；[`validation_rules.py`](validation_rules.py) 新增 `ensure_crypto_risk_budget_regime_token`；[`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)／[`test_report_render.py`](test_report_render.py) 補測。
+
 ### Maintenance
 - **[`TODOS.md`](TODOS.md)**：移除已完成 `[x]` 主列表（細節改以本檔 2026-03-28～30 與「已落地（備查）」為準）；新增 **OSS Scout 週報** `<!-- OSS_SCOUT_AUTO_BEGIN -->`／`<!-- OSS_SCOUT_AUTO_END -->`，與 [`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 合併邏輯對齊。
 

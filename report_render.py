@@ -12,6 +12,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFoun
 
 from schemas import AISection, CryptoSection, DailyBriefReport, QSREC_JSON_EXCLUDE_FIELDS
 from validation_rules import (
+    ensure_crypto_risk_budget_regime_token,
     normalize_authoritative_regime_tokens_multiline,
     sanitize_lines_with_us_treasury_keyword,
 )
@@ -181,6 +182,13 @@ def _coerce_sections_for_gate(
         sm = sanitize_lines_with_us_treasury_keyword(list(ai.macro_bridge_lines))
         if sm != ai.macro_bridge_lines:
             ai = ai.model_copy(update={"macro_bridge_lines": sm})
+    # Schema / STRICT_CONSISTENCY: risk_budget_summary must surface market.regime token
+    # (models sometimes emit Chinese-only lines after normalize_authoritative_regime_tokens_multiline).
+    _rb = ensure_crypto_risk_budget_regime_token(
+        crypto.risk_budget_summary or "", crypto.market.regime
+    )
+    if _rb != crypto.risk_budget_summary:
+        crypto = crypto.model_copy(update={"risk_budget_summary": _rb})
     return crypto, ai
 
 

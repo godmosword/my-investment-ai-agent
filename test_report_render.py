@@ -269,6 +269,48 @@ def test_auto_repeat_pick_disclaimer_skipped_when_env_off(monkeypatch):
     assert not report.ai.pick_reason.startswith("重複選用理由：")
 
 
+@pytest.mark.smoke
+def test_assemble_prepends_regime_when_risk_budget_has_no_english_token():
+    """LLM 僅輸出中文風險預算時，assemble 補上 canonical regime，通過 DailyBriefReport 結構化驗證。"""
+    crypto = CryptoSection(
+        report_title_date="2026-03-30",
+        exec_summary=["→ 測試"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="ETF 淨流入與鏈上數據支持風險資產，本日選擇理由含催化與估值錨敘述。",
+        risk_budget_summary="中性體制下總曝險約四成，單筆倉位遵上限。",
+        signal_conflict_summary="空｜多",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+        signal_conflict_summary="無",
+        trade_legs=[_sample_trade_leg("NVDA")],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+        agreed_regime="neutral",
+    )
+    assert report.crypto.risk_budget_summary.startswith("neutral")
+    assert "中性體制" in report.crypto.risk_budget_summary
+    v = validate_structured_report(report)
+    assert v["valid"], v["issues"]
+
+
 def test_qsrec_json_excludes_internal_reasoning():
     raw = TradeRecommendation(
         asset="BTC",

@@ -173,3 +173,29 @@ def normalize_authoritative_regime_tokens_multiline(text: str, regime: str) -> s
         else:
             out.append(_REGIME_TOKEN_BOUNDARY_RE.sub(regime, line))
     return "\n".join(out)
+
+
+def crypto_risk_budget_has_regime_token(regime: str, summary: str | None) -> bool:
+    """True if summary already mentions ``regime`` with flexible underscore/space/hyphen (schema/Gate)."""
+    if not isinstance(regime, str) or not regime.strip():
+        return True
+    s = summary if isinstance(summary, str) else ""
+    pat = re.escape(regime.strip()).replace(r"_", r"[\s_\-]+")
+    return bool(re.search(pat, s, re.IGNORECASE))
+
+
+def ensure_crypto_risk_budget_regime_token(summary: str, regime: str) -> str:
+    """If summary lacks the canonical regime substring, prepend ``regime｜`` (pipeline safety net).
+
+    Avoids DailyBriefReport validation error「加密今日風險預算未包含主 regime token」when the model
+    writes Chinese-only risk budget lines without risk_on/risk_off/neutral.
+    """
+    if not isinstance(regime, str) or not regime.strip():
+        return summary if isinstance(summary, str) else ""
+    r = regime.strip()
+    s = summary if isinstance(summary, str) else ""
+    if crypto_risk_budget_has_regime_token(r, s):
+        return s
+    if not s.strip():
+        return r
+    return f"{r}｜{s.lstrip()}"

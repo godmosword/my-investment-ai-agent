@@ -5,6 +5,8 @@ import pytest
 from report_render import _coerce_sections_for_gate, _low_confidence_disclaimer_plain
 from schemas import AISection, CryptoSection, ExecutableTradeLeg, MarketRegimeBlock, MetricLine, NewsItem
 from validation_rules import (
+    crypto_risk_budget_has_regime_token,
+    ensure_crypto_risk_budget_regime_token,
     ensure_news_timestamp_line_utc8,
     normalize_authoritative_regime_tokens_multiline,
     sanitize_lines_with_us_treasury_keyword,
@@ -96,6 +98,15 @@ def test_coerce_sections_locks_regime_and_macro():
     c2, a2 = _coerce_sections_for_gate(crypto, ai, agreed_regime="risk_on")
     assert c2.market.regime == "risk_on"
     assert "N/A" in a2.macro_bridge_lines[0]
+    assert "risk_on" in (c2.risk_budget_summary or "")
+
+
+@pytest.mark.smoke
+def test_ensure_crypto_risk_budget_regime_token_prepends_when_chinese_only():
+    s = ensure_crypto_risk_budget_regime_token("中性體制下總曝險 40%，謹慎加倉", "neutral")
+    assert s.startswith("neutral")
+    assert "中性體制" in s
+    assert crypto_risk_budget_has_regime_token("neutral", s)
 
 
 @pytest.mark.smoke
