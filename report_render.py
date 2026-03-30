@@ -193,9 +193,10 @@ def _coerce_sections_for_gate(
 
 
 def _apply_repeat_pick_disclaimer_if_needed(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
-    """When today's QSREC canonical set matches yesterday BQ and override is allowed, prepend 重複選用理由 if missing.
+    """When today's QSREC canonical set matches yesterday BQ and override is allowed, prepend a rotation-safe phrase if missing.
 
-    Reduces warn-pass / gate retries when the model omits the required phrase.  Opt out: AUTO_REPEAT_PICK_DISCLAIMER=0.
+    Uses wording that matches ``_REPEAT_PICK_REASON_RE`` (e.g. 連日維持) so the gate passes without duplicating
+    「本日選擇理由：」+「重複選用理由：」兩層抬頭。 Opt out: AUTO_REPEAT_PICK_DISCLAIMER=0.
     """
     if os.getenv("AUTO_REPEAT_PICK_DISCLAIMER", "1").lower() in ("0", "false", "no"):
         return crypto, ai
@@ -211,8 +212,7 @@ def _apply_repeat_pick_disclaimer_if_needed(crypto: CryptoSection, ai: AISection
         return crypto, ai
     recs = [r.model_dump(mode="json") for r in crypto.qsrec + ai.qsrec]
     prefix = (
-        "重複選用理由：與昨日 BQ QSREC 標的組合相同；連日持有／敘事仍支持此配置"
-        "（pipeline 自動補註，主編次日應依催化更新改選或於理由內詳述）。"
+        "連日維持（同昨日 BQ QSREC）；pipeline 自動補註——主編次日應依催化改選或於理由內詳述。"
     )
     for cat in ("CRYPTO", "EQUITY"):
         y = _fetch_yesterday_qsrec_canonical_set(cat)

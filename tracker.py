@@ -1125,6 +1125,11 @@ def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -
         f"· 加權平均報酬：<code>{avg_all:+.2f}%</code>",
         f"· Profit Factor：<code>{profit_factor if profit_factor is not None else 'N/A'}</code> | Expectancy：<code>{expectancy:+.2f}%</code>",
         f"· Max Drawdown（closed-trade curve）：<code>-{max_dd:.2f}%</code>",
+        "· <i>指標說明</i>：<code>加權平均報酬</code>＝依停損／達標／過期各狀態之筆數加權；"
+        "<code>Expectancy</code>＝每筆已平倉報酬之算術平均；"
+        "<code>Profit Factor</code>＝全部獲利筆加總／虧損筆絕對值加總。",
+        "· <i>回撤說明</i>：<code>Max Drawdown</code>＝已平倉時間序複利淨值曲線之峰谷回撤（0–100%），"
+        "<b>不等於</b>單筆最差%；極端單筆見上列各狀態之最佳／最差。",
         "────────────",
     ]
     for r in rows:
@@ -1141,9 +1146,21 @@ def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -
     if regime_rows:
         lines.append("────────────")
         lines.append("<b>🧭 Regime 分層績效</b>")
+        small_n = 10
         for r in regime_rows:
+            regime_key = str(r["regime"] or "unknown").lower()
+            cnt = int(r["cnt"] or 0)
+            tail = ""
+            if regime_key == "unknown":
+                tail = " <i>（signal 時缺 regime，與他組不宜直接比較）</i>"
+            elif cnt < small_n:
+                tail = f" <i>（少於 {small_n} 筆，均值易受極端值影響）</i>"
             lines.append(
-                f"· {r['regime']}: <code>{r['cnt']}</code> 筆 | 勝率 <code>{r['win_rate']}%</code> | 均損益 <code>{(r['avg_pnl'] or 0.0):+.2f}%</code>"
+                f"· {r['regime']}: <code>{r['cnt']}</code> 筆 | 勝率 <code>{r['win_rate']}%</code> | "
+                f"均損益 <code>{(r['avg_pnl'] or 0.0):+.2f}%</code>{tail}"
             )
+        lines.append(
+            "· <i>解讀建議</i>：分組為算術平均；樣本小或 unknown 時優先看總體列與筆數，必要時於內部分析改採中位數。"
+        )
     return "\n".join(lines)
 

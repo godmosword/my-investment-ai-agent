@@ -16,6 +16,7 @@ from tracker import (
     _current_prices_for_assets,
     _validate_rec,
     get_recent_lessons,
+    generate_performance_summary,
 )
 
 # ── realistic snippet mirroring actual LLM-generated report ──
@@ -316,6 +317,61 @@ class TestGetRecentLessons(unittest.TestCase):
             payload["recent_lessons"]["by_sector"]["crypto"]["suggestion"],
             "reduce_exposure",
         )
+
+
+class TestGeneratePerformanceSummary(unittest.TestCase):
+    """Telegram HTML 績效週報：指標定義與 regime 小樣本註記。"""
+
+    @patch("tracker._get_bq_client")
+    def test_includes_definitions_and_regime_caveats(self, mock_get_client):
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        status_rows = [
+            {
+                "status": "HIT_STOP",
+                "cnt": 9,
+                "avg_pnl": -5.0,
+                "best": -1.0,
+                "worst": -100.0,
+                "avg_days": 5.0,
+            },
+            {
+                "status": "HIT_TARGET",
+                "cnt": 6,
+                "avg_pnl": 12.0,
+                "best": 50.0,
+                "worst": 2.0,
+                "avg_days": 4.0,
+            },
+        ]
+        pnl_rows = [{"report_date": None, "created_at": None, "pnl_pct": float(i), "regime_at_signal": "neutral"} for i in (-2.0, 3.0, -1.0, 4.0)]
+        regime_rows = [
+            {"regime": "neutral", "cnt": 12, "avg_pnl": 1.5, "win_rate": 40.0},
+            {"regime": "risk_on", "cnt": 5, "avg_pnl": 2.0, "win_rate": 40.0},
+            {"regime": "unknown", "cnt": 3, "avg_pnl": 900.0, "win_rate": 33.0},
+        ]
+
+        def _job(rows):
+            j = MagicMock()
+            j.result.return_value = rows
+            return j
+
+        mock_client.query.side_effect = [
+            _job(status_rows),
+            _job(pnl_rows),
+            _job(regime_rows),
+        ]
+
+        out = generate_performance_summary(project_id="test-proj", days=30)
+        self.assertIn("指標說明", out)
+        self.assertIn("回撤說明", out)
+        self.assertIn("Profit Factor", out)
+        self.assertIn("不等於", out)
+        self.assertIn("unknown", out)
+        self.assertIn("缺 regime", out)
+        self.assertIn("少於 10 筆", out)
+        self.assertIn("解讀建議", out)
 
 
 if __name__ == "__main__":

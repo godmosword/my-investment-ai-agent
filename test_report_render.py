@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import pytest
+from report_html_gates import _REPEAT_PICK_REASON_RE
 from report_render import assemble_daily_brief_report, render_telegram_daily_brief
 from report_html_gates import validate_report
 from schemas import (
@@ -175,8 +176,16 @@ def _sample_qsrec_equity() -> TradeRecommendation:
     )
 
 
+def test_auto_repeat_pick_prefix_matches_rotation_gate_regex():
+    """assemble 自動補註前綴須命中 _REPEAT_PICK_REASON_RE（與 STRICT_PICK_ROTATION 一致）。"""
+    prefix = (
+        "連日維持（同昨日 BQ QSREC）；pipeline 自動補註——主編次日應依催化改選或於理由內詳述。"
+    )
+    assert _REPEAT_PICK_REASON_RE.search(prefix), "prefix must satisfy repeat-pick reason pattern"
+
+
 def test_auto_repeat_pick_disclaimer_when_yesterday_matches():
-    """BQ 昨日標的與今日相同時自動前綴「重複選用理由」（略過 LLM 漏寫）。"""
+    """BQ 昨日標的與今日相同時自動前綴「連日維持…」（略過 LLM 漏寫，避免與模板「本日選擇理由：」雙重抬頭）。"""
 
     def _yesterday(cat: str):
         return {"BTC"} if cat == "CRYPTO" else {"NVDA"}
@@ -218,8 +227,8 @@ def test_auto_repeat_pick_disclaimer_when_yesterday_matches():
             source_observability_block="",
             report_tier_partial_news=False,
         )
-    assert report.crypto.pick_reason.startswith("重複選用理由：")
-    assert report.ai.pick_reason.startswith("重複選用理由：")
+    assert report.crypto.pick_reason.startswith("連日維持")
+    assert report.ai.pick_reason.startswith("連日維持")
 
 
 def test_auto_repeat_pick_disclaimer_skipped_when_env_off(monkeypatch):
@@ -265,8 +274,8 @@ def test_auto_repeat_pick_disclaimer_skipped_when_env_off(monkeypatch):
             source_observability_block="",
             report_tier_partial_news=False,
         )
-    assert not report.crypto.pick_reason.startswith("重複選用理由：")
-    assert not report.ai.pick_reason.startswith("重複選用理由：")
+    assert not report.crypto.pick_reason.startswith("連日維持")
+    assert not report.ai.pick_reason.startswith("連日維持")
 
 
 @pytest.mark.smoke
