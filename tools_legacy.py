@@ -1,3 +1,10 @@
+"""Legacy monolithic tool implementations (CrewAI ``@tool`` callables + helpers).
+
+The ``tools`` package (:mod:`tools`) re-exports this module wholesale. Prefer adding
+mock/fixture plumbing under ``tools.base`` / ``tools.market`` per
+``docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md``; migrate callables incrementally off this file.
+"""
+
 import logging
 import os
 import re

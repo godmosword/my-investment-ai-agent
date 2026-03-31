@@ -11,6 +11,9 @@ OPENAI_API_KEY=
 # Anthropic（crew LLM fallback 鏈會用；缺則僅跳過 Claude 備援）
 ANTHROPIC_API_KEY=
 
+# ---------- 開發／離線測試（MOCK_APIS；見 docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md）----------
+# MOCK_APIS=1 — 啟用 tools.base.load_mock_json → tests/fixtures/mock_data/*.json；各 @tool 的 mock 分支將逐步接入 tools_legacy
+
 # ---------- 選填：LiteLLM 模型 ID（見 config.py 預設；改設定免動 crew.py）----------
 # MODEL_GROK=xai/grok-4-1-fast-reasoning
 # OPENAI_MODEL=openai/gpt-4o-mini

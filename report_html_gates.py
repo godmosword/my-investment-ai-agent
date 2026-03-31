@@ -3,7 +3,7 @@
 Migrated from legacy report_validator.py. Structured (Pydantic) business rules
 live in schemas.py on DailyBriefReport.
 
-Dependencies: config.py, validation_rules.py, tracker.py, tools.py
+Dependencies: config.py, validation_rules.py, tracker.py, tools (package / tools_legacy)
 Does NOT import from main.py (to avoid circular imports).
 """
 

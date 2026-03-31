@@ -37,7 +37,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 |------|------|
 | [`main.py`](main.py) | Entry: `_validate_required_keys`, `_validate_critical_env_strict` (`PIPELINE_STRICT_ENV`), `_validate_env_types`, prewarm, dual-crew run, retries, Telegram, BQ, charts |
 | [`crew.py`](crew.py) | CrewAI agents, tasks, LLM fallback chains |
-| [`tools.py`](tools.py) | Search, news, market, on-chain, macro, quant tools (large single module; split plan in `docs/TOOLS_MODULARIZATION_PLAN.md`) |
+| [`tools/`](tools/) + [`tools_legacy.py`](tools_legacy.py) | Crew import `tools` (package re-exports legacy); new scaffold `tools.base` / `tools.market` + ADR [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md); split plan [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) |
 | [`schemas.py`](schemas.py) | Pydantic — `DailyBriefReport`, sections, QSREC |
 | [`config.py`](config.py) | `PROJECT_ID`, table IDs, model env names, `GATE_FAILURE_LOG_TABLE`, etc. |
 | [`report_render.py`](report_render.py) | Assemble + render Telegram HTML from crew output |
@@ -108,7 +108,8 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`COST_PER_MODEL.md`](docs/COST_PER_MODEL.md) | LLM cost notes |
 | [`COMMERCE_PLAYBOOK.md`](docs/COMMERCE_PLAYBOOK.md) / [`COMMERCE_NEXT_STEPS.md`](docs/COMMERCE_NEXT_STEPS.md) | Commerce hypotheses / checklist |
 | [`COMPANY_CREW_ROADMAP.md`](docs/COMPANY_CREW_ROADMAP.md) | Multi-function crew roadmap |
-| [`TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) | Splitting `tools.py` |
+| [`TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) | Splitting legacy tools |
+| [`ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md) | MOCK_APIS / `tools` package (Office Hours Alt B) |
 | [`SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql) | Example BQ aggregation for gate failures |
 | [`oss_candidates/README.md`](docs/oss_candidates/README.md) | OSS scout process |
 

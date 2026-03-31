@@ -1,4 +1,4 @@
-"""Unit tests for tools.py — mock-based tests for external API tools."""
+"""Unit tests for tools (``tools_legacy`` + package) — mock-based tests for external API tools."""
 
 import unittest
 from unittest.mock import patch, MagicMock

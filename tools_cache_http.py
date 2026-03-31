@@ -1,7 +1,7 @@
 """
-HTTP session、JSON 回應解析與 in-memory tool 快取（由 tools.py 拆分）。
+HTTP session、JSON 回應解析與 in-memory tool 快取（由舊 monolith／`tools_legacy` 拆分）。
 
-遷移自 tools.py — 行為不變；Crew 仍從 tools 模組取得工具，不直接 import 本檔。
+遷移自舊 monolith — 行為不變；Crew 仍從 ``tools`` 套件取得工具，不直接 import 本檔。
 """
 
 from __future__ import annotations

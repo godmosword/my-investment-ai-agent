@@ -1,7 +1,7 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-04-01）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-04-01**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
+**同步狀態**（2026-04-01）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-03-29**、**2026-04-01**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
 
 ---
 
@@ -168,7 +168,7 @@
 
 ### Phase 1：開源生態與容錯基礎設施（0–1 個月）
 
-- [ ] **Mock-Driven Development** — `MOCK_APIS`、`api.py`／`tools.py` 短路、[`tests/fixtures/mock_data/`](tests/fixtures/mock_data/)。
+- [ ] **Mock-Driven Development** — **部分**：`MOCK_APIS`、`tools/base`、`market_fixture_dict`、[`tests/fixtures/mock_data/`](tests/fixtures/mock_data/) 已接線；`tools` 套件 re-export [`tools_legacy`](tools_legacy.py)；`api.py` 短路與各 `@tool` mock 分支仍待擴充 — [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md)。
 - [ ] **Tool Plugin System** — [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)、`plugins/`。
 - [ ] **Docker Compose 全端** — [`docker-compose.yml`](docker-compose.yml)、FastAPI + Vite + Redis。
 

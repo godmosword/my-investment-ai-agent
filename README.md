@@ -140,7 +140,7 @@ flowchart TB
 |------|------|
 | [`main.py`](main.py) | 啟動檢查、prewarm、雙 Crew、`run_pipeline_with_retries`、Telegram、BQ、圖表 |
 | [`crew.py`](crew.py) | 兩段 Crew、Agent/Task、LiteLLM fallback 鏈 |
-| [`tools.py`](tools.py) | 搜尋、新聞、CoinGlass、鏈上、宏觀、Financial Datasets、量化等；快取與 traced 呼叫 |
+| [`tools/`](tools/)（[`tools_legacy.py`](tools_legacy.py)） | 搜尋、新聞、CoinGlass、鏈上、宏觀、Financial Datasets、量化等；`MOCK_APIS`／fixture 見 [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md) |
 | [`api_schema.py`](api_schema.py) | 工具 JSON 結構防呆 |
 | [`schemas.py`](schemas.py) | `DailyBriefReport`、QSREC、`ReportOutput`／`parse_report_output`、結構化 `@model_validator` |
 | [`report_render.py`](report_render.py) | 組裝與 Telegram HTML 渲染 |
@@ -261,7 +261,7 @@ python3 -m pytest -v            # 全量（root 下 test_*.py）
 
 ```
 .
-├── main.py, crew.py, tools.py, config.py, schemas.py, report_html_gates.py
+├── main.py, crew.py, tools/, tools_legacy.py, config.py, schemas.py, report_html_gates.py
 ├── report_*.py, telegram_sender.py, bigquery_writer.py, tracker.py
 ├── scratchpad.py, api.py, api_schema.py, dashboard.py
 ├── signal_weights_store.py, crew_company.py, company_ops_schemas.py
@@ -363,7 +363,7 @@ Streamlit / PWA / api.py
 
 - Base：`https://open-api-v4.coinglass.com`；Header：`CG-API-KEY`
 - 成功：`code` 為 `"0"` 或 `0`；`401` / `Upgrade plan` 多為訂閱不含該端點
-- 部分指標有 **Binance 公開 API 備援**（`tools.py`）
+- 部分指標有 **Binance 公開 API 備援**（`tools_legacy` / `tools` 套件）
 
 本機 `curl` 自測須在**已載入金鑰的同一 shell**（範例見 [`AGENTS.md`](AGENTS.md)）。
 
