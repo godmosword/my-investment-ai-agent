@@ -9,6 +9,7 @@ from validation_rules import (
     ensure_crypto_risk_budget_regime_token,
     ensure_news_timestamp_line_utc8,
     normalize_authoritative_regime_tokens_multiline,
+    normalize_leading_repeat_pick_phrase,
     sanitize_lines_with_us_treasury_keyword,
     sanitize_us_treasury_yield_tokens_in_line,
 )
@@ -99,6 +100,27 @@ def test_coerce_sections_locks_regime_and_macro():
     assert c2.market.regime == "risk_on"
     assert "N/A" in a2.macro_bridge_lines[0]
     assert "risk_on" in (c2.risk_budget_summary or "")
+
+
+@pytest.mark.smoke
+def test_normalize_leading_repeat_pick_same_yesterday_rewrites():
+    out = normalize_leading_repeat_pick_phrase("重複選用理由：BTC 敘事延續。", same_as_yesterday=True)
+    assert out.startswith("連日維持（同昨日 BQ QSREC）")
+    assert "BTC 敘事延續" in out
+    assert "重複選用理由" not in out
+
+
+@pytest.mark.smoke
+def test_normalize_leading_repeat_pick_equity_label_rewrites():
+    out = normalize_leading_repeat_pick_phrase("重複選股理由：NVDA 維持。", same_as_yesterday=True)
+    assert out.startswith("連日維持（同昨日 BQ QSREC）")
+    assert "NVDA 維持" in out
+
+
+@pytest.mark.smoke
+def test_normalize_leading_repeat_pick_not_same_strips_only():
+    out = normalize_leading_repeat_pick_phrase("重複選用理由：輪動後新敘事。", same_as_yesterday=False)
+    assert out == "輪動後新敘事。"
 
 
 @pytest.mark.smoke

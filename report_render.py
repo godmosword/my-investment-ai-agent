@@ -14,6 +14,7 @@ from schemas import AISection, CryptoSection, DailyBriefReport, QSREC_JSON_EXCLU
 from validation_rules import (
     ensure_crypto_risk_budget_regime_token,
     normalize_authoritative_regime_tokens_multiline,
+    normalize_leading_repeat_pick_phrase,
     sanitize_lines_with_us_treasury_keyword,
 )
 
@@ -192,6 +193,29 @@ def _coerce_sections_for_gate(
     return crypto, ai
 
 
+def _normalize_pick_reason_repeat_headers(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
+    """Remove duplicate 「重複選用理由：」 after Jinja 「本日選擇理由：」; align with 連日維持 when repeat-day."""
+    from report_html_gates import (  # noqa: PLC0415
+        _fetch_yesterday_qsrec_canonical_set,
+        _qsrec_canonical_set_for_category,
+    )
+
+    recs = [r.model_dump(mode="json") for r in crypto.qsrec + ai.qsrec]
+
+    def _same(cat: str) -> bool:
+        y = _fetch_yesterday_qsrec_canonical_set(cat)
+        t = _qsrec_canonical_set_for_category(recs, cat)
+        return y is not None and bool(t) and bool(y) and t == y
+
+    cr = normalize_leading_repeat_pick_phrase(crypto.pick_reason or "", same_as_yesterday=_same("CRYPTO"))
+    if cr != (crypto.pick_reason or ""):
+        crypto = crypto.model_copy(update={"pick_reason": cr})
+    ar = normalize_leading_repeat_pick_phrase(ai.pick_reason or "", same_as_yesterday=_same("EQUITY"))
+    if ar != (ai.pick_reason or ""):
+        ai = ai.model_copy(update={"pick_reason": ar})
+    return crypto, ai
+
+
 def _apply_repeat_pick_disclaimer_if_needed(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
     """When today's QSREC canonical set matches yesterday BQ and override is allowed, prepend a rotation-safe phrase if missing.
 
@@ -242,6 +266,7 @@ def assemble_daily_brief_report(
     agreed_regime: str | None = None,
 ) -> DailyBriefReport:
     crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
+    crypto, ai = _normalize_pick_reason_repeat_headers(crypto, ai)
     crypto, ai = _apply_repeat_pick_disclaimer_if_needed(crypto, ai)
     disclaimer = _low_confidence_disclaimer_plain(crypto, ai)
     return DailyBriefReport(

@@ -428,7 +428,7 @@ def _ensure_chatter_credibility(chatter: list) -> list:
         text = item.text
         if not _CHATTER_CRED_RE.search(text):
             logger.warning("chatter item missing credibility marker, auto-injecting C grade")
-            text = text.rstrip() + "｜可信度：C（自動補填）"
+            text = text.rstrip() + "｜可信度：C｜主流媒體二次驗證：否"
             item = item.model_copy(update={"text": text})
         result.append(item)
     return result

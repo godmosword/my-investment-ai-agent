@@ -1,7 +1,7 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-03-31）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～**31**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
+**同步狀態**（2026-04-01）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-04-01**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
 
 ---
 
@@ -139,6 +139,7 @@
 - **錨定報告日**、Telegram 歷史、Web Push 預留、tools 快取拆分、離線 Gate fixtures、後處理 band-aid — `ENV_TEMPLATE.txt`、CHANGELOG **2026-03-28**。
 - **日報品質（2026-03-30）**：同標補註（初版「重複選用理由」）、tracker 進場價過濾、資金費率近零、crew／模板 — CHANGELOG **2026-03-30**。
 - **日報品質（2026-03-31）**：`crypto.risk_budget_summary` 缺 regime token 時 assemble 補 canonical；近 30 天績效週報附指標／回撤說明與 regime 小樣本註記；同標補註改 **「連日維持…」** 避免雙重抬頭；crew 補 NVT vs RSI、呢喃欄位順序；[`test_tracker.py`](test_tracker.py) 績效摘要 mock — CHANGELOG **2026-03-31**。
+- **日報品質（2026-04-01）**：`pick_reason` 若以「重複選用／選股／持有理由：」開頭則 assemble 改寫或剥除（對齊昨日 BQ QSREC）；呢喃自動補可信度改 **「｜可信度：…｜主流媒體二次驗證：否」** — CHANGELOG **2026-04-01**。
 - 文件：[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`docs/AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md)、[`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh)。
 
 ---
@@ -203,6 +204,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-01**：已落地補 **pick_reason 重複抬頭正規化**、呢喃補填讀者面；檔首同步狀態含 CHANGELOG **2026-04-01**。
 - **2026-03-31**：**TODOS 精簡** — 移除已完成 `[x]` 主表（細節改以 CHANGELOG／「已落地」為準）；補 **OSS Scout 週報** `OSS_SCOUT_AUTO_BEGIN/END` 與 [`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 契約對齊。**同日對齊 CHANGELOG 2026-03-31**：已落地條目補績效註解／risk_budget coerce／連日維持補註等；檔首與波次 B 日期區間更新為～31。
 - **2026-03-29**：**演進藍圖** — Phase 1–4；精簡版寫入 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)。
 - **2026-03-29**：**OSS Scout 週期**：`oss_weekly_pipeline.py`、`weekly-scout.yml`。

@@ -199,3 +199,31 @@ def ensure_crypto_risk_budget_regime_token(summary: str, regime: str) -> str:
     if not s.strip():
         return r
     return f"{r}｜{s.lstrip()}"
+
+
+_REPEAT_PICK_LEADING_RE = re.compile(
+    r"^\s*(重複選用理由|重複選股理由|重複持有理由)\s*[：:]\s*",
+    re.UNICODE,
+)
+
+# Reader-facing: avoids Jinja 「本日選擇理由：」+ body 「重複選用理由：」double headers.
+_REPEAT_SAME_YESTERDAY_PREFIX = "連日維持（同昨日 BQ QSREC）；"
+
+
+def normalize_leading_repeat_pick_phrase(reason: str, *, same_as_yesterday: bool) -> str:
+    """Rewrite or strip a leading 重複選用理由：… label (template already prints 本日選擇理由：).
+
+    When ``same_as_yesterday`` is True (QSREC canonical set matches BQ yesterday), replace the label with
+    ``連日維持（同昨日 BQ QSREC）；`` + remainder so ``_REPEAT_PICK_REASON_RE`` still matches.
+
+    When False, strip the redundant leading label only so the narrative is not mislabeled as a repeat pick.
+    """
+    if not isinstance(reason, str) or not reason.strip():
+        return reason if isinstance(reason, str) else ""
+    m = _REPEAT_PICK_LEADING_RE.match(reason)
+    if not m:
+        return reason
+    rest = reason[m.end() :].lstrip()
+    if same_as_yesterday:
+        return f"{_REPEAT_SAME_YESTERDAY_PREFIX}{rest}" if rest else "連日維持（同昨日 BQ QSREC）。"
+    return rest

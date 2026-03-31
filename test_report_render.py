@@ -279,6 +279,113 @@ def test_auto_repeat_pick_disclaimer_skipped_when_env_off(monkeypatch):
 
 
 @pytest.mark.smoke
+def test_chatter_item_credibility_autofill_uses_reader_safe_suffix():
+    c = ChatterItem(text="機構傳聞（未確認）｜來源：側寫")
+    assert "自動補填" not in c.text
+    assert "｜可信度：C｜主流媒體二次驗證：否" in c.text
+
+
+@pytest.mark.smoke
+def test_assemble_rewrites_leading_repeat_reason_when_same_yesterday():
+    def _yesterday(cat: str):
+        return {"BTC"} if cat == "CRYPTO" else {"NVDA"}
+
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        exec_summary=["→ 測試"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason=(
+            "重複選用理由：BTC 跌破 MA50 與 VIX 期限倒掛同時成立，政策面 401(k) 仍屬提議階段；"
+            "連日敘事仍支持防禦性空頭，故維持與昨日相同之風險框定與倉位紀律。"
+        ),
+        risk_budget_summary="neutral 20%",
+        signal_conflict_summary="空｜多",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason=(
+            "重複選股理由：NVDA 與 MSFT 在財報前瞻與資料中心 Capex 敘事上仍具能見度，"
+            "惟 VIX Backwardation 與流動性收縮壓制估值；連日維持防禦空頭符合昨日 BQ 標的組合。"
+        ),
+        signal_conflict_summary="無",
+        trade_legs=[_sample_trade_leg("NVDA")],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    with patch("report_html_gates._fetch_yesterday_qsrec_canonical_set", side_effect=_yesterday):
+        report = assemble_daily_brief_report(
+            crypto,
+            ai,
+            previous_recs_html="",
+            source_observability_block="",
+            report_tier_partial_news=False,
+        )
+    assert report.crypto.pick_reason.startswith("連日維持（同昨日 BQ QSREC）")
+    assert "BTC 跌破 MA50" in report.crypto.pick_reason
+    assert report.ai.pick_reason.startswith("連日維持（同昨日 BQ QSREC）")
+    assert "NVDA 與 MSFT" in report.ai.pick_reason
+
+
+@pytest.mark.smoke
+def test_assemble_strips_erroneous_repeat_label_when_yesterday_differs():
+    def _yesterday(cat: str):
+        return {"ETH"} if cat == "CRYPTO" else {"MSFT"}
+
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        exec_summary=["→ 測試"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason=(
+            "重複選用理由：本日加密 QSREC 已輪動至 BTC 主軸，與昨日 ETH 主敘事不同；"
+            "VIX 高企下仍採防禦倉位，此處不應再標「重複選用」抬頭，僅保留催化與技術面依據敘述。"
+        ),
+        risk_budget_summary="neutral 20%",
+        signal_conflict_summary="空｜多",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason=(
+            "重複選股理由：美股段已自昨日兩檔切換敘事，NVDA 仍為核心但 MSFT 權重調整；"
+            "不應沿用「重複選股」標籤，以下僅陳述電力成本與流動性對估值之壓力。"
+        ),
+        signal_conflict_summary="無",
+        trade_legs=[_sample_trade_leg("NVDA")],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    with patch("report_html_gates._fetch_yesterday_qsrec_canonical_set", side_effect=_yesterday):
+        report = assemble_daily_brief_report(
+            crypto,
+            ai,
+            previous_recs_html="",
+            source_observability_block="",
+            report_tier_partial_news=False,
+        )
+    assert report.crypto.pick_reason.startswith("本日加密 QSREC")
+    assert "不應再標" in report.crypto.pick_reason
+    assert report.ai.pick_reason.startswith("美股段已自昨日")
+    assert "不應沿用" in report.ai.pick_reason
+
+
+@pytest.mark.smoke
 def test_assemble_prepends_regime_when_risk_budget_has_no_english_token():
     """LLM 僅輸出中文風險預算時，assemble 補上 canonical regime，通過 DailyBriefReport 結構化驗證。"""
     crypto = CryptoSection(

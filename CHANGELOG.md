@@ -3,6 +3,18 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-01
+
+### Fixed
+- **本日選擇理由雙抬頭**：LLM 若以「重複選用理由：／重複選股理由：／重複持有理由：」開頭，`assemble_daily_brief_report` 會依與昨日 BQ QSREC 是否相同，改寫為 **「連日維持（同昨日 BQ QSREC）；…」** 或僅剥除冗餘前綴（[`validation_rules.py`](validation_rules.py) `normalize_leading_repeat_pick_phrase`、[`report_render.py`](report_render.py) `_normalize_pick_reason_repeat_headers`）。
+- **呢喃可信度補填**：[`schemas.py`](schemas.py) `ChatterItem` 與 [`crew.py`](crew.py) `_ensure_chatter_credibility` 改補 **「｜可信度：…｜主流媒體二次驗證：否」**，不再向讀者顯示「（自動補填）」。
+
+### Tests
+- [`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)、[`test_report_render.py`](test_report_render.py)：上述行為之單元／assemble 迴歸。
+
+### Maintenance
+- **[`TODOS.md`](TODOS.md)**：已落地與檔首同步狀態補 **2026-04-01** 條目。
+
 ## 2026-03-31
 
 ### Changed

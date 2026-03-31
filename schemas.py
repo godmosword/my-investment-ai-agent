@@ -460,7 +460,7 @@ class ChatterItem(BaseModel):
 
         if not _CHATTER_CRED_INLINE_RE.search(self.text):
             grade = self.credibility or "C"
-            self.text = self.text.rstrip() + f"｜可信度：{grade}（自動補填）"
+            self.text = self.text.rstrip() + f"｜可信度：{grade}｜主流媒體二次驗證：否"
         return self
 
 
