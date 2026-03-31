@@ -1,0 +1,5 @@
+{
+  "btc_spot_usd": 66544.59,
+  "fixture_version": 1,
+  "note": "Deterministic mock for MOCK_APIS=1 smoke tests; not live prices."
+}

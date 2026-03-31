@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-02
+
+### Fixed
+- **CI smoke**：將 [`tests/fixtures/mock_data/market.json`](tests/fixtures/mock_data/market.json) 納入版控（先前 CHANGELOG 已列但檔案未提交），修復 `test_market_fixture_loads_when_mock_on`。
+
 ## 2026-03-29
 
 ### Changed
