@@ -5,6 +5,9 @@
 
 ## 2026-04-02
 
+### Added
+- **[`.github/workflows/ci.yml`](.github/workflows/ci.yml)**：`workflow_dispatch` 手動觸發（`test_tier` quick／full）；`callable` job 以 `CI_TEST_TIER` 統一讀取 dispatch 與 `workflow_call` 輸入。
+
 ### Fixed
 - **CI smoke**：將 [`tests/fixtures/mock_data/market.json`](tests/fixtures/mock_data/market.json) 納入版控（先前 CHANGELOG 已列但檔案未提交），修復 `test_market_fixture_loads_when_mock_on`。
 

@@ -2,9 +2,19 @@ name: CI — Lint & Test
 
 # - PR：略過僅 docs/ 或 data-verification-ui/ 的變更（純文件／PWA 不跑 Python CI）。
 #   根目錄 *.md 仍會觸發，避免 branch protection 在「僅改 README」時缺少 required check。
+# - workflow_dispatch：手動「Run workflow」觸發（與 deploy 同級 smoke / 可選 full）
 # - workflow_call：由 deploy / nightly 呼叫；test_tier=quick 僅 smoke，full 跑全套件
 # - 依賴 requirements-ci.txt（無 CrewAI 等），顯著縮短 pip 與磁碟占用
 on:
+  workflow_dispatch:
+    inputs:
+      test_tier:
+        description: "quick = pytest -m smoke; full = pytest -v"
+        type: choice
+        options:
+          - quick
+          - full
+        default: quick
   pull_request:
     paths-ignore:
       - "docs/**"
@@ -45,13 +55,16 @@ jobs:
   callable:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
+    env:
+      # workflow_dispatch 無 workflow_call 的 inputs 脈絡，改讀 github.event.inputs
+      CI_TEST_TIER: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_tier || inputs.test_tier }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # full 仍可能拉較多快取／artifact；quick 略過以省 ~30s
       - name: Free disk space on runner
-        if: inputs.test_tier == 'full'
+        if: env.CI_TEST_TIER == 'full'
         run: |
           set -eux
           sudo docker system prune -af || true
@@ -73,9 +86,9 @@ jobs:
       - name: Lint with ruff
         run: ruff check .
 
-      - name: Run tests (tier ${{ inputs.test_tier }})
+      - name: Run tests (tier ${{ env.CI_TEST_TIER }})
         run: |
-          if [ "${{ inputs.test_tier }}" = "full" ]; then
+          if [ "${CI_TEST_TIER}" = "full" ]; then
             pytest -v --tb=short
           else
             pytest -m smoke -q --tb=short
