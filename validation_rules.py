@@ -117,7 +117,7 @@ _NEWS_TIMESTAMP_LINE_MISSING_TZ_RE = re.compile(
 
 
 def sanitize_us_treasury_yield_tokens_in_line(line: str) -> str:
-    """Replace out-of-range 10Y/2Y percentage tokens with N/A (matches tools.py sane band)."""
+    """Replace out-of-range 10Y/2Y percentage tokens with N/A (matches tools_legacy sane band)."""
 
     def _fix_yield_match(m: re.Match[str]) -> str:
         try:

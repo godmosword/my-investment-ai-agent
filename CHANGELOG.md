@@ -11,6 +11,10 @@
 ### Fixed
 - **CI smoke**：將 [`tests/fixtures/mock_data/market.json`](tests/fixtures/mock_data/market.json) 納入版控（先前 CHANGELOG 已列但檔案未提交），修復 `test_market_fixture_loads_when_mock_on`。
 
+### Maintenance
+- [`tools/__init__.py`](tools/__init__.py)：`vars(tools_legacy)` 鏡射（取代 `dir()`）；[`api_schema.py`](api_schema.py)、[`validation_rules.py`](validation_rules.py) 註解對齊 `tools_legacy`／`tools`。
+- [`TODOS.md`](TODOS.md)：檔首同步 **2026-04-02**；修訂紀錄合併 **2026-03-29** 雙條；補 OSS 自動區塊勿手改提示。
+
 ## 2026-03-29
 
 ### Changed
@@ -36,6 +40,7 @@
 
 ### Maintenance
 - **[`TODOS.md`](TODOS.md)**：已落地與檔首同步狀態補 **2026-04-01** 條目。
+- **OSS Scout（2026-04-01）**：`OSS_SCOUT_AUTO_*` 候選表更新；研究稿 [`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md)。
 
 ## 2026-03-31
 

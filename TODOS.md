@@ -1,7 +1,7 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-04-01）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-03-29**、**2026-04-01**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
+**同步狀態**（2026-04-02）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-03-29**、**2026-04-01**～**02**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
 
 ---
 
@@ -224,8 +224,8 @@
 
 ## 修訂紀錄
 
-- **2026-04-01**：已落地補 **pick_reason 重複抬頭正規化**、呢喃補填讀者面；檔首同步狀態含 CHANGELOG **2026-04-01**。
+- **2026-04-02**：檔首同步含 CHANGELOG **2026-04-02**（CI `workflow_dispatch`、`market.json` fixture、tools 套件鏡射）；**勿手改** `<!-- OSS_SCOUT_AUTO_BEGIN -->`～`END` 區塊（由 workflow 覆寫）。
+- **2026-04-01**：已落地補 **pick_reason 重複抬頭正規化**、呢喃補填讀者面；**OSS Scout 週報** 更新候選＋研究稿 [`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md)；檔首同步含 CHANGELOG **2026-04-01**。
 - **2026-03-31**：**TODOS 精簡** — 移除已完成 `[x]` 主表（細節改以 CHANGELOG／「已落地」為準）；補 **OSS Scout 週報** `OSS_SCOUT_AUTO_BEGIN/END` 與 [`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 契約對齊。**同日對齊 CHANGELOG 2026-03-31**：已落地條目補績效註解／risk_budget coerce／連日維持補註等；檔首與波次 B 日期區間更新為～31。
-- **2026-03-29**：**演進藍圖** — Phase 1–4；精簡版寫入 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)。
-- **2026-03-29**：**OSS Scout 週期**：`oss_weekly_pipeline.py`、`weekly-scout.yml`。
+- **2026-03-29**：**演進藍圖**（Phase 1–4；精簡版 → [`ROADMAP_VISION`](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[`PHASE_F_BACKLOG`](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)）＋ **OSS Scout 週期**（`oss_weekly_pipeline.py`、`weekly-scout.yml`）。
 - **2026-03-28**：**已完成項 → CHANGELOG**；商業化暫緩；Priority／fixtures／波次表。

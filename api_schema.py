@@ -2,7 +2,7 @@
 
 Centralises the recurring pattern of validating that third-party API responses
 have the expected structure before downstream code tries to access nested fields.
-Used by CoinGlass, NewsAPI, CryptoPanic, and other tool paths in tools.py.
+Used by CoinGlass, NewsAPI, CryptoPanic, and other tool paths in ``tools_legacy`` / ``tools``.
 
 Usage example::
 
