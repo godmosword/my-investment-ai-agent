@@ -196,7 +196,27 @@
 
 <!-- OSS_SCOUT_AUTO_BEGIN -->
 
+### 2026-04-01
 
+**本週 OSS 候選（2026-04-01）** — 依適配度排序；勾選後再評估 spike／PR（**不自動合併**）。
+
+研究稿：[`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md)
+
+- [ ] **（建議優先評估｜5/5）** `OpenBB-finance/OpenBB`（★64841）— stars≥2k｜pushed≤90d｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `StockSharp/StockSharp`（★9508）— stars≥2k｜pushed≤90d｜license:Apache-2.0｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `TA-Lib/ta-lib-python`（★11822）— stars≥2k｜pushed≤90d｜license:BSD-2-Clause｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `UFund-Me/Qbot`（★16803）— stars≥2k｜pushed≤90d｜license:MIT｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `cantaro86/Financial-Models-Numerical-Methods`（★6732）— stars≥2k｜license:AGPL-3.0｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `je-suis-tm/quant-trading`（★9566）— stars≥2k｜license:Apache-2.0｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `jesse-ai/jesse`（★7613）— stars≥2k｜pushed≤90d｜license:MIT｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `lballabio/QuantLib`（★6932）— stars≥2k｜pushed≤90d｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `microsoft/qlib`（★39646）— stars≥2k｜pushed≤90d｜license:MIT｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `myhhub/stock`（★12112）— stars≥2k｜pushed≤90d｜license:Apache-2.0｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `polakowo/vectorbt`（★7037）— stars≥2k｜pushed≤90d｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `ranaroussi/quantstats`（★6914）— stars≥2k｜pushed≤90d｜license:Apache-2.0｜readme≥400c｜domain_overlap
+- [ ] **（建議優先評估｜5/5）** `wilsonfreitas/awesome-quant`（★25254）— stars≥2k｜pushed≤90d｜readme≥400c｜domain_overlap
+- [ ] **（高適配｜4/5）** `firmai/financial-machine-learning`（★8467）— stars≥2k｜readme≥400c｜domain_overlap
+- [ ] **（高適配｜4/5）** `paperswithbacktest/awesome-systematic-trading`（★7570）— stars≥2k｜readme≥400c｜domain_overlap
 
 <!-- OSS_SCOUT_AUTO_END -->
 
