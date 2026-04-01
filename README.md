@@ -301,7 +301,7 @@ docker run --env-file .env q-silicon-agent
 | [`nightly-ci.yml`](.github/workflows/nightly-ci.yml) | 每日 02:00 UTC；手動 | 重用 `ci.yml` 並 **`test_tier: full`**，補齊非 smoke 測試 |
 | [`setup-scheduler.yml`](.github/workflows/setup-scheduler.yml) | 手動 | Cloud Scheduler |
 | [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | **僅手動**（`workflow_dispatch`）；cron 於 YAML 內預設關閉 | 盤中 BTC／VIX；依賴 [`requirements-monitor.txt`](requirements-monitor.txt)（**非**全量 `requirements.txt`，省 Actions 分鐘） |
-| [`weekly-scout.yml`](.github/workflows/weekly-scout.yml) | 每月 1／15 日 06:00 UTC + 手動 | OSS 週期：`oss_weekly_pipeline.py` → `docs/oss_candidates/` + **`TODOS.md` 勾選清單**（見 `docs/oss_candidates/README.md`） |
+| [`weekly-scout.yml`](.github/workflows/weekly-scout.yml) | 每月 1／15 日 06:00 UTC + 手動 | OSS 週期：`oss_weekly_pipeline.py` → `docs/oss_candidates/` + **`TODOS.md` 連結／摘要表／短勾選**（見 `docs/oss_candidates/README.md`） |
 | [`weekly-backtest.yml`](.github/workflows/weekly-backtest.yml) | 手動 | `backtest.py --optimize --write-signal-weights`（需 repository secret `GCP_SA_KEY`） |
 
 **GitHub Actions 免費額度／磁碟**：`ci.yml` 預設不再對 PR／deploy smoke 跑大型「釋放磁碟」步驟；**`test_tier=full`**（nightly）仍保留。盤中監控為輕量依賴，且 **cron 預設關閉**。若出現 **`No space left on device`**，可恢復對 smoke 也執行釋放步驟或檢查快取；**自架 runner** 仍須在本機擴充分區或清快取。

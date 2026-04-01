@@ -31,7 +31,7 @@ MARK_BEGIN = "<!-- OSS_SCOUT_AUTO_BEGIN -->"
 MARK_END = "<!-- OSS_SCOUT_AUTO_END -->"
 SECTION_HEADER = """## OSS Scout 週報（自動）
 
-> 每週搜尋 GitHub 熱門／指定 topic 之 repo，拉取 README 與 **啟發式適配度**；**是否實作由維護者勾選**。詳稿見 `docs/oss_candidates/YYYY-MM-DD-revision-plan-draft.md`。
+> 每週搜尋 GitHub 熱門／指定 topic 之 repo；**適配理由、README 摘錄、低分說明**僅在當日研究稿與 JSON。**本節**只保留連結、摘要表與短勾選（避免 TODOS 被長標籤洗版）。詳稿：`docs/oss_candidates/YYYY-MM-DD-revision-plan-draft.md`。
 """
 
 
@@ -85,19 +85,36 @@ def _render_plan(
 
 
 def _build_todos_block(date: str, repos: list[dict]) -> str:
+    """TODOS 內僅連結＋精簡表＋短勾選；`fit_rationale` 等長欄位只在研究稿／JSON。"""
+    sorted_repos = sorted(repos, key=lambda x: (-x["fit_score"], x.get("full_name") or ""))
     lines = [
-        f"**本週 OSS 候選（{date}）** — 依適配度排序；勾選後再評估 spike／PR（**不自動合併**）。",
+        f"**本週 OSS 候選（{date}）** — 依適配度排序；**細節只讀研究稿**（**不自動合併**）。",
         "",
-        f"研究稿：[`docs/oss_candidates/{date}-revision-plan-draft.md`](docs/oss_candidates/{date}-revision-plan-draft.md)",
+        f"- 研究稿：[`docs/oss_candidates/{date}-revision-plan-draft.md`](docs/oss_candidates/{date}-revision-plan-draft.md)",
+        f"- 機讀：[`{date}-digest.json`](docs/oss_candidates/{date}-digest.json)、[`{date}-candidates.json`](docs/oss_candidates/{date}-candidates.json)",
         "",
+        "| Repo | 適配 | ★ |",
+        "|:-----|:----:|--:|",
     ]
-    for r in sorted(repos, key=lambda x: (-x["fit_score"], x.get("full_name") or "")):
-        stars = r.get("stargazers_count")
-        star_s = str(stars) if stars is not None else "?"
+    for r in sorted_repos:
         fn = r.get("full_name") or "?"
-        lines.append(
-            f"- [ ] **（{r['fit_label']}｜{r['fit_score']}/5）** `{fn}`（★{star_s}）— {r['fit_rationale']}"
-        )
+        url = (r.get("html_url") or "").strip() or f"https://github.com/{fn}"
+        stars = r.get("stargazers_count")
+        star_s = str(stars) if stars is not None else "—"
+        score = int(r["fit_score"]) if r.get("fit_score") is not None else 0
+        label = (r.get("fit_label") or "").strip() or "—"
+        fit_cell = f"{score}/5 · {label}"
+        lines.append(f"| [`{fn}`]({url}) | {fit_cell} | {star_s} |")
+    lines.extend(
+        [
+            "",
+            "**Spike／PR 勾選**（僅 repo 名；理由見研究稿）：",
+            "",
+        ]
+    )
+    for r in sorted_repos:
+        fn = r.get("full_name") or "?"
+        lines.append(f"- [ ] `{fn}`")
     return "\n".join(lines)
 
 

@@ -1,7 +1,7 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-04-02）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-03-29**、**2026-04-01**～**02**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
+**同步狀態**（2026-04-03）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-03-29**、**2026-04-01**～**03**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
 
 ---
 
@@ -192,31 +192,52 @@
 
 ## OSS Scout 週報（自動）
 
-> 每週搜尋 GitHub 熱門／指定 topic 之 repo，拉取 README 與 **啟發式適配度**；**是否實作由維護者勾選**。詳稿見 `docs/oss_candidates/YYYY-MM-DD-revision-plan-draft.md`。
+> 每週搜尋 GitHub 熱門／指定 topic 之 repo；**適配理由、README 摘錄、低分說明**僅在當日研究稿與 JSON。**本節**只保留連結、摘要表與短勾選（避免 TODOS 被長標籤洗版）。詳稿：`docs/oss_candidates/YYYY-MM-DD-revision-plan-draft.md`。
 
 <!-- OSS_SCOUT_AUTO_BEGIN -->
 
 ### 2026-04-01
 
-**本週 OSS 候選（2026-04-01）** — 依適配度排序；勾選後再評估 spike／PR（**不自動合併**）。
+**本週 OSS 候選（2026-04-01）** — 依適配度排序；**細節只讀研究稿**（**不自動合併**）。
 
-研究稿：[`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md)
+- 研究稿：[`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md)
+- 機讀：[`2026-04-01-digest.json`](docs/oss_candidates/2026-04-01-digest.json)、[`2026-04-01-candidates.json`](docs/oss_candidates/2026-04-01-candidates.json)
 
-- [ ] **（建議優先評估｜5/5）** `OpenBB-finance/OpenBB`（★64841）— stars≥2k｜pushed≤90d｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `StockSharp/StockSharp`（★9508）— stars≥2k｜pushed≤90d｜license:Apache-2.0｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `TA-Lib/ta-lib-python`（★11822）— stars≥2k｜pushed≤90d｜license:BSD-2-Clause｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `UFund-Me/Qbot`（★16803）— stars≥2k｜pushed≤90d｜license:MIT｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `cantaro86/Financial-Models-Numerical-Methods`（★6732）— stars≥2k｜license:AGPL-3.0｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `je-suis-tm/quant-trading`（★9566）— stars≥2k｜license:Apache-2.0｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `jesse-ai/jesse`（★7613）— stars≥2k｜pushed≤90d｜license:MIT｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `lballabio/QuantLib`（★6932）— stars≥2k｜pushed≤90d｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `microsoft/qlib`（★39646）— stars≥2k｜pushed≤90d｜license:MIT｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `myhhub/stock`（★12112）— stars≥2k｜pushed≤90d｜license:Apache-2.0｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `polakowo/vectorbt`（★7037）— stars≥2k｜pushed≤90d｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `ranaroussi/quantstats`（★6914）— stars≥2k｜pushed≤90d｜license:Apache-2.0｜readme≥400c｜domain_overlap
-- [ ] **（建議優先評估｜5/5）** `wilsonfreitas/awesome-quant`（★25254）— stars≥2k｜pushed≤90d｜readme≥400c｜domain_overlap
-- [ ] **（高適配｜4/5）** `firmai/financial-machine-learning`（★8467）— stars≥2k｜readme≥400c｜domain_overlap
-- [ ] **（高適配｜4/5）** `paperswithbacktest/awesome-systematic-trading`（★7570）— stars≥2k｜readme≥400c｜domain_overlap
+| Repo | 適配 | ★ |
+|:-----|:----:|--:|
+| [`OpenBB-finance/OpenBB`](https://github.com/OpenBB-finance/OpenBB) | 5/5 · 建議優先評估 | 64841 |
+| [`StockSharp/StockSharp`](https://github.com/StockSharp/StockSharp) | 5/5 · 建議優先評估 | 9508 |
+| [`TA-Lib/ta-lib-python`](https://github.com/TA-Lib/ta-lib-python) | 5/5 · 建議優先評估 | 11822 |
+| [`UFund-Me/Qbot`](https://github.com/UFund-Me/Qbot) | 5/5 · 建議優先評估 | 16803 |
+| [`cantaro86/Financial-Models-Numerical-Methods`](https://github.com/cantaro86/Financial-Models-Numerical-Methods) | 5/5 · 建議優先評估 | 6732 |
+| [`je-suis-tm/quant-trading`](https://github.com/je-suis-tm/quant-trading) | 5/5 · 建議優先評估 | 9566 |
+| [`jesse-ai/jesse`](https://github.com/jesse-ai/jesse) | 5/5 · 建議優先評估 | 7613 |
+| [`lballabio/QuantLib`](https://github.com/lballabio/QuantLib) | 5/5 · 建議優先評估 | 6932 |
+| [`microsoft/qlib`](https://github.com/microsoft/qlib) | 5/5 · 建議優先評估 | 39646 |
+| [`myhhub/stock`](https://github.com/myhhub/stock) | 5/5 · 建議優先評估 | 12112 |
+| [`polakowo/vectorbt`](https://github.com/polakowo/vectorbt) | 5/5 · 建議優先評估 | 7037 |
+| [`ranaroussi/quantstats`](https://github.com/ranaroussi/quantstats) | 5/5 · 建議優先評估 | 6914 |
+| [`wilsonfreitas/awesome-quant`](https://github.com/wilsonfreitas/awesome-quant) | 5/5 · 建議優先評估 | 25254 |
+| [`firmai/financial-machine-learning`](https://github.com/firmai/financial-machine-learning) | 4/5 · 高適配 | 8467 |
+| [`paperswithbacktest/awesome-systematic-trading`](https://github.com/paperswithbacktest/awesome-systematic-trading) | 4/5 · 高適配 | 7570 |
+
+**Spike／PR 勾選**（僅 repo 名；理由見研究稿）：
+
+- [ ] `OpenBB-finance/OpenBB`
+- [ ] `StockSharp/StockSharp`
+- [ ] `TA-Lib/ta-lib-python`
+- [ ] `UFund-Me/Qbot`
+- [ ] `cantaro86/Financial-Models-Numerical-Methods`
+- [ ] `je-suis-tm/quant-trading`
+- [ ] `jesse-ai/jesse`
+- [ ] `lballabio/QuantLib`
+- [ ] `microsoft/qlib`
+- [ ] `myhhub/stock`
+- [ ] `polakowo/vectorbt`
+- [ ] `ranaroussi/quantstats`
+- [ ] `wilsonfreitas/awesome-quant`
+- [ ] `firmai/financial-machine-learning`
+- [ ] `paperswithbacktest/awesome-systematic-trading`
 
 <!-- OSS_SCOUT_AUTO_END -->
 
@@ -224,6 +245,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-03**：**OSS Scout 自動區**改為連結＋表＋短勾選（`fit_rationale` 只在研究稿／JSON）；研究稿模板補「維護者勾選追蹤」— CHANGELOG **2026-04-03**。
 - **2026-04-02**：檔首同步含 CHANGELOG **2026-04-02**（CI `workflow_dispatch`、`market.json` fixture、tools 套件鏡射）；**勿手改** `<!-- OSS_SCOUT_AUTO_BEGIN -->`～`END` 區塊（由 workflow 覆寫）。
 - **2026-04-01**：已落地補 **pick_reason 重複抬頭正規化**、呢喃補填讀者面；**OSS Scout 週報** 更新候選＋研究稿 [`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md)；檔首同步含 CHANGELOG **2026-04-01**。
 - **2026-03-31**：**TODOS 精簡** — 移除已完成 `[x]` 主表（細節改以 CHANGELOG／「已落地」為準）；補 **OSS Scout 週報** `OSS_SCOUT_AUTO_BEGIN/END` 與 [`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 契約對齊。**同日對齊 CHANGELOG 2026-03-31**：已落地條目補績效註解／risk_budget coerce／連日維持補註等；檔首與波次 B 日期區間更新為～31。

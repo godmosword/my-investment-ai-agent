@@ -63,3 +63,11 @@
 {% else %}
 - （無）
 {% endif %}
+
+---
+
+## 維護者勾選追蹤（可於此打勾後再同步 issue／PR）
+
+{% for r in repos %}
+- [ ] `{{ r.full_name }}` — {{ r.fit_score }}/5 · {{ r.fit_label }}
+{% endfor %}

@@ -12,7 +12,7 @@ sys.path.insert(0, str(_ROOT / "scripts"))
 
 from oss_scout_candidates import build_payload  # noqa: E402
 from oss_suitability import label_for_score, score_repo  # noqa: E402
-from oss_weekly_pipeline import _trim_weekly_blocks, merge_todos  # noqa: E402
+from oss_weekly_pipeline import _build_todos_block, _trim_weekly_blocks, merge_todos  # noqa: E402
 
 
 def test_build_payload_slims_items():
@@ -65,6 +65,37 @@ def test_merge_todos_inserts_section():
     assert "2099-01-01" in text
     assert "- [ ] test item" in text
     assert "## 修訂紀錄" in text
+
+
+def test_build_todos_block_compact_table_and_short_checkboxes():
+    repos = [
+        {
+            "full_name": "a/z",
+            "html_url": "https://github.com/a/z",
+            "stargazers_count": 9,
+            "fit_score": 5,
+            "fit_label": "建議優先評估",
+            "fit_rationale": "long tags that must not appear in TODOS block",
+        },
+        {
+            "full_name": "a/b",
+            "html_url": "",
+            "stargazers_count": 1,
+            "fit_score": 4,
+            "fit_label": "高適配",
+            "fit_rationale": "also hidden",
+        },
+    ]
+    md = _build_todos_block("2099-02-01", repos)
+    assert "long tags that must not appear" not in md
+    assert "| Repo | 適配 | ★ |" in md
+    assert "[`a/z`](https://github.com/a/z)" in md
+    assert "5/5 · 建議優先評估" in md
+    assert "- [ ] `a/z`" in md
+    assert "- [ ] `a/b`" in md
+    assert "2099-02-01-digest.json" in md
+    # empty html_url falls back to https://github.com/{full_name}
+    assert "[`a/b`](https://github.com/a/b)" in md
 
 
 def test_merge_todos_prepends_second_week():

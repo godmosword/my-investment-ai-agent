@@ -410,3 +410,23 @@ Usually, topics such as PDE methods, Lévy processes, Fourier methods or
 
 
 - （無）
+
+---
+
+## 維護者勾選追蹤（可於此打勾後再同步 issue／PR）
+
+- [ ] `OpenBB-finance/OpenBB` — 5/5 · 建議優先評估
+- [ ] `microsoft/qlib` — 5/5 · 建議優先評估
+- [ ] `wilsonfreitas/awesome-quant` — 5/5 · 建議優先評估
+- [ ] `UFund-Me/Qbot` — 5/5 · 建議優先評估
+- [ ] `myhhub/stock` — 5/5 · 建議優先評估
+- [ ] `TA-Lib/ta-lib-python` — 5/5 · 建議優先評估
+- [ ] `je-suis-tm/quant-trading` — 5/5 · 建議優先評估
+- [ ] `StockSharp/StockSharp` — 5/5 · 建議優先評估
+- [ ] `firmai/financial-machine-learning` — 4/5 · 高適配
+- [ ] `jesse-ai/jesse` — 5/5 · 建議優先評估
+- [ ] `paperswithbacktest/awesome-systematic-trading` — 4/5 · 高適配
+- [ ] `polakowo/vectorbt` — 5/5 · 建議優先評估
+- [ ] `lballabio/QuantLib` — 5/5 · 建議優先評估
+- [ ] `ranaroussi/quantstats` — 5/5 · 建議優先評估
+- [ ] `cantaro86/Financial-Models-Numerical-Methods` — 5/5 · 建議優先評估
