@@ -96,7 +96,7 @@ class TestFinancialDatasetsTool(unittest.TestCase):
     def setUp(self):
         _CACHE.clear()
 
-    @patch("tools._fd_http_get_json", side_effect=_fake_fd)
+    @patch("tools_legacy._fd_http_get_json", side_effect=_fake_fd)
     def test_watchlist_contains_tickers_and_financialdatasets_hint(self, _mock):
         out = financial_datasets_tool.run("watchlist")
         self.assertIn("NVDA", out)
@@ -106,7 +106,7 @@ class TestFinancialDatasetsTool(unittest.TestCase):
         self.assertIn("營收", out)
         self.assertIn("(source=financial_datasets)", out)
 
-    @patch("tools._fd_http_get_json", side_effect=_fake_fd)
+    @patch("tools_legacy._fd_http_get_json", side_effect=_fake_fd)
     def test_single_ticker_quarterly(self, _mock):
         out = financial_datasets_tool.run("AMD:quarterly")
         self.assertIn("AMD", out)
@@ -117,14 +117,14 @@ class TestFinancialDatasetsToolEdgeCases(unittest.TestCase):
     def setUp(self):
         _CACHE.clear()
 
-    @patch("tools._fd_http_get_json", return_value=None)
+    @patch("tools_legacy._fd_http_get_json", return_value=None)
     def test_api_failure_returns_error_line_per_ticker(self, _mock):
         """Income API 失敗時應回傳含 ticker 的錯誤說明行（不是 DATA_MISSING）。"""
         out = financial_datasets_tool.run("NVDA")
         self.assertIn("NVDA", out)
         self.assertIn("損益表 API 無資料或請求失敗", out)
 
-    @patch("tools._fd_http_get_json", side_effect=_fake_fd)
+    @patch("tools_legacy._fd_http_get_json", side_effect=_fake_fd)
     def test_cache_hit_skips_second_api_call(self, mock_fd):
         """第二次相同查詢應走 cache，不再呼叫 API。"""
         financial_datasets_tool.run("NVDA")
@@ -132,13 +132,13 @@ class TestFinancialDatasetsToolEdgeCases(unittest.TestCase):
         financial_datasets_tool.run("NVDA")
         self.assertEqual(mock_fd.call_count, calls_after_first)
 
-    @patch("tools._fd_http_get_json", return_value=None)
+    @patch("tools_legacy._fd_http_get_json", return_value=None)
     def test_invalid_ticker_returns_data_missing(self, _mock):
         """非字母數字 ticker 應被過濾，回傳 DATA_MISSING。"""
         out = financial_datasets_tool.run("@#$%!")
         self.assertIn("[DATA_MISSING", out)
 
-    @patch("tools._fd_http_get_json", side_effect=_fake_fd)
+    @patch("tools_legacy._fd_http_get_json", side_effect=_fake_fd)
     def test_quarterly_period_selection(self, _mock):
         """TICKER:quarterly 應使用 quarterly period。"""
         out = financial_datasets_tool.run("TSLA:quarterly")

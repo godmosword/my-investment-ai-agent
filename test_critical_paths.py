@@ -278,7 +278,7 @@ class TestSchemaGuards(unittest.TestCase):
     def tearDown(self):
         _CACHE.clear()
 
-    @patch("tools._http_get")
+    @patch("tools_legacy._http_get")
     def test_fear_greed_non_dict_returns_data_missing(self, mock_http_get):
         mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
@@ -289,7 +289,7 @@ class TestSchemaGuards(unittest.TestCase):
         result = fear_greed_tool()
         self.assertIn("DATA_MISSING", result)
 
-    @patch("tools._http_get")
+    @patch("tools_legacy._http_get")
     def test_fear_greed_empty_data_returns_data_missing(self, mock_http_get):
         mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
