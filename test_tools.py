@@ -114,7 +114,7 @@ class TestFearGreedTool(unittest.TestCase):
     def setUp(self):
         _CACHE.clear()
 
-    @patch("tools._http_get")
+    @patch("tools_legacy._http_get")
     def test_success(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -132,7 +132,7 @@ class TestFearGreedTool(unittest.TestCase):
         self.assertIn("Extreme Fear", result)
         self.assertIn("極度恐懼", result)
 
-    @patch("tools._http_get")
+    @patch("tools_legacy._http_get")
     def test_api_failure(self, mock_get):
         mock_get.side_effect = Exception("timeout")
 
@@ -144,7 +144,7 @@ class TestFearGreedTool(unittest.TestCase):
 class TestBinanceFallbacks(unittest.TestCase):
     """Test Binance fallback functions with mocked HTTP."""
 
-    @patch("tools._http_get")
+    @patch("tools_legacy._http_get")
     def test_binance_funding_rate_success(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -158,14 +158,14 @@ class TestBinanceFallbacks(unittest.TestCase):
         self.assertIn("Binance", result)
         self.assertNotIn("DATA_MISSING", result)
 
-    @patch("tools._http_get")
+    @patch("tools_legacy._http_get")
     def test_binance_funding_rate_failure(self, mock_get):
         mock_get.side_effect = Exception("network error")
 
         result = _binance_funding_rate()
         self.assertIn("DATA_MISSING", result)
 
-    @patch("tools._http_get")
+    @patch("tools_legacy._http_get")
     def test_binance_long_short_ratio_success(self, mock_get):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -178,7 +178,7 @@ class TestBinanceFallbacks(unittest.TestCase):
         self.assertIn("1.250", result)
         self.assertIn("多方佔優", result)
 
-    @patch("tools._http_get")
+    @patch("tools_legacy._http_get")
     def test_binance_open_interest_success(self, mock_get):
         responses = [
             MagicMock(status_code=200, ok=True),
