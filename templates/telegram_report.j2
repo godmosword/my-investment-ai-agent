@@ -1,51 +1,53 @@
 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {{ crypto.report_title_date|tg_escape }}</i>
+────────────
 {% if crypto.exec_summary %}
-<b>📋 執行摘要</b>
+<b>📋 【執行摘要】</b>
 {% for line in crypto.exec_summary %}
 → {{ line|tg_escape }}
+
 {% endfor %}
 ────────────
 {% endif %}
 {% if previous_recs_html %}
 {{ previous_recs_html }}
-{% endif %}
 
-【今日市場模式】<b>{{ crypto.market.regime }}</b>{{ crypto.market.score_suffix|tg_escape }}
+{% endif %}
+<b>【今日市場模式】</b> <code>{{ crypto.market.regime|tg_escape }}</code>{{ crypto.market.score_suffix|tg_escape }}
 {% for line in crypto.market.scorecard_lines %}
 {{ line|tg_escape }}
 {% endfor %}
-· 今日主敘事：<b>{{ crypto.narrative_of_day|tg_escape }}</b>
+· <i>今日主敘事</i>：<b>{{ crypto.narrative_of_day|tg_escape }}</b>
 
-🏛️ 宏觀框架
+<b>🏛️ 宏觀框架</b>
 {% for line in crypto.macro_framework_lines %}
 · {{ line|tg_escape }}
 {% endfor %}
 
 ────────────
 ══════ <b>📊 加密市場</b> ══════
-區塊①【數據儀表板】
+<b>區塊①</b>【數據儀表板】
 {% for row in crypto.dashboard %}
 {% if row.status_emoji %}· {{ row.status_emoji }} <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
 {% else %}· <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
 {% endif %}
 {% endfor %}
 
-區塊②【核心新聞】
+<b>區塊②</b>【核心新聞】
 {% for n in crypto.news %}
 〔新聞 {{ n.index }}〕{{ n.timestamp_line|tg_escape }} <b>{{ n.title|tg_escape }}</b>（{{ n.source_and_nature|tg_escape }}）
 <blockquote>{{ n.summary|tg_escape }}</blockquote>
-投資解讀：{{ n.investment_takeaway|tg_escape }}
-💎主編共識：{{ n.editor_consensus|tg_escape }}
+<i>投資解讀</i>：{{ n.investment_takeaway|tg_escape }}
+<i>💎主編共識</i>：{{ n.editor_consensus|tg_escape }}
 
 {% endfor %}
 {% if crypto.x_highlights %}
-區塊②b 主題式觀點摘要（非即時推文）
+<b>區塊②b</b> 主題式觀點摘要（非即時推文）
 {% for x in crypto.x_highlights %}
 · {{ x|tg_escape }}
 {% endfor %}
 {% endif %}
 
-區塊③【市場呢喃與傳聞】
+<b>區塊③</b>【市場呢喃與傳聞】
 {% if crypto.chatter %}
 {% for c in crypto.chatter %}
 · {{ c.text|tg_escape }}
@@ -54,12 +56,15 @@
 · 傳聞可信度：B（未確認）｜主流媒體二次驗證：否
 {% endif %}
 
-區塊④【資金流向與精準操作 (Crypto)】
+<b>區塊④</b>【資金流向與精準操作 (Crypto)】
 本日選擇理由：{{ crypto.pick_reason|tg_escape }}
 今日風險預算：{{ crypto.risk_budget_summary|tg_escape }}
 訊號衝突摘要：{{ crypto.signal_conflict_summary|tg_escape }}
 {% if crypto.trade_legs %}
 {% for leg in crypto.trade_legs %}
+{% if not loop.first %}
+────────
+{% endif %}
 · <b>${{ (leg.asset|string|replace('$', ''))|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|replace('$', ''))|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
 · <b>計畫</b>：進場 <code>{{ (leg.entry|string|replace('$', ''))|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|replace('$', ''))|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|replace('$', ''))|tg_escape }}</code>（建議倉位 {{ leg.position_pct|tg_escape }}）
@@ -78,6 +83,7 @@
 · 重新進場條件：待下一輪有效新聞、即時報價與多時框訊號齊備後再提供交易參數。
 {% endif %}
 
+────────────
 🤖 AI 市場
 {% if ai.macro_bridge_lines %}
 <i>宏觀連結：</i>
@@ -86,27 +92,27 @@
 {% endfor %}
 {% endif %}
 
-區塊①【AI 數據儀表板】
+<b>區塊①</b>【AI 數據儀表板】
 {% for row in ai.dashboard %}
 · <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
 {% endfor %}
 
-區塊②【AI 產業新聞】
+<b>區塊②</b>【AI 產業新聞】
 {% for n in ai.news %}
 〔新聞 {{ n.index }}〕{{ n.timestamp_line|tg_escape }} <b>{{ n.title|tg_escape }}</b>（{{ n.source_and_nature|tg_escape }}）
 <blockquote>{{ n.summary|tg_escape }}</blockquote>
-投資解讀：{{ n.investment_takeaway|tg_escape }}
-💎主編共識：{{ n.editor_consensus|tg_escape }}
+<i>投資解讀</i>：{{ n.investment_takeaway|tg_escape }}
+<i>💎主編共識</i>：{{ n.editor_consensus|tg_escape }}
 
 {% endfor %}
 {% if ai.x_highlights %}
-區塊②b 主題式觀點摘要（非即時推文）
+<b>區塊②b</b> 主題式觀點摘要（非即時推文）
 {% for x in ai.x_highlights %}
 · {{ x|tg_escape }}
 {% endfor %}
 {% endif %}
 
-區塊③【產業鏈呢喃】
+<b>區塊③</b>【產業鏈呢喃】
 {% if ai.chatter %}
 {% for c in ai.chatter %}
 · {{ c.text|tg_escape }}
@@ -115,7 +121,7 @@
 · 傳聞可信度：B（未確認）｜主流媒體二次驗證：否
 {% endif %}
 
-區塊④【AI 產業鏈精準操作 (US Equities)】
+<b>區塊④</b>【AI 產業鏈精準操作 (US Equities)】
 本日選擇理由：{{ ai.pick_reason|tg_escape }}
 訊號衝突摘要：{{ ai.signal_conflict_summary|tg_escape }}
 {% if ai.us_equity_allocation_note %}
@@ -123,6 +129,9 @@
 {% endif %}
 {% if ai.trade_legs %}
 {% for leg in ai.trade_legs %}
+{% if not loop.first %}
+────────
+{% endif %}
 · <b>${{ (leg.asset|string|replace('$', ''))|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|replace('$', ''))|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
 · <b>計畫</b>：進場 <code>{{ (leg.entry|string|replace('$', ''))|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|replace('$', ''))|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|replace('$', ''))|tg_escape }}</code>（建議倉位 {{ leg.position_pct|tg_escape }}）
