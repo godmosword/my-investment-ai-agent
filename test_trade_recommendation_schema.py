@@ -62,3 +62,12 @@ def test_confidence_2_allows_missing_scenarios() -> None:
         )
     )
     assert r.confidence == 2
+
+
+@pytest.mark.smoke
+def test_score_gap_derived_when_omitted_but_scores_present() -> None:
+    """對齊生產 STRICT_CONSISTENCY：漏填 score_gap 時由 selection − alt 導出。"""
+    d = _base_rec()
+    del d["score_gap"]
+    r = TradeRecommendation(**d)
+    assert r.score_gap == pytest.approx(78.0 - 63.0)

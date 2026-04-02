@@ -253,6 +253,21 @@ class TradeRecommendation(BaseModel):
             return v[:cap]
         return v
 
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_score_gap_before(cls, data: object) -> object:
+        """Crew 契約：score_gap = selection_score − alt_candidate_score。LLM 常漏填 gap；有兩分數時於解析前補上。"""
+        if not isinstance(data, dict):
+            return data
+        if data.get("score_gap") is not None:
+            return data
+        sel, alt = data.get("selection_score"), data.get("alt_candidate_score")
+        if sel is None or alt is None:
+            return data
+        merged = dict(data)
+        merged["score_gap"] = float(sel) - float(alt)
+        return merged
+
     @model_validator(mode="after")
     def _require_scenarios_and_narrative_when_high_confidence(self) -> "TradeRecommendation":
         """confidence≥3：三情境與對外 narrative 必填（對齊 QSREC／HTML Gate）。"""
