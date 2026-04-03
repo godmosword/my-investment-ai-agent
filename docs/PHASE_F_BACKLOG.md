@@ -2,6 +2,8 @@
 
 本檔為 [TODOS.md](../TODOS.md) 與計劃「階段 F」之執行索引，**非**一次性實作範圍。
 
+**未完成項決策評分**（Pri 1–9、Phase 1–4／階段 E 濃縮四維表、新建議 backlog、建議開工順序）：見 [TODOS.md — 未完成項四維評分與新建議（2026-04）](../TODOS.md#未完成項四維評分與新建議2026-04)。
+
 ## Direction 1B — 商業化
 
 - 實作入口：[`docs/COMMERCE_NEXT_STEPS.md`](COMMERCE_NEXT_STEPS.md)
@@ -37,4 +39,5 @@
 
 ## 修訂紀錄
 
+- 2026-04-04：檔首補連結至 `TODOS.md` **未完成項四維評分與新建議（2026-04）**（含本檔涵蓋之 1B／2B／Direction 3 與 Phase 1–4 之濃縮評分表）。
 - 2026-03-29：新增本節「演進藍圖 Phase 1–4（精簡）」，與 `TODOS.md`／`ROADMAP_VISION.md` 對照。
