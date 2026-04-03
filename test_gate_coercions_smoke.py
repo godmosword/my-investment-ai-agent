@@ -105,7 +105,7 @@ def test_coerce_sections_locks_regime_and_macro():
 @pytest.mark.smoke
 def test_normalize_leading_repeat_pick_same_yesterday_rewrites():
     out = normalize_leading_repeat_pick_phrase("重複選用理由：BTC 敘事延續。", same_as_yesterday=True)
-    assert out.startswith("連日維持（同昨日 BQ QSREC）")
+    assert out.startswith("連日維持與昨日相同建議標的")
     assert "BTC 敘事延續" in out
     assert "重複選用理由" not in out
 
@@ -113,7 +113,7 @@ def test_normalize_leading_repeat_pick_same_yesterday_rewrites():
 @pytest.mark.smoke
 def test_normalize_leading_repeat_pick_equity_label_rewrites():
     out = normalize_leading_repeat_pick_phrase("重複選股理由：NVDA 維持。", same_as_yesterday=True)
-    assert out.startswith("連日維持（同昨日 BQ QSREC）")
+    assert out.startswith("連日維持與昨日相同建議標的")
     assert "NVDA 維持" in out
 
 

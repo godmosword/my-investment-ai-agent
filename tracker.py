@@ -154,6 +154,38 @@ _REGIME_POSITION_CAP: dict[str, float] = {
     "risk_on": 15.0,
 }
 
+# AI 區塊④ 多檔美股 position_pct 合計上限（與 crew「美股部位框」一致）
+_EQUITY_COMBINED_CAP: dict[str, float] = {
+    "risk_off": 4.0,
+    "neutral": 10.0,
+    "risk_on": 15.0,
+}
+
+
+def _canonical_regime_key(regime: str) -> str:
+    r = (regime or "neutral").strip().lower().replace("-", "_").replace(" ", "_")
+    if r not in _REGIME_POSITION_CAP:
+        return "neutral"
+    return r
+
+
+def regime_single_leg_cap_percent(regime: str) -> float:
+    """Max single trade_leg.position_pct for one suggestion line."""
+    return _REGIME_POSITION_CAP[_canonical_regime_key(regime)]
+
+
+def equity_combined_cap_percent(regime: str) -> float:
+    """Max sum of all AI (US equity) trade leg percentages for the regime."""
+    return _EQUITY_COMBINED_CAP[_canonical_regime_key(regime)]
+
+
+def default_position_pct_for_leg(regime: str, star_rating: int) -> float:
+    """Single-leg % when the model omits trade_legs.position_pct; mirrors QSREC backfill in _validate_rec."""
+    cap = _REGIME_POSITION_CAP[_canonical_regime_key(regime)]
+    stars = max(1, min(4, int(star_rating)))
+    return round(min(cap, 2.0 + stars * 1.5), 2)
+
+
 # Reflection Loop：美股 ticker → 粗粒度板塊（BQ 無 sector 欄位時用於聚合，降低單筆雜訊）
 _EQUITY_SECTOR_BY_TICKER: dict[str, str] = {
     "NVDA": "ai_semis",
@@ -480,8 +512,7 @@ def _validate_rec(raw: dict, report_date: str, regime_at_signal: str) -> dict | 
     position_pct = float(position_pct_raw) if position_pct_raw is not None else None
     cap = _REGIME_POSITION_CAP.get(regime_at_signal, 10.0)
     if position_pct is None:
-        # 依 regime 與信心給保守預設倉位，避免遺漏時無法落地執行
-        position_pct = round(min(cap, 2.0 + confidence * 1.5), 2)
+        position_pct = default_position_pct_for_leg(regime_at_signal, confidence)
     if position_pct <= 0:
         logger.warning("Skipping %s %s: non-positive position_pct=%s", asset, direction, position_pct)
         return None

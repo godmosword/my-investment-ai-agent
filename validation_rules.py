@@ -207,14 +207,15 @@ _REPEAT_PICK_LEADING_RE = re.compile(
 )
 
 # Reader-facing: avoids Jinja 「本日選擇理由：」+ body 「重複選用理由：」double headers.
-_REPEAT_SAME_YESTERDAY_PREFIX = "連日維持（同昨日 BQ QSREC）；"
+# Wording must still match ``_REPEAT_PICK_REASON_RE`` (e.g. 連日維持); omit internal BQ/pipeline jargon.
+_REPEAT_SAME_YESTERDAY_PREFIX = "連日維持與昨日相同建議標的；"
 
 
 def normalize_leading_repeat_pick_phrase(reason: str, *, same_as_yesterday: bool) -> str:
     """Rewrite or strip a leading 重複選用理由：… label (template already prints 本日選擇理由：).
 
     When ``same_as_yesterday`` is True (QSREC canonical set matches BQ yesterday), replace the label with
-    ``連日維持（同昨日 BQ QSREC）；`` + remainder so ``_REPEAT_PICK_REASON_RE`` still matches.
+    ``連日維持與昨日相同建議標的；`` + remainder so ``_REPEAT_PICK_REASON_RE`` still matches.
 
     When False, strip the redundant leading label only so the narrative is not mislabeled as a repeat pick.
     """
@@ -225,5 +226,5 @@ def normalize_leading_repeat_pick_phrase(reason: str, *, same_as_yesterday: bool
         return reason
     rest = reason[m.end() :].lstrip()
     if same_as_yesterday:
-        return f"{_REPEAT_SAME_YESTERDAY_PREFIX}{rest}" if rest else "連日維持（同昨日 BQ QSREC）。"
+        return f"{_REPEAT_SAME_YESTERDAY_PREFIX}{rest}" if rest else "連日維持與昨日相同建議標的。"
     return rest

@@ -9,11 +9,14 @@
 - **結構化 QSREC／STRICT_CONSISTENCY**：[`schemas.py`](schemas.py) `TradeRecommendation` 於 `score_gap` 缺漏且已有 `selection_score` 與 `alt_candidate_score` 時，在模型解析前自動補 **score_gap = selection_score − alt_candidate_score**（與 crew 分差契約一致，非捏造），避免 `DailyBriefReport` 業務驗證僅因漏填 gap 失敗而觸發 **GATE_EXECUTION_FAILED**。
 
 ### Changed
+- **讀者面向日報**：[`validation_rules.py`](validation_rules.py) 同標延續前綴改為 **「連日維持與昨日相同建議標的」**（仍命中 `_REPEAT_PICK_REASON_RE`），移除 **pipeline／BQ** 內部字樣；[`report_render.py`](report_render.py) 組裝時對空白 **`trade_legs.position_pct`** 依 regime＋星級補齊（[`tracker.py`](tracker.py) `default_position_pct_for_leg`）；**美股兩檔及以上**再依單筆上限壓縮並按 **合計上限**（neutral 10%／risk_on 15%／risk_off 4%，見 `equity_combined_cap_percent`）等比縮放；[`schemas.py`](schemas.py) 呢喃 **（未確認）** 且 **可信度：A** 時自動降 **B**；[`crew.py`](crew.py) **【讀者面一致】**、呢喃 A 級、新聞跨域；`_NEWS_FMT` 補跨板塊一句。
 - **Telegram 模板質感**（[`templates/telegram_report.j2`](templates/telegram_report.j2)）：標題後統一分隔線；執行摘要標題顯式 **【執行摘要】**（對齊 `STRICT_EXEC_SUMMARY_HTML_GATE`）；**【今日市場模式】** regime 以 `<code>` 凸顯；區塊編號粗體、主敘事／新聞「投資解讀／主編共識」以 `<i>` 標示；加密段與 **🤖 AI 市場** 之間補 **────────────**（利於 `_crypto_report_prefix` 邊界）；多腿交易之間 **────────** 換氣。
 - **讀者面語氣／分域／選股廣度**（[`crew.py`](crew.py)）：執行摘要補「語氣與節奏」「分域敘事」（禁止無因果混寫加密與美股）；避險基金規則補「精緻度」；研究員候選多樣性補產業／市值廣度；AI 區塊④動態選股補 (d) 兩檔廣度。
 - **OSS Scout → TODOS**：[`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) `_build_todos_block` 改為**連結＋摘要表＋短勾選**（不再嵌入 `fit_rationale` 長標籤）；[`templates/oss_weekly_plan.md.j2`](templates/oss_weekly_plan.md.j2) 底部新增 **維護者勾選追蹤**；[`docs/oss_candidates/README.md`](docs/oss_candidates/README.md) 與 [`TODOS.md`](TODOS.md) 靜態說明對齊；[`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md) 補同區塊（與下輪管線輸出一致）。
 
 ### Tests
+- [`test_report_render_boundaries.py`](test_report_render_boundaries.py)：`position_pct` 解析／補填、`tracker` regime 上限與星級 clamp、美股多腿合計縮放（neutral／risk_on／risk_off）、非法百分比與 `ChatterItem` 可信度邊界。
+- [`test_report_render.py`](test_report_render.py)：呢喃 A→B、`assemble` 補 **position_pct**、美股兩檔合計縮放與單筆 clamp；[`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)：`normalize_leading_repeat_pick_phrase` 前綴字串。
 - [`test_oss_weekly.py`](test_oss_weekly.py)：`test_build_todos_block_compact_table_and_short_checkboxes`。
 - [`test_trade_recommendation_schema.py`](test_trade_recommendation_schema.py)：`test_score_gap_derived_when_omitted_but_scores_present`。
 

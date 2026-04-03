@@ -473,6 +473,11 @@ class ChatterItem(BaseModel):
             self.text,
         )
 
+        if ("（未確認）" in self.text or "(未確認)" in self.text) and re.search(
+            r"可信度[：:]\s*A\b", self.text
+        ):
+            self.text = re.sub(r"(可信度[：:]\s*)A\b", r"\1B", self.text, count=1)
+
         if not _CHATTER_CRED_INLINE_RE.search(self.text):
             grade = self.credibility or "C"
             self.text = self.text.rstrip() + f"｜可信度：{grade}｜主流媒體二次驗證：否"

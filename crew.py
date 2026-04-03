@@ -143,6 +143,7 @@ def build_crypto_final_prompt(*, ctx: str, prev_recs_ctx: str, today_str: str) -
         {_CRYPTO_TRADE_MUTEX_RULE}
         {_BRIEF_V2_RULE}
         {_HEDGE_FUND_BRIEF_RULE}
+        {_READER_QUALITY_RULE}
         {_EXEC_SUMMARY_RULE}
         {_X_HIGHLIGHTS_SECTION_LABEL_RULE}
         {_GATE_VALIDATE_PICK_RULE}
@@ -176,6 +177,7 @@ def build_ai_final_prompt(*, ctx: str) -> str:
         {_PAIR_TRADE_RULE}
         {_BRIEF_V2_RULE}
         {_HEDGE_FUND_BRIEF_RULE}
+        {_READER_QUALITY_RULE}
         {_X_HIGHLIGHTS_SECTION_LABEL_RULE}
         {_GATE_VALIDATE_PICK_RULE}
         {_AI_RISK_BRIDGE_RULE}
@@ -359,6 +361,7 @@ _NEWS_FMT = dedent("""\
     - summary：1 句核心事實（≤40 字，禁止主觀評論）。
     - investment_takeaway：1~2 句（≤90 字），至少引用 1 個當日數據（如 funding/RSI/MA/ETF）；**區塊①儀表板已列之同一讀數（如 VIX、BTC 現價、MA 位階）勿在投資解讀逐字重複**，改寫「見上方儀表板」或僅寫**邊際變化／相對解讀**。
     - editor_consensus：1 句（≤28 字）且點名具體標的。
+    - **跨板塊新聞**：單則若同時涉及加密與美股／AI，必須一句寫明傳導鏈（風險偏好、資金流、beta 等）；禁止無機制硬接。
     - 禁止輸出任何 HTML/Markdown 標籤與排版符號，僅輸出可映射 schema 的純文字欄位值。""")
 
 _DASHBOARD_FMT = dedent("""\
@@ -386,6 +389,7 @@ _CHATTER_FMT = dedent("""\
     - 「...（未確認）｜來源：供應鏈側寫｜可信度：B｜主流媒體二次驗證：否」
     - 「...（未確認）｜來源：社群截圖｜可信度：72/100｜主流媒體二次驗證：否」
     ⚠️ 每條必須包含「可信度：A/B/C」或「可信度：數字/100」，缺少此標記將觸發 Gate 驗證失敗。
+    ⚠️ **（未確認）傳聞禁止標「可信度：A」**：A 僅用於官方或主流媒體已報導之可驗證事件；句中含「（未確認）」者，可信度請用 B 或 C（或數字分級換算後低於 75 分之等級）。
     🚫 若 rumor_scanner_tool 回傳 [DATA_MISSING] 或無任何可信傳聞，輸出單行「· 本日無可信傳聞」即可。
        **嚴禁在工具回傳空值或 DATA_MISSING 時自行捏造傳聞內容。**""")
 
@@ -527,6 +531,15 @@ _AI_RISK_BRIDGE_RULE = dedent("""\
     【validate_report 硬性順序（區塊④）】本段**必須**在「訊號衝突摘要」「美股部位框」「第一筆 · $<b>… 交易行前」先寫獨立一行「本日選擇理由：…」（僅屬 AI/美股，不可沿用加密段那一句）。違者系統判定「AI 區缺少本日選擇理由」並阻擋推送。
     【覆寫上方「交易段落前今日風險預算」】本段交易區前不要重複輸出「今日風險預算：…」整行；在「本日選擇理由」之後輸出「訊號衝突摘要：…」，再輸出（可選）一行：
     · <b>美股部位框</b>：兩檔合計建議不超過總資金 <code>10%</code>（主 regime 為 neutral）、<code>15%</code>（risk_on）、<code>4%</code>（risk_off）；單筆仍須遵守【Regime 風險預算】之單筆上限；總組合曝險以上方加密段「今日風險預算」為準。
+    """)
+
+_READER_QUALITY_RULE = dedent("""\
+    【讀者面一致（機構簡報）】
+    - **禁止內部營運用語**：敘述段落（選擇理由、訊號衝突、新聞解讀、呢喃等）不得出現「pipeline」「BQ」「自動補註」「主編次日應…」等後台或編輯備註；同標延續僅用讀者向表述（如「連日維持與昨日相同建議標的」開頭之一句），其後接市場理由。（尾端 [QSREC_START] JSON 載荷不在此限。）
+    - **VIX 措辭**：若【今日市場模式】評分卡將 VIX 列為中性區間（⬜ 或該項 (0) 分），正文、宏觀連結、AI 段避免「飆升」「恐慌性」等與中性區間矛盾的詞；若波動邊際升高，請寫「相對前日變化」或「仍處評分卡區間但邊際走高」。
+    - **新聞跨域**：單則〔新聞〕若連結 BTC／加密與美股／AI 板塊，該則至少一句寫明傳導鏈（風險偏好、去槓桿、同日資金流或 beta 等）；禁止無機制的一句硬接。列為傳聞或 Unverified 者須降調為市場討論。
+    - **🤖 AI 段「本日選擇理由」**：首句為可執行結論（方向／框架），其後至多 2 句佐證；其餘分流至「訊號衝突摘要」。全段宜 ≤約 120 中文字。
+    - **trade_legs.position_pct**：結構化輸出每筆必填正數百分比（與 regime 單筆上限一致），禁止空字串，讀者版交易卡須顯示具體建議倉位。組裝階段會將**兩檔及以上美股**合計縮放至與主 regime 一致之合計上限（neutral 10%／risk_on 15%／risk_off 4%），並先逐筆壓至單筆上限。
     """)
 
 _ALT_PICK_DIVERSITY_RESEARCH_RULE = dedent("""\

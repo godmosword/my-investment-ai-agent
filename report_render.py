@@ -11,7 +11,13 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
 from schemas import AISection, CryptoSection, DailyBriefReport, QSREC_JSON_EXCLUDE_FIELDS
+from tracker import (
+    default_position_pct_for_leg,
+    equity_combined_cap_percent,
+    regime_single_leg_cap_percent,
+)
 from validation_rules import (
+    _REPEAT_SAME_YESTERDAY_PREFIX,
     ensure_crypto_risk_budget_regime_token,
     normalize_authoritative_regime_tokens_multiline,
     normalize_leading_repeat_pick_phrase,
@@ -193,6 +199,102 @@ def _coerce_sections_for_gate(
     return crypto, ai
 
 
+def _parse_position_pct_float(raw: str | None) -> float | None:
+    if raw is None:
+        return None
+    core = str(raw).replace("%", "").strip()
+    if not core:
+        return None
+    try:
+        return float(core)
+    except ValueError:
+        return None
+
+
+def _format_position_pct(value: float) -> str:
+    return f"{round(value, 2):g}%"
+
+
+def _coerce_ai_trade_legs_single_and_combined_cap(ai: AISection, regime: str) -> AISection:
+    """Clamp each US equity leg to single-leg cap; scale down proportionally if sum exceeds combined cap."""
+    legs = list(ai.trade_legs)
+    if not legs:
+        return ai
+    per_cap = regime_single_leg_cap_percent(regime)
+    combined_cap = equity_combined_cap_percent(regime)
+    values: list[float] = []
+    for leg in legs:
+        v = _parse_position_pct_float(leg.position_pct)
+        if v is None:
+            v = default_position_pct_for_leg(regime, leg.star_rating)
+        v = min(v, per_cap)
+        values.append(v)
+    total = sum(values)
+    if len(legs) >= 2 and total > combined_cap + 1e-9:
+        factor = combined_cap / total
+        values = [round(v * factor, 2) for v in values]
+    new_legs = [
+        leg.model_copy(update={"position_pct": _format_position_pct(values[i])})
+        for i, leg in enumerate(legs)
+    ]
+
+    def _pct_close(a: str | None, b: str | None) -> bool:
+        fa, fb = _parse_position_pct_float(a), _parse_position_pct_float(b)
+        if fa is None and fb is None:
+            return (a or "").strip() == (b or "").strip()
+        if fa is None or fb is None:
+            return False
+        return abs(fa - fb) < 0.001
+
+    if all(_pct_close(leg.position_pct, nl.position_pct) for leg, nl in zip(legs, new_legs, strict=True)):
+        return ai
+    return ai.model_copy(update={"trade_legs": new_legs})
+
+
+def _trade_leg_position_pct_needs_fill(raw: str | None) -> bool:
+    if raw is None:
+        return True
+    t = str(raw).strip()
+    if not t:
+        return True
+    core = t.replace("%", "").strip()
+    if not core:
+        return True
+    try:
+        float(core)
+    except ValueError:
+        return True
+    else:
+        return False
+
+
+def _coerce_trade_leg_position_pcts(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
+    """Fill empty trade_legs.position_pct for Telegram cards (regime cap + star_rating heuristic)."""
+    regime = crypto.market.regime if crypto.market else "neutral"
+    new_crypto_legs = [
+        leg.model_copy(
+            update={"position_pct": f"{default_position_pct_for_leg(regime, leg.star_rating):g}%"},
+        )
+        if _trade_leg_position_pct_needs_fill(leg.position_pct)
+        else leg
+        for leg in crypto.trade_legs
+    ]
+    new_ai_legs = [
+        leg.model_copy(
+            update={"position_pct": f"{default_position_pct_for_leg(regime, leg.star_rating):g}%"},
+        )
+        if _trade_leg_position_pct_needs_fill(leg.position_pct)
+        else leg
+        for leg in ai.trade_legs
+    ]
+    if new_crypto_legs != list(crypto.trade_legs):
+        crypto = crypto.model_copy(update={"trade_legs": new_crypto_legs})
+    if new_ai_legs != list(ai.trade_legs):
+        ai = ai.model_copy(update={"trade_legs": new_ai_legs})
+    ai = _coerce_ai_trade_legs_single_and_combined_cap(ai, regime)
+    return crypto, ai
+
+
 def _normalize_pick_reason_repeat_headers(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
     """Remove duplicate 「重複選用理由：」 after Jinja 「本日選擇理由：」; align with 連日維持 when repeat-day."""
     from report_html_gates import (  # noqa: PLC0415
@@ -235,9 +337,7 @@ def _apply_repeat_pick_disclaimer_if_needed(crypto: CryptoSection, ai: AISection
     if not _strict_pick_rotation() or not _allow_repeat_pick_override():
         return crypto, ai
     recs = [r.model_dump(mode="json") for r in crypto.qsrec + ai.qsrec]
-    prefix = (
-        "連日維持（同昨日 BQ QSREC）；pipeline 自動補註——主編次日應依催化改選或於理由內詳述。"
-    )
+    prefix = _REPEAT_SAME_YESTERDAY_PREFIX
     for cat in ("CRYPTO", "EQUITY"):
         y = _fetch_yesterday_qsrec_canonical_set(cat)
         t = _qsrec_canonical_set_for_category(recs, cat)
@@ -266,6 +366,7 @@ def assemble_daily_brief_report(
     agreed_regime: str | None = None,
 ) -> DailyBriefReport:
     crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
+    crypto, ai = _coerce_trade_leg_position_pcts(crypto, ai)
     crypto, ai = _normalize_pick_reason_repeat_headers(crypto, ai)
     crypto, ai = _apply_repeat_pick_disclaimer_if_needed(crypto, ai)
     disclaimer = _low_confidence_disclaimer_plain(crypto, ai)

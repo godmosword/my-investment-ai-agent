@@ -178,10 +178,11 @@ def _sample_qsrec_equity() -> TradeRecommendation:
 
 def test_auto_repeat_pick_prefix_matches_rotation_gate_regex():
     """assemble 自動補註前綴須命中 _REPEAT_PICK_REASON_RE（與 STRICT_PICK_ROTATION 一致）。"""
-    prefix = (
-        "連日維持（同昨日 BQ QSREC）；pipeline 自動補註——主編次日應依催化改選或於理由內詳述。"
+    from validation_rules import _REPEAT_SAME_YESTERDAY_PREFIX
+
+    assert _REPEAT_PICK_REASON_RE.search(_REPEAT_SAME_YESTERDAY_PREFIX), (
+        "prefix must satisfy repeat-pick reason pattern"
     )
-    assert _REPEAT_PICK_REASON_RE.search(prefix), "prefix must satisfy repeat-pick reason pattern"
 
 
 def test_auto_repeat_pick_disclaimer_when_yesterday_matches():
@@ -286,6 +287,150 @@ def test_chatter_item_credibility_autofill_uses_reader_safe_suffix():
 
 
 @pytest.mark.smoke
+def test_chatter_item_downgrades_credibility_a_when_unconfirmed():
+    c = ChatterItem(
+        text="測試傳聞（未確認）｜來源：側寫｜可信度：A｜主流媒體二次驗證：否"
+    )
+    assert "可信度：B" in c.text
+    assert "可信度：A" not in c.text
+
+
+@pytest.mark.smoke
+def test_assemble_fills_empty_trade_leg_position_pct():
+    leg_crypto = _sample_trade_leg("BTC").model_copy(update={"position_pct": ""})
+    leg_ai = _sample_trade_leg("NVDA").model_copy(update={"position_pct": "   "})
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="催化與鏈上支持 BTC 主軸敘述足夠長度以通過 gate 最小要求欄位",
+        risk_budget_summary="neutral 模式下總曝險 40%",
+        signal_conflict_summary="空｜多",
+        trade_legs=[leg_crypto],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+        signal_conflict_summary="無",
+        trade_legs=[leg_ai],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert report.crypto.trade_legs[0].position_pct.strip().endswith("%")
+    assert float(report.crypto.trade_legs[0].position_pct.replace("%", "").strip()) > 0
+    assert report.ai.trade_legs[0].position_pct.strip().endswith("%")
+
+
+def _sum_leg_position_pct(legs: list) -> float:
+    return sum(float(x.position_pct.replace("%", "").strip()) for x in legs)
+
+
+@pytest.mark.smoke
+def test_assemble_scales_two_equity_legs_to_combined_cap_neutral():
+    leg_nvda = _sample_trade_leg("NVDA").model_copy(update={"position_pct": "8%"})
+    leg_msft = _sample_trade_leg("MSFT").model_copy(update={"position_pct": "8%"})
+    msft_qsrec = _sample_qsrec_equity().model_copy(
+        update={
+            "asset": "MSFT",
+            "current_price": 373.0,
+            "entry": 373.0,
+            "target": 345.0,
+            "stop": 390.0,
+        }
+    )
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="催化與鏈上支持 BTC 主軸敘述足夠長度以通過 gate 最小要求欄位",
+        risk_budget_summary="neutral 模式下總曝險 40%",
+        signal_conflict_summary="空｜多",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="NVDA 與 MSFT 財報前瞻與資料中心 Capex 敘事強化，兩檔並列為今日美股主倉。",
+        signal_conflict_summary="無",
+        trade_legs=[leg_nvda, leg_msft],
+        qsrec=[_sample_qsrec_equity(), msft_qsrec],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert len(report.ai.trade_legs) == 2
+    assert abs(_sum_leg_position_pct(report.ai.trade_legs) - 10.0) < 0.05
+    a, b = (
+        float(report.ai.trade_legs[0].position_pct.replace("%", "").strip()),
+        float(report.ai.trade_legs[1].position_pct.replace("%", "").strip()),
+    )
+    assert abs(a - b) < 0.01
+    assert abs(a - 5.0) < 0.01
+
+
+@pytest.mark.smoke
+def test_assemble_clamps_single_equity_leg_to_regime_cap():
+    leg = _sample_trade_leg("NVDA").model_copy(update={"position_pct": "12%"})
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="催化與鏈上支持 BTC 主軸敘述足夠長度以通過 gate 最小要求欄位",
+        risk_budget_summary="neutral 模式下總曝險 40%",
+        signal_conflict_summary="空｜多",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+        signal_conflict_summary="無",
+        trade_legs=[leg],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert float(report.ai.trade_legs[0].position_pct.replace("%", "").strip()) == 10.0
+
+
+@pytest.mark.smoke
 def test_assemble_rewrites_leading_repeat_reason_when_same_yesterday():
     def _yesterday(cat: str):
         return {"BTC"} if cat == "CRYPTO" else {"NVDA"}
@@ -329,9 +474,9 @@ def test_assemble_rewrites_leading_repeat_reason_when_same_yesterday():
             source_observability_block="",
             report_tier_partial_news=False,
         )
-    assert report.crypto.pick_reason.startswith("連日維持（同昨日 BQ QSREC）")
+    assert report.crypto.pick_reason.startswith("連日維持與昨日相同建議標的")
     assert "BTC 跌破 MA50" in report.crypto.pick_reason
-    assert report.ai.pick_reason.startswith("連日維持（同昨日 BQ QSREC）")
+    assert report.ai.pick_reason.startswith("連日維持與昨日相同建議標的")
     assert "NVDA 與 MSFT" in report.ai.pick_reason
 
 
