@@ -422,22 +422,26 @@ def _coerce_ai_equity_trade_prices_from_market(ai: AISection) -> AISection:
         return ai
     new_legs = []
     changed = False
+    backfill_rows: list[dict[str, object]] = []
     for leg in legs:
         if _parse_pair_asset(leg.asset):
             new_legs.append(leg)
             continue
         close = prices.get(leg.asset)
         cur, ent, tgt, stp = leg.current_price, leg.entry, leg.target, leg.stop
+        fields_changed: list[str] = []
 
         if _trade_price_field_unusable(cur) and close is not None:
             cur = _fmt_equity_money(close)
             changed = True
+            fields_changed.append("current_price")
 
         entry_f = None if _trade_price_field_unusable(ent) else _parse_first_usd_number(ent)
         if entry_f is None and close is not None:
             entry_f = close
             ent = _fmt_equity_money(close)
             changed = True
+            fields_changed.append("entry")
         elif entry_f is None:
             entry_f = _parse_first_usd_number(cur)
 
@@ -454,13 +458,26 @@ def _coerce_ai_equity_trade_prices_from_market(ai: AISection) -> AISection:
         ):
             tgt, stp = _synth_equity_target_stop(entry_f, leg.direction, rr_v, dd_v)
             changed = True
+            fields_changed.extend(["target", "stop"])
 
         new_legs.append(
             leg.model_copy(update={"current_price": cur, "entry": ent, "target": tgt, "stop": stp})
         )
+        if fields_changed:
+            backfill_rows.append({"asset": leg.asset, "fields": fields_changed})
     if not changed:
         return ai
     logger.info("assemble: backfilled AI equity trade leg prices (yfinance + optional R:R synthesis)")
+    if (
+        backfill_rows
+        and os.getenv("EQUITY_BACKFILL_SCRATCHPAD_LOG", "1").lower() not in ("0", "false", "no")
+    ):
+        try:
+            import scratchpad  # noqa: PLC0415
+
+            scratchpad.log_equity_price_backfill(backfill_rows)
+        except Exception as _sp_err:
+            logger.debug("equity backfill scratchpad skipped: %s", _sp_err)
     return ai.model_copy(update={"trade_legs": new_legs})
 
 

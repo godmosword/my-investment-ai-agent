@@ -170,6 +170,13 @@ def begin_run(metadata: dict[str, Any] | None = None) -> str | None:
     return rid
 
 
+def log_equity_price_backfill(legs: list[dict[str, Any]]) -> None:
+    """Record assemble-time yfinance / R:R synthesis touches (reader-neutral observability)."""
+    if not legs:
+        return
+    _write_event("equity_price_backfill", {"legs": _redact_obj(legs)})
+
+
 def append_gate_result(attempt: int, result: dict[str, Any] | None) -> None:
     """每次 validate_report 後寫入 gate_result。"""
     if not result:

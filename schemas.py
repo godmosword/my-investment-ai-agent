@@ -141,6 +141,10 @@ class TradeRecommendation(BaseModel):
         ...,
         description="CRYPTO for digital assets; EQUITY for US stocks.",
     )
+    asset_market: Literal["US", "TW", "CRYPTO"] | None = Field(
+        default=None,
+        description="Optional venue for symbol formatting (TW 台股等)；None 時由 category 推斷展示規則。",
+    )
     internal_reasoning: str = Field(
         default="",
         description=(
@@ -543,6 +547,10 @@ def _dedupe_repeated_bear_lead(text: str) -> str:
 class ExecutableTradeLeg(BaseModel):
     """One rendered trade bullet group in block ④ (before QSREC)."""
 
+    asset_market: Literal["US", "TW", "CRYPTO"] | None = Field(
+        default=None,
+        description="Optional venue hint for `$`/幣符模板與 Gate（None=沿用區塊慣例：加密段 CRYPTO、AI 段 US）。",
+    )
     asset: str = Field(..., description="Ticker symbol WITHOUT leading $, uppercase (e.g. BTC, BTC/SOL, NVDA). The template prepends $ automatically.")
 
     @field_validator("asset", mode="before")
@@ -885,6 +893,25 @@ class AISection(BaseModel):
     @model_validator(mode="after")
     def _warn_consensus_direction_mismatch(self) -> "AISection":
         _check_consensus_direction(self.news, self.trade_legs)
+        return self
+
+    @model_validator(mode="after")
+    def _warn_watch_mode_vs_equity_qsrec(self) -> "AISection":
+        """HTML 模板在 trade_legs 為空時走觀望文案；若 QSREC 仍帶完整 EQUITY 價位則記 warning（不擋解析）。"""
+        if self.trade_legs:
+            return self
+        for rec in self.qsrec:
+            if str(rec.category or "").upper() != "EQUITY":
+                continue
+            try:
+                if rec.entry > 0 and rec.target > 0 and rec.stop > 0:
+                    logger.warning(
+                        "AISection：trade_legs 為空但 EQUITY QSREC 仍含可解析價位（%s）；"
+                        "讀者 HTML 為觀望模式，請對齊 crew 輸出或 assemble",
+                        rec.asset,
+                    )
+            except Exception:
+                continue
         return self
 
 

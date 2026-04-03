@@ -81,15 +81,15 @@
 4. Pri **4**、**9**（視是否要 Push／台股）  
 5. **5→6**、**7**、**Phase 2+**（資源與產品決策明確後）
 
-### 新建議 backlog（尚未開票；採納時可拆成獨立 `[ ]`）
+### 新建議 backlog（七項已落地骨架；細節持續迭代）
 
-1. **Gate 儀表板（內部）**：在 [`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql) 上固定「本週 Top issues＋對應 env」（可先 Looker／Sheet）；銜接 Pri 3 與波次 C。  
-2. **結構化預檢 dry-run**：`SKIP_TELEGRAM=1`＋僅跑到 `validate_report` 的 script／入口，staging 每日跑假報告骨架做 Gate 迴歸。  
-3. **美股價位備援可觀測性**：[`report_render.py`](report_render.py) 組裝備援觸發時，於 scratchpad 或 BQ 記錄 ticker／欄位（不影響讀者版），避免默默依賴 yfinance／R:R 合成。  
-4. **Prompt 變更登記簿**：Gate 人審若採「改 crew 規則」，以 CHANGELOG 子節或 `docs/PROMPT_CHANGELOG.md` 單行記錄日期／觸發 issue／摘要，滿足稽核。  
-5. **資產市場枚舉（Pri 9 前置）**：[`schemas.py`](schemas.py) 或 template filter 層標註 `asset_market`（如 US／TW／CRYPTO），避免 `$` 與幣符混用造成第二輪 Gate 誤判。  
-6. **Contributor 一鍵 mock-smoke**：`scripts/run_mock_pipeline.sh` 或 `make mock-smoke`（`MOCK_APIS=1`＋最小 fixture＋`pytest -m smoke`），降低 onboarding 摩擦。  
-7. **觀望模式 vs QSREC 一致性**：AI 段宣告觀望但 QSREC 仍含 EQUITY 可執行價時，於結構化層加 Pydantic 警告，與 [`report_html_gates.py`](report_html_gates.py) 互補。
+1. **Gate 儀表板（內部）**：指引 [`docs/GATE_INTERNAL_DASHBOARD.md`](docs/GATE_INTERNAL_DASHBOARD.md)；CLI 草稿 [`scripts/gate_failure_hint_digest.py`](scripts/gate_failure_hint_digest.py)。  
+2. **結構化預檢 dry-run**：[`scripts/validate_report_dry_run.py`](scripts/validate_report_dry_run.py)＋骨架 [`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)；smoke [`test_validate_report_dry_run_smoke.py`](test_validate_report_dry_run_smoke.py)。  
+3. **美股價位備援可觀測性**：[`report_render.py`](report_render.py) 觸發備援時寫 scratchpad `equity_price_backfill`（`EQUITY_BACKFILL_SCRATCHPAD_LOG`）。  
+4. **Prompt 變更登記簿**：[`docs/PROMPT_CHANGELOG.md`](docs/PROMPT_CHANGELOG.md)。  
+5. **資產市場枚舉**：[`schemas.py`](schemas.py) `ExecutableTradeLeg.asset_market`／`TradeRecommendation.asset_market`；模板行為見 [`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md)。  
+6. **Contributor mock-smoke**：[`scripts/run_mock_smoke.sh`](scripts/run_mock_smoke.sh)。  
+7. **觀望 vs QSREC**：[`schemas.py`](schemas.py) `AISection._warn_watch_mode_vs_equity_qsrec`（warning）；測試 [`test_aisection_watch_warning.py`](test_aisection_watch_warning.py)。
 
 ---
 
@@ -295,6 +295,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-04（晚）**：演進計畫實作 — Critical env／閾值實驗文件定稿；`adaptive_gate_thresholds` BQ 接線；Gate digest／dry-run／mock-smoke／scratchpad 備援觀測；`asset_market`、觀望 vs QSREC warning；PWA／台股說明文件。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-04 Added**。
 - **2026-04-04**：新增 **[未完成項四維評分與新建議（2026-04）](#未完成項四維評分與新建議2026-04)**（Pri 1–9、波次／Phase 濃縮表、建議順序、七條新建議 backlog）；檔首索引連結；[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) 補對照段落。
 - **2026-04-03**：**OSS Scout 自動區**改為連結＋表＋短勾選（`fit_rationale` 只在研究稿／JSON）；研究稿模板補「維護者勾選追蹤」— CHANGELOG **2026-04-03**。
 - **2026-04-02**：檔首同步含 CHANGELOG **2026-04-02**（CI `workflow_dispatch`、`market.json` fixture、tools 套件鏡射）；**勿手改** `<!-- OSS_SCOUT_AUTO_BEGIN -->`～`END` 區塊（由 workflow 覆寫）。
