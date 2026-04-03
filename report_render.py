@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import os
 import re
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
-from schemas import AISection, CryptoSection, DailyBriefReport, QSREC_JSON_EXCLUDE_FIELDS
+from schemas import AISection, CryptoSection, DailyBriefReport, MetricLine, QSREC_JSON_EXCLUDE_FIELDS
 from tracker import (
+    _current_prices_for_assets,
+    _parse_pair_asset,
     default_position_pct_for_leg,
     equity_combined_cap_percent,
     regime_single_leg_cap_percent,
@@ -23,6 +26,8 @@ from validation_rules import (
     normalize_leading_repeat_pick_phrase,
     sanitize_lines_with_us_treasury_keyword,
 )
+
+logger = logging.getLogger(__name__)
 
 _AGREED_REGIME_TOKENS = frozenset({"risk_on", "risk_off", "neutral"})
 
@@ -295,6 +300,170 @@ def _coerce_trade_leg_position_pcts(crypto: CryptoSection, ai: AISection) -> tup
     return crypto, ai
 
 
+_PRICE_NA_RE = re.compile(r"^\s*\$?\s*N\s*/\s*A\s*$", re.IGNORECASE)
+
+
+def _trade_price_field_unusable(raw: str | None) -> bool:
+    if raw is None:
+        return True
+    t = str(raw).strip()
+    if not t:
+        return True
+    tl = t.lower().replace("\u00a0", " ")
+    if tl in ("—", "-", "tbd", "待定", "n/a", "na", "$n/a", "none"):
+        return True
+    if _PRICE_NA_RE.match(t.strip()):
+        return True
+    if not re.search(r"\d", t):
+        return True
+    return False
+
+
+def _parse_first_usd_number(s: str) -> float | None:
+    t = str(s).replace(",", "").replace("$", " ")
+    for m in re.finditer(r"-?\d+(?:\.\d+)?", t):
+        try:
+            v = float(m.group(0))
+        except ValueError:
+            continue
+        if 0 < v < 1_000_000:
+            return v
+    return None
+
+
+def _parse_rr_ratio(rr: str) -> float | None:
+    m = re.search(r"1\s*:\s*(\d+(?:\.\d+)?)", str(rr), re.IGNORECASE)
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
+
+
+def _parse_drawdown_fraction(md: str) -> float | None:
+    m = re.search(r"(\d+(?:\.\d+)?)\s*%", str(md))
+    if not m:
+        return None
+    try:
+        return abs(float(m.group(1))) / 100.0
+    except ValueError:
+        return None
+
+
+def _fmt_equity_money(x: float) -> str:
+    return f"{x:,.2f}"
+
+
+def _synth_equity_target_stop(entry: float, direction: str, rr: float, risk_pct: float) -> tuple[str, str]:
+    """Derive target/stop strings from entry, R:R, and max-drawdown % (no LLM prices)."""
+    if direction == "LONG":
+        stop_p = entry * (1 - risk_pct)
+        tgt_p = entry * (1 + risk_pct * rr)
+        s_disp = (entry - stop_p) / entry * 100
+        t_disp = (tgt_p - entry) / entry * 100
+        stop_s = f"{_fmt_equity_money(stop_p)} (-{s_disp:.1f}%)"
+        tgt_s = f"{_fmt_equity_money(tgt_p)} (+{t_disp:.1f}%)"
+    else:
+        stop_p = entry * (1 + risk_pct)
+        tgt_p = entry * (1 - risk_pct * rr)
+        s_disp = (stop_p - entry) / entry * 100
+        t_disp = (entry - tgt_p) / entry * 100
+        stop_s = f"{_fmt_equity_money(stop_p)} (+{s_disp:.1f}%)"
+        tgt_s = f"{_fmt_equity_money(tgt_p)} (-{t_disp:.1f}%)"
+    return tgt_s, stop_s
+
+
+def _ensure_crypto_liquidation_fallback_note(crypto: CryptoSection) -> CryptoSection:
+    """If dashboard never mentions 爆倉/清算, add one ⬜ note (readers know how to read tape without CoinGlass)."""
+    blob = " ".join(f"{r.label} {r.value}" for r in crypto.dashboard)
+    if "爆倉" in blob or "清算" in blob:
+        return crypto
+    rows = list(crypto.dashboard) + [
+        MetricLine(
+            label="備註",
+            status_emoji="⬜",
+            value=(
+                "24h 爆倉：第三方衍生品源未回傳時，以資金費率、未平倉與多空比作為短線情緒代理指標。"
+            ),
+        )
+    ]
+    return crypto.model_copy(update={"dashboard": rows})
+
+
+def _coerce_ai_equity_trade_prices_from_market(ai: AISection) -> AISection:
+    """Backfill US equity 現價/進場 from yfinance; synthesize 目標/停損 when both N/A but R:R+回撤可解析."""
+    if os.getenv("SKIP_EQUITY_YF_BACKFILL", "").lower() in ("1", "true", "yes"):
+        return ai
+    if os.getenv("MOCK_APIS", "").lower() in ("1", "true", "yes"):
+        return ai
+    legs = list(ai.trade_legs)
+    if not legs:
+        return ai
+    need = False
+    for leg in legs:
+        if _parse_pair_asset(leg.asset):
+            continue
+        if (
+            _trade_price_field_unusable(leg.current_price)
+            or _trade_price_field_unusable(leg.entry)
+            or (
+                _trade_price_field_unusable(leg.target) and _trade_price_field_unusable(leg.stop)
+            )
+        ):
+            need = True
+            break
+    if not need:
+        return ai
+    try:
+        prices = _current_prices_for_assets([leg.asset for leg in legs])
+    except Exception as exc:
+        logger.warning("equity price backfill skipped (_current_prices_for_assets): %s", exc)
+        return ai
+    new_legs = []
+    changed = False
+    for leg in legs:
+        if _parse_pair_asset(leg.asset):
+            new_legs.append(leg)
+            continue
+        close = prices.get(leg.asset)
+        cur, ent, tgt, stp = leg.current_price, leg.entry, leg.target, leg.stop
+
+        if _trade_price_field_unusable(cur) and close is not None:
+            cur = _fmt_equity_money(close)
+            changed = True
+
+        entry_f = None if _trade_price_field_unusable(ent) else _parse_first_usd_number(ent)
+        if entry_f is None and close is not None:
+            entry_f = close
+            ent = _fmt_equity_money(close)
+            changed = True
+        elif entry_f is None:
+            entry_f = _parse_first_usd_number(cur)
+
+        rr_v = _parse_rr_ratio(leg.rr)
+        dd_v = _parse_drawdown_fraction(leg.max_drawdown_pct)
+        if (
+            entry_f is not None
+            and entry_f > 0
+            and rr_v is not None
+            and dd_v is not None
+            and dd_v > 0
+            and _trade_price_field_unusable(tgt)
+            and _trade_price_field_unusable(stp)
+        ):
+            tgt, stp = _synth_equity_target_stop(entry_f, leg.direction, rr_v, dd_v)
+            changed = True
+
+        new_legs.append(
+            leg.model_copy(update={"current_price": cur, "entry": ent, "target": tgt, "stop": stp})
+        )
+    if not changed:
+        return ai
+    logger.info("assemble: backfilled AI equity trade leg prices (yfinance + optional R:R synthesis)")
+    return ai.model_copy(update={"trade_legs": new_legs})
+
+
 def _normalize_pick_reason_repeat_headers(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
     """Remove duplicate 「重複選用理由：」 after Jinja 「本日選擇理由：」; align with 連日維持 when repeat-day."""
     from report_html_gates import (  # noqa: PLC0415
@@ -366,7 +535,9 @@ def assemble_daily_brief_report(
     agreed_regime: str | None = None,
 ) -> DailyBriefReport:
     crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
+    crypto = _ensure_crypto_liquidation_fallback_note(crypto)
     crypto, ai = _coerce_trade_leg_position_pcts(crypto, ai)
+    ai = _coerce_ai_equity_trade_prices_from_market(ai)
     crypto, ai = _normalize_pick_reason_repeat_headers(crypto, ai)
     crypto, ai = _apply_repeat_pick_disclaimer_if_needed(crypto, ai)
     disclaimer = _low_confidence_disclaimer_plain(crypto, ai)

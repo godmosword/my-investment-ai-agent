@@ -1310,6 +1310,27 @@ class TestPlanRollingAndScenarioGates(unittest.TestCase):
         self.assertTrue(any("bull_scenario" in i for i in issues))
 
 
+class TestInvestmentNumericAndUnactionableTrade(unittest.TestCase):
+    def test_investment_takeaway_negative_pct_inside_html_passes_numeric_gate(self):
+        rep = _make_report()
+        rep = rep.replace(
+            "投資解讀：BTC 日線 RSI 55，ETF 流入 $120M",
+            "投資解讀：<i>資金費率 -0.0008%</i> 與儀表板多空比對照",
+        )
+        r = validate_report(rep)
+        self.assertFalse(any("投資解讀缺少當日量化數據引用" in i for i in r["issues"]))
+
+    def test_unactionable_trade_detects_code_wrapped_dollar_na(self):
+        rep = _make_report()
+        rep = rep.replace(
+            "· $NVDA (LONG)｜現價：$890",
+            "· $NVDA (LONG)｜現價：<code>$N/A</code>",
+        )
+        r = validate_report(rep)
+        self.assertTrue(r["has_unactionable_trade"])
+        self.assertTrue(any("交易段含 N/A" in i for i in r["blocking_issues"]))
+
+
 class TestStrictExecSummaryHtmlGate(unittest.TestCase):
     @patch.dict(os.environ, {"STRICT_EXEC_SUMMARY_HTML_GATE": "1"}, clear=False)
     def test_passes_when_two_bullets_present(self):

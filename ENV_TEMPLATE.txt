@@ -13,6 +13,7 @@ ANTHROPIC_API_KEY=
 
 # ---------- 開發／離線測試（MOCK_APIS；見 docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md）----------
 # MOCK_APIS=1 — 啟用 tools.base.load_mock_json → tests/fixtures/mock_data/*.json；各 @tool 的 mock 分支將逐步接入 tools_legacy
+# SKIP_EQUITY_YF_BACKFILL=1 — assemble 階段不以 yfinance 補美股 trade_legs 現價／進場或 R:R 機械推算目標停損（離線／除錯）
 
 # ---------- 選填：LiteLLM 模型 ID（見 config.py 預設；改設定免動 crew.py）----------
 # MODEL_GROK=xai/grok-4-1-fast-reasoning

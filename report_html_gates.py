@@ -41,6 +41,7 @@ from validation_rules import (
     NUMERIC_INVESTMENT_MULTI_RE,
     QSREC_MARKERS_RE,
     UNACTIONABLE_TRADE_RE,
+    plain_text_for_investment_numeric_gate,
     text_has_positive_trade_watch_mode,
     span_has_positive_trade_watch_declaration,
 )
@@ -1645,8 +1646,10 @@ def validate_report(text: str) -> dict:
     too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
     has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
+    _plain_invest = plain_text_for_investment_numeric_gate(text)
     has_numeric_in_investment = bool(
-        NUMERIC_INVESTMENT_LINE_RE.search(text) or NUMERIC_INVESTMENT_MULTI_RE.search(text)
+        NUMERIC_INVESTMENT_LINE_RE.search(_plain_invest)
+        or NUMERIC_INVESTMENT_MULTI_RE.search(_plain_invest)
     )
     has_source_health = "【SourceHealth】" in text
     has_source_errors = "【SourceErrors】" in text

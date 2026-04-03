@@ -789,3 +789,101 @@ def test_clean_invalidation_anchored_strip():
     assert _clean_invalidation(None) == ""
     # Double period collapsed
     assert _clean_invalidation("跌破50000。。") == "跌破50000。"
+
+
+def test_ensure_crypto_liquidation_fallback_note_appends_when_absent():
+    from report_render import _ensure_crypto_liquidation_fallback_note
+
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        exec_summary=["→ t"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC 資金費率", value="0.01%")],
+        news=_sample_news_crypto(),
+        x_highlights=[],
+        chatter=[
+            ChatterItem(
+                text="假日流動性（未確認）｜來源：a｜可信度：B｜主流媒體二次驗證：否"
+            )
+        ],
+        pick_reason="x" * 40,
+        risk_budget_summary="y",
+        signal_conflict_summary="空方｜多方",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    out = _ensure_crypto_liquidation_fallback_note(crypto)
+    assert len(out.dashboard) == len(crypto.dashboard) + 1
+    assert "爆倉" in out.dashboard[-1].value
+
+
+@patch("report_render._current_prices_for_assets")
+def test_assemble_backfills_na_equity_prices_and_synth_target_stop(mock_pf, monkeypatch):
+    monkeypatch.delenv("MOCK_APIS", raising=False)
+    monkeypatch.delenv("SKIP_EQUITY_YF_BACKFILL", raising=False)
+    mock_pf.return_value = {"TST": 50.0}
+    ai = AISection(
+        dashboard=[MetricLine(label="L", value="1")],
+        news=_sample_news_ai(),
+        pick_reason="p" * 40,
+        signal_conflict_summary="a｜b",
+        trade_legs=[
+            ExecutableTradeLeg(
+                asset="TST",
+                direction="LONG",
+                current_price="N/A",
+                star_rating=2,
+                entry="N/A",
+                target="N/A",
+                stop="N/A",
+                rr="1:2.5",
+                max_drawdown_pct="-4.0%",
+                expected_win_rate="55%",
+                signal_score="70/100",
+                trigger="t",
+                sizing_logic="s",
+                invalidation="i",
+                position_pct="5%",
+                narrative="n",
+                bull_scenario="b",
+                base_scenario="base",
+                bear_scenario="bear",
+            )
+        ],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        exec_summary=[],
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_crypto(),
+        x_highlights=[],
+        chatter=[
+            ChatterItem(
+                text="流動性（未確認）｜來源：a｜可信度：B｜主流媒體二次驗證：否"
+            )
+        ],
+        pick_reason="x" * 40,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    leg = report.ai.trade_legs[0]
+    assert leg.current_price == "50.00"
+    assert leg.entry == "50.00"
+    assert "55" in leg.target and "%" in leg.target
+    assert "48" in leg.stop and "%" in leg.stop
+    mock_pf.assert_called_once()

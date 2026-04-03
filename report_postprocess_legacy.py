@@ -273,7 +273,11 @@ def _drop_unactionable_trade_blocks(text: str) -> str:
             while j < n and not bullet_re.search(lines[j]) and not boundary_re.search(lines[j]):
                 j += 1
             block = "\n".join(lines[i:j])
-            if re.search(r'(現價|進場|目標|停損)[：:]\s*(?:<code>)?\s*N/A', block):
+            if re.search(
+                r"(現價|進場|目標|停損)[：:｜]\s*(?:<code>)?\s*\$?\s*N\s*/\s*A\b",
+                block,
+                re.IGNORECASE,
+            ):
                 i = j
                 continue
             out.extend(lines[i:j])

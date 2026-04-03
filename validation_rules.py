@@ -85,9 +85,20 @@ HAS_RISK_BUDGET_RE = re.compile(
 )
 NA_TOKEN_RE = re.compile(r"\bN/A\b")
 HAS_LOW_CONFIDENCE_RE = re.compile(r"低置信度|低信心")
-NUMERIC_INVESTMENT_LINE_RE = re.compile(r"投資解讀[：:][^\n]*(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)")
+
+
+def plain_text_for_investment_numeric_gate(html: str) -> str:
+    """Strip Telegram HTML tags so 投資解讀 Gate sees digits inside <i>/<b>/<code> wrappers."""
+    if not html:
+        return ""
+    return re.sub(r"<[^>]+>", " ", html)
+
+
+# 允許負號（資金費率 -0.0008% 等）；Gate 於 strip HTML 後套用
+_NUMERIC_INVESTMENT_TOKEN = r"(?:\-?\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)"
+NUMERIC_INVESTMENT_LINE_RE = re.compile(rf"投資解讀[：:][^\n]*({_NUMERIC_INVESTMENT_TOKEN})")
 NUMERIC_INVESTMENT_MULTI_RE = re.compile(
-    r"投資解讀[：:][^\n]*(?:\n[^\n]*){0,5}(\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)"
+    rf"投資解讀[：:][^\n]*(?:\n[^\n]*){{0,5}}({_NUMERIC_INVESTMENT_TOKEN})"
 )
 MODE_TAGS_RE = re.compile(
     r"【今日市場模式】\s*(?:<[^>]*>\s*)*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)(?:\s*</[^>]*>)*",
@@ -95,7 +106,11 @@ MODE_TAGS_RE = re.compile(
 )
 BUDGET_TAGS_RE = re.compile(r"今日風險預算[：:][^\n]*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)", re.IGNORECASE)
 MALFORMED_INVALIDATION_RE = re.compile(r"失效條件[：:]\s*(?:<code>)?\s*(?:</code>)?\s*(?:\n|$)")
-UNACTIONABLE_TRADE_RE = re.compile(r"·\s*\$[A-Z0-9/]+[\s\S]*?(?:現價|進場|目標|停損)[：:]\s*(?:<code>)?\s*N/A")
+# Match 現價：<code>$N/A</code>、進場 N/A、全形｜分隔；$ 可選（模板常輸出 $N/A）
+UNACTIONABLE_TRADE_RE = re.compile(
+    r"·\s*\$[A-Z0-9/]+[\s\S]*?(?:現價|進場|目標|停損)[：:｜]\s*(?:<code>)?\s*\$?\s*N\s*/\s*A\b(?:</code>)?",
+    re.IGNORECASE,
+)
 CODE_LEAK_RE = re.compile(r"multi_timeframe_tool\s*\(")
 IMPACT_LEAK_RE = re.compile(r"\[IMPACT:|🎯\s*IMPACT|📍\s*受影響資產|📈\s*做多機會|📉\s*做空風險")
 
