@@ -96,9 +96,10 @@ def plain_text_for_investment_numeric_gate(html: str) -> str:
 
 # 允許負號（資金費率 -0.0008% 等）；Gate 於 strip HTML 後套用
 _NUMERIC_INVESTMENT_TOKEN = r"(?:\-?\d+(?:\.\d+)?%?|\$[0-9,]+(?:\.\d+)?)"
-NUMERIC_INVESTMENT_LINE_RE = re.compile(rf"投資解讀[：:][^\n]*({_NUMERIC_INVESTMENT_TOKEN})")
+# Telegram 模板為 <i>投資解讀</i>：…；strip HTML 後「投資解讀」與冒號間可能有空格，須允許 \s*。
+NUMERIC_INVESTMENT_LINE_RE = re.compile(rf"投資解讀\s*[：:][^\n]*({_NUMERIC_INVESTMENT_TOKEN})")
 NUMERIC_INVESTMENT_MULTI_RE = re.compile(
-    rf"投資解讀[：:][^\n]*(?:\n[^\n]*){{0,5}}({_NUMERIC_INVESTMENT_TOKEN})"
+    rf"投資解讀\s*[：:][^\n]*(?:\n[^\n]*){{0,5}}({_NUMERIC_INVESTMENT_TOKEN})"
 )
 MODE_TAGS_RE = re.compile(
     r"【今日市場模式】\s*(?:<[^>]*>\s*)*(risk[\s_\-]*on|risk[\s_\-]*off|neutral)(?:\s*</[^>]*>)*",

@@ -10,7 +10,8 @@
 
 | 日期 | 觸發 | 變更 | 追蹤 |
 |------|------|------|------|
-| _（尚無）_ | | | |
+| 2026-04-04 | 投資解讀缺少當日量化數據引用／儀表對齊 | `crew.py` `_NEWS_FMT`：投資解讀數字須對同段區塊①儀表；禁儀表未列之精確報價。`validation_rules.py`：`NUMERIC_INVESTMENT_*` 允許 `投資解讀` 與冒號間空白（對齊 Telegram `<i>` 模板）。 | 本輪 |
+| 2026-04-04 | 同上（機檢升格可選） | `report_html_gates.py`：`STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=1` 時比對投資解讀數字與區塊① `<code>` 讀值；預設關閉。 | 本輪 |
 
 ## 修訂紀錄
 

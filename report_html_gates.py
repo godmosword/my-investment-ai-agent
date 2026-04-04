@@ -418,6 +418,135 @@ def _crypto_report_prefix(text: str) -> str:
     return text[:best] if best < len(text) else text
 
 
+def _strict_investment_dashboard_numeric_gate() -> bool:
+    """1=每則投資解讀至少一個數字錨點須出現在同段區塊①儀表板 <code> 讀值中。預設關閉。"""
+    return os.getenv("STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE", "0").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+_INVESTMENT_TAKEAWAY_HTML_RE = re.compile(
+    r"<i>\s*投資解讀\s*</i>\s*[：:]\s*(.+?)(?=<i>\s*💎主編共識\s*</i>)",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _extract_crypto_block1_dashboard_html(cspan: str) -> str:
+    m0 = re.search(r"<b>區塊①</b>\s*【數據儀表板】", cspan)
+    if not m0:
+        return ""
+    tail = cspan[m0.start() :]
+    m1 = re.search(r"<b>區塊②</b>\s*【核心新聞】", tail)
+    return tail if not m1 else tail[: m1.start()]
+
+
+def _extract_ai_block1_dashboard_html(ai_span: str) -> str:
+    m0 = re.search(r"<b>區塊①</b>\s*【AI\s*數據儀表板】", ai_span)
+    if not m0:
+        return ""
+    tail = ai_span[m0.start() :]
+    m1 = re.search(r"<b>區塊②</b>\s*【AI\s*產業新聞】", tail)
+    return tail if not m1 else tail[: m1.start()]
+
+
+def _dashboard_code_plain_concat(html_fragment: str) -> str:
+    parts = re.findall(r"<code>([^<]*)</code>", html_fragment, flags=re.IGNORECASE)
+    return " ".join(parts)
+
+
+def _numeric_alignment_keys(plain: str) -> frozenset[str]:
+    """儀表板／投資解讀交叉核對用的數字鍵（float 正規化 + 整數型別）。"""
+    keys: set[str] = set()
+    for m in re.finditer(r"-?\d+(?:,\d{3})*(?:\.\d+)?%?", plain):
+        raw = m.group(0).replace(",", "")
+        if raw.endswith("%"):
+            raw = raw[:-1]
+        try:
+            f = float(raw)
+            keys.add(str(f))
+            if f == int(f) and abs(f) < 1e12:
+                keys.add(str(int(f)))
+        except ValueError:
+            keys.add(raw)
+    for m in re.finditer(r"\$[\d,]+(?:\.\d+)?", plain):
+        raw = m.group(0).replace("$", "").replace(",", "")
+        try:
+            f = float(raw)
+            keys.add(str(f))
+            if f == int(f) and abs(f) < 1e12:
+                keys.add(str(int(f)))
+        except ValueError:
+            keys.add(raw)
+    return frozenset(keys)
+
+
+def _iter_investment_takeaway_bodies(span: str) -> list[str]:
+    bodies = [m.group(1).strip() for m in _INVESTMENT_TAKEAWAY_HTML_RE.finditer(span)]
+    if bodies:
+        return bodies
+    return [m.group(1).strip() for m in re.finditer(r"投資解讀\s*[：:]\s*([^\n]+)", span)]
+
+
+def _investment_takeaway_dashboard_numeric_ok(text: str) -> tuple[bool, str]:
+    """
+    當 STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=1：加密／AI 每則投資解讀之數字錨點須與
+    同段 <b>區塊①</b> 儀表板內 <code> 讀值可對照（交集非空）。
+    """
+    if not _strict_investment_dashboard_numeric_gate():
+        return True, ""
+    cspan = _crypto_report_prefix(text)
+    ai_span = text[len(cspan) :]
+    problems: list[str] = []
+
+    cd_html = _extract_crypto_block1_dashboard_html(cspan)
+    ad_html = _extract_ai_block1_dashboard_html(ai_span)
+    ck = _numeric_alignment_keys(_dashboard_code_plain_concat(cd_html))
+    ak = _numeric_alignment_keys(_dashboard_code_plain_concat(ad_html))
+
+    def _audit_section(
+        span: str,
+        dash_html: str,
+        dash_keys: frozenset[str],
+        label: str,
+    ) -> None:
+        takes = _iter_investment_takeaway_bodies(span)
+        if not takes:
+            return
+        if not dash_html.strip():
+            block_title = "【AI 數據儀表板】" if label == "AI" else "【數據儀表板】"
+            problems.append(
+                f"{label}段有投資解讀但無法解析區塊①儀表板（須含 Telegram 模板 "
+                f"<b>區塊①</b>{block_title}…<b>區塊②</b>）"
+            )
+            return
+        if not dash_keys:
+            problems.append(
+                f"{label}段區塊①儀表板 <code> 讀值無可用數字錨點（僅 N/A 等時無法核對投資解讀）"
+            )
+            return
+        for i, body in enumerate(takes, start=1):
+            plain = strip_html(body)
+            tk = _numeric_alignment_keys(plain)
+            if not tk:
+                problems.append(f"{label}段新聞第{i}則：投資解讀無可核對之數字錨點")
+                continue
+            if not (tk & dash_keys):
+                preview = plain[:48].replace("\n", " ").strip()
+                problems.append(
+                    f"{label}段新聞第{i}則：投資解讀數值未見於區塊①儀表板 <code> 讀數"
+                    f"（請僅引用該段儀表已列讀數）—「{preview}…」"
+                )
+
+    _audit_section(cspan, cd_html, ck, "加密")
+    _audit_section(ai_span, ad_html, ak, "AI")
+
+    if not problems:
+        return True, ""
+    return False, "STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE：" + "；".join(problems)
+
+
 def _extract_today_pick_reason(span: str) -> str | None:
     """自區塊內取出第一處「本日選擇理由」純文字（至風險預算／訊號衝突／交易條目／QSREC／分隔線）。"""
     m = re.search(
@@ -1803,6 +1932,11 @@ def validate_report(text: str) -> dict:
         issues.append("缺少今日風險預算摘要")
     if (not trade_watch_mode) and (not has_numeric_in_investment):
         issues.append("投資解讀缺少當日量化數據引用")
+    invest_dash_ok, invest_dash_err = True, ""
+    if (not trade_watch_mode) and _strict_investment_dashboard_numeric_gate():
+        invest_dash_ok, invest_dash_err = _investment_takeaway_dashboard_numeric_ok(text)
+    if not invest_dash_ok:
+        issues.append(invest_dash_err)
     # Telegram 讀者版不再注入 SourceHealth 三行（改由後台 logger / 營運追蹤），故不強制出現在 HTML。
     if has_mixed_regime:
         issues.append(f"報告內 market_regime 不一致：{', '.join(sorted(unique_regimes))}")
@@ -1906,6 +2040,7 @@ def validate_report(text: str) -> dict:
         "結構化新聞總數",
         "結構化 qsrec 為空",
         "AI 段「本日選擇理由」含基本面用語",  # 第 18 項
+        "STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE",
     )
 
     def _is_blocking(issue: str) -> bool:

@@ -6,14 +6,20 @@
 ## 2026-04-04
 
 ### Added
+- **可選嚴格核對**：[`report_html_gates.py`](report_html_gates.py) `STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=1` 時，加密／AI 每則 `<i>投資解讀</i>` 之數字錨點須與同段 `<b>區塊①</b>` 儀表板內 `<code>` 讀值可對照；**觀望模式**略過；該 issue 為 **blocking**。見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
 - **演進計畫落地（信任／觀測／分叉）**：[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) 定稿、[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md) 補實驗表；[`adaptive_gate_thresholds.py`](adaptive_gate_thresholds.py) 在 `ADAPTIVE_GATE_THRESHOLDS=1` 時可自 BigQuery `gate_failure_log` 讀取 rotation 相關失敗占比並 **bump** `PICK_ROTATION_OVERRIDE_MIN_GAP`（`ADAPTIVE_GATE_BQ_READ=0` 關閉 BQ 讀取）；[`scripts/gate_failure_hint_digest.py`](scripts/gate_failure_hint_digest.py)、[`docs/GATE_INTERNAL_DASHBOARD.md`](docs/GATE_INTERNAL_DASHBOARD.md)、[`docs/PROMPT_CHANGELOG.md`](docs/PROMPT_CHANGELOG.md)；[`scripts/validate_report_dry_run.py`](scripts/validate_report_dry_run.py)＋[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)；[`scripts/run_mock_smoke.sh`](scripts/run_mock_smoke.sh)；[`report_render.py`](report_render.py) 備援觸發時可寫 scratchpad `equity_price_backfill`（`EQUITY_BACKFILL_SCRATCHPAD_LOG`）；[`schemas.py`](schemas.py) 可選 `asset_market`、`AISection` 觀望 vs EQUITY QSREC **warning**；[`docs/PWA_WEB_PUSH_NEXT.md`](docs/PWA_WEB_PUSH_NEXT.md)、[`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md)。`ENV_TEMPLATE.txt` 補自適應與 scratchpad 變數。
+
+### Fixed
+- **投資解讀量化 Gate 誤判**：[`validation_rules.py`](validation_rules.py) 之 `NUMERIC_INVESTMENT_*` 改為 `投資解讀\s*[：:]`，對齊 [`templates/telegram_report.j2`](templates/telegram_report.j2) 的 `<i>投資解讀</i>：`（strip HTML 後標籤與冒號間有空格時仍視為有效錨點）。
 
 ### Changed
 - **待辦決策文件**（[`TODOS.md`](TODOS.md)）：新增「未完成項四維評分與新建議（2026-04）」— Pri 1–9 與波次／Phase 濃縮評分表、建議實作順序、七條新建議 backlog（Gate 內部儀表、結構化預檢 dry-run、備援可觀測性、Prompt 登記簿、`asset_market`、mock-smoke 腳本、觀望 vs QSREC 一致性）。[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) 檔首補對照連結。
+- [`crew.py`](crew.py) `_NEWS_FMT`：**投資解讀**須引用可對到**同段區塊①儀表板**之讀數；禁止在儀表未列欄位時寫精確報價（例：SOL 現價、BTC Dominance）。
 - [`templates/telegram_report.j2`](templates/telegram_report.j2)：`position_pct`、`trigger` 顯示前 **strip `$`**（Pri 8）。
 - [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md)：補 digest script／儀表連結與 `PROMPT_CHANGELOG` 登記說明。
 
 ### Tests
+- [`test_validate_report.py`](test_validate_report.py)：`TestStrictInvestmentDashboardNumericGate`（嚴格儀表對照）；`TestInvestmentNumericAndUnactionableTrade` 補 `<i>投資解讀</i>：` 間距仍過量化 Gate。
 - [`test_adaptive_gate_thresholds.py`](test_adaptive_gate_thresholds.py)：BQ bump／ceiling；預設 `ADAPTIVE_GATE_BQ_READ=0` 之 smoke。
 - [`test_aisection_watch_warning.py`](test_aisection_watch_warning.py)：觀望 vs EQUITY QSREC warning。
 - [`test_validate_report_dry_run_smoke.py`](test_validate_report_dry_run_smoke.py)：Gate 骨架與 `validate_report` 對齊。

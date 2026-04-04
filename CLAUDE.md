@@ -123,6 +123,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 - **Gate failure BigQuery**: `write_gate_failure_log` → `{PROJECT}.market_data.gate_failure_log`; toggle `GATE_FAILURE_BQ_LOG`, respect `SKIP_BIGQUERY`.
 - **Scratchpad**: `.qsilicon/scratchpad/*.jsonl` when `SCRATCHPAD_ENABLED`.
 - **News freshness** (optional): `STRICT_NEWS_FRESHNESS_GATE`, `NEWS_FRESHNESS_WINDOW_HOURS`, `NEWS_FRESHNESS_SOURCE_WHITELIST` — see [`report_html_gates.py`](report_html_gates.py), tests in [`test_news_freshness.py`](test_news_freshness.py).
+- **投資解讀 vs 儀表板**（optional, default off）: `STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=1` — 每則投資解讀的數字錨點須出現在同段區塊① `<code>` 讀值；觀望模式略過；blocking。
 
 ---
 

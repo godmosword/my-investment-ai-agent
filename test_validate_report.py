@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from report_html_gates import (
     _count_effective_news_items,
+    _investment_takeaway_dashboard_numeric_ok,
     _normalize_regime_token,
     _qsrec_consistency_issues,
 )
@@ -1310,12 +1311,69 @@ class TestPlanRollingAndScenarioGates(unittest.TestCase):
         self.assertTrue(any("bull_scenario" in i for i in issues))
 
 
+class TestStrictInvestmentDashboardNumericGate(unittest.TestCase):
+    """STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE：投資解讀數字須出現在同段區塊① <code> 讀值。"""
+
+    def test_strict_off_skips_audit(self):
+        text = (
+            "<b>區塊①</b>【數據儀表板】\n· <b>RSI</b> <code>55</code>\n"
+            "<b>區塊②</b>【核心新聞】\n"
+            "<i>投資解讀</i>：亂寫 999。\n<i>💎主編共識</i>：x\n"
+        )
+        with patch.dict(os.environ, {"STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE": "0"}, clear=False):
+            ok, err = _investment_takeaway_dashboard_numeric_ok(text)
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+
+    def test_strict_passes_when_takeaway_matches_code_values(self):
+        text = (
+            "【今日市場模式】 risk_on\n"
+            "<b>區塊①</b>【數據儀表板】\n· <b>RSI</b> <code>55</code>\n"
+            "<b>區塊②</b>【核心新聞】\n"
+            "<i>投資解讀</i>：結構延續 RSI 55 。\n<i>💎主編共識</i>：BTC\n"
+            "\n🤖 AI 市場\n"
+            "<b>區塊①</b>【AI 數據儀表板】\n· <b>Score</b> <code>72</code>\n"
+            "<b>區塊②</b>【AI 產業新聞】\n"
+            "<i>投資解讀</i>：動能分數 72 。\n<i>💎主編共識</i>：NVDA\n"
+        )
+        with patch.dict(os.environ, {"STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE": "1"}, clear=False):
+            ok, err = _investment_takeaway_dashboard_numeric_ok(text)
+        self.assertTrue(ok, err)
+
+    def test_strict_fails_when_takeaway_number_not_in_dashboard_codes(self):
+        text = (
+            "【今日市場模式】 risk_on\n"
+            "<b>區塊①</b>【數據儀表板】\n· <b>RSI</b> <code>55</code>\n"
+            "<b>區塊②</b>【核心新聞】\n"
+            "<i>投資解讀</i>：臆測 SOL 現價 145 。\n<i>💎主編共識</i>：SOL\n"
+            "\n🤖 AI 市場\n"
+            "<b>區塊①</b>【AI 數據儀表板】\n· <b>X</b> <code>10</code>\n"
+            "<b>區塊②</b>【AI 產業新聞】\n"
+            "<i>投資解讀</i>：延續 10 。\n<i>💎主編共識</i>：OK\n"
+        )
+        with patch.dict(os.environ, {"STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE": "1"}, clear=False):
+            ok, err = _investment_takeaway_dashboard_numeric_ok(text)
+        self.assertFalse(ok)
+        self.assertIn("加密", err)
+        self.assertIn("145", err)
+
+
 class TestInvestmentNumericAndUnactionableTrade(unittest.TestCase):
     def test_investment_takeaway_negative_pct_inside_html_passes_numeric_gate(self):
         rep = _make_report()
         rep = rep.replace(
             "投資解讀：BTC 日線 RSI 55，ETF 流入 $120M",
             "投資解讀：<i>資金費率 -0.0008%</i> 與儀表板多空比對照",
+        )
+        r = validate_report(rep)
+        self.assertFalse(any("投資解讀缺少當日量化數據引用" in i for i in r["issues"]))
+
+    def test_investment_takeaway_telegram_i_label_spacing_passes_numeric_gate(self):
+        """與 telegram_report.j2 一致：<i>投資解讀</i>：strip 後標籤與冒號間有空格仍應視為有數字錨點。"""
+        rep = _make_report()
+        rep = rep.replace(
+            "投資解讀：BTC 日線 RSI 55，ETF 流入 $120M",
+            "<i>投資解讀</i>：BTC 日線 RSI 55 與儀表板對照",
         )
         r = validate_report(rep)
         self.assertFalse(any("投資解讀缺少當日量化數據引用" in i for i in r["issues"]))
