@@ -12,6 +12,7 @@
 |------|------|------|------|
 | 2026-04-04 | 投資解讀缺少當日量化數據引用／儀表對齊 | `crew.py` `_NEWS_FMT`：投資解讀數字須對同段區塊①儀表；禁儀表未列之精確報價。`validation_rules.py`：`NUMERIC_INVESTMENT_*` 允許 `投資解讀` 與冒號間空白（對齊 Telegram `<i>` 模板）。 | 本輪 |
 | 2026-04-04 | 同上（機檢升格可選） | `report_html_gates.py`：`STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=1` 時比對投資解讀數字與區塊① `<code>` 讀值；預設關閉。 | 本輪 |
+| 2026-04-06 | 8 分目標／跨段對齊 | `crew.py`：AI 新聞投資解讀禁跨段主錨點（BTC/VIX/DXY/SPY 等）；加密 MA 須對儀表 MA 列；呢喃禁 MSM 英文簡寫；執行摘要去重；失效條件對表。`report_render.py` 注入 BTC MA20/50；`STRICT_CHATTER_MSM_VERIFY_GATE` 可選。 | 本輪 |
 
 ## 修訂紀錄
 

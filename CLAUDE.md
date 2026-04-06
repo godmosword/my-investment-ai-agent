@@ -124,6 +124,8 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 - **Scratchpad**: `.qsilicon/scratchpad/*.jsonl` when `SCRATCHPAD_ENABLED`.
 - **News freshness** (optional): `STRICT_NEWS_FRESHNESS_GATE`, `NEWS_FRESHNESS_WINDOW_HOURS`, `NEWS_FRESHNESS_SOURCE_WHITELIST` — see [`report_html_gates.py`](report_html_gates.py), tests in [`test_news_freshness.py`](test_news_freshness.py).
 - **投資解讀 vs 儀表板**（optional, default off）: `STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=1` — 每則投資解讀的數字錨點須出現在同段區塊① `<code>` 讀值；觀望模式略過；blocking。
+- **呢喃 MSM**（optional）: `STRICT_CHATTER_MSM_VERIFY_GATE=1` — 含可信度之呢喃須含「主流媒體二次驗證：是/否」；blocking。
+- **BTC MA 儀表列**: `assemble_daily_brief_report` 可注入 `BTC MA20（日線）`／`MA50`（yfinance）；`SKIP_BTC_MA_DASHBOARD_INJECT=1` 關閉。
 
 ---
 

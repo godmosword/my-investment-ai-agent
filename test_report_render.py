@@ -791,6 +791,49 @@ def test_clean_invalidation_anchored_strip():
     assert _clean_invalidation("跌破50000。。") == "跌破50000。"
 
 
+@patch("main._get_extended_price_data")
+def test_ensure_btc_ma_dashboard_rows_inserts_after_btc_spot(mock_ext, monkeypatch):
+    monkeypatch.delenv("MOCK_APIS", raising=False)
+    monkeypatch.delenv("SKIP_BTC_MA_DASHBOARD_INJECT", raising=False)
+    mock_ext.return_value = {
+        "ma20": 68781.12,
+        "ma50": 68627.0,
+        "close": 69199.0,
+        "rsi14": 54.4,
+    }
+    from report_render import _ensure_btc_ma_dashboard_rows
+
+    crypto = CryptoSection(
+        report_title_date="2026-04-06",
+        exec_summary=[],
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[
+            MetricLine(label="BTC 現價", value="$69,199.42"),
+            MetricLine(label="BTC RSI(14)", value="54.40"),
+        ],
+        news=_sample_news_crypto(),
+        x_highlights=[],
+        chatter=[
+            ChatterItem(
+                text="流動性（未確認）｜來源：a｜可信度：B｜主流媒體二次驗證：否"
+            )
+        ],
+        pick_reason="x" * 40,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    out = _ensure_btc_ma_dashboard_rows(crypto)
+    assert len(out.dashboard) == len(crypto.dashboard) + 2
+    labels_vals = [(r.label, r.value) for r in out.dashboard]
+    assert any("MA20" in lab for lab, _ in labels_vals)
+    assert any("MA50" in lab for lab, _ in labels_vals)
+    mock_ext.assert_called_once()
+
+
 def test_ensure_crypto_liquidation_fallback_note_appends_when_absent():
     from report_render import _ensure_crypto_liquidation_fallback_note
 

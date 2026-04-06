@@ -128,6 +128,8 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # PIPELINE_SKIP_SENTIMENT_SCORE=0 # 1=加密研究員不掛 sentiment_score_tool（省一輪 LLM；BQ sentiment_score 可能為空）
 # STRICT_AI_FUNDAMENTALS_CITATION=0  # 1=AI「本日選擇理由」含基本面用語時須在 AI 段出現 FinancialDatasets 標記
 # STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=0  # 1=每則投資解讀之數字錨點須出現在同段區塊①儀表板 <code> 讀值（blocking）；預設關閉；觀望模式略過
+# STRICT_CHATTER_MSM_VERIFY_GATE=0  # 1=區塊③呢喃含「可信度」之條目須同列「主流媒體二次驗證：是/否」（blocking）；預設關閉
+# SKIP_BTC_MA_DASHBOARD_INJECT=0   # 1=組裝階段不注入 BTC MA20/MA50（yfinance 日線）；預設注入（MOCK_APIS=1 時略過）
 # REPORT_LLM_JUDGE=0           # 1=產線結構驗證後呼叫 LLM rubric 評分（寫入 scratchpad judge_result）
 # REPORT_LLM_JUDGE_MODEL=openai/gpt-4o-mini
 # REPORT_LLM_JUDGE_MIN_SCORE=70

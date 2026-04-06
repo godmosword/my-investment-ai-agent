@@ -374,6 +374,65 @@ def _synth_equity_target_stop(entry: float, direction: str, rr: float, risk_pct:
     return tgt_s, stop_s
 
 
+def _dashboard_has_ma_band(rows: list[MetricLine], n: int) -> bool:
+    pat = re.compile(rf"MA\s*{n}\b", re.IGNORECASE)
+    return any(pat.search(r.label or "") for r in rows)
+
+
+def _insert_idx_after_btc_spot(rows: list[MetricLine]) -> int:
+    for i, r in enumerate(rows):
+        lab = r.label or ""
+        if "現價" in lab and "BTC" in lab.upper():
+            return i + 1
+    for i, r in enumerate(rows):
+        lab_u = (r.label or "").upper()
+        if "BTC" in lab_u and "RSI" in lab_u:
+            return i
+    return len(rows)
+
+
+def _ensure_btc_ma_dashboard_rows(crypto: CryptoSection) -> CryptoSection:
+    """Inject BTC MA20/MA50 from yfinance when missing — aligns trade/news MA cites with 區塊①."""
+    if os.getenv("SKIP_BTC_MA_DASHBOARD_INJECT", "").lower() in ("1", "true", "yes"):
+        return crypto
+    if os.getenv("MOCK_APIS", "").lower() in ("1", "true", "yes"):
+        return crypto
+    rows = list(crypto.dashboard)
+    need20 = not _dashboard_has_ma_band(rows, 20)
+    need50 = not _dashboard_has_ma_band(rows, 50)
+    if not need20 and not need50:
+        return crypto
+    try:
+        from main import _get_extended_price_data
+    except ImportError:
+        logger.warning("BTC MA dashboard inject skipped (main import failed)")
+        return crypto
+    ext = _get_extended_price_data("BTC-USD", period="60d")
+    ma20, ma50 = ext.get("ma20"), ext.get("ma50")
+    inserts: list[MetricLine] = []
+    if need20 and ma20 is not None:
+        inserts.append(
+            MetricLine(
+                label="BTC MA20（日線）",
+                value=f"${ma20:,.2f}",
+                status_emoji="⬜",
+            )
+        )
+    if need50 and ma50 is not None:
+        inserts.append(
+            MetricLine(
+                label="BTC MA50（日線）",
+                value=f"${ma50:,.2f}",
+                status_emoji="⬜",
+            )
+        )
+    if not inserts:
+        return crypto
+    idx = _insert_idx_after_btc_spot(rows)
+    merged = rows[:idx] + inserts + rows[idx:]
+    return crypto.model_copy(update={"dashboard": merged})
+
+
 def _ensure_crypto_liquidation_fallback_note(crypto: CryptoSection) -> CryptoSection:
     """If dashboard never mentions 爆倉/清算, add one ⬜ note (readers know how to read tape without CoinGlass)."""
     blob = " ".join(f"{r.label} {r.value}" for r in crypto.dashboard)
@@ -552,6 +611,7 @@ def assemble_daily_brief_report(
     agreed_regime: str | None = None,
 ) -> DailyBriefReport:
     crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
+    crypto = _ensure_btc_ma_dashboard_rows(crypto)
     crypto = _ensure_crypto_liquidation_fallback_note(crypto)
     crypto, ai = _coerce_trade_leg_position_pcts(crypto, ai)
     ai = _coerce_ai_equity_trade_prices_from_market(ai)

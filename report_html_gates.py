@@ -547,6 +547,53 @@ def _investment_takeaway_dashboard_numeric_ok(text: str) -> tuple[bool, str]:
     return False, "STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE：" + "；".join(problems)
 
 
+def _strict_chatter_msm_verify_gate() -> bool:
+    """1=區塊③呢喃含「可信度」之條目須同列「主流媒體二次驗證：是/否」。預設關閉。"""
+    return os.getenv("STRICT_CHATTER_MSM_VERIFY_GATE", "0").lower() in ("1", "true", "yes")
+
+
+def _extract_block3_chatter_html(span: str, *, ai: bool) -> str:
+    if ai:
+        m = re.search(
+            r"<b>區塊③</b>【產業鏈呢喃】\s*(.*?)(?=<b>區塊④</b>)",
+            span,
+            re.DOTALL | re.IGNORECASE,
+        )
+    else:
+        m = re.search(
+            r"<b>區塊③</b>【市場呢喃與傳聞】\s*(.*?)(?=<b>區塊④</b>)",
+            span,
+            re.DOTALL | re.IGNORECASE,
+        )
+    return (m.group(1) if m else "").strip()
+
+
+def _chatter_msm_verify_ok(text: str) -> tuple[bool, str]:
+    if not _strict_chatter_msm_verify_gate():
+        return True, ""
+    cspan = _crypto_report_prefix(text)
+    ai_span = text[len(cspan) :]
+    problems: list[str] = []
+    for label, span, is_ai in (("加密", cspan, False), ("AI", ai_span, True)):
+        block = _extract_block3_chatter_html(span, ai=is_ai)
+        if not block:
+            continue
+        plain = strip_html(block)
+        for raw in plain.splitlines():
+            ln = raw.strip()
+            if not ln.startswith("·"):
+                continue
+            if "本日無可信傳聞" in ln:
+                continue
+            if "可信度" not in ln:
+                continue
+            if "主流媒體二次驗證" not in ln:
+                problems.append(f"{label}呢喃缺「主流媒體二次驗證」：{ln[:72]}")
+    if not problems:
+        return True, ""
+    return False, "STRICT_CHATTER_MSM_VERIFY_GATE：" + "；".join(problems)
+
+
 def _extract_today_pick_reason(span: str) -> str | None:
     """自區塊內取出第一處「本日選擇理由」純文字（至風險預算／訊號衝突／交易條目／QSREC／分隔線）。"""
     m = re.search(
@@ -1937,6 +1984,11 @@ def validate_report(text: str) -> dict:
         invest_dash_ok, invest_dash_err = _investment_takeaway_dashboard_numeric_ok(text)
     if not invest_dash_ok:
         issues.append(invest_dash_err)
+    chatter_msm_ok, chatter_msm_err = True, ""
+    if (not trade_watch_mode) and _strict_chatter_msm_verify_gate():
+        chatter_msm_ok, chatter_msm_err = _chatter_msm_verify_ok(text)
+    if not chatter_msm_ok:
+        issues.append(chatter_msm_err)
     # Telegram 讀者版不再注入 SourceHealth 三行（改由後台 logger / 營運追蹤），故不強制出現在 HTML。
     if has_mixed_regime:
         issues.append(f"報告內 market_regime 不一致：{', '.join(sorted(unique_regimes))}")
@@ -2041,6 +2093,7 @@ def validate_report(text: str) -> dict:
         "結構化 qsrec 為空",
         "AI 段「本日選擇理由」含基本面用語",  # 第 18 項
         "STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE",
+        "STRICT_CHATTER_MSM_VERIFY_GATE",
     )
 
     def _is_blocking(issue: str) -> bool:

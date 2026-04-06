@@ -7,6 +7,7 @@ from unittest.mock import patch
 from pydantic import ValidationError
 
 from report_html_gates import (
+    _chatter_msm_verify_ok,
     _count_effective_news_items,
     _investment_takeaway_dashboard_numeric_ok,
     _normalize_regime_token,
@@ -1356,6 +1357,32 @@ class TestStrictInvestmentDashboardNumericGate(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("加密", err)
         self.assertIn("145", err)
+
+
+class TestChatterMsmVerifyGate(unittest.TestCase):
+    def test_chatter_msm_skipped_when_strict_off(self):
+        with patch.dict(os.environ, {"STRICT_CHATTER_MSM_VERIFY_GATE": "0"}, clear=False):
+            ok, err = _chatter_msm_verify_ok("any")
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+
+    def test_chatter_msm_fails_when_credibility_without_msm(self):
+        body = (
+            "══════ 📊 加密市場 ══════\n"
+            "<b>區塊③</b>【市場呢喃與傳聞】\n"
+            "· 測試（未確認）｜來源：社群｜可信度：B\n"
+            "<b>區塊④</b>【資金流向與精準操作 (Crypto)】\n"
+            "x\n"
+            "🤖 AI 市場\n"
+            "<b>區塊③</b>【產業鏈呢喃】\n"
+            "· OK（未確認）｜來源：a｜可信度：B｜主流媒體二次驗證：否\n"
+            "<b>區塊④</b>【AI 產業鏈精準操作 (US Equities)】\n"
+        )
+        with patch.dict(os.environ, {"STRICT_CHATTER_MSM_VERIFY_GATE": "1"}, clear=False):
+            ok, err = _chatter_msm_verify_ok(body)
+        self.assertFalse(ok)
+        self.assertIn("加密", err)
+        self.assertIn("主流媒體二次驗證", err)
 
 
 class TestInvestmentNumericAndUnactionableTrade(unittest.TestCase):
