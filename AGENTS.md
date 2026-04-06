@@ -45,6 +45,8 @@ Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline tha
 - `pip install -r requirements.txt` installs to `~/.local` on this VM. Ensure `~/.local/bin` is on `PATH` (e.g. `export PATH="$HOME/.local/bin:$PATH"`) before running `streamlit` or `crewai` CLI commands.
 - The project has no `pyproject.toml` or `setup.py` — it's a flat collection of Python scripts at the repo root.
 - `crewai` pulls in many transitive dependencies (chromadb, opentelemetry, lancedb, etc.) which cause warnings about PATH but are non-blocking.
+- `hypothesis` is listed in `requirements-ci.txt` but **not** in `requirements.txt`. The full test suite (`pytest -v`) includes `test_boundary_hypothesis.py` which imports it, so install `hypothesis` separately (`pip install hypothesis`) for local full-suite runs.
+- The React PWA (`data-verification-ui/`) has **no lockfile** — use `npm install` (not yarn/pnpm). Start with `VITE_GLASSBOX_MOCK=1 npm run dev` to see mock data without a backend.
 
 ### Runtime observations (from live pipeline execution)
 
