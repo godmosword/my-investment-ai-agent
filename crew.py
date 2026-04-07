@@ -12,6 +12,7 @@ from crew_output_parse import kickoff_to_pydantic
 from schemas import AISection, CryptoSection
 from tools import (
     ai_momentum_tool,
+    ai_sector_market_tool,
     coinglass_data_tool,
     correlation_matrix_tool,
     cot_positioning_tool,
@@ -297,7 +298,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段；勿再逐字複誦加密儀表板已給之 VIX/BTC 讀數，必要時指稱「見上方儀表板」。
-        - dashboard：AI 儀表板 MetricLine 列表；若使用 financial_datasets_tool，每檔相關美股至少一行 label 含 FinancialDatasets 與代號。
+        - dashboard：AI 儀表板 MetricLine；**順序建議**：yfinance 族群（ai_sector_market_tool）→ FinancialDatasets（watchlist 每檔≥3 行）→ ai_momentum（開源熱度）。yfinance 列 label 須含 ticker 與「yfinance」。
         - news：3 則 index 4–6，格式同加密新聞；investment_takeaway 勿重複儀表板已列之同一讀數。
         - x_highlights：選填；主題式摘要（見【區塊②b｜x_highlights】）。
         - chatter：2–3 產業鏈呢喃含可信度。
@@ -351,8 +352,9 @@ _TOOL_TRUTH_RULE = dedent("""\
     - **嚴禁**在任何可見欄位貼上工具內部字樣 **`[DATA_MISSING:...]`**（會觸發 Gate「資料缺失欄位」）；請改寫為自然語句或以 value=`N/A` 表示，並簡述原因（≤30 字）。
     - CoinGlass／ETF／爆倉／OI：若工具為 `[DATA_MISSING:coinglass_*]` 或含 401／Upgrade plan，僅能表述為「第三方衍生品數據源未回傳或訂閱方案不含該端點」；嚴禁寫成「資料庫 API 連線異常」「內部 API 故障」等未經證實說法。
     - 若儀表板已出現 Binance 備援、資金費率或多空比等數值，不得稱「籌碼面全缺失」；應寫「CoinGlass 不可用，已採備援／近似指標觀察短線情緒」。
-    - **美股基本面**：營收、淨利、現金流、毛利率、EPS、資產負債等敘述必須來自 `financial_datasets_tool` 回傳；複述時 AI 儀表板須至少一行 MetricLine 的 label 同時含 **`FinancialDatasets`** 與該 ticker（如 NVDA），value 僅用工具數字或 N/A。
-    - AI 儀表板（HuggingFace／OpenRouter）：禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；每行一個指標；僅能複述 `ai_momentum_tool` 回傳中的 **TopN: 模型名（下載｜按讚）** 或 RSS 備援標題；缺資料則 value=`N/A`，另補一句原因（≤45 字）—不得捏造數字。""")
+    - **美股基本面**：營收、淨利、現金流、毛利率、EPS、資產負債等敘述必須來自 `financial_datasets_tool` 回傳；複述時 **watchlist 每檔 ticker 至少三行** MetricLine，label 皆含 **`FinancialDatasets`** 與該代號，建議分別對應：**營收**、**營收同比%**、**自由現金流**（工具無該欄則 value=`N/A` 並一句原因）；禁止整檔濃縮成單行。
+    - **AI 族群市場（可交易讀數）**：僅能複述 `ai_sector_market_tool` 回傳之 **SMH／SOXX／NVDA／MSFT／GOOGL／SPY** 收盤與 1D／5D 報酬；每標的一行 MetricLine，**label 須含 ticker 與「yfinance」** 字樣；禁止發明股價或報酬。
+    - AI 儀表板（HuggingFace／OpenRouter／RSS）：**敘事參考、非股價訊號**；禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；每行一個指標；僅能複述 `ai_momentum_tool` 回傳中的 **TopN** 模型行或 RSS 備援標題；缺資料則 value=`N/A`，另補一句原因（≤45 字）—不得捏造數字。""")
 
 _NEWS_FMT = dedent("""\
     【新聞資料欄位規格（純資料，非排版）】
@@ -361,7 +363,7 @@ _NEWS_FMT = dedent("""\
     - summary：1 句核心事實（≤40 字，禁止主觀評論）。
     - investment_takeaway：1~2 句（≤90 字）。**每一則**須含至少一個阿拉伯數字，且該數字須能對到**同一大段（加密或 AI）區塊①儀表板**已輸出之讀數（例：加密段寫「BTC 日線 RSI 38.6」時，儀表板須已有對應 RSI 讀數；可寫與儀表一致的小數）。**禁止**在儀表板未出現該列時寫入精確報價或比率（如 SOL 現價、BTC Dominance 百分比、未列標的之 OI）；缺欄則改寫質性句或「見上方儀表板」並改引用儀表既有指標。
     - **加密新聞（index 1–3）**：若引用 **BTC MA20／MA50 價位**，須與區塊① **`BTC MA20（日線）`／`BTC MA50（日線）`** 之 value 一致（管線可由 yfinance 注入；若該列 value 為 N/A 則不得寫精確 MA 價）。
-    - **AI 產業新聞（index 4–6）**：`investment_takeaway` 的**主數字錨點**必須來自 **AI 區塊①**（HuggingFace 下載／按讚數、FinancialDatasets 營收／FCF／YoY% 等）。**禁止**以 **BTC／ETH／SOL 現價、BTC RSI、VIX、DXY、SPY** 等精確數字作為主論據（該類讀數屬加密段或「宏觀連結」）；若需連結風險偏好，僅能質性寫「見加密段儀表／宏觀連結」，**不重複數字**。
+    - **AI 產業新聞（index 4–6）**：`investment_takeaway` 的**主數字錨點**必須來自 **AI 區塊①**（優先 **yfinance 族群** 之收盤或 1D／5D%；次選 FinancialDatasets 營收／FCF／同比%；再次 HuggingFace 下載／按讚）。**禁止**以 **BTC／ETH／SOL 現價、BTC RSI、VIX、DXY** 等精確數字作為主論據（該類讀數屬加密段或「宏觀連結」）；**SPY 若已列於 AI 區塊① yfinance 列**可作為主錨點之一。**禁止**以未出現在 AI 區塊①的 SPY 數字當主論據。
     - **validate_report「投資解讀量化」**：渲染為 `<i>投資解讀</i>：…`；**同一段落內**須有至少一個數字錨點（可為負數費率如 -0.0008%、多空比、Put/Call、金額）；僅「見儀表板」而無任何數字會觸發 Gate。
     - editor_consensus：1 句（≤28 字）且點名具體標的。
     - **跨板塊新聞**：單則若同時涉及加密與美股／AI，必須一句寫明傳導鏈（風險偏好、資金流、beta 等）；禁止無機制硬接。
@@ -383,7 +385,8 @@ _DASHBOARD_FMT = dedent("""\
       「替代指標：[說明使用何種替代觀察]」
       Gate 系統會驗證這兩行是否同時存在，缺少任一行將阻擋推送。
     - **24h 爆倉**：若 CoinGlass／備援皆無清算數字，儀表板須至少一行點名「第三方未回傳 24h 爆倉」並引導讀者改看資金費率／OI／多空比；若全文儀表板完全未出現「爆倉」或「清算」字樣，組裝階段會自動補一行 ⬜ 備註（仍應優先由你主動寫入以免語氣重複）。
-    - **BTC 均線**：若工具未在儀表板輸出 MA20／MA50，組裝階段可自動注入 **`BTC MA20（日線）`／`BTC MA50（日線）`**（yfinance 日線）；請勿在儀表板另寫與該備援相衝突的 MA 讀數。""")
+    - **BTC 均線**：若工具未在儀表板輸出 MA20／MA50，組裝階段可自動注入 **`BTC MA20（日線）`／`BTC MA50（日線）`**（yfinance 日線）；請勿在儀表板另寫與該備援相衝突的 MA 讀數。
+    - **AI 區塊①順序（建議）**：先列 **ai_sector_market_tool（yfinance 族群）** → **financial_datasets（每檔三行基本面）** → **ai_momentum_tool（開源模型熱度／敘事參考）**，以利讀者區分「可交易讀數」與「開源熱度」。""")
 
 _CHATTER_FMT = dedent("""\
     呢喃/傳聞：僅未確認訊息，排除官方已證實事件
@@ -661,7 +664,7 @@ _AI_LAYOUT_RULE = dedent("""\
     1) 🏛️ 宏觀框架：本戰報將接在加密戰報之後，前段已含完整宏觀數據；本節僅輸出「承上宏觀」+ 一句主編共識（如 10Y/VIX 對美股影響），勿重複貼上美債/SOFR/利差整段。
     2) 🤖 AI 市場：
        - 主標題固定輸出 `🤖 AI 市場`；禁止改寫為「🤖 AI 與美股市場」或同義變體，且整篇只能出現一個 AI 主標題。
-       - 區塊① AI 儀表板（HuggingFace / OpenRouter 模型熱度 Top5；缺值 <code>N/A</code>）
+       - 區塊① AI 儀表板：**先** yfinance 族群（SMH／SOXX／NVDA／MSFT／GOOGL／SPY）**再** FinancialDatasets（watchlist 每檔≥3 行）**最後** HuggingFace／OpenRouter 開源熱度 Top5（敘事參考）；缺值 <code>N/A</code>
        - 區塊② AI 產業新聞 3 則：必須與幣圈完全相同格式，逐則以 `〔新聞 4〕[MM/DD HH:MM UTC+8]` … `〔新聞 6〕[MM/DD HH:MM UTC+8]` 開頭（嚴禁只用英文標題起句、嚴禁省略 UTC+8），主題涵蓋基建/投資案/模型各 1
        - 區塊②b 主題式觀點摘要（x_highlights；無資料可跳過，見【區塊②b｜x_highlights】）
        - 區塊③ 產業鏈呢喃 2~3 條（每條必含可信度：可寫「可信度：B」或「來源：B級」或 0~100 分，與加密呢喃／傳聞區格式對齊，供系統驗證）
@@ -669,7 +672,7 @@ _AI_LAYOUT_RULE = dedent("""\
          【新聞格式再確認】區塊②三則必須各以 `〔新聞 4〕`…`〔新聞 6〕` + `[MM/DD HH:MM UTC+8]` 開頭，含 <blockquote> 摘要，嚴禁縮成 `1. 2. 3.` 段落。
          【動態選股規則】禁止固定使用特定股票。必須根據以下優先順序動態選出本日 2 檔：
          (a) 優先選今日 AI 新聞中直接點名且有具體財務/產品事件的美股（如財報、拉貨、合約）
-         (b) 次選 ai_momentum_tool 回傳模型排名中，對應的上市公司股票（如 Meta, Google, Microsoft, AMD 等）
+         (b) 次選 **ai_sector_market_tool** 已列之強弱標的或 **ai_momentum_tool** 模型名對應之上市股票（如 Meta、Microsoft、AMD）
          (c) 最後才考慮 AI 基建通殺標的（如 ETF BOTZ/ARKQ）
          (d) **廣度**：兩檔盡量橫跨不同子產業或市值帶（雲／晶片／設備／軟體等）；避免連日同為 NVDA+MSFT 組合除非當日新聞主角僅此二者且已走【重複選用理由】路徑。
          【強制對齊規則】區塊④推薦的兩檔標的，【必須】是你在區塊②新聞中點名看好/看空的標的！嚴禁在新聞寫 A，交易卻無故選擇舊標的 B。除非舊標的出現極端技術面破位，否則優先交易今日新聞的主角。
@@ -982,6 +985,7 @@ class AIResearchCrew:
                 newsapi_tool,
                 rss_feed_tool,
                 gnews_tool,
+                ai_sector_market_tool,
                 ai_momentum_tool,
                 financial_datasets_tool,
                 rumor_scanner_tool,
@@ -1042,10 +1046,11 @@ class AIResearchCrew:
                     {ctx}
                     {_ai_common_header}
                     === 必須呼叫 ===
-                    · ai_momentum_tool('openrouter_rankings')
-                    · financial_datasets_tool：query 留空或 \"watchlist\"（一次取 NVDA、MSFT、AAPL 年度摘要）
+                    · ai_sector_market_tool()（AI／半導體 ETF 與龍頭＋SPY 收盤與 1D／5D%）
+                    · ai_momentum_tool('openrouter_rankings')（開源模型熱度；預設趨勢優先）
+                    · financial_datasets_tool：query 留空或 \"watchlist\"（NVDA、MSFT、AAPL 年度；儀表板每檔≥3 行基本面）
 
-                    產出：模型熱度榜與 watchlist 財務要點之結構化摘要；禁止捏造數字。
+                    產出：族群報價、模型熱度與 watchlist 財務要點之結構化摘要；禁止捏造數字。
                 """),
                 expected_output="AI 模型熱度與相關美股財務摘要",
                 agent=self.ai_researcher,
@@ -1086,8 +1091,8 @@ class AIResearchCrew:
 
                     {_CREW_RULE_BLOCK}
                     {excl}
-                    呼叫 ai_momentum_tool('openrouter_rankings')。
-                    必呼叫 financial_datasets_tool：query 留空或 \"watchlist\"（一次取 NVDA、MSFT、AAPL 年度摘要）；若新聞點名其他美股，追加 financial_datasets_tool('TICKER') 或 financial_datasets_tool('TICKER:quarterly')。
+                    必呼叫 ai_sector_market_tool()；ai_momentum_tool('openrouter_rankings')。
+                    必呼叫 financial_datasets_tool：query 留空或 \"watchlist\"（NVDA、MSFT、AAPL 年度；儀表板每檔≥3 行）；若新聞點名其他美股，追加 financial_datasets_tool('TICKER') 或 financial_datasets_tool('TICKER:quarterly')。
                     搜尋：
                     · rss_feed_tool('ai')（TechCrunch / VentureBeat AI RSS，優先取用）
                     · newsapi_tool('AI data center GPU cloud computing semiconductor')（Bloomberg / Reuters AI 報導）
