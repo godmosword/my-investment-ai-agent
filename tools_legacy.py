@@ -615,15 +615,24 @@ _HF_HEADERS = {
 }
 
 
-def _hf_fetch_models() -> str | None:
+def _hf_fetch_models(*, prefer_downloads: bool = False) -> str | None:
     """HuggingFace 官方 API 取 text-generation 模型排名，失敗回傳 None。
-    嘗試順序：trendingScore → likes → downloads，提高成功率。"""
-    # downloads / likes 較穩定；trendingScore 偶爾因 API 參數或空榜失敗
-    sort_strategies = [
-        ("downloads", "下載量"),
-        ("likes", "按讚"),
-        ("trendingScore", "趨勢"),
-    ]
+
+    預設優先 **trendingScore → likes → downloads**（下載為存量滯後指標，不適合當主排序）。
+    ``prefer_downloads=True`` 時改為下載優先（供需與舊版一致之呼叫端）。
+    """
+    if prefer_downloads:
+        sort_strategies = [
+            ("downloads", "下載量（存量滯後）"),
+            ("likes", "按讚"),
+            ("trendingScore", "趨勢"),
+        ]
+    else:
+        sort_strategies = [
+            ("trendingScore", "趨勢（短線／新模型參考）"),
+            ("likes", "按讚"),
+            ("downloads", "下載量（存量滯後）"),
+        ]
     for sort_key, sort_label in sort_strategies:
         try:
             resp = _http_get(
@@ -670,7 +679,10 @@ def _hf_fetch_models() -> str | None:
                     break
             if not lines:
                 continue
-            return f"【HuggingFace AI 模型熱度 Top5（按{sort_label}）】\n" + "\n".join(lines)
+            return (
+                f"【HuggingFace 開源模型熱度 Top5（按{sort_label}；敘事參考，非股價訊號）】\n"
+                + "\n".join(lines)
+            )
         except requests.Timeout:
             logger.warning("HuggingFace API timeout (sort=%s)", sort_key)
             continue
@@ -715,7 +727,10 @@ def _openrouter_fetch_models() -> str | None:
                 f"Top{i}: {name}"
                 f"（上下文 {int(ctx):,} tokens｜提示 ${prompt_price}/token）"
             )
-        return "【OpenRouter 支援模型 Top5（API 順序，非熱度排名）】\n" + "\n".join(lines)
+            return (
+                "【OpenRouter 模型清單 Top5（API 目錄順序，非成交／下載熱度）】\n"
+                + "\n".join(lines)
+            )
     except Exception as e:
         logger.warning("OpenRouter API failed: %s", e)
         return None
@@ -751,22 +766,141 @@ def _ai_momentum_rss_fallback() -> str | None:
         return None
 
 
+# AI／半導體族群：ETF + 大型平台股 + SPY 基準（yfinance 日線）
+_AI_SECTOR_BASKET_DEFAULT: tuple[str, ...] = ("SMH", "SOXX", "NVDA", "MSFT", "GOOGL", "SPY")
+
+
+def _yf_pct_changes_for_symbol(close_series) -> tuple[float | None, float | None, float | None]:
+    """Given daily close series (yfinance order), return (last, pct_1d, pct_5d)."""
+    try:
+        ser = close_series.dropna()
+        if ser.empty:
+            return None, None, None
+        last = float(ser.iloc[-1])
+        pct_1d: float | None = None
+        if len(ser) >= 2:
+            prev = float(ser.iloc[-2])
+            if prev != 0:
+                pct_1d = (last / prev - 1.0) * 100.0
+        pct_5d: float | None = None
+        if len(ser) >= 6:
+            base = float(ser.iloc[-6])
+            if base != 0:
+                pct_5d = (last / base - 1.0) * 100.0
+        return last, pct_1d, pct_5d
+    except Exception:
+        return None, None, None
+
+
+def _ai_sector_market_yfinance_body() -> str:
+    """Build human-readable AI/semiconductor basket lines from yfinance daily closes."""
+    import pandas as pd  # noqa: PLC0415
+    import yfinance as yf  # noqa: PLC0415
+
+    syms = list(_AI_SECTOR_BASKET_DEFAULT)
+    lines: list[str] = [
+        "【AI／半導體族群市場｜yfinance 日線】",
+        "（下為最近收盤與估算 1 日／5 交易日報酬；儀表板每行一標的，label 須含符號與「yfinance」字樣）",
+    ]
+    try:
+        df = yf.download(
+            syms,
+            period="1mo",
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            threads=False,
+        )
+    except Exception as e:
+        logger.warning("ai_sector_market yfinance batch failed: %s", e)
+        return "[DATA_MISSING:ai_sector_market] yfinance 批次下載失敗。"
+
+    if df is None or df.empty:
+        return "[DATA_MISSING:ai_sector_market] yfinance 無日線資料。"
+
+    close = df.get("Close")
+    if close is None:
+        return "[DATA_MISSING:ai_sector_market] yfinance 回傳缺少 Close。"
+
+    per_sym: dict[str, tuple[float | None, float | None, float | None]] = {
+        s: (None, None, None) for s in syms
+    }
+
+    if isinstance(close, pd.DataFrame) and isinstance(close.columns, pd.MultiIndex):
+        try:
+            close = close["Close"]
+        except (KeyError, TypeError):
+            pass
+
+    if isinstance(close, pd.Series):
+        per_sym[syms[0]] = _yf_pct_changes_for_symbol(close)
+    elif isinstance(close, pd.DataFrame):
+        for sym in syms:
+            col = sym if sym in close.columns else None
+            if col is None:
+                for c in close.columns:
+                    if str(c).upper() == sym.upper():
+                        col = c
+                        break
+            if col is None:
+                continue
+            per_sym[sym] = _yf_pct_changes_for_symbol(close[col])
+
+    for sym in syms:
+        last, p1, p5 = per_sym[sym]
+        if last is None:
+            lines.append(f"· {sym}：收盤 <code>N/A</code>｜1D <code>N/A</code>｜5D <code>N/A</code>")
+            continue
+        s_last = f"${last:,.2f}"
+        s1 = f"{p1:+.2f}%" if p1 is not None else "N/A"
+        s5 = f"{p5:+.2f}%" if p5 is not None else "N/A"
+        role = "基準" if sym == "SPY" else "標的"
+        lines.append(f"· {sym}（{role}）：收盤 <code>{s_last}</code>｜1D <code>{s1}</code>｜5D <code>{s5}</code>")
+
+    return "\n".join(lines)
+
+
+@tool
+def ai_sector_market_tool(query: str = "") -> str:
+    """
+    取得 AI／半導體相關美股與 ETF 的最近收盤與 1 日／約 5 交易日報酬（yfinance 日線）。
+    固定一籃：SMH、SOXX、NVDA、MSFT、GOOGL、SPY（SPY 為大盤基準）。供區塊①「可交易讀數」；
+    與 HuggingFace 開源熱度（敘事參考）分開列示。
+    query 保留擴充用，目前可留空。
+    """
+
+    def _run() -> str:
+        cache_key = ("ai_sector_market", "default_v1")
+        cached = _get_cache(cache_key)
+        if cached:
+            return _append_data_as_of(cached, "ai_sector_market")
+        body = _ai_sector_market_yfinance_body()
+        if not body.startswith("[DATA_MISSING"):
+            _set_cache(cache_key, body)
+        return _append_data_as_of(body, "ai_sector_market")
+
+    q = (query or "").strip()
+    return traced_tool_execution("ai_sector_market_tool", {"query": q or "(default)"}, _run)
+
+
 @tool
 def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
     """
-    取得 AI 模型熱度排名。
-    策略 A：HuggingFace 官方 API（免費，按下載量排名的 text-generation 模型）。
-    策略 B：OpenRouter API（需 OPENROUTER_API_KEY，模型清單）。
+    取得 AI 開源模型熱度排名（敘事參考；非股價）。
+    策略 A：HuggingFace 官方 API（預設趨勢→按讚→下載；metric 含 download 時改以下載優先）。
+    策略 B：OpenRouter API（需 OPENROUTER_API_KEY，模型清單順序）。
     策略 C：AI RSS 備援（近 48h 熱門 AI 新聞標題）。
     策略 D：Apify 搜尋備援（最後手段）。
     """
-    cache_key = ("ai_momentum", "openrouter_rankings")
+    mlow = (metric or "").strip().lower()
+    prefer_dl = "download" in mlow
+    cache_key = ("ai_momentum", "v2", "dl" if prefer_dl else "trend")
     cached = _get_cache(cache_key)
     if cached:
         return cached
 
     # ── 策略 A：HuggingFace ──
-    result = _hf_fetch_models()
+    result = _hf_fetch_models(prefer_downloads=prefer_dl)
     if result:
         _set_cache(cache_key, result)
         return result
@@ -3111,8 +3245,8 @@ def _fd_summarize_ticker(sym: str, period: str) -> list[str]:
             f"自由現金流 <code>{_fd_fmt_money(c0.get('free_cash_flow'))}</code>"
         )
     lines.append(
-        f"  └ <i>儀表板請加一行 MetricLine：label 含 <code>FinancialDatasets</code> 與 <code>{sym}</code>，"
-        f"value 摘要營收或 FCF（勿捏造工具未回傳數字）</i>"
+        f"  └ <i>儀表板：代號 <code>{sym}</code> 至少 <b>三行</b> MetricLine，label 皆含 <code>FinancialDatasets</code> 與 <code>{sym}</code>，"
+        f"建議分別對應營收、營收同比%、自由現金流（無則 N/A；勿捏造）</i>"
     )
     return lines
 

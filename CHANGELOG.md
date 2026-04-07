@@ -67,11 +67,16 @@
 
 ### Changed
 - **Tools 套件化 Phase 1（Office Hours Alt B）**：根目錄 monolith 更名為 [`tools_legacy.py`](tools_legacy.py)；新增 [`tools/`](tools/) 套件（[`tools/base.py`](tools/base.py) `MOCK_APIS`／`load_mock_json`、[`tools/market.py`](tools/market.py) `market_fixture_dict`；[`tools/__init__.py`](tools/__init__.py) 自 `tools_legacy` re-export 維持 `import tools` 相容）。說明與分階見 [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md)；[`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)、[`CLAUDE.md`](CLAUDE.md)、[`README.md`](README.md) 已對齊。
+- **Hugging Face／`ai_momentum_tool`**（[`tools_legacy.py`](tools_legacy.py)）：`_hf_fetch_models(..., prefer_downloads=...)` 預設 **trendingScore → likes → downloads**（弱化下載榜主導），`prefer_downloads=True` 時下載優先；`ai_momentum_tool` 依 `metric` 是否含 `download` 選擇排序；快取鍵區分分支；HF／OpenRouter 標題補「敘事參考／非股價」避免誤讀為股價。
+- **FinancialDatasets 儀表指引**：[`tools_legacy.py`](tools_legacy.py) `_fd_summarize_ticker` 要求 watchlist 每檔 **至少三行** MetricLine（營收、同比%、FCF 等），避免基本面濃縮成單行。
+- **Crew AI 區塊①**（[`crew.py`](crew.py)）：研究員掛載 **`ai_sector_market_tool`**；`_TOOL_TRUTH_RULE`／`_NEWS_FMT`／`_DASHBOARD_FMT`／`_AI_LAYOUT_RULE`／`build_ai_structured_final_prompt` 與並行任務「必呼叫」對齊建議順序：**yfinance 族群（SMH／SOXX／NVDA／MSFT／GOOGL／SPY）→ FinancialDatasets（每檔≥3 行）→ ai_momentum**。
 
 ### Added
+- **AI／半導體族群市場工具**：[`tools_legacy.py`](tools_legacy.py) `ai_sector_market_tool`（yfinance 日線批次；上列一籃標的之收盤與 1D／約 5 交易日報酬；`_get_cache`／`_set_cache`、經 [`tools/__init__.py`](tools/__init__.py) re-export）。
 - [`tests/fixtures/mock_data/market.json`](tests/fixtures/mock_data/market.json) — mock 市場片段（`MOCK_APIS=1` 時由 `market_fixture_dict` 載入）。
 
 ### Tests
+- [`test_ai_sector_market_tool.py`](test_ai_sector_market_tool.py)：`ai_sector_market` yfinance 輸出格式；`_hf_fetch_models` 首輪 `sort`（`conftest` yfinance stub 下以 `patch.object(..., create=True)` 掛 `download`）。
 - [`test_tools_package_phase1.py`](test_tools_package_phase1.py)（`@pytest.mark.smoke`）。
 
 ### Docs / env
