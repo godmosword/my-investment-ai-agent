@@ -6,12 +6,16 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
+from tracker import extract_recommendations_json
+
 from report_html_gates import (
     _chatter_msm_verify_ok,
     _count_effective_news_items,
     _investment_takeaway_dashboard_numeric_ok,
     _normalize_regime_token,
+    _pick_justification_crypto_ok,
     _qsrec_consistency_issues,
+    _risk_off_narrative_violations,
 )
 
 from main import (
@@ -621,6 +625,59 @@ class TestValidateReport(unittest.TestCase):
         result = validate_report(report)
         self.assertFalse(any("傳聞區缺少可信度" in i for i in result["issues"]))
 
+    def test_neutral_regime_forbids_risk_off_trade_language(self):
+        report = _make_report(
+            regime="neutral",
+            extra="\n· 倉位建議：4%（高風險環境 risk_off 減倉至極低水位）\n",
+        )
+        result = validate_report(report)
+        self.assertTrue(any("risk_off 敘述" in i or "誤用 risk_off" in i for i in result["issues"]))
+
+    def test_neutral_regime_forbids_us_equity_frame_risk_off_paren(self):
+        """美股部位框括號內誤標（risk_off）應與「依 risk_off」一併被敘事 Gate 擋下。"""
+        report = _make_report(
+            regime="neutral",
+            extra="\n· <b>美股部位框</b>：兩檔合計不超過 10%（risk_off）\n",
+        )
+        result = validate_report(report)
+        self.assertTrue(any("risk_off 敘述" in i or "誤用 risk_off" in i for i in result["issues"]))
+
+    def test_crypto_pick_futures_and_cme_count_as_catalyst_keywords(self):
+        """期貨／CME 類敘述須計入動態選幣「強關鍵詞」。"""
+        reason = "CME 機構期貨淨多單變化與監管新聞同向，故維持 BTC 為單邊主倉。"
+        recs = [{"asset": "BTC", "category": "CRYPTO"}]
+        old = (
+            "本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。\n"
+        )
+        report = _make_report(regime="risk_on").replace(old, "本日選擇理由：" + reason + "\n")
+        ok, err = _pick_justification_crypto_ok(report, recs)
+        self.assertTrue(ok, err)
+
+    def test_qsrec_regime_mismatch_reported_in_consistency_issues(self):
+        """QSREC regime 與【今日市場模式】不一致時應列入 qsrec_issues，而非僅依 mixed regime。"""
+        report = _make_report(regime="neutral")
+        j = report.index('"asset":"BTC"')
+        k = report.index('"regime":"neutral"', j)
+        report = report[:k] + '"regime":"risk_off"' + report[k + len('"regime":"neutral"') :]
+        recs = extract_recommendations_json(report)
+        issues = _qsrec_consistency_issues(report, recs)
+        self.assertTrue(any("regime=risk_off" in i and "主判定 neutral" in i for i in issues))
+
+    def test_has_mixed_regime_ignores_qsrec_only_divergence(self):
+        """正文 mode／budget 一致時，僅 QSREC JSON regime 錯誤不應觸發 has_mixed_regime。"""
+        report = _make_report(regime="neutral")
+        j = report.index('"asset":"BTC"')
+        k = report.index('"regime":"neutral"', j)
+        report = report[:k] + '"regime":"risk_off"' + report[k + len('"regime":"neutral"') :]
+        result = validate_report(report)
+        self.assertFalse(result["has_mixed_regime"])
+
+    def test_risk_off_narrative_flags_us_equity_frame(self):
+        lines = _risk_off_narrative_violations(
+            "【今日市場模式】 neutral\n· <b>美股部位框</b>：10%（risk_off）\n"
+        )
+        self.assertTrue(any("美股部位框" in ln for ln in lines))
+
 
 class TestRumorGradePostprocess(unittest.TestCase):
     def test_injects_marker_when_missing(self):
@@ -698,14 +755,6 @@ class TestRumorGradePostprocess(unittest.TestCase):
         report = _make_report(extra="美債 10Y: 25.00%")
         result = validate_report(report)
         self.assertTrue(result["has_macro_outlier"])
-
-    def test_neutral_regime_forbids_risk_off_trade_language(self):
-        report = _make_report(
-            regime="neutral",
-            extra="\n· 倉位建議：4%（高風險環境 risk_off 減倉至極低水位）\n",
-        )
-        result = validate_report(report)
-        self.assertTrue(any("risk_off 敘述" in i or "誤用 risk_off" in i for i in result["issues"]))
 
     def test_six_news_tags_required(self):
         """僅有編號列表、無〔新聞 N〕時應提示格式錯誤。"""

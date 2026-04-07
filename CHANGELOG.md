@@ -11,6 +11,11 @@
 ### Changed
 - [`TODOS.md`](TODOS.md)：檔首新增「執行版路線圖」連結，便於維護者從彙總待辦直接跳轉到可執行規劃。
 - [`README.md`](README.md)：索引與「下一步讀哪裡」補上 [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) 入口，讓新進開發者可直接看到可執行路線。
+- **戰報 Gate／敘事一致性**：[`report_html_gates.py`](report_html_gates.py) 主判定為 `neutral`／`risk_on` 時，**美股部位框**行內括號誤標 `（risk_off）` 列入 `_risk_off_narrative_violations`；`has_mixed_regime` 僅看正文 **mode／budget** 標籤（不含僅 QSREC JSON 分歧）；動態選幣理由強關鍵詞補 **期貨／衍生品／CME／恐慌／貪婪／恐懼貪婪**；QSREC 單筆 `regime` 與【今日市場模式】主判定不一致時列入 `_qsrec_consistency_issues`。
+- **Crew 提示詞對齊**：[`crew.py`](crew.py) 美股部位框括號須與主判定一致；執行摘要避免在 `neutral`／`risk_on` 使用僅適用 `risk_off` 的語氣；Gate 預檢選幣理由關鍵詞池與 Gate 一致。
+
+### Tests
+- [`test_validate_report.py`](test_validate_report.py)：`TestValidateReport` 新增／收斂 **risk_off 敘事**、**CME／期貨選幣理由**、**QSREC regime 與主判定**、**mixed regime 忽略僅 QSREC 分歧** 等案例。
 
 ## 2026-04-04
 

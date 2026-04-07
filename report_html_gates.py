@@ -380,6 +380,8 @@ _CRYPTO_PICK_KW: tuple[str, ...] = (
     "清算", "爆倉", "流入", "流出", "鏈上", "巨鯨", "資金費率", "多空比",
     "DeFi", "監管", "申請", "上市", "解鎖", "減半", "RWA", "SOPR", "NUPL",
     "交易所", "淨流", "未平倉", "OI", "現貨", "基差", "期權", "選擇權",
+    # 衍生性／情緒指標敘事（CME、期貨部位、恐懼貪婪等須可計入「催化／籌碼」線索）
+    "期貨", "衍生品", "CME", "恐慌", "貪婪", "恐懼貪婪",
 )
 _CRYPTO_PICK_FALLBACK: tuple[str, ...] = (
     "大型幣", "主流幣", "龍頭", "流動性", "最後才", "缺乏", "無其他",
@@ -1131,6 +1133,13 @@ def _qsrec_consistency_issues(report_text: str, recs: list[dict]) -> list[str]:
         except (TypeError, ValueError):
             issues.append(f"QSREC 第 {i} 筆 position_pct 非數字")
 
+        rec_reg = _normalize_regime_token(str(rec.get("regime", "")))
+        if rec_reg and regime_m and rec_reg != regime:
+            issues.append(
+                f"QSREC 第 {i} 筆 regime={rec_reg} 與【今日市場模式】主判定 {regime} 不一致"
+                f"（請改為 {regime} 或刪除 regime 欄）"
+            )
+
         if _strict_pick_scoring():
             for k in _PICK_SCORE_FIELDS:
                 val = _safe_float_val(rec.get(k))
@@ -1552,6 +1561,12 @@ def _risk_off_narrative_violations(text: str) -> list[str]:
             snippet = line.strip()[:160]
             if snippet not in bad_lines:
                 bad_lines.append(snippet)
+        # 「美股部位框」括號內誤標 risk_off（主判定為 neutral/risk_on 時與【今日市場模式】矛盾）
+        if primary in ("neutral", "risk_on") and "美股部位框" in line:
+            if re.search(r"[（(]\s*risk[\s_\-]*off\s*[）)]", line, re.IGNORECASE):
+                snippet = line.strip()[:160]
+                if snippet not in bad_lines:
+                    bad_lines.append(snippet)
     return bad_lines
 
 
@@ -1840,7 +1855,10 @@ def validate_report(text: str) -> dict:
             rv = _normalize_regime_token(str(rec.get("regime", "")))
             if rv:
                 qsrec_regimes.append(rv)
+    # mixed regime：僅以正文【今日市場模式】與「今日風險預算」行為準；QSREC JSON 內 regime
+    # 若不一致改由 _qsrec_consistency_issues 單獨回報，避免與 post_process 正規化後仍被 footnote 汙染。
     unique_regimes = set(mode_tags + budget_tags + qsrec_regimes)
+    regimes_for_mixed_check = set(mode_tags + budget_tags)
     # 情境分析條件句（若轉為 risk_off 則…）不算 mixed regime —— 僅排除條件句中的 regime 提及
     _conditional_re = re.compile(
         r'(?:若|如果|假設|when|if)\s*(?:轉為|切換至|shift\s*to|switch\s*to|moves?\s*to)\s*'
@@ -1852,7 +1870,7 @@ def validate_report(text: str) -> dict:
         for m in _conditional_re.finditer(text)
         if _normalize_regime_token(m.group(1))
     }
-    authoritative_regimes = unique_regimes - conditional_regimes
+    authoritative_regimes = regimes_for_mixed_check - conditional_regimes
     has_mixed_regime = len(authoritative_regimes) > 1
     malformed_invalidation = bool(MALFORMED_INVALIDATION_RE.search(text))
     has_unactionable_trade = bool(UNACTIONABLE_TRADE_RE.search(text))
