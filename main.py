@@ -69,6 +69,7 @@ import tracker
 import scratchpad
 from tracker import get_recent_lessons, load_previous_recs_block
 from report_pipeline_compare import compare_validation_results
+from config import USE_LANGGRAPH_ENGINE
 
 load_dotenv()
 
@@ -593,27 +594,56 @@ def _run_pipeline_once(
 
         from concurrent.futures import ThreadPoolExecutor
 
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            future_crypto = executor.submit(
-                lambda: CryptoResearchCrew(use_fallback_llm=use_fallback_llm).run(
-                    exclude_context=trimmed_exclusion,
-                    price_context=price_context,
-                    prev_recs_block=prev_recs,
-                    agreed_regime=agreed_regime,
-                    recent_lessons=lessons_str,
-                )
-            )
-            future_ai = executor.submit(
-                lambda: AIResearchCrew(use_fallback_llm=use_fallback_llm).run(
-                    exclude_context=trimmed_exclusion,
-                    price_context=price_context,
-                    agreed_regime=agreed_regime,
-                    recent_lessons=lessons_str,
-                )
-            )
+        if USE_LANGGRAPH_ENGINE:
+            logger.info("USE_LANGGRAPH_ENGINE=1, running LangGraph shadow engine.")
+            from graph.graph_crew import run_langgraph_category  # noqa: PLC0415
 
-            crypto_section = future_crypto.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
-            ai_section = future_ai.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                future_crypto = executor.submit(
+                    lambda: run_langgraph_category(
+                        category="CRYPTO",
+                        exclude_context=trimmed_exclusion or "",
+                        price_context=price_context,
+                        prev_recs_block=prev_recs,
+                        agreed_regime=agreed_regime,
+                        recent_lessons=lessons_str,
+                        use_fallback_llm=use_fallback_llm,
+                    )
+                )
+                future_ai = executor.submit(
+                    lambda: run_langgraph_category(
+                        category="AI",
+                        exclude_context=trimmed_exclusion or "",
+                        price_context=price_context,
+                        prev_recs_block=prev_recs,
+                        agreed_regime=agreed_regime,
+                        recent_lessons=lessons_str,
+                        use_fallback_llm=use_fallback_llm,
+                    )
+                )
+                crypto_section = future_crypto.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+                ai_section = future_ai.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+        else:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                future_crypto = executor.submit(
+                    lambda: CryptoResearchCrew(use_fallback_llm=use_fallback_llm).run(
+                        exclude_context=trimmed_exclusion,
+                        price_context=price_context,
+                        prev_recs_block=prev_recs,
+                        agreed_regime=agreed_regime,
+                        recent_lessons=lessons_str,
+                    )
+                )
+                future_ai = executor.submit(
+                    lambda: AIResearchCrew(use_fallback_llm=use_fallback_llm).run(
+                        exclude_context=trimmed_exclusion,
+                        price_context=price_context,
+                        agreed_regime=agreed_regime,
+                        recent_lessons=lessons_str,
+                    )
+                )
+                crypto_section = future_crypto.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+                ai_section = future_ai.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
 
         try:
             _min_tc = int(os.getenv("MIN_TOOL_CALLS_PER_PIPELINE", "0") or "0")

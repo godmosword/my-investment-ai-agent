@@ -82,6 +82,9 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # NEWS_FRESHNESS_SOURCE_WHITELIST=FRED,IMF   # 行內含關鍵字則略過該則新鮮度檢查（逗號分隔，大小寫不敏感）
 # PIPELINE_REPORT_DATE=   # YYYY-MM-DD：新聞新鮮度以該日 HKT 23:59:59 為參考；並注入 crew exclusion 開頭
 # REPORT_COMPARE_MODE=0   # Phase 3：1=每次 validate 後額外跑候選路徑並 log 差異（不切 Telegram/BQ 決策）
+# USE_LANGGRAPH_ENGINE=0  # Phase 3：1=啟用 LangGraph 狀態機（預設 0 走既有 CrewAI）
+# GRAPH_ENABLE_TOOL_CALLS=1  # LangGraph 節點是否呼叫工具；測試可設 0
+# LANGGRAPH_SKIP_FORMATTER_CREW=0  # 1=Final_Formatter 不呼叫既有 Crew（僅 smoke 測試）
 # MAX_REPORT_RETRIES=2
 # MAX_503_RETRIES=3
 # BACKOFF_BASE_SEC=25
