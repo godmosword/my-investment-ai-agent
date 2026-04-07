@@ -1,7 +1,8 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
 **唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**同步狀態**（2026-04-04）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-03-29**、**2026-04-01**～**03**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。未完成項之**四維評分與新建議**見 [未完成項四維評分與新建議（2026-04）](#未完成項四維評分與新建議2026-04)。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
+**執行版路線圖**：見 [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md)（2026 Q2）。
+**同步狀態**（2026-04-07）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-03-29**、**2026-04-01**～**03**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。未完成項之**四維評分與新建議**見 [未完成項四維評分與新建議（2026-04）](#未完成項四維評分與新建議2026-04)。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
 
 ---
 

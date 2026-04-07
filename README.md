@@ -4,7 +4,7 @@
 
 **紅線**：可驗證的價格、技術與宏觀數字須由 **工具層** 取得並注入 Context；LLM **不得捏造**客觀數據。日報主線 **不依賴 X/Twitter**（見 [`.cursorrules`](.cursorrules)）。Telegram 僅允許白名單 HTML — 見 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)。
 
-**索引**：[`TODOS.md`](TODOS.md) · [`CHANGELOG.md`](CHANGELOG.md) · [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) · [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)
+**索引**：[`TODOS.md`](TODOS.md) · [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · [`CHANGELOG.md`](CHANGELOG.md) · [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) · [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)
 
 ---
 
@@ -51,7 +51,7 @@
 | 部署與排程 | [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) |
 | 開發者導覽（模組、指令） | [`CLAUDE.md`](CLAUDE.md) |
 | 雲端／CoinGlass 備忘 | [`AGENTS.md`](AGENTS.md) |
-| 工程待辦與路線 | [`TODOS.md`](TODOS.md)、[`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) |
+| 工程待辦與路線 | [`TODOS.md`](TODOS.md)、[`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md)、[`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) |
 
 ---
 
