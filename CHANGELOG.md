@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-07
+
+### Added
+- [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md)：將「依目前 repo 架構可延續方向」落成執行版路線圖（Trust/Gate、tools 平台化、Product Shell、Multi-Agent、deploy cache、Phase 2–4 決策門檻），含 30/60/90 節奏與各 track 驗收條件。
+
+### Changed
+- [`TODOS.md`](TODOS.md)：檔首新增「執行版路線圖」連結，便於維護者從彙總待辦直接跳轉到可執行規劃。
+- [`README.md`](README.md)：索引與「下一步讀哪裡」補上 [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) 入口，讓新進開發者可直接看到可執行路線。
+
 ## 2026-04-04
 
 ### Added
