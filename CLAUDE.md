@@ -37,6 +37,8 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 |------|------|
 | [`main.py`](main.py) | Entry: `_validate_required_keys`, `_validate_critical_env_strict` (`PIPELINE_STRICT_ENV`), `_validate_env_types`, prewarm, dual-crew run, retries, Telegram, BQ, charts |
 | [`crew.py`](crew.py) | CrewAI agents, tasks, LLM fallback chains |
+| [`graph/graph_crew.py`](graph/graph_crew.py) | LangGraph state machine compiler/runtime (`USE_LANGGRAPH_ENGINE=1` 時切換路徑) |
+| [`graph/graph_nodes.py`](graph/graph_nodes.py) + [`graph/graph_state.py`](graph/graph_state.py) | Phase 3 nodes（Gather/Bull/Bear/Arbiter/Deep/Formatter）與共享 state/reducer |
 | [`tools/`](tools/) + [`tools_legacy.py`](tools_legacy.py) | Crew import `tools` (package re-exports legacy); new scaffold `tools.base` / `tools.market` + ADR [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md); split plan [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) |
 | [`schemas.py`](schemas.py) | Pydantic — `DailyBriefReport`, sections, QSREC |
 | [`config.py`](config.py) | `PROJECT_ID`, table IDs, model env names, `GATE_FAILURE_LOG_TABLE`, etc. |

@@ -11,6 +11,11 @@ def _env_model(*env_keys: str, default: str) -> str:
     return default
 
 
+def _env_flag(key: str, default: str = "0") -> bool:
+    value = os.getenv(key, default)
+    return str(value).strip().lower() in ("1", "true", "yes")
+
+
 PROJECT_ID = os.getenv("GCP_PROJECT_ID", "my-investment-ai-agent")
 METRICS_TABLE = f"{PROJECT_ID}.market_data.daily_metrics"
 WHALE_TABLE = f"{PROJECT_ID}.market_data.btc_whale_transactions"
@@ -28,3 +33,6 @@ MODEL_GEMINI = _env_model("MODEL_GEMINI", default="gemini/gemini-3-flash-preview
 MODEL_CLAUDE = _env_model("MODEL_CLAUDE", default="anthropic/claude-sonnet-4-20250514")
 # 文稿潤稿主編（Writing Editor）：輕量快速，僅做文字改寫
 MODEL_GPT_NANO = _env_model("MODEL_GPT_NANO", default="openai/gpt-5.4-nano-2026-03-17")
+
+# Phase 3 shadow switch: 1=run LangGraph engine, 0=legacy CrewAI path.
+USE_LANGGRAPH_ENGINE = _env_flag("USE_LANGGRAPH_ENGINE", "0")
