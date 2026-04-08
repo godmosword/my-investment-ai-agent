@@ -8,6 +8,7 @@ Use Optional / defaults for sparse tool data so one missing field does not fail 
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import Literal
 
@@ -700,6 +701,32 @@ class CryptoSection(BaseModel):
             "Goes at the very top of the report before market mode."
         ),
     )
+    investment_thesis_one_liner: str = Field(
+        default="",
+        description=(
+            "【投資命題】一句可檢驗主命題（≤90 字），須涵蓋加密與美股主軸或明確寫出跨資產邏輯；"
+            "禁止內部標籤與【≤N字】提示詞。"
+        ),
+    )
+    thesis_supporting_points: list[str] = Field(
+        default_factory=list,
+        description="支持論點恰好 3 條，每條 ≤72 字；須可對照儀表板或新聞，禁止空泛形容詞。",
+    )
+    thesis_contrary_points: list[str] = Field(
+        default_factory=list,
+        description="反駁／風險論點恰好 3 條，每條 ≤72 字；與主命題對稱，禁止只寫「波動大」。",
+    )
+    key_assumptions_lines: list[str] = Field(
+        default_factory=list,
+        description="關鍵假設 2–4 條，每條 ≤80 字（例：利率路徑、盈利共識、流動性條件）。",
+    )
+    narrative_invalidation_summary: str = Field(
+        default="",
+        description=(
+            "【敘事失效】宏觀或敘事級觸發（非單筆價格停損）：1–2 句 ≤160 字；"
+            "說明何種證據若出現則本日主命題需重估。"
+        ),
+    )
     market: MarketRegimeBlock
     narrative_of_day: str = Field(
         ...,
@@ -760,6 +787,32 @@ class CryptoSection(BaseModel):
         if isinstance(v, str):
             return _strip_prompt_instruction_echoes(v)
         return v
+
+    @field_validator(
+        "investment_thesis_one_liner",
+        "narrative_invalidation_summary",
+        mode="before",
+    )
+    @classmethod
+    def _scrub_thesis_strings(cls, v: object) -> object:
+        if isinstance(v, str):
+            return _strip_prompt_instruction_echoes(v)
+        return v
+
+    @field_validator("thesis_supporting_points", "thesis_contrary_points", "key_assumptions_lines", mode="before")
+    @classmethod
+    def _scrub_thesis_lists(cls, v: object) -> object:
+        if not isinstance(v, list):
+            return v
+        out: list[str] = []
+        for item in v:
+            if isinstance(item, str):
+                s = _strip_prompt_instruction_echoes(item).strip()
+                if s:
+                    out.append(s)
+            elif item is not None:
+                out.append(str(item).strip())
+        return out
 
     @field_validator("pick_reason", "risk_budget_summary", "signal_conflict_summary", mode="before")
     @classmethod
@@ -992,7 +1045,31 @@ def _structured_business_issues(report: "DailyBriefReport") -> list[str]:
 
     _check_section_alignment(cr, "CRYPTO", "加密")
     _check_section_alignment(ai_sec, "EQUITY", "AI")
+    if os.getenv("STRICT_INSTITUTIONAL_PHASE_A_GATE", "0").lower() in ("1", "true", "yes"):
+        issues.extend(_institutional_phase_a_structured_issues(cr))
     return issues
+
+
+def _institutional_phase_a_structured_issues(cr: CryptoSection) -> list[str]:
+    """When STRICT_INSTITUTIONAL_PHASE_A_GATE=1, require Phase A institutional blocks in CryptoSection."""
+    out: list[str] = []
+    thesis = (cr.investment_thesis_one_liner or "").strip()
+    if not thesis:
+        out.append("結構化缺少投資命題（investment_thesis_one_liner）")
+    elif len(thesis) > 95:
+        out.append("投資命題過長（>90 字建議上限）")
+    sup = [str(x).strip() for x in cr.thesis_supporting_points if str(x).strip()]
+    con = [str(x).strip() for x in cr.thesis_contrary_points if str(x).strip()]
+    if len(sup) != 3:
+        out.append(f"支持論點須恰好 3 條（當前 {len(sup)}）")
+    if len(con) != 3:
+        out.append(f"反駁論點須恰好 3 條（當前 {len(con)}）")
+    ass = [str(x).strip() for x in cr.key_assumptions_lines if str(x).strip()]
+    if not (2 <= len(ass) <= 4):
+        out.append(f"關鍵假設須 2–4 條（當前 {len(ass)}）")
+    if not (cr.narrative_invalidation_summary or "").strip():
+        out.append("結構化缺少敘事失效（narrative_invalidation_summary）")
+    return out
 
 
 class DailyBriefReport(BaseModel):
@@ -1000,6 +1077,10 @@ class DailyBriefReport(BaseModel):
 
     crypto: CryptoSection
     ai: AISection
+    institutional_disclaimer_html: str = Field(
+        default="",
+        description="Fixed institutional disclaimer HTML (whitelist tags only); injected at assemble, not from LLM.",
+    )
     source_observability_block: str = Field(
         default="",
         description="Injected by main.py before render; not from LLM.",

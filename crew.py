@@ -247,12 +247,14 @@ def build_crypto_structured_final_prompt(
         {_HIT_STOP_STRATEGIST_RULE}
         {_THINK_SHOW_ZONE_RULE}
         {_INSTITUTIONAL_VOICE_RULE}
+        {_INSTITUTIONAL_PHASE_A_RULE}
 
         === 填入 CryptoSection 欄位 ===
         - report_title_date: 使用 {today_str}
         - exec_summary：3–5 則 bullet（見【Executive Summary】）；加密與美股主倉若方向明顯相反，其一則須框定跨資產組合邏輯。
         - market.regime / score_suffix / scorecard_lines：承接上一任務評分卡，regime 僅 risk_on|risk_off|neutral。
         - narrative_of_day：今日主敘事一句 ≤45 字。
+        - investment_thesis_one_liner / thesis_supporting_points（3）/ thesis_contrary_points（3）/ key_assumptions_lines（2–4）/ narrative_invalidation_summary：見【華爾街級 Phase A】。
         - macro_framework_lines：≤4 行宏觀 bullet。
         - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。
         - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據，且勿重複儀表板已列之同一讀數。
@@ -324,6 +326,16 @@ _THINK_SHOW_ZONE_RULE = dedent("""\
       該欄不會出現在 Telegram 戰報正文，也不會進入對外 QSREC JSON。
     - 再寫 `narrative`：僅保留榨乾後的 1～2 句展示用敘事；禁止把 internal_reasoning 整段貼進 narrative。
     - 每則 news：`internal_reasoning` 可放簡短研判草稿；`summary`／`investment_takeaway`／`editor_consensus` 僅留對外洗練句。
+    """)
+
+_INSTITUTIONAL_PHASE_A_RULE = dedent("""\
+    【華爾街級 Phase A｜投資命題與假設（CryptoSection 必填）】
+    - `investment_thesis_one_liner`：一句可檢驗主命題（≤90 字），須涵蓋**加密與美股**主軸或明確寫出跨資產邏輯；禁內部標籤。
+    - `thesis_supporting_points`：**恰好 3 條**字串，每條 ≤72 字；須可對照儀表板或新聞中的具體讀數／事件。
+    - `thesis_contrary_points`：**恰好 3 條**字串，每條 ≤72 字；為對稱反駁（流動性、宏觀、估值、監管等），禁只寫「波動大」。
+    - `key_assumptions_lines`：**2–4 條**字串，每條 ≤80 字（利率路徑、盈利共識、流動性、資料可得性等）。
+    - `narrative_invalidation_summary`：1–2 句 ≤160 字——**敘事級**失效條件（非單筆進場停損）：何種證據若出現則須重估本日主命題。
+    - 免責聲明由管線固定注入 Telegram，**勿**在 JSON 內自行撰寫長段法律免責。
     """)
 
 _EDITOR_RULE = dedent("""\
