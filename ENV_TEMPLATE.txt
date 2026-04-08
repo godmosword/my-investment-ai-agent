@@ -145,6 +145,8 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # GATE_FAILURE_ARTIFACT_DIR=   # 自訂目錄（預設專案根下 .qsilicon/last_gate_failure）
 # GATE_FAILURE_BQ_LOG=1      # 1=管線每次 validate 含 issues 時寫入 BigQuery `market_data.gate_failure_log`（結構化分類，不自動改 prompt）；SKIP_BIGQUERY=1 時仍略過
 # GATE_ALERT_FULL_ISSUES=1   # Gate 告警後再發 1+ 則純文字訊息列出完整 issues（設 0 只保留 top 3 摘要行）
+# GATE_FAILURE_DIGEST_DAYS=14  # scripts/gate_failure_hint_digest.py 查詢近 N 日（1~90）
+# GATE_FAILURE_DIGEST_OUT=.qsilicon/gate_failure_digest.md  # digest script 可選輸出路徑
 
 # ---------- 路線圖：潤稿／權重 context／Company 試點 ----------
 # EDITOR_AGENT_ENABLED=0     # 1=assemble+render 後、validate 前跑潤稿（預設關）
@@ -152,6 +154,8 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # WEIGHTS_CONTEXT_ENABLED=0  # 1=fetch_exclusion_context 附加 ML 權重摘要（見 signal_weights_store）
 # SIGNAL_WEIGHTS_DIR=.qsilicon
 # COMPANY_CREW_ENABLED=0     # 1=main 啟動時 prepend Growth 敘事至 exclusion context；寫入 .qsilicon/company_run_latest.json
+# SHADOW_BENCHMARK_LOG=0     # 1=main 記錄 dual-crew / company 試點耗時與新聞量到 JSONL（供切片 4 量測）
+# SHADOW_BENCHMARK_PATH=.qsilicon/crew_shadow_benchmark.jsonl
 
 # ---------- OSS Scout（本機／weekly-scout workflow；見 docs/oss_candidates/README.md）----------
 # GITHUB_TOKEN=            # GitHub Search／REST；Actions 內建 secrets.GITHUB_TOKEN

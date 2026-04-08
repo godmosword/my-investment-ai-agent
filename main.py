@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import time
+import json
 import logging
 import builtins
 from datetime import datetime, timezone
@@ -100,6 +101,11 @@ MAX_PREV_RECS_CHARS = int(os.getenv("MAX_PREV_RECS_CHARS", "1200"))
 CREW_FUTURE_TIMEOUT_SEC = int(os.getenv("CREW_FUTURE_TIMEOUT_SEC", "2400"))
 # 整段產報（含 validate 重試、503 退避）的牆鐘預算；達上限後不再開新一趟 kickoff。預設對齊 4h Cloud Run 留 ~20min 緩衝。
 PIPELINE_HARD_DEADLINE_SEC = int(os.getenv("PIPELINE_HARD_DEADLINE_SEC", "13200"))
+SHADOW_BENCHMARK_LOG = os.getenv("SHADOW_BENCHMARK_LOG", "").lower() in ("1", "true", "yes")
+SHADOW_BENCHMARK_PATH = os.getenv(
+    "SHADOW_BENCHMARK_PATH",
+    ".qsilicon/crew_shadow_benchmark.jsonl",
+)
 
 # 除錯用環境變數：LOG_LEVEL=DEBUG | DEBUG=1 | CREW_VERBOSE=1（Agent 步驟）| SKIP_TELEGRAM=1 | SKIP_BIGQUERY=1
 
@@ -137,6 +143,24 @@ def _persist_pipeline_raw_report(report: DailyBriefReport | None) -> None:
         logger.info("Wrote structured raw report to %s", d / "raw_data.json")
     except OSError as e:
         logger.warning("raw_data.json write failed: %s", e)
+
+
+def _log_shadow_benchmark(stage: str, payload: dict) -> None:
+    """Append lightweight shadow/runtime metrics for optional benchmark analysis."""
+    if not SHADOW_BENCHMARK_LOG:
+        return
+    try:
+        rec = {
+            "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "stage": stage,
+            **payload,
+        }
+        path = Path(SHADOW_BENCHMARK_PATH)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except OSError as e:
+        logger.warning("shadow benchmark write failed: %s", e)
 
 
 def _build_output_json_for_validation(
@@ -598,6 +622,7 @@ def _run_pipeline_once(
             logger.info("USE_LANGGRAPH_ENGINE=1, running LangGraph shadow engine.")
             from graph.graph_crew import run_langgraph_category  # noqa: PLC0415
 
+            _engine_t0 = time.monotonic()
             with ThreadPoolExecutor(max_workers=2) as executor:
                 future_crypto = executor.submit(
                     lambda: run_langgraph_category(
@@ -623,7 +648,16 @@ def _run_pipeline_once(
                 )
                 crypto_section = future_crypto.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
                 ai_section = future_ai.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+            _log_shadow_benchmark(
+                "langgraph_dual_crew",
+                {
+                    "elapsed_sec": round(time.monotonic() - _engine_t0, 3),
+                    "timeout_sec": CREW_FUTURE_TIMEOUT_SEC,
+                    "news_count_total": len(crypto_section.news) + len(ai_section.news),
+                },
+            )
         else:
+            _engine_t0 = time.monotonic()
             with ThreadPoolExecutor(max_workers=2) as executor:
                 future_crypto = executor.submit(
                     lambda: CryptoResearchCrew(use_fallback_llm=use_fallback_llm).run(
@@ -644,6 +678,14 @@ def _run_pipeline_once(
                 )
                 crypto_section = future_crypto.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
                 ai_section = future_ai.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+            _log_shadow_benchmark(
+                "crewai_dual_crew",
+                {
+                    "elapsed_sec": round(time.monotonic() - _engine_t0, 3),
+                    "timeout_sec": CREW_FUTURE_TIMEOUT_SEC,
+                    "news_count_total": len(crypto_section.news) + len(ai_section.news),
+                },
+            )
 
         try:
             _min_tc = int(os.getenv("MIN_TOOL_CALLS_PER_PIPELINE", "0") or "0")
@@ -1090,7 +1132,16 @@ if __name__ == "__main__":
         try:
             from crew_company import run_growth_narrative_for_context
 
+            _company_t0 = time.monotonic()
             growth_ctx = run_growth_narrative_for_context()
+            _log_shadow_benchmark(
+                "company_growth_context",
+                {
+                    "elapsed_sec": round(time.monotonic() - _company_t0, 3),
+                    "enabled": True,
+                    "chars": len(growth_ctx or ""),
+                },
+            )
             if growth_ctx:
                 exclusion = f"{growth_ctx}\n\n{exclusion}" if exclusion else growth_ctx
                 logger.info("Prepended Company Growth narrative to exclusion context.")

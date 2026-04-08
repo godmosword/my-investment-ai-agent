@@ -50,6 +50,9 @@ jobs:
       - name: Run smoke tests
         run: pytest -m smoke -q --tb=short
 
+      - name: Run mock smoke (MOCK_APIS=1)
+        run: ./scripts/run_mock_smoke.sh
+
   # 可重用 workflow 內 github.event_name 繼承「呼叫端」事件（如 push／schedule），
   # 不會是 workflow_call；故用「非 PR」判斷，讓 deploy／nightly 的 uses: 本檔時會實際跑測。
   callable:
@@ -93,3 +96,7 @@ jobs:
           else
             pytest -m smoke -q --tb=short
           fi
+
+      - name: Run mock smoke (MOCK_APIS=1)
+        if: env.CI_TEST_TIER == 'quick'
+        run: ./scripts/run_mock_smoke.sh

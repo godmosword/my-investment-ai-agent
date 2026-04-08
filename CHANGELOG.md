@@ -12,11 +12,14 @@
 - **華爾街級 Phase A（機構讀者）**：`CryptoSection` 新增 `investment_thesis_one_liner`、`thesis_supporting_points`（3）、`thesis_contrary_points`（3）、`key_assumptions_lines`（2–4）、`narrative_invalidation_summary`；`DailyBriefReport.institutional_disclaimer_html` 於 `assemble_daily_brief_report` 注入固定 Telegram 白名單免責（`report_render._INSTITUTIONAL_DISCLAIMER_HTML`）；`templates/telegram_report.j2` 於標題後渲染免責與命題區塊。
 - **可選 Gate**：`STRICT_INSTITUTIONAL_PHASE_A_GATE=1` 時 `validate_report` 檢查 HTML 區塊；同開關下 `DailyBriefReport` 結構化驗證要求上述欄位（`schemas._institutional_phase_a_structured_issues`）。見 `ENV_TEMPLATE.txt`。
 - **Crew**：`crew.py` 新增 `_INSTITUTIONAL_PHASE_A_RULE` 並掛入加密結構化最終提示。
+- **切片 4 量測基線**：[`main.py`](main.py) 新增可選 `SHADOW_BENCHMARK_LOG=1` 與 `SHADOW_BENCHMARK_PATH`，會將 `crewai_dual_crew`／`langgraph_dual_crew`／`company_growth_context` 的耗時與新聞量寫入 JSONL，供 company crew 與 LangGraph shadow 成本評估（不影響主流程）。
 
 ### Changed
 - [`README.md`](README.md)：全文重寫與重排（專案紅線、情境表、**雙軌研究引擎** Mermaid、**LangGraph**／`graph/`、`USE_LANGGRAPH_ENGINE`、機構 Phase A/B/C 可選 Gate 與 `ENV_TEMPLATE` 索引）；精簡重複段落並對齊現行模組、CI 與 PWA 說明。
 - [`report_render.py`](report_render.py)：`assemble_daily_brief_report` 組裝時將 **QSREC** 每筆可選 `regime` **強制對齊** `crypto.market.regime`（消除與【今日市場模式】主判定不一致的 warning）；並在主判定為 `neutral`／`risk_on` 時，修正 `us_equity_allocation_note` 內誤寫的 `（risk_off）` 括號為「對齊主判定：…」。
 - [`crew.py`](crew.py)：收斂 **AI 儀表板**（FinancialDatasets 以 NVDA+MSFT 為 anchor、其餘檔位上限行數；開源動能至多 2 行）；**AI 產業新聞**禁以加密／VIX 作主線、新聞新鮮度改 **36h**；QSREC 提示 **省略 `regime` 欄**（由管線對齊）。
+- **Gate digest 人審稿**：[`scripts/gate_failure_hint_digest.py`](scripts/gate_failure_hint_digest.py) 新增 `gate_code` 分布摘要，並支援 `GATE_FAILURE_DIGEST_OUT` 直接輸出 Markdown 檔；保持「僅摘要、不自動改 prompt」邊界。
+- **Mock smoke 進 CI**：[`ci.yml`](.github/workflows/ci.yml) 在 quick tier 新增 `./scripts/run_mock_smoke.sh`，確保 `MOCK_APIS=1` 路徑在 PR/可呼叫 CI 皆有驗證。
 
 ### Tests
 - [`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)：新增 `assemble` 對 QSREC regime 與美股部位框之 smoke 覆蓋。

@@ -63,10 +63,25 @@ def main() -> int:
     ORDER BY cnt DESC
     LIMIT 25
     """
+    gate_sql = f"""
+    SELECT
+      COALESCE(NULLIF(gate_code, ''), 'unknown') AS gate_code,
+      COUNT(*) AS cnt
+    FROM `{tid}`
+    WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
+    GROUP BY 1
+    ORDER BY cnt DESC
+    LIMIT 10
+    """
 
     try:
         client = bigquery.Client(project=tid.split(".", 1)[0])
         rows = list(client.query(sql).result())
+        table = client.get_table(tid)
+        schema_fields = {f.name for f in table.schema}
+        gate_rows = []
+        if "gate_code" in schema_fields:
+            gate_rows = list(client.query(gate_sql).result())
     except DefaultCredentialsError as e:
         print(f"無 ADC／服務帳戶憑證：{e}", file=sys.stderr)
         return 0
@@ -74,21 +89,51 @@ def main() -> int:
         print(f"BQ 查詢失敗：{e}", file=sys.stderr)
         return 1
 
-    print(f"# Gate 失敗摘要草稿（近 {days} 日，人審用）\n")
-    print("> 來源表：`" + tid + "`\n")
-    print("## 高頻 issues_preview（去識別後請再人工過濾）\n")
+    lines: list[str] = []
+    lines.append(f"# Gate 失敗摘要草稿（近 {days} 日，人審用）\n")
+    lines.append("> 來源表：`" + tid + "`\n")
+    lines.append("## Gate code 分布（先看結構性失敗類型）\n")
+    if gate_rows:
+        for i, row in enumerate(gate_rows, 1):
+            lines.append(f"{i}. （×{row['cnt']}） `{row['gate_code']}`")
+    else:
+        lines.append("_（期間內無 gate_code 資料，或現行表未含 gate_code 欄位）_")
+    lines.append("")
+    lines.append("## 高頻 issues_preview（去識別後請再人工過濾）\n")
     if not rows:
-        print("_（無列／表空／期間內無寫入）_\n")
-        print("## 下一步（人工）\n")
-        print("- 確認 `GATE_FAILURE_BQ_LOG=1` 且管線曾寫入失敗列。\n")
+        lines.append("_（無列／表空／期間內無寫入）_\n")
+        lines.append("## 下一步（人工）\n")
+        lines.append("- 確認 `GATE_FAILURE_BQ_LOG=1` 且管線曾寫入失敗列。\n")
+        output = "\n".join(lines)
+        print(output)
+        out_path = (os.getenv("GATE_FAILURE_DIGEST_OUT") or "").strip()
+        if out_path:
+            try:
+                out_file = Path(out_path)
+                out_file.parent.mkdir(parents=True, exist_ok=True)
+                out_file.write_text(output + "\n", encoding="utf-8")
+            except OSError as e:
+                print(f"[warn] digest 寫檔失敗：{e}", file=sys.stderr)
         return 0
 
     for i, row in enumerate(rows, 1):
         prev = str(row["issues_preview"] or "").replace("\n", " ")[:240]
-        print(f"{i}. （×{row['cnt']}） `{prev}`")
-    print("\n## 下一步（人工）\n")
-    print("- 將反模式寫成 bullet → **審核後**再改 `crew.py`／`validation_rules.py`／`report_html_gates.py`。\n")
-    print("- 詳見 `docs/GATE_FAILURE_HINT_WORKFLOW.md`。\n")
+        lines.append(f"{i}. （×{row['cnt']}） `{prev}`")
+    lines.append("")
+    lines.append("## 下一步（人工）\n")
+    lines.append("- 將反模式寫成 bullet → **審核後**再改 `crew.py`／`validation_rules.py`／`report_html_gates.py`。\n")
+    lines.append("- 詳見 `docs/GATE_FAILURE_HINT_WORKFLOW.md`。\n")
+    output = "\n".join(lines)
+    print(output)
+    out_path = (os.getenv("GATE_FAILURE_DIGEST_OUT") or "").strip()
+    if out_path:
+        try:
+            out_file = Path(out_path)
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            out_file.write_text(output + "\n", encoding="utf-8")
+            print(f"[info] digest 已寫入：{out_path}", file=sys.stderr)
+        except OSError as e:
+            print(f"[warn] digest 寫檔失敗：{e}", file=sys.stderr)
     return 0
 
 
