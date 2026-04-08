@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from graph.graph_state import ResearchGraphState
+
+logger = logging.getLogger(__name__)
 
 
 def _hkt_now() -> str:
@@ -17,8 +22,71 @@ def _tool_calls_enabled() -> bool:
     return os.getenv("GRAPH_ENABLE_TOOL_CALLS", "1").lower() in ("1", "true", "yes")
 
 
+def _llm_debate_enabled() -> bool:
+    """When GRAPH_LLM_DEBATE=1, Bull/Bear/Arbiter nodes use live LLM calls.
+
+    Default OFF so existing smoke tests remain cost-free and deterministic.
+    """
+    return os.getenv("GRAPH_LLM_DEBATE", "0").lower() in ("1", "true", "yes")
+
+
 def _formatter_uses_legacy_crews() -> bool:
     return os.getenv("LANGGRAPH_SKIP_FORMATTER_CREW", "0").lower() not in ("1", "true", "yes")
+
+
+# ==========================================
+# Pydantic schema for structured Arbiter output
+# ==========================================
+
+class ArbiterDecision(BaseModel):
+    needs_deep_dive: bool = Field(
+        description=(
+            "如果多空雙方的論點缺乏『具體的客觀數據』支撐"
+            "（例如只說下跌但沒給具體均線價位，或只說資金流出但沒給金額），設為 True。"
+        )
+    )
+    deep_dive_query: str = Field(
+        description=(
+            "如果 needs_deep_dive 為 True，請寫出指示 Deep Research Agent 去查證的具體問題。"
+            "若為 False，請留空字串。"
+        )
+    )
+    arbiter_summary: str = Field(
+        description="用一句話總結目前的辯論共識（供最終報告的 signal_conflict_summary 使用）。"
+    )
+
+
+# ==========================================
+# LLM factory helpers (lazy import to avoid module-load side effects)
+# ==========================================
+
+def _strip_provider_prefix(model_str: str) -> str:
+    """Convert LiteLLM model strings (e.g. 'openai/gpt-4o-mini') to bare model names."""
+    return model_str.split("/", 1)[-1]
+
+
+def _get_debate_llm() -> Any:
+    """High-temperature LLM for opinionated Bull/Bear debate arguments."""
+    from langchain_openai import ChatOpenAI
+    from config import MODEL_GPT
+
+    return ChatOpenAI(
+        model=_strip_provider_prefix(MODEL_GPT),
+        temperature=0.8,
+        max_retries=3,
+    )
+
+
+def _get_arbiter_llm() -> Any:
+    """Low-temperature LLM for precise, structured Arbiter decisions."""
+    from langchain_openai import ChatOpenAI
+    from config import MODEL_GPT
+
+    return ChatOpenAI(
+        model=_strip_provider_prefix(MODEL_GPT),
+        temperature=0.1,
+        max_retries=3,
+    )
 
 
 def _safe_tool_run(tool_obj: Any, *args: Any, **kwargs: Any) -> Any:
@@ -87,63 +155,188 @@ def data_gatherer_node(state: ResearchGraphState) -> dict[str, Any]:
 
 
 def bull_agent_node(state: ResearchGraphState) -> dict[str, Any]:
-    """Bull prompt stance: focus on liquidity expansion and upside catalysts."""
+    """Bull prompt stance: focus on liquidity expansion and upside catalysts.
+
+    When GRAPH_LLM_DEBATE=1, invokes a live ChatOpenAI call with a dedicated
+    opinionated system prompt. Falls back to deterministic rule-based output otherwise.
+    """
+    category = state.get("category", "CRYPTO")
     lines = _extract_numeric_lines(state.get("raw_data", {}))
-    arguments = [
-        "多方觀點：流動性/資金風險偏好改善時，風險資產具上修空間。",
-        f"多方數據錨點：{lines[0]}",
-        f"多方次要佐證：{lines[1] if len(lines) > 1 else lines[0]}",
-    ]
-    return {"bull_arguments": arguments}
+
+    if not _llm_debate_enabled():
+        # Rule-based fallback (deterministic, cost-free, CI-safe)
+        arguments = [
+            "多方觀點：流動性/資金風險偏好改善時，風險資產具上修空間。",
+            f"多方數據錨點：{lines[0]}",
+            f"多方次要佐證：{lines[1] if len(lines) > 1 else lines[0]}",
+        ]
+        return {"bull_arguments": arguments}
+
+    logger.info("--- [Node] Bull Agent (LLM) 啟動 ---")
+    from langchain_core.prompts import ChatPromptTemplate
+
+    llm = _get_debate_llm()
+    prompt = ChatPromptTemplate.from_messages([
+        (
+            "system",
+            "你是一個極度樂觀的避險基金做多經理人（Bull Agent）。"
+            "你的目標是從給定的市場數據中，找出所有支持『做多』或『市場即將上漲』的蛛絲馬跡。"
+            "請專注於：流動性釋放、技術面支撐確認、超賣反彈機會、以及利多催化劑。"
+            "語氣必須是華爾街機構級的洗鍊，不要用問候語，"
+            "直接給出 3 句具備數字佐證（價格、金額、百分比）的看多論點。",
+        ),
+        ("human", "板塊：{category}\n客觀讀數：\n{data_lines}"),
+    ])
+    chain = prompt | llm
+    response = chain.invoke({
+        "category": category,
+        "data_lines": "\n".join(lines),
+    })
+    logger.debug("[Bull] %s", response.content)
+    return {"bull_arguments": [response.content]}
 
 
 def bear_agent_node(state: ResearchGraphState) -> dict[str, Any]:
-    """Bear prompt stance: focus on valuation fragility and macro headwinds."""
+    """Bear prompt stance: focus on valuation fragility and macro headwinds.
+
+    When GRAPH_LLM_DEBATE=1, invokes a live ChatOpenAI call with a dedicated
+    opinionated system prompt. Falls back to deterministic rule-based output otherwise.
+    """
+    category = state.get("category", "CRYPTO")
     lines = _extract_numeric_lines(state.get("raw_data", {}))
-    arguments = [
-        "空方觀點：估值與宏觀阻力未解除前，反彈可能是風險再定價前奏。",
-        f"空方數據錨點：{lines[-1]}",
-        f"空方次要佐證：{lines[0]}",
-    ]
-    return {"bear_arguments": arguments}
+
+    if not _llm_debate_enabled():
+        # Rule-based fallback (deterministic, cost-free, CI-safe)
+        arguments = [
+            "空方觀點：估值與宏觀阻力未解除前，反彈可能是風險再定價前奏。",
+            f"空方數據錨點：{lines[-1]}",
+            f"空方次要佐證：{lines[0]}",
+        ]
+        return {"bear_arguments": arguments}
+
+    logger.info("--- [Node] Bear Agent (LLM) 啟動 ---")
+    from langchain_core.prompts import ChatPromptTemplate
+
+    llm = _get_debate_llm()
+    prompt = ChatPromptTemplate.from_messages([
+        (
+            "system",
+            "你是一個極度悲觀的避險基金放空經理人（Bear Agent）。"
+            "你的目標是從給定的市場數據中，找出所有支持『做空』或『市場即將崩盤』的危險訊號。"
+            "請專注於：宏觀阻力（如 VIX 攀升、DXY 走強）、估值泡沫、技術面破位、以及流動性枯竭。"
+            "語氣必須是華爾街機構級的洗鍊，不要用問候語，"
+            "直接給出 3 句具備數字佐證（價格、金額、百分比）的看空論點。",
+        ),
+        ("human", "板塊：{category}\n客觀讀數：\n{data_lines}"),
+    ])
+    chain = prompt | llm
+    response = chain.invoke({
+        "category": category,
+        "data_lines": "\n".join(lines),
+    })
+    logger.debug("[Bear] %s", response.content)
+    return {"bear_arguments": [response.content]}
 
 
 def arbiter_node(state: ResearchGraphState) -> dict[str, Any]:
-    """Arbiter decides if deep research is required."""
+    """Arbiter decides if deep research is required.
+
+    Rule-based mode (default): checks for DATA_MISSING keys and numeric anchors.
+    LLM mode (GRAPH_LLM_DEBATE=1): uses with_structured_output(ArbiterDecision)
+    for precise JSON-enforced decisions, with hard depth cap as safety net.
+    """
     raw_data = state.get("raw_data", {})
     bull_args = state.get("bull_arguments", [])
     bear_args = state.get("bear_arguments", [])
     depth = int(state.get("research_depth", 0))
     max_depth = int(state.get("max_research_depth", 2))
 
-    data_missing_keys = [
-        key for key, value in raw_data.items() if "[DATA_MISSING" in str(value)
-    ]
-    def _has_numeric_anchor(arguments: list[str]) -> bool:
-        # Require at least one explicit numeric anchor line per side.
-        return any(("錨點" in arg or "佐證" in arg) and any(ch.isdigit() for ch in arg) for arg in arguments)
+    # Hard cap: never allow infinite loops regardless of LLM output.
+    force_stop = depth >= max_depth
 
-    weak_argument = not (_has_numeric_anchor(bull_args) and _has_numeric_anchor(bear_args))
+    if not _llm_debate_enabled():
+        # ── Rule-based fallback ──────────────────────────────────────────────
+        data_missing_keys = [
+            key for key, value in raw_data.items() if "[DATA_MISSING" in str(value)
+        ]
 
-    needs_deep_dive = bool(data_missing_keys or weak_argument)
-    if depth >= max_depth:
-        needs_deep_dive = False
+        def _has_numeric_anchor(arguments: list[str]) -> bool:
+            return any(
+                ("錨點" in arg or "佐證" in arg) and any(ch.isdigit() for ch in arg)
+                for arg in arguments
+            )
 
-    if data_missing_keys:
-        deep_dive_query = "補齊缺失讀數：" + ", ".join(data_missing_keys[:3])
-    elif weak_argument:
-        deep_dive_query = "補齊可量化佐證（價格、流量、估值）"
+        weak_argument = not (_has_numeric_anchor(bull_args) and _has_numeric_anchor(bear_args))
+        needs_deep_dive = bool((data_missing_keys or weak_argument) and not force_stop)
+
+        if data_missing_keys:
+            deep_dive_query = "補齊缺失讀數：" + ", ".join(data_missing_keys[:3])
+        elif weak_argument:
+            deep_dive_query = "補齊可量化佐證（價格、流量、估值）"
+        else:
+            deep_dive_query = ""
+
+        summary = (
+            f"Arbiter：depth={depth}/{max_depth}，"
+            f"missing={len(data_missing_keys)}，needs_deep_dive={needs_deep_dive}"
+        )
+        return {
+            "arbiter_summary": summary,
+            "needs_deep_dive": needs_deep_dive,
+            "deep_dive_query": deep_dive_query,
+        }
+
+    # ── LLM-powered Arbiter ──────────────────────────────────────────────────
+    logger.info("--- [Node] Arbiter (LLM 仲裁) 啟動 depth=%d/%d ---", depth, max_depth)
+    from langchain_core.prompts import ChatPromptTemplate
+
+    bull_latest = bull_args[-1] if bull_args else "（無多方論點）"
+    bear_latest = bear_args[-1] if bear_args else "（無空方論點）"
+
+    llm = _get_arbiter_llm()
+    structured_llm = llm.with_structured_output(ArbiterDecision)
+
+    prompt = ChatPromptTemplate.from_messages([
+        (
+            "system",
+            "你是 Q-Silicon 的首席仲裁主編。你需要審閱多空雙方的辯論。\n"
+            "規則 1：如果雙方論點有明顯矛盾，但卻『缺乏具體數字佐證』"
+            "（例如只說 ETF 流出卻沒給金額，或只說跌破均線卻沒給具體價位），"
+            "你必須將 needs_deep_dive 設為 true，並給出明確的查證指令。\n"
+            "規則 2：如果論點已經很紮實，或這是第二次以上的審查，"
+            "請將 needs_deep_dive 設為 false，並寫下一句精準的共識總結。",
+        ),
+        (
+            "human",
+            "當前查證深度：{depth}/{max_depth}\n\n多方論點：{bull}\n\n空方論點：{bear}\n\n請給出你的仲裁決策：",
+        ),
+    ])
+    chain = prompt | structured_llm
+    decision: ArbiterDecision = chain.invoke({
+        "depth": depth,
+        "max_depth": max_depth,
+        "bull": bull_latest,
+        "bear": bear_latest,
+    })
+
+    # Hard safety net: override LLM if depth cap reached.
+    if force_stop and decision.needs_deep_dive:
+        logger.warning("已達最大查證深度 (%d)，強制放行進入排版階段。", max_depth)
+        decision = ArbiterDecision(
+            needs_deep_dive=False,
+            deep_dive_query="",
+            arbiter_summary=decision.arbiter_summary or f"強制放行（depth={depth}/{max_depth}）",
+        )
+
+    if decision.needs_deep_dive:
+        logger.warning("🚨 主編打回票，要求深挖查證: %s", decision.deep_dive_query)
     else:
-        deep_dive_query = ""
+        logger.info("✅ 主編放行。共識: %s", decision.arbiter_summary)
 
-    summary = (
-        f"Arbiter：depth={depth}/{max_depth}，"
-        f"missing={len(data_missing_keys)}，needs_deep_dive={needs_deep_dive}"
-    )
     return {
-        "arbiter_summary": summary,
-        "needs_deep_dive": needs_deep_dive,
-        "deep_dive_query": deep_dive_query,
+        "arbiter_summary": decision.arbiter_summary,
+        "needs_deep_dive": decision.needs_deep_dive,
+        "deep_dive_query": decision.deep_dive_query,
     }
 
 
