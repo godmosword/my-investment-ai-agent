@@ -630,6 +630,13 @@ class ExecutableTradeLeg(BaseModel):
         ),
     )
     position_pct: str = Field(default="", description="Portfolio % guidance line.")
+    liquidity_execution_note: str = Field(
+        default="",
+        description=(
+            "【流動性／執行】一句 ≤100 字：ADV/價差/大額可行性或建議限價區間（定性即可）；"
+            "加密可寫主要所深度；禁內部標籤。"
+        ),
+    )
     internal_reasoning: str = Field(
         default="",
         description=(
@@ -665,7 +672,7 @@ class ExecutableTradeLeg(BaseModel):
             return ""
         return _cap_internal_field(v)
 
-    @field_validator("trigger", "sizing_logic", "invalidation", mode="before")
+    @field_validator("trigger", "sizing_logic", "invalidation", "liquidity_execution_note", mode="before")
     @classmethod
     def _strip_aux_instruction_echo(cls, v: object) -> object:
         if isinstance(v, str):
@@ -783,6 +790,27 @@ class CryptoSection(BaseModel):
             "三機率須為整數百分比且合計 100%。"
         ),
     )
+    crypto_cycle_valuation_notes: str = Field(
+        default="",
+        description=(
+            "【加密週期與估值錨】1–3 句 ≤220 字：BTC 週期位置、鏈上估值錨（NVT/MVRV 等）"
+            "與價格關係一句；禁內部標籤；數字須與儀表板一致。"
+        ),
+    )
+    equity_valuation_framing: str = Field(
+        default="",
+        description=(
+            "【美股估值與修正框架】2–4 句 ≤320 字：AI 權值相對大盤、盈利修正方向、"
+            "利率對估值倍數壓力；可點名 NVDA/MSFT 等但勿發明未列於儀表之精確本益比。"
+        ),
+    )
+    event_calendar_lines: list[str] = Field(
+        default_factory=list,
+        description=(
+            "【近端事件日曆】3–6 條，每條 ≤96 字；須含可解析日期（MM/DD 或 YYYY-MM-DD）"
+            "與事件類型（財報/Fed/期權到期/解鎖等）；禁止虛構未公告日期。"
+        ),
+    )
     market: MarketRegimeBlock
     narrative_of_day: str = Field(
         ...,
@@ -849,6 +877,8 @@ class CryptoSection(BaseModel):
         "narrative_invalidation_summary",
         "portfolio_framing_summary",
         "scenario_probability_notes",
+        "crypto_cycle_valuation_notes",
+        "equity_valuation_framing",
         mode="before",
     )
     @classmethod
@@ -856,6 +886,21 @@ class CryptoSection(BaseModel):
         if isinstance(v, str):
             return _strip_prompt_instruction_echoes(v)
         return v
+
+    @field_validator("event_calendar_lines", mode="before")
+    @classmethod
+    def _scrub_event_calendar(cls, v: object) -> object:
+        if not isinstance(v, list):
+            return v
+        out: list[str] = []
+        for item in v:
+            if isinstance(item, str):
+                s = _strip_prompt_instruction_echoes(item).strip()
+                if s:
+                    out.append(s)
+            elif item is not None:
+                out.append(str(item).strip())
+        return out
 
     @field_validator("thesis_supporting_points", "thesis_contrary_points", "key_assumptions_lines", mode="before")
     @classmethod
@@ -1107,6 +1152,8 @@ def _structured_business_issues(report: "DailyBriefReport") -> list[str]:
         issues.extend(_institutional_phase_a_structured_issues(cr))
     if os.getenv("STRICT_INSTITUTIONAL_PHASE_B_GATE", "0").lower() in ("1", "true", "yes"):
         issues.extend(_institutional_phase_b_structured_issues(cr, ai_sec))
+    if os.getenv("STRICT_INSTITUTIONAL_PHASE_C_GATE", "0").lower() in ("1", "true", "yes"):
+        issues.extend(_institutional_phase_c_structured_issues(cr, ai_sec))
     return issues
 
 
@@ -1149,6 +1196,31 @@ def _institutional_phase_b_structured_issues(cr: CryptoSection, ai_sec: AISectio
                 out.append(
                     f"{label}新聞〔{n.index}〕pricing_note 須為「未定價／增量資訊」「大致已定價」「已高度反應」之一"
                 )
+    return out
+
+
+_EVENT_CALENDAR_DATE_RE = re.compile(
+    r"\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?"
+)
+
+
+def _institutional_phase_c_structured_issues(cr: CryptoSection, ai_sec: AISection) -> list[str]:
+    """When STRICT_INSTITUTIONAL_PHASE_C_GATE=1, require Phase C valuation, calendar, liquidity."""
+    out: list[str] = []
+    if not (cr.crypto_cycle_valuation_notes or "").strip():
+        out.append("結構化缺少加密週期與估值錨（crypto_cycle_valuation_notes）")
+    if not (cr.equity_valuation_framing or "").strip():
+        out.append("結構化缺少美股估值框架（equity_valuation_framing）")
+    cal = [str(x).strip() for x in cr.event_calendar_lines if str(x).strip()]
+    if not (3 <= len(cal) <= 6):
+        out.append(f"近端事件日曆須 3–6 條（當前 {len(cal)}）")
+    for i, ln in enumerate(cal, start=1):
+        if not _EVENT_CALENDAR_DATE_RE.search(ln):
+            out.append(f"事件日曆第 {i} 條須含可解析日期（MM/DD 或 YYYY-MM-DD）")
+    for label, legs in (("加密", cr.trade_legs), ("AI", ai_sec.trade_legs)):
+        for j, leg in enumerate(legs, start=1):
+            if not (leg.liquidity_execution_note or "").strip():
+                out.append(f"{label}交易腿 {leg.asset} 缺少流動性／執行註記（liquidity_execution_note）")
     return out
 
 

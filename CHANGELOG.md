@@ -6,6 +6,7 @@
 ## 2026-04-08
 
 ### Added
+- **華爾街級 Phase C**：`CryptoSection` 新增 `crypto_cycle_valuation_notes`、`equity_valuation_framing`、`event_calendar_lines`；`ExecutableTradeLeg.liquidity_execution_note`；模板增【加密週期與估值錨】【美股估值與修正框架】【近端事件日曆】及交易卡「流動性／執行」。`STRICT_INSTITUTIONAL_PHASE_C_GATE=1` 啟用 HTML／結構化 Gate。`crew.py` 新增 `_INSTITUTIONAL_PHASE_C_RULE`。
 - **華爾街級 Phase B**：`CryptoSection` 新增 `portfolio_framing_summary`、`scenario_probability_notes`（三行樂觀/基準/悲觀＋機率合計 100%）；`NewsItem.pricing_note`（「未定價／增量資訊」「大致已定價」「已高度反應」）；模板於命題區後渲染【組合與曝險框架】【三情境機率】，新聞列印 `<i>市場定價</i>：<code>…</code>`。`STRICT_INSTITUTIONAL_PHASE_B_GATE=1` 時 HTML 與結構化雙檢（`report_html_gates._institutional_phase_b_html_ok`、`schemas._institutional_phase_b_structured_issues`）。`crew.py` 新增 `_INSTITUTIONAL_PHASE_B_RULE`。
 - **新聞新鮮度預設視窗**：`NEWS_FRESHNESS_WINDOW_HOURS` 預設由 48 改 **36**（與 `_DATA_RULES` 一致）；`ENV_TEMPLATE.txt` 註解同步。
 - **華爾街級 Phase A（機構讀者）**：`CryptoSection` 新增 `investment_thesis_one_liner`、`thesis_supporting_points`（3）、`thesis_contrary_points`（3）、`key_assumptions_lines`（2–4）、`narrative_invalidation_summary`；`DailyBriefReport.institutional_disclaimer_html` 於 `assemble_daily_brief_report` 注入固定 Telegram 白名單免責（`report_render._INSTITUTIONAL_DISCLAIMER_HTML`）；`templates/telegram_report.j2` 於標題後渲染免責與命題區塊。
@@ -18,9 +19,9 @@
 
 ### Tests
 - [`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)：新增 `assemble` 對 QSREC regime 與美股部位框之 smoke 覆蓋。
-- [`test_validate_report.py`](test_validate_report.py)：`TestStrictInstitutionalPhaseAHtmlGate`、`TestStrictInstitutionalPhaseBHtmlGate`、`TestStrictInstitutionalPhaseBStructuredGate`；`_make_report` 可選 Phase B；`_make_minimal_structured_report_dbr` 含 `pricing_note`。
-- [`test_smoke_pipeline.py`](test_smoke_pipeline.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)：最小報告字串補 Phase A+B 與市場定價行。
-- [`test_report_render.py`](test_report_render.py)、[`test_news_freshness.py`](test_news_freshness.py)：樣本新聞 `pricing_note`；新鮮度測試視窗 36h。
+- [`test_validate_report.py`](test_validate_report.py)：`TestStrictInstitutionalPhaseAHtmlGate`、`TestStrictInstitutionalPhaseBHtmlGate`、`TestStrictInstitutionalPhaseBStructuredGate`、`TestStrictInstitutionalPhaseCHtmlGate`、`TestStrictInstitutionalPhaseCStructuredGate`；`_make_report` 可選 Phase B/C；`_make_minimal_structured_report_dbr` 含 `pricing_note` 與可選 Phase C 欄位。
+- [`test_smoke_pipeline.py`](test_smoke_pipeline.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)：最小報告字串補 Phase A+B+C、市場定價行與流動性註記。
+- [`test_report_render.py`](test_report_render.py)、[`test_news_freshness.py`](test_news_freshness.py)：樣本新聞 `pricing_note`；新鮮度測試視窗 36h；render 測試含 Phase C 欄位與 `liquidity_execution_note`。
 
 ## 2026-04-07
 

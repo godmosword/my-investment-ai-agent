@@ -1,5 +1,7 @@
 """Unit tests for validate_report() and its helper functions in main.py."""
 
+from __future__ import annotations
+
 import os
 import unittest
 from unittest.mock import patch
@@ -85,6 +87,17 @@ _PHASE_B_HTML_FOR_GATE_TESTS = (
     "· 悲觀：流動性收縮（機率 25%）\n"
 )
 
+_PHASE_C_HTML_FOR_GATE_TESTS = (
+    "<b>【加密週期與估值錨】</b>\n"
+    "BTC NVT 與儀表板讀數一致；週期位置偏中高，鏈上流量支撐待驗證。\n"
+    "<b>【美股估值與修正框架】</b>\n"
+    "AI 權值相對 SPY 仍溢價；利率高位壓縮軟體倍數；NVDA/MSFT 以財報催化為主軸。\n"
+    "<b>【近端事件日曆】</b>\n"
+    "· 03/25 NVDA 財報窗口\n"
+    "· 03/26 FOMC 會後文件\n"
+    "· 04/01 大型期權到期集中\n"
+)
+
 
 def _make_report(
     *,
@@ -102,6 +115,7 @@ def _make_report(
     include_exec_summary: bool = True,
     include_phase_a_institutional: bool = True,
     include_phase_b_institutional: bool = False,
+    include_phase_c_institutional: bool = False,
     include_signal_conflict: bool = True,
     include_rumor_grade: bool = True,
     include_rr: bool = True,
@@ -130,19 +144,25 @@ def _make_report(
     if include_dashboard:
         sections.append("DXY 104.5 ｜ BTC OI $18.5B ｜ 資金費率 0.01% ｜ RSI 55 ｜ Fear & Greed 45")
     if include_crypto_trade:
-        sections.append(
+        crypto_leg = (
             "區塊④ 資金流向與精準操作 (Crypto)\n"
             "本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。\n"
             "· $BTC (LONG)｜現價：$95000｜進場：$94500｜目標：$100000｜停損：$91000"
         )
+        if include_phase_c_institutional:
+            crypto_leg += "\n· 流動性／執行：BTC 主要所深度充足，建議限價區分批。"
+        sections.append(crypto_leg)
     if include_ai_section:
         sections.append("────────────\n🤖 AI 市場\nAI 數據儀表板\n· FinancialDatasets NVDA 年度損益：營收 $61B")
     if include_ai_trade:
-        sections.append(
+        ai_leg = (
             "AI 產業鏈精準操作 (US Equities)\n"
             "本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。\n"
             "· $NVDA (LONG)｜現價：$890"
         )
+        if include_phase_c_institutional:
+            ai_leg += "\n· 流動性／執行：NVDA ADV 充足，大額建議限價。"
+        sections.append(ai_leg)
     if include_crypto_section:
         sections.append("加密市場核心新聞")
     if include_chatter:
@@ -188,7 +208,8 @@ def _make_report(
         )
     phase_a = _PHASE_A_HTML_FOR_GATE_TESTS if include_phase_a_institutional else ""
     phase_b = _PHASE_B_HTML_FOR_GATE_TESTS if include_phase_b_institutional else ""
-    body = news + exec_hdr + phase_a + phase_b + joined + "\n" + extra
+    phase_c = _PHASE_C_HTML_FOR_GATE_TESTS if include_phase_c_institutional else ""
+    body = news + exec_hdr + phase_a + phase_b + phase_c + joined + "\n" + extra
     # Pad to requested length
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
@@ -203,6 +224,11 @@ def _make_minimal_structured_report_dbr(
     partial_tier: bool = False,
     portfolio_framing_summary: str = "",
     scenario_probability_notes: str = "",
+    crypto_cycle_valuation_notes: str = "",
+    equity_valuation_framing: str = "",
+    event_calendar_lines: list[str] | None = None,
+    trade_legs_crypto: list | None = None,
+    trade_legs_ai: list | None = None,
 ):
     """Build minimal valid DailyBriefReport for structured gate tests."""
     from schemas import (
@@ -264,12 +290,19 @@ def _make_minimal_structured_report_dbr(
         if has_qsrec_recs
         else []
     )
+    _ecal = event_calendar_lines if event_calendar_lines is not None else []
+    _tlc = trade_legs_crypto if trade_legs_crypto is not None else []
+    _tla = trade_legs_ai if trade_legs_ai is not None else []
+
     crypto = CryptoSection(
         report_title_date="2026-03-24",
         market=MarketRegimeBlock(regime="risk_on"),
         narrative_of_day="BTC 上漲",
         portfolio_framing_summary=portfolio_framing_summary,
         scenario_probability_notes=scenario_probability_notes,
+        crypto_cycle_valuation_notes=crypto_cycle_valuation_notes,
+        equity_valuation_framing=equity_valuation_framing,
+        event_calendar_lines=_ecal,
         dashboard=[MetricLine(label="BTC", value="$95000")],
         news=[_ni(i) for i in range(1, crypto_news + 1)],
         pick_reason=(
@@ -277,6 +310,7 @@ def _make_minimal_structured_report_dbr(
         ),
         risk_budget_summary="risk_on 模式下總倉位 15%",
         signal_conflict_summary="無顯著衝突",
+        trade_legs=_tlc,
         qsrec=qsrec,
     )
     ai_sec = AISection(
@@ -286,11 +320,39 @@ def _make_minimal_structured_report_dbr(
             "NVDA 財報前瞻與 GPU 拉貨動能見於主流媒體，資料中心 Capex 敘事強化，故優先佈局 NVDA 核心部位"
         ),
         signal_conflict_summary="無衝突",
+        trade_legs=_tla,
     )
     return DailyBriefReport(
         crypto=crypto,
         ai=ai_sec,
         report_tier_partial_news=partial_tier,
+    )
+
+
+def _structured_trade_leg_for_phase_c(sym: str, liquidity: str):
+    from schemas import ExecutableTradeLeg
+
+    return ExecutableTradeLeg(
+        asset=sym,
+        direction="LONG",
+        current_price="100",
+        star_rating=3,
+        entry="99",
+        target="110 (+11%)",
+        stop="95 (-4%)",
+        rr="1:2.5",
+        max_drawdown_pct="-4.0%",
+        expected_win_rate="55%",
+        signal_score="70/100",
+        trigger="突破",
+        sizing_logic="分批",
+        invalidation="跌破 95",
+        position_pct="5%",
+        narrative="催化",
+        bull_scenario="多頭",
+        base_scenario="基礎",
+        bear_scenario="空頭",
+        liquidity_execution_note=liquidity,
     )
 
 
@@ -1577,6 +1639,77 @@ class TestStrictInstitutionalPhaseBStructuredGate(unittest.TestCase):
             res = validate_structured_report(report)
         self.assertFalse(res["valid"])
         self.assertTrue(any("100" in i for i in res["issues"]))
+
+
+class TestStrictInstitutionalPhaseCStructuredGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_C_GATE": "1"}, clear=False)
+    def test_passes_with_phase_c_fields_and_legs(self):
+        report = _make_minimal_structured_report_dbr(
+            portfolio_framing_summary="加密與美股雙軸配置測試敘述足夠長。",
+            scenario_probability_notes=(
+                "· 樂觀：延續（機率 30%）\n"
+                "· 基準：震盪（機率 45%）\n"
+                "· 悲觀：收縮（機率 25%）"
+            ),
+            crypto_cycle_valuation_notes="NVT 與儀表板一致；週期位置測試敘述。",
+            equity_valuation_framing="AI 權值溢價與利率壓力測試敘述足夠長度。",
+            event_calendar_lines=[
+                "03/25 NVDA 財報",
+                "03/26 FOMC",
+                "04/01 期權到期",
+            ],
+            trade_legs_crypto=[_structured_trade_leg_for_phase_c("BTC", "主要所深度足")],
+            trade_legs_ai=[_structured_trade_leg_for_phase_c("NVDA", "ADV 充足")],
+        )
+        res = validate_structured_report(report)
+        self.assertTrue(res["valid"], res["issues"])
+
+    def test_fails_calendar_without_date(self):
+        report = _make_minimal_structured_report_dbr(
+            portfolio_framing_summary="加密與美股雙軸測試敘述足夠長。",
+            scenario_probability_notes=(
+                "· 樂觀：a（機率 34%）\n· 基準：b（機率 33%）\n· 悲觀：c（機率 33%）"
+            ),
+        )
+        cr = report.crypto.model_copy(
+            update={
+                "crypto_cycle_valuation_notes": "估值錨測試敘述。",
+                "equity_valuation_framing": "美股估值框架測試敘述足夠長度驗證用。",
+                "event_calendar_lines": ["無日期之事件", "03/26 Fed", "04/01 期權"],
+                "trade_legs": [_structured_trade_leg_for_phase_c("BTC", "流動性")],
+            }
+        )
+        ai = report.ai.model_copy(
+            update={"trade_legs": [_structured_trade_leg_for_phase_c("NVDA", "流動性")]}
+        )
+        report = report.model_copy(update={"crypto": cr, "ai": ai})
+        with patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_C_GATE": "1"}, clear=False):
+            res = validate_structured_report(report)
+        self.assertFalse(res["valid"])
+        self.assertTrue(any("日期" in i for i in res["issues"]))
+
+
+class TestStrictInstitutionalPhaseCHtmlGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_C_GATE": "1"}, clear=False)
+    def test_passes_when_phase_c_present(self):
+        t = _make_report(
+            include_phase_b_institutional=True,
+            include_phase_c_institutional=True,
+        )
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertFalse(any("加密週期" in i and "缺少" in i for i in issues), issues)
+        self.assertFalse(any("流動性" in i and "腿" in i for i in issues), issues)
+
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_C_GATE": "1"}, clear=False)
+    def test_fails_when_phase_c_omitted(self):
+        t = _make_report(include_phase_b_institutional=True, include_phase_c_institutional=False)
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertTrue(
+            any("加密週期" in i or "事件日曆" in i or "流動性" in i for i in issues),
+            issues,
+        )
 
 
 class TestStrictInstitutionalPhaseBHtmlGate(unittest.TestCase):

@@ -26,6 +26,17 @@ _PHASE_B_HTML = (
     "· 悲觀：收縮（機率 25%）\n"
 )
 
+_PHASE_C_HTML = (
+    "<b>【加密週期與估值錨】</b>\n"
+    "BTC NVT 與儀表板讀數一致；週期位置測試敘述。\n"
+    "<b>【美股估值與修正框架】</b>\n"
+    "AI 權值溢價與利率壓力測試敘述足夠長度。\n"
+    "<b>【近端事件日曆】</b>\n"
+    "· 03/25 NVDA 財報\n"
+    "· 03/26 FOMC\n"
+    "· 04/01 期權到期\n"
+)
+
 
 def minimal_valid_report_text(*, length: int = 5000) -> str:
     news = ""
@@ -42,11 +53,13 @@ def minimal_valid_report_text(*, length: int = 5000) -> str:
         "DXY 104.5 ｜ BTC OI $18.5B ｜ 資金費率 0.01% ｜ RSI 55 ｜ Fear & Greed 45",
         "區塊④ 資金流向與精準操作 (Crypto)\n"
         "本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。\n"
-        "· $BTC (LONG)｜現價：$95000｜進場：$94500｜目標：$100000｜停損：$91000",
+        "· $BTC (LONG)｜現價：$95000｜進場：$94500｜目標：$100000｜停損：$91000\n"
+        "· 流動性／執行：BTC 主要所深度足。",
         "────────────\n🤖 AI 市場\nAI 數據儀表板\n· FinancialDatasets NVDA 年度損益：營收 $61B",
         "AI 產業鏈精準操作 (US Equities)\n"
         "本日選擇理由：NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。\n"
-        "· $NVDA (LONG)｜現價：$890",
+        "· $NVDA (LONG)｜現價：$890\n"
+        "· 流動性／執行：NVDA ADV 充足。",
         "加密市場核心新聞",
         "呢喃與傳聞掃描",
         "訊號衝突摘要：短期動能與中期結構分歧",
@@ -74,7 +87,7 @@ def minimal_valid_report_text(*, length: int = 5000) -> str:
         "· 測試摘要甲：風險可控延續觀察 BTC 偏多結構\n"
         "→ 測試摘要乙：美股以 NVDA 財報催化為主軸\n\n"
     )
-    body = news + exec_hdr + _PHASE_A_HTML + _PHASE_B_HTML + "\n".join(sections) + "\n"
+    body = news + exec_hdr + _PHASE_A_HTML + _PHASE_B_HTML + _PHASE_C_HTML + "\n".join(sections) + "\n"
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
     return body

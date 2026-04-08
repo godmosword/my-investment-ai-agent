@@ -130,6 +130,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 - **BTC MA 儀表列**: `assemble_daily_brief_report` 可注入 `BTC MA20（日線）`／`MA50`（yfinance）；`SKIP_BTC_MA_DASHBOARD_INJECT=1` 關閉。
 - **機構 Phase A**（optional）: `STRICT_INSTITUTIONAL_PHASE_A_GATE=1` — HTML 須含固定免責 `<blockquote>` 與【投資命題】／支持·反駁·假設·敘事失效區塊；同開關下 `DailyBriefReport` 結構化驗證要求 `CryptoSection` 對應欄位。模板見 [`templates/telegram_report.j2`](templates/telegram_report.j2)。
 - **機構 Phase B**（optional）: `STRICT_INSTITUTIONAL_PHASE_B_GATE=1` — HTML 須含【組合與曝險框架】、【三情境機率】、每則新聞「市場定價」三擇一；結構化驗證 `portfolio_framing_summary`、`scenario_probability_notes`、`NewsItem.pricing_note`。新聞新鮮度預設視窗 **`NEWS_FRESHNESS_WINDOW_HOURS=36`**（啟用 `STRICT_NEWS_FRESHNESS_GATE` 時）。
+- **機構 Phase C**（optional）: `STRICT_INSTITUTIONAL_PHASE_C_GATE=1` — 估值錨、美股估值框架、近端事件日曆（3–6 條含日期）、每筆可執行 `trade_legs` 之 `liquidity_execution_note`；結構化與 HTML 雙檢。
 
 ---
 
