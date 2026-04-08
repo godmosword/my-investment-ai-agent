@@ -2,8 +2,20 @@
 
 import pytest
 
-from report_render import _coerce_sections_for_gate, _low_confidence_disclaimer_plain
-from schemas import AISection, CryptoSection, ExecutableTradeLeg, MarketRegimeBlock, MetricLine, NewsItem
+from report_render import (
+    _coerce_sections_for_gate,
+    _low_confidence_disclaimer_plain,
+    assemble_daily_brief_report,
+)
+from schemas import (
+    AISection,
+    CryptoSection,
+    ExecutableTradeLeg,
+    MarketRegimeBlock,
+    MetricLine,
+    NewsItem,
+    TradeRecommendation,
+)
 from validation_rules import (
     crypto_risk_budget_has_regime_token,
     ensure_crypto_risk_budget_regime_token,
@@ -214,3 +226,217 @@ def test_low_confidence_disclaimer_when_many_na_in_model():
     disc = _low_confidence_disclaimer_plain(crypto, ai)
     assert "低置信度" in disc
     assert "資料缺失原因" in disc
+
+
+def _trade_rec_with_scores(
+    *,
+    asset: str,
+    category: str,
+    regime: str | None,
+    direction: str = "LONG",
+) -> TradeRecommendation:
+    return TradeRecommendation(
+        asset=asset,
+        direction=direction,
+        current_price=100.0,
+        entry=99.0,
+        target=110.0,
+        stop=95.0,
+        confidence=3,
+        category=category,
+        narrative="n",
+        trigger="t",
+        invalidation="i",
+        position_pct=3.0,
+        timeframe="3d",
+        regime=regime,
+        selection_score=80.0,
+        catalyst_score=80.0,
+        flow_score=76.0,
+        technical_score=75.0,
+        risk_fit_score=74.0,
+        execution_score=79.0,
+        alt_candidate_score=65.0,
+        score_gap=15.0,
+        repeat_days=0,
+        rr_ratio=2.5,
+        max_drawdown_pct=-4.0,
+        expected_win_rate=55.0,
+        signal_score=70.0,
+        bull_scenario="多頭情境一句話測試。",
+        base_scenario="基準情境一句話測試。",
+        bear_scenario="悲觀情境一句話測試。",
+    )
+
+
+@pytest.mark.smoke
+def test_assemble_coerces_qsrec_regime_to_market_and_fixes_us_equity_note():
+    long_crypto_reason = (
+        "本日選擇理由測試字串長度需達三十四字以上才通過結構驗證門檻，"
+        "補充敘事以滿足 DailyBriefReport 契約。"
+    )
+    long_ai_reason = (
+        "AI 本日選擇理由測試字串長度需達三十八個字元以上結構門檻驗證用，"
+        "補充產業敘事以滿足 DailyBriefReport 契約。"
+    )
+    crypto = CryptoSection(
+        report_title_date="2026-04-08",
+        exec_summary=["→ 測試執行摘要要點"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（-1/6）"),
+        narrative_of_day="測試主敘事",
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=[
+            NewsItem(
+                index=1,
+                timestamp_line="[04/08 09:00 UTC+8]",
+                title="t",
+                source_and_nature="s",
+                summary="s",
+                investment_takeaway="BTC 1%",
+                editor_consensus="BTC",
+            ),
+            NewsItem(
+                index=2,
+                timestamp_line="[04/08 10:00 UTC+8]",
+                title="t2",
+                source_and_nature="s",
+                summary="s",
+                investment_takeaway="費率 0.01%",
+                editor_consensus="ETH",
+            ),
+            NewsItem(
+                index=3,
+                timestamp_line="[04/08 11:00 UTC+8]",
+                title="t3",
+                source_and_nature="s",
+                summary="s",
+                investment_takeaway="OI 1%",
+                editor_consensus="SOL",
+            ),
+        ],
+        pick_reason=long_crypto_reason,
+        risk_budget_summary="neutral 模式下總風險預算百分之四十測試敘述",
+        signal_conflict_summary="空方一句｜多方一句平衡",
+        trade_legs=[
+            ExecutableTradeLeg(
+                asset="BTC",
+                direction="LONG",
+                current_price="100",
+                star_rating=3,
+                entry="99",
+                target="110 (+11%)",
+                stop="95 (-4%)",
+                rr="1:2.5",
+                max_drawdown_pct="-4.0%",
+                expected_win_rate="55%",
+                signal_score="70/100",
+                trigger="突破",
+                sizing_logic="分批",
+                invalidation="跌破 95",
+                position_pct="3%",
+                narrative="催化",
+                bull_scenario="多頭：突破前高",
+                base_scenario="基礎：區間震盪",
+                bear_scenario="空頭：跌破停損",
+            )
+        ],
+        qsrec=[_trade_rec_with_scores(asset="BTC", category="CRYPTO", regime="risk_off")],
+    )
+    ai = AISection(
+        dashboard=[MetricLine(label="NVDA yfinance", value="100")],
+        news=[
+            NewsItem(
+                index=4,
+                timestamp_line="[04/08 12:00 UTC+8]",
+                title="a",
+                source_and_nature="s",
+                summary="s",
+                investment_takeaway="GPU 10%",
+                editor_consensus="NVDA",
+            ),
+            NewsItem(
+                index=5,
+                timestamp_line="[04/08 13:00 UTC+8]",
+                title="b",
+                source_and_nature="s",
+                summary="s",
+                investment_takeaway="雲端 5%",
+                editor_consensus="MSFT",
+            ),
+            NewsItem(
+                index=6,
+                timestamp_line="[04/08 14:00 UTC+8]",
+                title="c",
+                source_and_nature="s",
+                summary="s",
+                investment_takeaway="資料中心 3%",
+                editor_consensus="AMD",
+            ),
+        ],
+        pick_reason=long_ai_reason,
+        signal_conflict_summary="空方一句｜多方一句",
+        us_equity_allocation_note="兩檔合計不超過 4%（risk_off）測試",
+        trade_legs=[
+            ExecutableTradeLeg(
+                asset="NVDA",
+                direction="LONG",
+                current_price="100",
+                star_rating=3,
+                entry="99",
+                target="110 (+11%)",
+                stop="95 (-4%)",
+                rr="1:2.5",
+                max_drawdown_pct="-4.0%",
+                expected_win_rate="55%",
+                signal_score="70/100",
+                trigger="突破",
+                sizing_logic="分批",
+                invalidation="跌破 95",
+                position_pct="2%",
+                narrative="催化",
+                bull_scenario="多頭：突破前高",
+                base_scenario="基礎：區間震盪",
+                bear_scenario="空頭：跌破停損",
+            ),
+            ExecutableTradeLeg(
+                asset="MSFT",
+                direction="SHORT",
+                current_price="200",
+                star_rating=2,
+                entry="200",
+                target="180 (-10%)",
+                stop="210 (+5%)",
+                rr="1:2",
+                max_drawdown_pct="-5.0%",
+                expected_win_rate="50%",
+                signal_score="60/100",
+                trigger="反彈無力",
+                sizing_logic="分批",
+                invalidation="突破 210",
+                position_pct="2%",
+                narrative="對沖",
+                bull_scenario="多頭：反轉",
+                base_scenario="基礎：橫盤",
+                bear_scenario="空頭：續跌",
+            ),
+        ],
+        qsrec=[
+            _trade_rec_with_scores(asset="NVDA", category="EQUITY", regime="risk_off"),
+            _trade_rec_with_scores(
+                asset="MSFT", category="EQUITY", regime="risk_off", direction="SHORT"
+            ),
+        ],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+        agreed_regime=None,
+    )
+    assert report.crypto.qsrec[0].regime == "neutral"
+    assert report.ai.qsrec[0].regime == "neutral"
+    assert report.ai.qsrec[1].regime == "neutral"
+    assert "risk_off" not in (report.ai.us_equity_allocation_note or "").lower()
+    assert "對齊主判定：neutral" in (report.ai.us_equity_allocation_note or "")
