@@ -30,6 +30,7 @@ def _sample_news_crypto() -> list[NewsItem]:
             summary="S1",
             investment_takeaway="投資解讀：RSI 55%",
             editor_consensus="💎主編共識：BTC",
+            pricing_note="未定價／增量資訊",
         ),
         NewsItem(
             index=2,
@@ -39,6 +40,7 @@ def _sample_news_crypto() -> list[NewsItem]:
             summary="S2",
             investment_takeaway="投資解讀：費率 0.01%",
             editor_consensus="💎主編共識：ETH",
+            pricing_note="大致已定價",
         ),
         NewsItem(
             index=3,
@@ -48,6 +50,7 @@ def _sample_news_crypto() -> list[NewsItem]:
             summary="S3",
             investment_takeaway="投資解讀：ETF 1.2%",
             editor_consensus="💎主編共識：SOL",
+            pricing_note="已高度反應",
         ),
     ]
 
@@ -62,6 +65,7 @@ def _sample_news_ai() -> list[NewsItem]:
             summary="AS1",
             investment_takeaway="投資解讀：GPU 10%",
             editor_consensus="💎主編共識：NVDA",
+            pricing_note="未定價／增量資訊",
         ),
         NewsItem(
             index=5,
@@ -71,6 +75,7 @@ def _sample_news_ai() -> list[NewsItem]:
             summary="AS2",
             investment_takeaway="投資解讀：資料中心 5%",
             editor_consensus="💎主編共識：AMD",
+            pricing_note="大致已定價",
         ),
         NewsItem(
             index=6,
@@ -80,6 +85,7 @@ def _sample_news_ai() -> list[NewsItem]:
             summary="AS3",
             investment_takeaway="投資解讀：雲端 8%",
             editor_consensus="💎主編共識：MSFT",
+            pricing_note="已高度反應",
         ),
     ]
 
@@ -594,6 +600,12 @@ def test_render_contains_qsrec_and_passes_structured_gate():
         report_title_date="2025-03-22",
         market=MarketRegimeBlock(regime="risk_on", score_suffix="（+4/6）"),
         narrative_of_day="主敘事一句測試",
+        portfolio_framing_summary="測試組合：加密與美股雙軸在風險預算內；淨曝險偏多；與 SPY 相關性中高。",
+        scenario_probability_notes=(
+            "· 樂觀：延續（機率 30%）\n"
+            "· 基準：震盪（機率 45%）\n"
+            "· 悲觀：收縮（機率 25%）"
+        ),
         macro_framework_lines=["宏觀一行"],
         dashboard=[MetricLine(label="DXY", value="104")],
         news=_sample_news_crypto(),

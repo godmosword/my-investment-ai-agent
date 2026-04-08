@@ -6,6 +6,8 @@
 ## 2026-04-08
 
 ### Added
+- **華爾街級 Phase B**：`CryptoSection` 新增 `portfolio_framing_summary`、`scenario_probability_notes`（三行樂觀/基準/悲觀＋機率合計 100%）；`NewsItem.pricing_note`（「未定價／增量資訊」「大致已定價」「已高度反應」）；模板於命題區後渲染【組合與曝險框架】【三情境機率】，新聞列印 `<i>市場定價</i>：<code>…</code>`。`STRICT_INSTITUTIONAL_PHASE_B_GATE=1` 時 HTML 與結構化雙檢（`report_html_gates._institutional_phase_b_html_ok`、`schemas._institutional_phase_b_structured_issues`）。`crew.py` 新增 `_INSTITUTIONAL_PHASE_B_RULE`。
+- **新聞新鮮度預設視窗**：`NEWS_FRESHNESS_WINDOW_HOURS` 預設由 48 改 **36**（與 `_DATA_RULES` 一致）；`ENV_TEMPLATE.txt` 註解同步。
 - **華爾街級 Phase A（機構讀者）**：`CryptoSection` 新增 `investment_thesis_one_liner`、`thesis_supporting_points`（3）、`thesis_contrary_points`（3）、`key_assumptions_lines`（2–4）、`narrative_invalidation_summary`；`DailyBriefReport.institutional_disclaimer_html` 於 `assemble_daily_brief_report` 注入固定 Telegram 白名單免責（`report_render._INSTITUTIONAL_DISCLAIMER_HTML`）；`templates/telegram_report.j2` 於標題後渲染免責與命題區塊。
 - **可選 Gate**：`STRICT_INSTITUTIONAL_PHASE_A_GATE=1` 時 `validate_report` 檢查 HTML 區塊；同開關下 `DailyBriefReport` 結構化驗證要求上述欄位（`schemas._institutional_phase_a_structured_issues`）。見 `ENV_TEMPLATE.txt`。
 - **Crew**：`crew.py` 新增 `_INSTITUTIONAL_PHASE_A_RULE` 並掛入加密結構化最終提示。
@@ -16,8 +18,9 @@
 
 ### Tests
 - [`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)：新增 `assemble` 對 QSREC regime 與美股部位框之 smoke 覆蓋。
-- [`test_validate_report.py`](test_validate_report.py)：`TestStrictInstitutionalPhaseAHtmlGate`；`_make_report` 預設含 Phase A HTML 骨架。
-- [`test_smoke_pipeline.py`](test_smoke_pipeline.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)：最小報告字串補 Phase A 區塊以通過既有 Gate 長度假設。
+- [`test_validate_report.py`](test_validate_report.py)：`TestStrictInstitutionalPhaseAHtmlGate`、`TestStrictInstitutionalPhaseBHtmlGate`、`TestStrictInstitutionalPhaseBStructuredGate`；`_make_report` 可選 Phase B；`_make_minimal_structured_report_dbr` 含 `pricing_note`。
+- [`test_smoke_pipeline.py`](test_smoke_pipeline.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)：最小報告字串補 Phase A+B 與市場定價行。
+- [`test_report_render.py`](test_report_render.py)、[`test_news_freshness.py`](test_news_freshness.py)：樣本新聞 `pricing_note`；新鮮度測試視窗 36h。
 
 ## 2026-04-07
 

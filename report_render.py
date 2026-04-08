@@ -95,6 +95,8 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
             crypto.narrative_of_day,
             crypto.investment_thesis_one_liner,
             crypto.narrative_invalidation_summary,
+            crypto.portfolio_framing_summary,
+            crypto.scenario_probability_notes,
             crypto.pick_reason,
             crypto.risk_budget_summary,
             crypto.signal_conflict_summary,
@@ -137,9 +139,13 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
         parts.append(r.narrative or "")
         parts.append(r.trigger or "")
     for n in crypto.news:
-        parts.extend((n.title, n.summary, n.investment_takeaway, n.editor_consensus))
+        parts.extend(
+            (n.title, n.summary, n.investment_takeaway, n.editor_consensus, n.pricing_note or "")
+        )
     for n in ai.news:
-        parts.extend((n.title, n.summary, n.investment_takeaway, n.editor_consensus))
+        parts.extend(
+            (n.title, n.summary, n.investment_takeaway, n.editor_consensus, n.pricing_note or "")
+        )
     for c in crypto.chatter:
         parts.append(c.text)
     for c in ai.chatter:

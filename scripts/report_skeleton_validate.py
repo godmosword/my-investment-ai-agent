@@ -17,11 +17,24 @@ _PHASE_A_HTML = (
     "若關鍵宏觀假設被證偽則重估主命題。\n"
 )
 
+_PHASE_B_HTML = (
+    "<b>【組合與曝險框架】</b>\n"
+    "測試組合：加密與美股在風險預算內雙軸配置；淨曝險偏多；與 SPY 相關性中高。\n"
+    "<b>【三情境機率】</b>\n"
+    "· 樂觀：延續（機率 30%）\n"
+    "· 基準：震盪（機率 45%）\n"
+    "· 悲觀：收縮（機率 25%）\n"
+)
+
 
 def minimal_valid_report_text(*, length: int = 5000) -> str:
     news = ""
     for i in range(1, 9):
-        news += f"〔新聞 {i}〕[03/{i:02d} 10:00 UTC+8] 來源\n測試新聞標題 {i} 內容夠長超過十字元\n\n"
+        canon = "未定價／增量資訊" if i <= 3 else "大致已定價" if i <= 6 else "已高度反應"
+        news += (
+            f"〔新聞 {i}〕[03/{i:02d} 10:00 UTC+8] 來源\n"
+            f"測試新聞標題 {i} 內容夠長超過十字元\n市場定價：{canon}\n\n"
+        )
 
     regime = "risk_on"
     sections = [
@@ -61,7 +74,7 @@ def minimal_valid_report_text(*, length: int = 5000) -> str:
         "· 測試摘要甲：風險可控延續觀察 BTC 偏多結構\n"
         "→ 測試摘要乙：美股以 NVDA 財報催化為主軸\n\n"
     )
-    body = news + exec_hdr + _PHASE_A_HTML + "\n".join(sections) + "\n"
+    body = news + exec_hdr + _PHASE_A_HTML + _PHASE_B_HTML + "\n".join(sections) + "\n"
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
     return body
