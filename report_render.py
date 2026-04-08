@@ -11,7 +11,14 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
-from schemas import AISection, CryptoSection, DailyBriefReport, MetricLine, QSREC_JSON_EXCLUDE_FIELDS
+from schemas import (
+    AISection,
+    CryptoSection,
+    DailyBriefReport,
+    MetricLine,
+    QSREC_JSON_EXCLUDE_FIELDS,
+    TradeRecommendation,
+)
 from tracker import (
     _current_prices_for_assets,
     _parse_pair_asset,
@@ -202,6 +209,64 @@ def _coerce_sections_for_gate(
     if _rb != crypto.risk_budget_summary:
         crypto = crypto.model_copy(update={"risk_budget_summary": _rb})
     return crypto, ai
+
+
+def _normalize_regime_token_coerce(raw: str | None) -> str | None:
+    """Normalize risk_on/risk_off/neutral spellings for QSREC regime comparison."""
+    if raw is None or not str(raw).strip():
+        return None
+    token = re.sub(r"[\s\-_]+", "_", str(raw).strip().lower())
+    if token in _AGREED_REGIME_TOKENS:
+        return token
+    return None
+
+
+def _coerce_qsrec_regimes_to_market(
+    crypto: CryptoSection, ai: AISection
+) -> tuple[CryptoSection, AISection]:
+    """Force each QSREC row's optional regime to match crypto.market.regime (HTML Gate)."""
+    primary = crypto.market.regime
+    if primary not in _AGREED_REGIME_TOKENS:
+        return crypto, ai
+
+    def _rows(recs: list[TradeRecommendation]) -> list[TradeRecommendation]:
+        out: list[TradeRecommendation] = []
+        for r in recs:
+            rec_reg = _normalize_regime_token_coerce(r.regime)
+            if rec_reg is None:
+                out.append(r)
+                continue
+            if rec_reg != primary:
+                out.append(r.model_copy(update={"regime": primary}))
+            else:
+                out.append(r)
+        return out
+
+    cq = _rows(list(crypto.qsrec))
+    aq = _rows(list(ai.qsrec))
+    if cq != crypto.qsrec:
+        crypto = crypto.model_copy(update={"qsrec": cq})
+    if aq != ai.qsrec:
+        ai = ai.model_copy(update={"qsrec": aq})
+    return crypto, ai
+
+
+def _fix_us_equity_allocation_misbranded_risk_off(ai: AISection, primary: str) -> AISection:
+    """Replace mistaken (risk_off) in 美股部位框 when primary regime is neutral/risk_on."""
+    if primary not in ("neutral", "risk_on"):
+        return ai
+    note = ai.us_equity_allocation_note
+    if not (note and note.strip()):
+        return ai
+    fixed = re.sub(
+        r"[（(]\s*risk[\s_\-]*off\s*[）)]",
+        f"（對齊主判定：{primary}）",
+        note,
+        flags=re.IGNORECASE,
+    )
+    if fixed == note:
+        return ai
+    return ai.model_copy(update={"us_equity_allocation_note": fixed})
 
 
 def _parse_position_pct_float(raw: str | None) -> float | None:
@@ -611,6 +676,9 @@ def assemble_daily_brief_report(
     agreed_regime: str | None = None,
 ) -> DailyBriefReport:
     crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
+    crypto, ai = _coerce_qsrec_regimes_to_market(crypto, ai)
+    if crypto.market.regime in _AGREED_REGIME_TOKENS:
+        ai = _fix_us_equity_allocation_misbranded_risk_off(ai, crypto.market.regime)
     crypto = _ensure_btc_ma_dashboard_rows(crypto)
     crypto = _ensure_crypto_liquidation_fallback_note(crypto)
     crypto, ai = _coerce_trade_leg_position_pcts(crypto, ai)

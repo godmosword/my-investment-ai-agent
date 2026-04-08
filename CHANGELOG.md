@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-08
+
+### Changed
+- [`report_render.py`](report_render.py)：`assemble_daily_brief_report` 組裝時將 **QSREC** 每筆可選 `regime` **強制對齊** `crypto.market.regime`（消除與【今日市場模式】主判定不一致的 warning）；並在主判定為 `neutral`／`risk_on` 時，修正 `us_equity_allocation_note` 內誤寫的 `（risk_off）` 括號為「對齊主判定：…」。
+- [`crew.py`](crew.py)：收斂 **AI 儀表板**（FinancialDatasets 以 NVDA+MSFT 為 anchor、其餘檔位上限行數；開源動能至多 2 行）；**AI 產業新聞**禁以加密／VIX 作主線、新聞新鮮度改 **36h**；QSREC 提示 **省略 `regime` 欄**（由管線對齊）。
+
+### Tests
+- [`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)：新增 `assemble` 對 QSREC regime 與美股部位框之 smoke 覆蓋。
+
 ## 2026-04-07
 
 ### Added
