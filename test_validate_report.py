@@ -50,6 +50,30 @@ from report_postprocess_legacy import (
 
 # ── Minimal valid report template ──
 # Enough sections / keywords to pass most checks; tests override specific parts.
+_PHASE_A_HTML_FOR_GATE_TESTS = (
+    "<blockquote>"
+    "本電報內容僅為研究性質之市場摘要與架構化資訊彙編，<b>不構成</b>任何司法管轄區內之投資、法律或稅務建議；"
+    "<b>非</b>個人化勸誘。"
+    "過去績效不預示未來結果；資料可能延遲，讀者自行核實。"
+    "</blockquote>\n"
+    "<b>【投資命題】</b>\n"
+    "測試主命題一句涵蓋加密與美股主軸及跨資產邏輯。\n"
+    "<b>【支持論點】</b>\n"
+    "· 論點甲：BTC 結構與 ETF 流與儀表板讀數一致\n"
+    "· 論點乙：NVDA 基本面與資料中心 Capex 敘事\n"
+    "· 論點丙：宏觀流動性與 regime 評分卡方向對齊\n"
+    "<b>【反駁論點】</b>\n"
+    "· 反駁甲：槓桿與清算導致急性回撤\n"
+    "· 反駁乙：利率路徑重訂壓縮估值\n"
+    "· 反駁丙：監管與地緣不確定性升溫\n"
+    "<b>【關鍵假設】</b>\n"
+    "· 假設一：短期利率大致符合市場隱含路徑\n"
+    "· 假設二：主要標的維持合理流動性\n"
+    "<b>【敘事失效】</b>\n"
+    "若通膨預期顯著重訂或現貨 ETF 資金流持續逆轉，應重估本日主命題。\n"
+)
+
+
 def _make_report(
     *,
     length: int = 5000,
@@ -64,6 +88,7 @@ def _make_report(
     include_qsrec: bool = True,
     include_source_health: bool = True,
     include_exec_summary: bool = True,
+    include_phase_a_institutional: bool = True,
     include_signal_conflict: bool = True,
     include_rumor_grade: bool = True,
     include_rr: bool = True,
@@ -136,7 +161,8 @@ def _make_report(
             "· 測試摘要甲：風險可控延續觀察 BTC 偏多結構\n"
             "→ 測試摘要乙：美股以 NVDA 財報催化為主軸\n\n"
         )
-    body = news + exec_hdr + joined + "\n" + extra
+    phase_a = _PHASE_A_HTML_FOR_GATE_TESTS if include_phase_a_institutional else ""
+    body = news + exec_hdr + phase_a + joined + "\n" + extra
     # Pad to requested length
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
@@ -1481,6 +1507,23 @@ class TestStrictExecSummaryHtmlGate(unittest.TestCase):
         r = validate_report(t)
         issues = r.get("issues") or []
         self.assertTrue(any("【執行摘要】" in i for i in issues))
+
+
+class TestStrictInstitutionalPhaseAHtmlGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_A_GATE": "1"}, clear=False)
+    def test_passes_when_phase_a_block_present(self):
+        t = _make_report()
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertFalse(any("【投資命題】" in i and "缺少" in i for i in issues))
+        self.assertFalse(any("【支持論點】" in i for i in issues))
+
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_A_GATE": "1"}, clear=False)
+    def test_fails_when_phase_a_omitted(self):
+        t = _make_report(include_phase_a_institutional=False)
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertTrue(any("投資命題" in i or "免責" in i for i in issues))
 
 
 if __name__ == "__main__":

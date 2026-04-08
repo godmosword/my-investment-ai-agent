@@ -6,8 +6,17 @@ from tools import _CACHE, _get_cache, _set_cache
 
 
 def _minimal_valid_report() -> str:
+    phase_a = (
+        "<blockquote>研究摘要<b>不構成</b>投資建議<b>非</b>個人化勸誘過去績效不預示未來。</blockquote>\n"
+        "<b>【投資命題】</b>\n主命題測試涵蓋加密與美股。\n"
+        "<b>【支持論點】</b>\n· 甲\n· 乙\n· 丙\n"
+        "<b>【反駁論點】</b>\n· 反甲\n· 反乙\n· 反丙\n"
+        "<b>【關鍵假設】</b>\n· 假一\n· 假二\n"
+        "<b>【敘事失效】</b>\n若宏觀證偽則重估。\n"
+    )
     return (
-        "〔新聞 1〕[03/01 10:00 UTC+8] A\n"
+        phase_a
+        + "〔新聞 1〕[03/01 10:00 UTC+8] A\n"
         "〔新聞 2〕[03/01 11:00 UTC+8] B\n"
         "〔新聞 3〕[03/01 12:00 UTC+8] C\n"
         "〔新聞 4〕[03/01 13:00 UTC+8] D\n"

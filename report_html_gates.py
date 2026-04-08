@@ -86,6 +86,61 @@ def _strict_exec_summary_html_gate() -> bool:
     return os.getenv("STRICT_EXEC_SUMMARY_HTML_GATE", "0").lower() in ("1", "true", "yes")
 
 
+def _strict_institutional_phase_a_html_gate() -> bool:
+    """華爾街級 Phase A：免責聲明、投資命題、支持/反駁/假設/敘事失效區塊。STRICT_INSTITUTIONAL_PHASE_A_GATE=1 啟用。"""
+    return os.getenv("STRICT_INSTITUTIONAL_PHASE_A_GATE", "0").lower() in ("1", "true", "yes")
+
+
+def _span_after_heading(text: str, heading: str, max_chars: int = 2500) -> str:
+    if heading not in text:
+        return ""
+    idx = text.find(heading) + len(heading)
+    rest = text[idx : idx + max_chars]
+    stop_m = re.search(r"\n<b>【", rest)
+    return rest[: stop_m.start()] if stop_m else rest
+
+
+def _count_bullet_lines(span: str) -> int:
+    """Count · or • lines (strip HTML tags for counting)."""
+    if not span:
+        return 0
+    plain = re.sub(r"<[^>]+>", " ", span)
+    n = 0
+    for ln in plain.splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        if s.startswith("·") or s.startswith("•") or s.startswith("▸"):
+            n += 1
+    return n
+
+
+def _institutional_phase_a_html_ok(text: str) -> tuple[bool, str]:
+    """HTML 層檢查 Phase A 區塊（與 telegram_report.j2 標題一致）。"""
+    if not _strict_institutional_phase_a_html_gate():
+        return True, ""
+    if "<blockquote>" not in text or "不構成" not in text:
+        return False, "缺少機構免責聲明（<blockquote>…不構成…）"
+    if "<b>【投資命題】</b>" not in text and "【投資命題】" not in text:
+        return False, "缺少【投資命題】區塊"
+    thesis_span = _span_after_heading(text, "【投資命題】", max_chars=800)
+    if not re.sub(r"<[^>]+>", " ", thesis_span).strip():
+        return False, "【投資命題】內文為空"
+    sup_n = _count_bullet_lines(_span_after_heading(text, "【支持論點】"))
+    con_n = _count_bullet_lines(_span_after_heading(text, "【反駁論點】"))
+    if sup_n < 3:
+        return False, f"【支持論點】須至少 3 條 · 行（當前 {sup_n}）"
+    if con_n < 3:
+        return False, f"【反駁論點】須至少 3 條 · 行（當前 {con_n}）"
+    ass_n = _count_bullet_lines(_span_after_heading(text, "【關鍵假設】"))
+    if not (2 <= ass_n <= 4):
+        return False, f"【關鍵假設】須 2–4 條 · 行（當前 {ass_n}）"
+    inv_span = _span_after_heading(text, "【敘事失效】", max_chars=600)
+    if not re.sub(r"<[^>]+>", " ", inv_span).strip():
+        return False, "【敘事失效】內文為空"
+    return True, ""
+
+
 def _pipeline_report_date_anchor_utc() -> datetime | None:
     """PIPELINE_REPORT_DATE=YYYY-MM-DD 時，新聞新鮮度以該日 23:59:59 Asia/Hong_Kong 為參考時刻。"""
     raw = os.getenv("PIPELINE_REPORT_DATE", "").strip()
@@ -1834,6 +1889,7 @@ def validate_report(text: str) -> dict:
         text, report_dt=_fresh_anchor
     )
     exec_summary_ok, exec_summary_err = _exec_summary_html_ok(text)
+    phase_a_ok, phase_a_err = _institutional_phase_a_html_ok(text)
     too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
     has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
@@ -1985,6 +2041,8 @@ def validate_report(text: str) -> dict:
         issues.append(news_freshness_err)
     if not exec_summary_ok:
         issues.append(exec_summary_err)
+    if not phase_a_ok:
+        issues.append(phase_a_err)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if not has_rumor_grade:

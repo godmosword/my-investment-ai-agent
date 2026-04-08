@@ -1,6 +1,23 @@
 """Pure-string minimal Telegram report skeleton for Gate dry-run (no main.py import)."""
 
 # Mirrors test_validate_report._make_report() defaults — keep in sync when Gate contract changes.
+_PHASE_A_HTML = (
+    "<blockquote>"
+    "本電報內容僅為研究性質之市場摘要，<b>不構成</b>投資建議；<b>非</b>個人化勸誘；過去績效不預示未來。"
+    "</blockquote>\n"
+    "<b>【投資命題】</b>\n"
+    "測試主命題一句涵蓋加密與美股主軸。\n"
+    "<b>【支持論點】</b>\n"
+    "· 論點甲\n· 論點乙\n· 論點丙\n"
+    "<b>【反駁論點】</b>\n"
+    "· 反駁甲\n· 反駁乙\n· 反駁丙\n"
+    "<b>【關鍵假設】</b>\n"
+    "· 假設一\n· 假設二\n"
+    "<b>【敘事失效】</b>\n"
+    "若關鍵宏觀假設被證偽則重估主命題。\n"
+)
+
+
 def minimal_valid_report_text(*, length: int = 5000) -> str:
     news = ""
     for i in range(1, 9):
@@ -44,7 +61,7 @@ def minimal_valid_report_text(*, length: int = 5000) -> str:
         "· 測試摘要甲：風險可控延續觀察 BTC 偏多結構\n"
         "→ 測試摘要乙：美股以 NVDA 財報催化為主軸\n\n"
     )
-    body = news + exec_hdr + "\n".join(sections) + "\n"
+    body = news + exec_hdr + _PHASE_A_HTML + "\n".join(sections) + "\n"
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
     return body

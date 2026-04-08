@@ -1,11 +1,42 @@
 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {{ crypto.report_title_date|tg_escape }}</i>
 ────────────
+{% if institutional_disclaimer_html %}
+{{ institutional_disclaimer_html }}
+────────────
+{% endif %}
 {% if crypto.exec_summary %}
 <b>📋 【執行摘要】</b>
 {% for line in crypto.exec_summary %}
 → {{ line|tg_escape }}
 
 {% endfor %}
+────────────
+{% endif %}
+{% if crypto.investment_thesis_one_liner %}
+<b>【投資命題】</b>
+{{ crypto.investment_thesis_one_liner|tg_escape }}
+{% if crypto.thesis_supporting_points %}
+<b>【支持論點】</b>
+{% for line in crypto.thesis_supporting_points %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+{% if crypto.thesis_contrary_points %}
+<b>【反駁論點】</b>
+{% for line in crypto.thesis_contrary_points %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+{% if crypto.key_assumptions_lines %}
+<b>【關鍵假設】</b>
+{% for line in crypto.key_assumptions_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+{% if crypto.narrative_invalidation_summary %}
+<b>【敘事失效】</b>
+{{ crypto.narrative_invalidation_summary|tg_escape }}
+{% endif %}
 ────────────
 {% endif %}
 {% if previous_recs_html %}

@@ -38,6 +38,16 @@ logger = logging.getLogger(__name__)
 
 _AGREED_REGIME_TOKENS = frozenset({"risk_on", "risk_off", "neutral"})
 
+# Telegram HTML whitelist: <b> <i> <blockquote> only here.
+_INSTITUTIONAL_DISCLAIMER_HTML = (
+    "<blockquote>"
+    "本電報內容僅為研究性質之市場摘要與架構化資訊彙編，<b>不構成</b>任何司法管轄區內之投資、法律或稅務建議；"
+    "<b>非</b>個人化勸誘，亦未考量任何特定讀者之財務狀況與投資目標。"
+    "過去績效與工具回傳之歷史數據不預示未來結果。"
+    "所有報價、指標與第三方資料均可能延遲、缺漏或變更；讀者應自行核實並承擔使用風險。"
+    "</blockquote>"
+)
+
 # Anchored pattern: strip leading 若 (with or without trailing space) only at the
 # start of the invalidation string.  Using an anchored sub avoids corrupting Chinese
 # compound words such as 如若, 假若, 縱若 that contain 若 mid-string.
@@ -83,6 +93,8 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
     parts.extend(
         (
             crypto.narrative_of_day,
+            crypto.investment_thesis_one_liner,
+            crypto.narrative_invalidation_summary,
             crypto.pick_reason,
             crypto.risk_budget_summary,
             crypto.signal_conflict_summary,
@@ -90,6 +102,13 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
             ai.signal_conflict_summary,
         )
     )
+    for _lst in (
+        crypto.thesis_supporting_points,
+        crypto.thesis_contrary_points,
+        crypto.key_assumptions_lines,
+    ):
+        for line in _lst:
+            parts.append(str(line))
     if ai.us_equity_allocation_note:
         parts.append(ai.us_equity_allocation_note)
     for leg in crypto.trade_legs:
@@ -689,6 +708,7 @@ def assemble_daily_brief_report(
     return DailyBriefReport(
         crypto=crypto,
         ai=ai,
+        institutional_disclaimer_html=_INSTITUTIONAL_DISCLAIMER_HTML,
         previous_recs_html=(previous_recs_html or "").strip(),
         source_observability_block=(source_observability_block or "").strip(),
         report_tier_partial_news=report_tier_partial_news,
@@ -723,6 +743,7 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
         return tmpl.render(
             crypto=report.crypto,
             ai=report.ai,
+            institutional_disclaimer_html=report.institutional_disclaimer_html or "",
             previous_recs_html=report.previous_recs_html,
             source_observability_block=report.source_observability_block,
             report_tier_partial_news=report.report_tier_partial_news,
