@@ -158,6 +158,11 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 
 See [`gstack.md`](gstack.md) if present for repo-local gstack notes.
 
+## Git / ship（本 repo 覆寫）
+
+- 使用者要 **ship／deploy／上線** 時：預設 **直推 `main`**（commit → `git push origin main`）以觸發 deploy；**勿**自動開 PR，除非使用者要求或 `main` 受保護無法直推。
+- gstack `/ship` 技能若預設開 PR，在此 repo **改為** 上述直推流程（仍須先跑 `ruff` + `pytest -m smoke` 等約定檢查）。
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
@@ -167,7 +172,7 @@ The skill has specialized workflows that produce better results than ad-hoc answ
 Key routing rules:
 - Product ideas, "is this worth building", brainstorming → invoke office-hours
 - Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push, create PR → invoke ship
+- Ship, deploy, push → 見上節「Git / ship」；若使用者**明確**要 PR 再用 ship/PR 流程
 - QA, test the site, find bugs → invoke qa
 - Code review, check my diff → invoke review
 - Update docs after shipping → invoke document-release

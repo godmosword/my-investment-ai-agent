@@ -16,6 +16,11 @@ Adapted from a product-building prompt framework (Miles Deutscher / AIEDGE), sco
 - **Two audiences**: Engineering discussion in Cursor may use normal technical terms. **Reader-facing brief** text stays institutional and data-dense per [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) and crew stylistic rules—no tutorial tone (“what is VIX”) for professional readers.
 - **Handoff**: Ship with meaningful commits; update [`CHANGELOG.md`](CHANGELOG.md) for user-visible behavior; refresh [`CLAUDE.md`](CLAUDE.md) / [`README.md`](README.md) when commands or navigation change.
 
+### Git / ship workflow（本 repo 預設）
+
+- **縮短流程**：變更就緒後優先 **`git push origin main`**（在 `main` 上 commit，或先 `merge` 回 `main` 再推），以觸發 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 的 `push` 部署；**不要**自動執行 `gh pr create`，除非使用者明確要 PR、或 **GitHub branch protection** 禁止直推 `main`（此時改走 PR 並說明原因）。
+- **合併前**：本地仍應跑與 CI 對齊的檢查（例如 `ruff check .`、`pytest -m smoke`），與是否開 PR 無關。
+
 ### Project overview
 
 Q-Silicon Institutional Research AI Agent — a Python-based CrewAI pipeline that generates daily crypto & AI investment reports. See `README.md` for full details.
