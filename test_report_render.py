@@ -614,6 +614,15 @@ def test_render_contains_qsrec_and_passes_structured_gate():
             "03/26 FOMC",
             "04/01 期權到期",
         ],
+        key_assumptions_lines=["假設一：利率路徑穩定", "假設二：主要標的流動性充足"],
+        prior_thesis_recap_lines=[
+            "對照上期 BTC LONG，現價仍高於進場區間。",
+            "NVDA 主倉邏輯延續，波動符合基準情境。",
+        ],
+        assumption_status_lines=[
+            "（持續成立）隱含路徑未顯著偏離。",
+            "（部分動搖）買賣價差略擴但深度仍足。",
+        ],
         macro_framework_lines=["宏觀一行"],
         dashboard=[MetricLine(label="DXY", value="104")],
         news=_sample_news_crypto(),
@@ -650,6 +659,8 @@ def test_render_contains_qsrec_and_passes_structured_gate():
     html = render_telegram_daily_brief(report) + "x" * 3500
     assert "[QSREC_START]" in html
     assert "BTC" in html
+    assert "【昨日命題複盤】" in html
+    assert "【關鍵假設狀態】" in html
     sres = validate_structured_report(report)
     assert sres["valid"], sres["issues"]
     vhtml = validate_report(html)

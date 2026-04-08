@@ -65,6 +65,22 @@
 {% endif %}
 ────────────
 {% endif %}
+{% if crypto.prior_thesis_recap_lines or crypto.assumption_status_lines %}
+────────────
+{% if crypto.prior_thesis_recap_lines %}
+<b>【昨日命題複盤】</b>
+{% for line in crypto.prior_thesis_recap_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+{% if crypto.assumption_status_lines %}
+<b>【關鍵假設狀態】</b>
+{% for line in crypto.assumption_status_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+────────────
+{% endif %}
 {% if previous_recs_html %}
 {{ previous_recs_html }}
 

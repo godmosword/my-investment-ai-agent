@@ -101,6 +101,11 @@ def _strict_institutional_phase_c_html_gate() -> bool:
     return os.getenv("STRICT_INSTITUTIONAL_PHASE_C_GATE", "0").lower() in ("1", "true", "yes")
 
 
+def _strict_institutional_phase_d_html_gate() -> bool:
+    """華爾街級 Phase D：昨日命題複盤、關鍵假設狀態。STRICT_INSTITUTIONAL_PHASE_D_GATE=1 啟用。"""
+    return os.getenv("STRICT_INSTITUTIONAL_PHASE_D_GATE", "0").lower() in ("1", "true", "yes")
+
+
 def _span_after_heading(text: str, heading: str, max_chars: int = 2500) -> str:
     if heading not in text:
         return ""
@@ -236,6 +241,70 @@ def _institutional_phase_c_html_ok(text: str) -> tuple[bool, str]:
         return False, (
             f"可執行交易腿須各附「流動性／執行」註記（腿數 {leg_markers}，流動性行 {liq_markers}）"
         )
+    return True, ""
+
+
+_ASSUMPTION_STATUS_PREFIX_HTML_RE = re.compile(
+    r"^（(?:持續成立|部分動搖|已失效)）"
+)
+
+
+def _span_after_heading_until_delim(text: str, heading: str, *, max_chars: int = 900) -> str:
+    """Slice content after `heading` until next section (─── / 主標 / 新聞 / next <b>【) or max_chars."""
+    if heading not in text:
+        return ""
+    start = text.find(heading) + len(heading)
+    rest = text[start : start + max_chars]
+    cut = len(rest)
+    for sep in (
+        "\n────────────",
+        "\n<b>【",
+        "\n【今日市場模式】",
+        "\n〔新聞",
+        "\n🤖 AI 市場",
+    ):
+        j = rest.find(sep)
+        if j >= 0:
+            cut = min(cut, j)
+    return rest[:cut]
+
+
+def _institutional_phase_d_html_ok(text: str) -> tuple[bool, str]:
+    if not _strict_institutional_phase_d_html_gate():
+        return True, ""
+    if "<b>【昨日命題複盤】</b>" not in text and "【昨日命題複盤】" not in text:
+        return False, "缺少【昨日命題複盤】區塊"
+    prior_span = _span_after_heading_until_delim(text, "【昨日命題複盤】", max_chars=900)
+    prior_plain = re.sub(r"<[^>]+>", " ", prior_span)
+    prior_lines = [
+        ln.strip()
+        for ln in prior_plain.splitlines()
+        if ln.strip().startswith("·") or ln.strip().startswith("•")
+    ]
+    if not (2 <= len(prior_lines) <= 4):
+        return False, f"【昨日命題複盤】須 2–4 條 · 行（當前 {len(prior_lines)}）"
+    key_ass_n = _count_bullet_lines(_span_after_heading(text, "【關鍵假設】"))
+    if "<b>【關鍵假設狀態】</b>" not in text and "【關鍵假設狀態】" not in text:
+        return False, "缺少【關鍵假設狀態】區塊"
+    ass_span = _span_after_heading_until_delim(text, "【關鍵假設狀態】", max_chars=900)
+    ass_plain = re.sub(r"<[^>]+>", " ", ass_span)
+    ass_lines = [
+        ln.strip()
+        for ln in ass_plain.splitlines()
+        if ln.strip().startswith("·") or ln.strip().startswith("•")
+    ]
+    if not (2 <= len(ass_lines) <= 4):
+        return False, f"【關鍵假設狀態】須 2–4 條 · 行（當前 {len(ass_lines)}）"
+    if key_ass_n > 0 and len(ass_lines) != key_ass_n:
+        return False, (
+            f"【關鍵假設狀態】須與【關鍵假設】同條數（假設 {key_ass_n}，狀態 {len(ass_lines)}）"
+        )
+    for idx, ln in enumerate(ass_lines, start=1):
+        body = ln.lstrip("·•").strip()
+        if not _ASSUMPTION_STATUS_PREFIX_HTML_RE.match(body):
+            return False, (
+                f"【關鍵假設狀態】第 {idx} 條須以「（持續成立）」「（部分動搖）」「（已失效）」開頭"
+            )
     return True, ""
 
 
@@ -1990,6 +2059,7 @@ def validate_report(text: str) -> dict:
     phase_a_ok, phase_a_err = _institutional_phase_a_html_ok(text)
     phase_b_ok, phase_b_err = _institutional_phase_b_html_ok(text)
     phase_c_ok, phase_c_err = _institutional_phase_c_html_ok(text)
+    phase_d_ok, phase_d_err = _institutional_phase_d_html_ok(text)
     too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
     has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
@@ -2147,6 +2217,8 @@ def validate_report(text: str) -> dict:
         issues.append(phase_b_err)
     if not phase_c_ok:
         issues.append(phase_c_err)
+    if not phase_d_ok:
+        issues.append(phase_d_err)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if not has_rumor_grade:

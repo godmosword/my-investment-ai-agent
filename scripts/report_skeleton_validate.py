@@ -37,6 +37,15 @@ _PHASE_C_HTML = (
     "· 04/01 期權到期\n"
 )
 
+_PHASE_D_HTML = (
+    "<b>【昨日命題複盤】</b>\n"
+    "· 對照上期建議，BTC 多單仍高於進場價。\n"
+    "· NVDA 主倉邏輯延續，波動在預期內。\n"
+    "<b>【關鍵假設狀態】</b>\n"
+    "· （持續成立）利率路徑與假設一致。\n"
+    "· （部分動搖）流動性充足但價差略擴。\n"
+)
+
 
 def minimal_valid_report_text(*, length: int = 5000) -> str:
     news = ""
@@ -87,7 +96,16 @@ def minimal_valid_report_text(*, length: int = 5000) -> str:
         "· 測試摘要甲：風險可控延續觀察 BTC 偏多結構\n"
         "→ 測試摘要乙：美股以 NVDA 財報催化為主軸\n\n"
     )
-    body = news + exec_hdr + _PHASE_A_HTML + _PHASE_B_HTML + _PHASE_C_HTML + "\n".join(sections) + "\n"
+    body = (
+        news
+        + exec_hdr
+        + _PHASE_A_HTML
+        + _PHASE_B_HTML
+        + _PHASE_C_HTML
+        + _PHASE_D_HTML
+        + "\n".join(sections)
+        + "\n"
+    )
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
     return body

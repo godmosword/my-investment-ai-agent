@@ -811,6 +811,20 @@ class CryptoSection(BaseModel):
             "與事件類型（財報/Fed/期權到期/解鎖等）；禁止虛構未公告日期。"
         ),
     )
+    prior_thesis_recap_lines: list[str] = Field(
+        default_factory=list,
+        description=(
+            "【昨日命題複盤】2–4 條，每條 ≤100 字；對照管線提供之【上期建議追蹤】或前一日主命題，"
+            "說明驗證／未驗證／反證；無上期資料時首行明說並仍給 2–4 條觀察。"
+        ),
+    )
+    assumption_status_lines: list[str] = Field(
+        default_factory=list,
+        description=(
+            "【關鍵假設狀態】2–4 條，每條 ≤100 字；須以「（持續成立）」「（部分動搖）」「（已失效）」"
+            "三者擇一開頭，對應本日【關鍵假設】各條之更新判斷。"
+        ),
+    )
     market: MarketRegimeBlock
     narrative_of_day: str = Field(
         ...,
@@ -902,7 +916,14 @@ class CryptoSection(BaseModel):
                 out.append(str(item).strip())
         return out
 
-    @field_validator("thesis_supporting_points", "thesis_contrary_points", "key_assumptions_lines", mode="before")
+    @field_validator(
+        "thesis_supporting_points",
+        "thesis_contrary_points",
+        "key_assumptions_lines",
+        "prior_thesis_recap_lines",
+        "assumption_status_lines",
+        mode="before",
+    )
     @classmethod
     def _scrub_thesis_lists(cls, v: object) -> object:
         if not isinstance(v, list):
@@ -1154,6 +1175,8 @@ def _structured_business_issues(report: "DailyBriefReport") -> list[str]:
         issues.extend(_institutional_phase_b_structured_issues(cr, ai_sec))
     if os.getenv("STRICT_INSTITUTIONAL_PHASE_C_GATE", "0").lower() in ("1", "true", "yes"):
         issues.extend(_institutional_phase_c_structured_issues(cr, ai_sec))
+    if os.getenv("STRICT_INSTITUTIONAL_PHASE_D_GATE", "0").lower() in ("1", "true", "yes"):
+        issues.extend(_institutional_phase_d_structured_issues(cr))
     return issues
 
 
@@ -1202,6 +1225,38 @@ def _institutional_phase_b_structured_issues(cr: CryptoSection, ai_sec: AISectio
 _EVENT_CALENDAR_DATE_RE = re.compile(
     r"\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?"
 )
+
+
+_ASSUMPTION_STATUS_PREFIX_RE = re.compile(
+    r"^（(?:持續成立|部分動搖|已失效)）"
+)
+
+
+def _institutional_phase_d_structured_issues(cr: CryptoSection) -> list[str]:
+    """When STRICT_INSTITUTIONAL_PHASE_D_GATE=1, require prior-day thesis recap and assumption status."""
+    out: list[str] = []
+    prior = [str(x).strip() for x in cr.prior_thesis_recap_lines if str(x).strip()]
+    if not (2 <= len(prior) <= 4):
+        out.append(f"昨日命題複盤須 2–4 條（當前 {len(prior)}）")
+    for i, ln in enumerate(prior, start=1):
+        if len(ln) > 100:
+            out.append(f"昨日命題複盤第 {i} 條過長（>100 字）")
+    ass = [str(x).strip() for x in cr.assumption_status_lines if str(x).strip()]
+    if not (2 <= len(ass) <= 4):
+        out.append(f"關鍵假設狀態須 2–4 條（當前 {len(ass)}）")
+    key_ass = [str(x).strip() for x in cr.key_assumptions_lines if str(x).strip()]
+    if key_ass and len(ass) != len(key_ass):
+        out.append(
+            f"關鍵假設狀態條數須與關鍵假設一致（狀態 {len(ass)} vs 假設 {len(key_ass)}）"
+        )
+    for i, ln in enumerate(ass, start=1):
+        if len(ln) > 100:
+            out.append(f"關鍵假設狀態第 {i} 條過長（>100 字）")
+        if not _ASSUMPTION_STATUS_PREFIX_RE.match(ln):
+            out.append(
+                f"關鍵假設狀態第 {i} 條須以「（持續成立）」「（部分動搖）」「（已失效）」開頭"
+            )
+    return out
 
 
 def _institutional_phase_c_structured_issues(cr: CryptoSection, ai_sec: AISection) -> list[str]:

@@ -250,6 +250,7 @@ def build_crypto_structured_final_prompt(
         {_INSTITUTIONAL_PHASE_A_RULE}
         {_INSTITUTIONAL_PHASE_B_RULE}
         {_INSTITUTIONAL_PHASE_C_RULE}
+        {_INSTITUTIONAL_PHASE_D_RULE}
 
         === 填入 CryptoSection 欄位 ===
         - report_title_date: 使用 {today_str}
@@ -259,6 +260,7 @@ def build_crypto_structured_final_prompt(
         - investment_thesis_one_liner / thesis_supporting_points（3）/ thesis_contrary_points（3）/ key_assumptions_lines（2–4）/ narrative_invalidation_summary：見【華爾街級 Phase A】。
         - portfolio_framing_summary / scenario_probability_notes：見【華爾街級 Phase B】。
         - crypto_cycle_valuation_notes / equity_valuation_framing / event_calendar_lines：見【華爾街級 Phase C】。
+        - prior_thesis_recap_lines / assumption_status_lines：見【華爾街級 Phase D】。
         - macro_framework_lines：≤4 行宏觀 bullet。
         - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。
         - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據，且勿重複儀表板已列之同一讀數；**每則** `pricing_note` 見【華爾街級 Phase B】。
@@ -303,6 +305,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {_INSTITUTIONAL_VOICE_RULE}
         {_INSTITUTIONAL_PHASE_B_RULE}
         {_INSTITUTIONAL_PHASE_C_RULE}
+        {_INSTITUTIONAL_PHASE_D_RULE}
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段；勿再逐字複誦加密儀表板已給之 VIX/BTC 讀數，必要時指稱「見上方儀表板」。
@@ -362,6 +365,13 @@ _INSTITUTIONAL_PHASE_C_RULE = dedent("""\
     - `equity_valuation_framing`：2–4 句 ≤320 字——AI 權值相對大盤、盈利修正／利率對倍數壓力；勿發明儀表未列之精確本益比。
     - `event_calendar_lines`：**3–6 條**字串，每條 ≤96 字，**每條開頭須含日期**（`MM/DD` 或 `YYYY-MM-DD`）＋事件類型（財報/Fed/期權到期/解鎖等）；僅寫已公告或可核之日程，**禁止捏造**未證實日期。
     - **每筆** `trade_legs`（加密與美股，可執行腿）須填 `liquidity_execution_note`：一句 ≤100 字——ADV/買賣價差/大額可行性或建議限價區間（定性即可）；加密可寫主要所深度。
+    """)
+
+_INSTITUTIONAL_PHASE_D_RULE = dedent("""\
+    【華爾街級 Phase D｜複盤與假設狀態（CryptoSection 必填）】
+    - `prior_thesis_recap_lines`：**2–4 條**字串，每條 ≤100 字。對照管線在提示中提供之**【上期建議追蹤】**（若有）或前一日主命題：說明哪些已驗證、未驗證或遭反證；須引用具體標的／方向／進出場與現況對照，**禁止空泛**「大致符合」。若提示中無上期追蹤，首條須明說「無上期追蹤資料」並仍給 2–4 條當日可觀察之對照要點。
+    - `assumption_status_lines`：**2–4 條**字串，每條 ≤100 字；須與本日 `key_assumptions_lines` **條數一致**且**順序對應**，每條**必須**以下列三字面之一開頭（全形括號）後接簡短更新：
+      「（持續成立）」「（部分動搖）」「（已失效）」——說明相對昨日或新數據之變化。
     """)
 
 _EDITOR_RULE = dedent("""\

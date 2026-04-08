@@ -111,6 +111,8 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
         crypto.thesis_contrary_points,
         crypto.key_assumptions_lines,
         crypto.event_calendar_lines,
+        crypto.prior_thesis_recap_lines,
+        crypto.assumption_status_lines,
     ):
         for line in _lst:
             parts.append(str(line))

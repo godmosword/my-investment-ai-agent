@@ -98,6 +98,15 @@ _PHASE_C_HTML_FOR_GATE_TESTS = (
     "· 04/01 大型期權到期集中\n"
 )
 
+_PHASE_D_HTML_FOR_GATE_TESTS = (
+    "<b>【昨日命題複盤】</b>\n"
+    "· 對照上期 BTC LONG 進場與現價，結構仍偏多但未觸及目標。\n"
+    "· NVDA 財報前波動符合基準情境，主倉邏輯延續。\n"
+    "<b>【關鍵假設狀態】</b>\n"
+    "· （持續成立）利率路徑與市場隱含大致一致。\n"
+    "· （部分動搖）主要標的流動性仍足但買賣價差略擴。\n"
+)
+
 
 def _make_report(
     *,
@@ -116,6 +125,7 @@ def _make_report(
     include_phase_a_institutional: bool = True,
     include_phase_b_institutional: bool = False,
     include_phase_c_institutional: bool = False,
+    include_phase_d_institutional: bool = False,
     include_signal_conflict: bool = True,
     include_rumor_grade: bool = True,
     include_rr: bool = True,
@@ -209,7 +219,8 @@ def _make_report(
     phase_a = _PHASE_A_HTML_FOR_GATE_TESTS if include_phase_a_institutional else ""
     phase_b = _PHASE_B_HTML_FOR_GATE_TESTS if include_phase_b_institutional else ""
     phase_c = _PHASE_C_HTML_FOR_GATE_TESTS if include_phase_c_institutional else ""
-    body = news + exec_hdr + phase_a + phase_b + phase_c + joined + "\n" + extra
+    phase_d = _PHASE_D_HTML_FOR_GATE_TESTS if include_phase_d_institutional else ""
+    body = news + exec_hdr + phase_a + phase_b + phase_c + phase_d + joined + "\n" + extra
     # Pad to requested length
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
@@ -229,6 +240,9 @@ def _make_minimal_structured_report_dbr(
     event_calendar_lines: list[str] | None = None,
     trade_legs_crypto: list | None = None,
     trade_legs_ai: list | None = None,
+    key_assumptions_lines: list[str] | None = None,
+    prior_thesis_recap_lines: list[str] | None = None,
+    assumption_status_lines: list[str] | None = None,
 ):
     """Build minimal valid DailyBriefReport for structured gate tests."""
     from schemas import (
@@ -293,11 +307,17 @@ def _make_minimal_structured_report_dbr(
     _ecal = event_calendar_lines if event_calendar_lines is not None else []
     _tlc = trade_legs_crypto if trade_legs_crypto is not None else []
     _tla = trade_legs_ai if trade_legs_ai is not None else []
+    _key_ass = key_assumptions_lines if key_assumptions_lines is not None else []
+    _prior = prior_thesis_recap_lines if prior_thesis_recap_lines is not None else []
+    _ass_stat = assumption_status_lines if assumption_status_lines is not None else []
 
     crypto = CryptoSection(
         report_title_date="2026-03-24",
         market=MarketRegimeBlock(regime="risk_on"),
         narrative_of_day="BTC 上漲",
+        key_assumptions_lines=_key_ass,
+        prior_thesis_recap_lines=_prior,
+        assumption_status_lines=_ass_stat,
         portfolio_framing_summary=portfolio_framing_summary,
         scenario_probability_notes=scenario_probability_notes,
         crypto_cycle_valuation_notes=crypto_cycle_valuation_notes,
@@ -1695,6 +1715,7 @@ class TestStrictInstitutionalPhaseCHtmlGate(unittest.TestCase):
         t = _make_report(
             include_phase_b_institutional=True,
             include_phase_c_institutional=True,
+            include_phase_d_institutional=True,
         )
         r = validate_report(t)
         issues = r.get("issues") or []
@@ -1703,13 +1724,75 @@ class TestStrictInstitutionalPhaseCHtmlGate(unittest.TestCase):
 
     @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_C_GATE": "1"}, clear=False)
     def test_fails_when_phase_c_omitted(self):
-        t = _make_report(include_phase_b_institutional=True, include_phase_c_institutional=False)
+        t = _make_report(
+            include_phase_b_institutional=True,
+            include_phase_c_institutional=False,
+            include_phase_d_institutional=True,
+        )
         r = validate_report(t)
         issues = r.get("issues") or []
         self.assertTrue(
             any("加密週期" in i or "事件日曆" in i or "流動性" in i for i in issues),
             issues,
         )
+
+
+class TestStrictInstitutionalPhaseDHtmlGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_D_GATE": "1"}, clear=False)
+    def test_passes_when_phase_d_present(self):
+        t = _make_report(
+            include_phase_b_institutional=True,
+            include_phase_c_institutional=True,
+            include_phase_d_institutional=True,
+        )
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertFalse(any("昨日命題複盤" in i and "缺少" in i for i in issues), issues)
+        self.assertFalse(any("關鍵假設狀態" in i and "缺少" in i for i in issues), issues)
+
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_D_GATE": "1"}, clear=False)
+    def test_fails_when_phase_d_omitted(self):
+        t = _make_report(
+            include_phase_b_institutional=True,
+            include_phase_c_institutional=True,
+            include_phase_d_institutional=False,
+        )
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertTrue(any("昨日命題" in i or "關鍵假設狀態" in i for i in issues), issues)
+
+
+class TestStrictInstitutionalPhaseDStructuredGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_D_GATE": "1"}, clear=False)
+    def test_passes_with_matched_assumption_counts(self):
+        report = _make_minimal_structured_report_dbr(
+            portfolio_framing_summary="加密與美股雙軸測試敘述足夠長。",
+            scenario_probability_notes=(
+                "· 樂觀：a（機率 34%）\n· 基準：b（機率 33%）\n· 悲觀：c（機率 33%）"
+            ),
+            key_assumptions_lines=["假設甲：利率路徑", "假設乙：流動性"],
+            prior_thesis_recap_lines=[
+                "對照上期 BTC 多單，現價仍高於進場。",
+                "NVDA 波動區間符合基準情境。",
+            ],
+            assumption_status_lines=[
+                "（持續成立）隱含路徑未顯著偏離。",
+                "（部分動搖）買賣價差略擴但深度仍足。",
+            ],
+        )
+        res = validate_structured_report(report)
+        self.assertTrue(res["valid"], res["issues"])
+
+    def test_fails_when_status_count_mismatches_key_assumptions(self):
+        report = _make_minimal_structured_report_dbr(
+            key_assumptions_lines=["甲", "乙", "丙"],
+            prior_thesis_recap_lines=["一", "二"],
+            assumption_status_lines=["（持續成立）x", "（已失效）y"],
+        )
+        with patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_D_GATE": "1"}, clear=False):
+            res = validate_structured_report(report)
+        self.assertFalse(res["valid"])
+        self.assertTrue(any("一致" in i for i in res["issues"]))
 
 
 class TestStrictInstitutionalPhaseBHtmlGate(unittest.TestCase):
