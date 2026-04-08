@@ -161,6 +161,23 @@ def _source_health_table_id() -> str:
     return f"{PROJECT_ID}.q_silicon.source_health_stats"
 
 
+def _ensure_source_health_eauth_column(client: bigquery.Client, table_id: str) -> None:
+    """舊表缺 eauth 欄位時補上，避免 SELECT / INSERT 與程式假設不一致。"""
+    try:
+        table = client.get_table(table_id)
+    except NotFound:
+        return
+    except Exception as e:
+        logger.debug("source_health get_table for eauth migration: %s", e)
+        return
+    if any(f.name == "eauth" for f in table.schema):
+        return
+    try:
+        client.query(f"ALTER TABLE `{table_id}` ADD COLUMN IF NOT EXISTS eauth FLOAT64").result()
+    except Exception as e:
+        logger.debug("source_health ADD COLUMN eauth skipped: %s", e)
+
+
 def _merge_source_health_row(source: str, row: dict[str, float | str]) -> None:
     current = _SOURCE_HEALTH.get(source, {})
     current_updated_at_raw = str(current.get("updated_at", ""))
@@ -184,16 +201,30 @@ def _load_source_health_from_bigquery() -> None:
     try:
         client = _get_bq_client()
         table_id = _source_health_table_id()
-        query = f"""
+        _ensure_source_health_eauth_column(client, table_id)
+        query_full = f"""
             SELECT source, ok, fail, e429, e400, etimeout, e5xx, eauth, eother, updated_at
             FROM `{table_id}`
             QUALIFY ROW_NUMBER() OVER (PARTITION BY source ORDER BY updated_at DESC) = 1
         """
-        rows = list(client.query(query).result())
+        query_legacy = f"""
+            SELECT source, ok, fail, e429, e400, etimeout, e5xx, eother, updated_at
+            FROM `{table_id}`
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY source ORDER BY updated_at DESC) = 1
+        """
+        try:
+            rows = list(client.query(query_full).result())
+        except Exception as e:
+            err = str(e).lower()
+            if "eauth" in err or "unrecognized name" in err:
+                rows = list(client.query(query_legacy).result())
+            else:
+                raise
         for r in rows:
             source = str(r.get("source", ""))
             if source not in ("newsapi", "gnews", "apify"):
                 continue
+            eauth_val = r.get("eauth")
             _merge_source_health_row(
                 source,
                 {
@@ -203,7 +234,7 @@ def _load_source_health_from_bigquery() -> None:
                     "e400": max(float(r.get("e400") or 0.0), 0.0),
                     "etimeout": max(float(r.get("etimeout") or 0.0), 0.0),
                     "e5xx": max(float(r.get("e5xx") or 0.0), 0.0),
-                    "eauth": max(float(r.get("eauth") or 0.0), 0.0),
+                    "eauth": max(float(eauth_val if eauth_val is not None else 0.0), 0.0),
                     "eother": max(float(r.get("eother") or 0.0), 0.0),
                     "updated_at": str(r.get("updated_at") or ""),
                 },
@@ -224,6 +255,7 @@ def _save_source_health_to_bigquery() -> None:
     try:
         client = _get_bq_client()
         table_id = _source_health_table_id()
+        _ensure_source_health_eauth_column(client, table_id)
         schema = [
             bigquery.SchemaField("source", "STRING"),
             bigquery.SchemaField("ok", "FLOAT"),
@@ -1281,6 +1313,15 @@ def _coinglass_success(body: object) -> bool:
     return c == "0" or c == 0
 
 
+def _coinglass_plan_limited(body: object) -> bool:
+    """訂閱方案不含端點時常回 401 + Upgrade plan；屬預期情境，日誌用 debug。"""
+    if not isinstance(body, dict):
+        return False
+    code = str(body.get("code", ""))
+    msg = str(body.get("msg", "") or "").lower()
+    return code == "401" and ("upgrade" in msg or "plan" in msg)
+
+
 def _parse_coinglass_funding_rate(data: list, symbol: str = "BTC") -> str:
     """將資金費率 API 回傳解析為 Agent 友善文字。"""
     if not data or not isinstance(data, list):
@@ -1437,6 +1478,17 @@ def _binance_open_interest() -> str:
     return "[DATA_MISSING:open_interest] OI 暫無法取得（CoinGlass + Binance 均失敗）。"
 
 
+def _binance_futures_server_time_ms() -> int:
+    """與 Binance 伺服器對時，避免本機時鐘超前導致 startTime 在未來而 400。"""
+    try:
+        r = _http_get("https://fapi.binance.com/fapi/v1/time", timeout=6)
+        r.raise_for_status()
+        j = r.json()
+        return int(j.get("serverTime", 0))
+    except Exception:
+        return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+
 def _binance_liquidations(symbol: str = "BTC") -> str:
     """從 Binance 公開 API 取得過去 24h 強平訂單並加總（不需 API key）。
 
@@ -1445,7 +1497,8 @@ def _binance_liquidations(symbol: str = "BTC") -> str:
     """
     pair = f"{symbol}USDT"
     try:
-        since_ms = int((datetime.now(timezone.utc).timestamp() - 86400) * 1000)
+        now_ms = _binance_futures_server_time_ms()
+        since_ms = max(0, now_ms - 86400 * 1000)
         resp = _http_get(
             "https://fapi.binance.com/fapi/v1/allForceOrders",
             params={"symbol": pair, "limit": 1000, "startTime": since_ms},
@@ -1589,13 +1642,21 @@ def coinglass_data_tool(metric: str) -> str:
                 if response.status_code == 200:
                     body = _response_json_dict(response, "CoinGlass") or {}
                     if not _coinglass_success(body):
-                        logger.warning(
-                            "CoinGlass v4 non-success: code=%r msg=%r metric=%s symbol=%s",
-                            body.get("code"),
-                            body.get("msg"),
-                            metric_lower,
-                            symbol,
-                        )
+                        if _coinglass_plan_limited(body):
+                            logger.debug(
+                                "CoinGlass v4 plan-limited: metric=%s symbol=%s msg=%r",
+                                metric_lower,
+                                symbol,
+                                body.get("msg"),
+                            )
+                        else:
+                            logger.warning(
+                                "CoinGlass v4 non-success: code=%r msg=%r metric=%s symbol=%s",
+                                body.get("code"),
+                                body.get("msg"),
+                                metric_lower,
+                                symbol,
+                            )
                     if _coinglass_success(body):
                         try:
                             data = require_list(body, "data", source="CoinGlass")
@@ -1861,7 +1922,7 @@ def ml_quant_tool() -> str:
                 AVG(IF(sopr            IS NOT NULL, sopr,             NULL)) AS sopr,
                 AVG(IF(exchange_netflow IS NOT NULL, exchange_netflow, NULL)) AS exchange_netflow
             FROM `{METRICS_TABLE}`
-            WHERE timestamp >= @cutoff
+            WHERE DATE(timestamp) >= @cutoff
             GROUP BY date
             ORDER BY date ASC
         """
@@ -2076,11 +2137,17 @@ def regime_scorecard_tool(query: str = "") -> str:
             )
             body_v4 = _response_json_dict(resp_v4, "CoinGlass-liquidation")
             if body_v4 is not None and not _coinglass_success(body_v4):
-                logger.warning(
-                    "Regime scorecard: CoinGlass v4 liquidation non-success: code=%r msg=%r",
-                    body_v4.get("code"),
-                    body_v4.get("msg"),
-                )
+                if _coinglass_plan_limited(body_v4):
+                    logger.debug(
+                        "Regime scorecard: CoinGlass liquidation plan-limited: %r",
+                        body_v4.get("msg"),
+                    )
+                else:
+                    logger.warning(
+                        "Regime scorecard: CoinGlass v4 liquidation non-success: code=%r msg=%r",
+                        body_v4.get("code"),
+                        body_v4.get("msg"),
+                    )
             if body_v4 is not None and _coinglass_success(body_v4):
                 try:
                     data = require_list(body_v4, "data", source="CoinGlass-liquidation")
@@ -2310,12 +2377,19 @@ def _coinglass_etf_flow() -> str | None:
             if payload is None:
                 continue
             if not _coinglass_success(payload):
-                logger.warning(
-                    "CoinGlass ETF endpoint non-success: code=%r msg=%r url=%s",
-                    payload.get("code"),
-                    payload.get("msg"),
-                    endpoint,
-                )
+                if _coinglass_plan_limited(payload):
+                    logger.debug(
+                        "CoinGlass ETF plan-limited: %r url=%s",
+                        payload.get("msg"),
+                        endpoint,
+                    )
+                else:
+                    logger.warning(
+                        "CoinGlass ETF endpoint non-success: code=%r msg=%r url=%s",
+                        payload.get("code"),
+                        payload.get("msg"),
+                        endpoint,
+                    )
                 continue
             data = payload.get("data")
             if not isinstance(data, list) or len(data) < 2:
@@ -2345,7 +2419,7 @@ def _coinglass_etf_flow() -> str | None:
                 )
                 return header + "\n" + "\n".join(lines)
         except Exception as e:
-            logger.warning("CoinGlass ETF endpoint %s failed: %s", endpoint, e)
+            logger.debug("CoinGlass ETF endpoint %s failed: %s", endpoint, e)
     return None
 
 
@@ -2397,8 +2471,11 @@ def _sosovalue_etf_flow() -> str | None:
                     f"· 總淨流入：{total:+.1f}M USD"
                 )
                 return header + "\n" + "\n".join(lines)
+        except OSError as e:
+            # DNS / 網路不可達為預期備援路徑，降為 debug
+            logger.debug("SoSoValue ETF endpoint %s unreachable: %s", url, e)
         except Exception as e:
-            logger.warning("SoSoValue ETF endpoint %s failed: %s", url, e)
+            logger.debug("SoSoValue ETF endpoint %s failed: %s", url, e)
     return None
 
 
@@ -2481,7 +2558,7 @@ def econ_calendar_tool() -> str:
             try:
                 events = require_json_list(resp.json(), source="FMP-economic_calendar")
             except ValueError as e:
-                logger.warning("FMP economic_calendar: %s", e)
+                logger.debug("FMP economic_calendar JSON schema: %s", e)
                 events = []
 
             # 篩選高重要性 + 美國
@@ -2511,7 +2588,9 @@ def econ_calendar_tool() -> str:
             _set_cache(cache_key, result)
             return result
         except Exception as e:
-            logging.getLogger(__name__).warning("FMP economic calendar failed, falling back to Apify: %s", e)
+            logging.getLogger(__name__).info(
+                "FMP economic calendar unavailable, using Apify fallback: %s", e
+            )
 
     # ── 策略 B：Apify fallback ──
     try:
@@ -3314,7 +3393,7 @@ _EARNINGS_WATCHLIST = ["NVDA", "AMD", "MSFT", "GOOGL", "AAPL", "META", "AMZN", "
 def macro_context_tool(query: str = "") -> str:
     """
     取得宏觀投資框架數據：美債 10Y/2Y 殖利率、殖利率曲線利差、Fed SOFR 期貨隱含升降息預期、本週重要科技財報。
-    數據來源：yfinance（^TNX, 2YY=F, ZQ=F）+ FRED（DGS2 fallback）。
+    數據來源：yfinance（^TNX, 2YY=F, ZQ=F）+ FRED（DGS10／DGS2 備援）。
     """
 
     def _run() -> str:
@@ -3378,13 +3457,22 @@ def macro_context_tool(query: str = "") -> str:
                 if hasattr(c, "ndim") and c.ndim > 1:
                     c = c.iloc[:, 0]
                 if not c.empty:
-                    raw_10y = round(float(c.iloc[-1]), 3)
-                    if _YIELD_MIN <= raw_10y <= _YIELD_MAX:
-                        yield_10y = raw_10y
-                    else:
-                        logger.warning("macro_context 10Y yield out of bounds: %.3f%%", raw_10y)
+                    # 最後一日常因調整／報價異常飄高；往後掃最多 5 根再找合理區間
+                    for back in range(min(5, len(c))):
+                        idx = len(c) - 1 - back
+                        raw_10y = round(float(c.iloc[idx]), 3)
+                        if _YIELD_MIN <= raw_10y <= _YIELD_MAX:
+                            yield_10y = raw_10y
+                            break
         except Exception as e:
             logger.warning("macro_context 10Y yield yfinance failed: %s", e)
+
+        if yield_10y is None:
+            fred_10y = _fetch_latest_fred_percent("DGS10")
+            if fred_10y is not None and _YIELD_MIN <= fred_10y <= _YIELD_MAX:
+                yield_10y = fred_10y
+            elif fred_10y is not None:
+                logger.warning("macro_context FRED DGS10 out of bounds: %.3f%%", fred_10y)
 
         try:
             df2 = yf.download("2YY=F", period="5d", interval="1d", progress=False, auto_adjust=True)
@@ -3393,11 +3481,12 @@ def macro_context_tool(query: str = "") -> str:
                 if hasattr(c, "ndim") and c.ndim > 1:
                     c = c.iloc[:, 0]
                 if not c.empty:
-                    raw_2y = round(float(c.iloc[-1]), 3)
-                    if _YIELD_MIN <= raw_2y <= _YIELD_MAX:
-                        yield_2y = raw_2y
-                    else:
-                        logger.warning("macro_context 2Y yield out of bounds: %.3f%%", raw_2y)
+                    for back in range(min(5, len(c))):
+                        idx = len(c) - 1 - back
+                        raw_2y = round(float(c.iloc[idx]), 3)
+                        if _YIELD_MIN <= raw_2y <= _YIELD_MAX:
+                            yield_2y = raw_2y
+                            break
         except Exception as e:
             logger.warning("macro_context 2Y yield yfinance failed: %s", e)
         if yield_2y is None:

@@ -14,14 +14,16 @@
 - **Crew**：`crew.py` 新增 `_INSTITUTIONAL_PHASE_A_RULE` 並掛入加密結構化最終提示。
 
 ### Changed
+- [`README.md`](README.md)：全文重寫與重排（專案紅線、情境表、**雙軌研究引擎** Mermaid、**LangGraph**／`graph/`、`USE_LANGGRAPH_ENGINE`、機構 Phase A/B/C 可選 Gate 與 `ENV_TEMPLATE` 索引）；精簡重複段落並對齊現行模組、CI 與 PWA 說明。
 - [`report_render.py`](report_render.py)：`assemble_daily_brief_report` 組裝時將 **QSREC** 每筆可選 `regime` **強制對齊** `crypto.market.regime`（消除與【今日市場模式】主判定不一致的 warning）；並在主判定為 `neutral`／`risk_on` 時，修正 `us_equity_allocation_note` 內誤寫的 `（risk_off）` 括號為「對齊主判定：…」。
 - [`crew.py`](crew.py)：收斂 **AI 儀表板**（FinancialDatasets 以 NVDA+MSFT 為 anchor、其餘檔位上限行數；開源動能至多 2 行）；**AI 產業新聞**禁以加密／VIX 作主線、新聞新鮮度改 **36h**；QSREC 提示 **省略 `regime` 欄**（由管線對齊）。
 
 ### Tests
 - [`test_gate_coercions_smoke.py`](test_gate_coercions_smoke.py)：新增 `assemble` 對 QSREC regime 與美股部位框之 smoke 覆蓋。
 - [`test_validate_report.py`](test_validate_report.py)：`TestStrictInstitutionalPhaseAHtmlGate`、`TestStrictInstitutionalPhaseBHtmlGate`、`TestStrictInstitutionalPhaseBStructuredGate`、`TestStrictInstitutionalPhaseCHtmlGate`、`TestStrictInstitutionalPhaseCStructuredGate`；`_make_report` 可選 Phase B/C；`_make_minimal_structured_report_dbr` 含 `pricing_note` 與可選 Phase C 欄位。
-- [`test_smoke_pipeline.py`](test_smoke_pipeline.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)：最小報告字串補 Phase A+B+C、市場定價行與流動性註記。
+- [`test_smoke_pipeline.py`](test_smoke_pipeline.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)：最小報告字串補 Phase A+B+C、市場定價行與流動性註記；新聞括號時間改動態（`STRICT_NEWS_FRESHNESS_GATE=1` 時 smoke 仍過）。
 - [`test_report_render.py`](test_report_render.py)、[`test_news_freshness.py`](test_news_freshness.py)：樣本新聞 `pricing_note`；新鮮度測試視窗 36h；render 測試含 Phase C 欄位與 `liquidity_execution_note`。
+- [`conftest.py`](conftest.py)：BigQuery stub 補 `QueryJobConfig`（pick rotation／參數化查詢路徑不再因 stub 缺類別失敗）。
 
 ## 2026-04-07
 

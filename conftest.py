@@ -31,6 +31,7 @@ _STUB_CLASSES = {
         "Client",
         "SchemaField",
         "LoadJobConfig",
+        "QueryJobConfig",
         "ScalarQueryParameter",
         "SourceFormat",
         "WriteDisposition",

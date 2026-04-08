@@ -1,6 +1,19 @@
 """Pure-string minimal Telegram report skeleton for Gate dry-run (no main.py import)."""
 
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
 # Mirrors test_validate_report._make_report() defaults — keep in sync when Gate contract changes.
+
+
+def _fresh_news_bracket_labels(count: int, *, spread_minutes: int = 45) -> list[str]:
+    """MM/DD HH:MM UTC+8 labels within STRICT_NEWS_FRESHNESS_GATE window (default 36h)."""
+    tz = ZoneInfo("Asia/Hong_Kong")
+    base = datetime.now(tz) - timedelta(hours=6)
+    return [
+        (base + timedelta(minutes=i * spread_minutes)).strftime("%m/%d %H:%M UTC+8")
+        for i in range(count)
+    ]
 _PHASE_A_HTML = (
     "<blockquote>"
     "本電報內容僅為研究性質之市場摘要，<b>不構成</b>投資建議；<b>非</b>個人化勸誘；過去績效不預示未來。"
@@ -39,11 +52,12 @@ _PHASE_C_HTML = (
 
 
 def minimal_valid_report_text(*, length: int = 5000) -> str:
+    brackets = _fresh_news_bracket_labels(8)
     news = ""
     for i in range(1, 9):
         canon = "未定價／增量資訊" if i <= 3 else "大致已定價" if i <= 6 else "已高度反應"
         news += (
-            f"〔新聞 {i}〕[03/{i:02d} 10:00 UTC+8] 來源\n"
+            f"〔新聞 {i}〕[{brackets[i - 1]}] 來源\n"
             f"測試新聞標題 {i} 內容夠長超過十字元\n市場定價：{canon}\n\n"
         )
 

@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
 import pytest
 
 from main import sanitize_telegram_html, validate_report
@@ -5,7 +8,17 @@ from schemas import assert_sample_output
 from tools import _CACHE, _get_cache, _set_cache
 
 
+def _fresh_news_brackets_utc8(count: int) -> list[str]:
+    tz = ZoneInfo("Asia/Hong_Kong")
+    base = datetime.now(tz) - timedelta(hours=6)
+    return [
+        (base + timedelta(minutes=i * 45)).strftime("%m/%d %H:%M UTC+8")
+        for i in range(count)
+    ]
+
+
 def _minimal_valid_report() -> str:
+    b = _fresh_news_brackets_utc8(6)
     phase_a = (
         "<blockquote>研究摘要<b>不構成</b>投資建議<b>非</b>個人化勸誘過去績效不預示未來。</blockquote>\n"
         "<b>【投資命題】</b>\n主命題測試涵蓋加密與美股。\n"
@@ -32,12 +45,12 @@ def _minimal_valid_report() -> str:
         "· 03/26 FOMC\n"
         "· 04/01 期權到期\n"
     )
-    n1 = "〔新聞 1〕[03/01 10:00 UTC+8] A\n市場定價：未定價／增量資訊\n"
-    n2 = "〔新聞 2〕[03/01 11:00 UTC+8] B\n市場定價：大致已定價\n"
-    n3 = "〔新聞 3〕[03/01 12:00 UTC+8] C\n市場定價：已高度反應\n"
-    n4 = "〔新聞 4〕[03/01 13:00 UTC+8] D\n市場定價：未定價／增量資訊\n"
-    n5 = "〔新聞 5〕[03/01 14:00 UTC+8] E\n市場定價：大致已定價\n"
-    n6 = "〔新聞 6〕[03/01 15:00 UTC+8] F\n市場定價：已高度反應\n"
+    n1 = f"〔新聞 1〕[{b[0]}] A\n市場定價：未定價／增量資訊\n"
+    n2 = f"〔新聞 2〕[{b[1]}] B\n市場定價：大致已定價\n"
+    n3 = f"〔新聞 3〕[{b[2]}] C\n市場定價：已高度反應\n"
+    n4 = f"〔新聞 4〕[{b[3]}] D\n市場定價：未定價／增量資訊\n"
+    n5 = f"〔新聞 5〕[{b[4]}] E\n市場定價：大致已定價\n"
+    n6 = f"〔新聞 6〕[{b[5]}] F\n市場定價：已高度反應\n"
     return (
         phase_a
         + phase_b

@@ -17,6 +17,7 @@ _C = {
     "vix":  "#FF4444",
     "blue": "#00BFFF",
     "red":  "#FF6666",
+    "cyan": "#22d3ee",  # 與 dashboard COLORS 一致；Panel 4 資金費率軸用
 }
 
 
