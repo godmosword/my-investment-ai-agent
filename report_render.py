@@ -97,6 +97,8 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
             crypto.narrative_invalidation_summary,
             crypto.portfolio_framing_summary,
             crypto.scenario_probability_notes,
+            crypto.crypto_cycle_valuation_notes,
+            crypto.equity_valuation_framing,
             crypto.pick_reason,
             crypto.risk_budget_summary,
             crypto.signal_conflict_summary,
@@ -108,6 +110,7 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
         crypto.thesis_supporting_points,
         crypto.thesis_contrary_points,
         crypto.key_assumptions_lines,
+        crypto.event_calendar_lines,
     ):
         for line in _lst:
             parts.append(str(line))
@@ -122,6 +125,7 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
             leg.trigger,
             leg.invalidation,
             leg.narrative,
+            leg.liquidity_execution_note or "",
         ):
             parts.append(str(f))
     for leg in ai.trade_legs:
@@ -133,6 +137,7 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
             leg.trigger,
             leg.invalidation,
             leg.narrative,
+            leg.liquidity_execution_note or "",
         ):
             parts.append(str(f))
     for r in list(crypto.qsrec) + list(ai.qsrec):

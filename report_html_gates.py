@@ -96,6 +96,11 @@ def _strict_institutional_phase_b_html_gate() -> bool:
     return os.getenv("STRICT_INSTITUTIONAL_PHASE_B_GATE", "0").lower() in ("1", "true", "yes")
 
 
+def _strict_institutional_phase_c_html_gate() -> bool:
+    """華爾街級 Phase C：估值框架、事件日曆、可執行腿之流動性註記。STRICT_INSTITUTIONAL_PHASE_C_GATE=1 啟用。"""
+    return os.getenv("STRICT_INSTITUTIONAL_PHASE_C_GATE", "0").lower() in ("1", "true", "yes")
+
+
 def _span_after_heading(text: str, heading: str, max_chars: int = 2500) -> str:
     if heading not in text:
         return ""
@@ -185,6 +190,52 @@ def _institutional_phase_b_html_ok(text: str) -> tuple[bool, str]:
             return False, f"〔新聞 {i}〕缺少市場定價註記"
         if not any(canon in chunk for canon in _PRICING_NOTE_CANONICAL_HTML):
             return False, f"〔新聞 {i}〕市場定價須為「未定價／增量資訊」「大致已定價」「已高度反應」之一"
+    return True, ""
+
+
+_PHASE_C_CAL_DATE_RE = re.compile(
+    r"\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?"
+)
+
+
+def _institutional_phase_c_html_ok(text: str) -> tuple[bool, str]:
+    if not _strict_institutional_phase_c_html_gate():
+        return True, ""
+    if "<b>【加密週期與估值錨】</b>" not in text and "【加密週期與估值錨】" not in text:
+        return False, "缺少【加密週期與估值錨】區塊"
+    cyc_span = _span_after_heading(text, "【加密週期與估值錨】", max_chars=700)
+    if len(re.sub(r"<[^>]+>", " ", cyc_span).strip()) < 16:
+        return False, "【加密週期與估值錨】內文過短"
+    if "<b>【美股估值與修正框架】</b>" not in text and "【美股估值與修正框架】" not in text:
+        return False, "缺少【美股估值與修正框架】區塊"
+    eq_span = _span_after_heading(text, "【美股估值與修正框架】", max_chars=900)
+    if len(re.sub(r"<[^>]+>", " ", eq_span).strip()) < 24:
+        return False, "【美股估值與修正框架】內文過短"
+    if "<b>【近端事件日曆】</b>" not in text and "【近端事件日曆】" not in text:
+        return False, "缺少【近端事件日曆】區塊"
+    cal_span = _span_after_heading(text, "【近端事件日曆】", max_chars=1200)
+    cal_plain = re.sub(r"<[^>]+>", " ", cal_span)
+    cal_lines = [
+        ln.strip()
+        for ln in cal_plain.splitlines()
+        if ln.strip().startswith("·") or ln.strip().startswith("•")
+    ]
+    if not (3 <= len(cal_lines) <= 6):
+        return False, f"【近端事件日曆】須 3–6 條 · 行（當前 {len(cal_lines)}）"
+    for idx, ln in enumerate(cal_lines, start=1):
+        if not _PHASE_C_CAL_DATE_RE.search(ln):
+            return False, f"【近端事件日曆】第 {idx} 條須含可解析日期"
+    # 可執行交易腿：HTML 為 ｜現價：<code>；純文字骨架為 · $TICK (DIR)｜現價：
+    leg_markers = len(re.findall(r"｜現價：<code>", text))
+    if leg_markers == 0:
+        leg_markers = len(
+            re.findall(r"·\s*\$[A-Za-z0-9/.]+\s*\([^)]+\)｜現價：", text)
+        )
+    liq_markers = len(re.findall(r"流動性／執行", text))
+    if leg_markers > 0 and liq_markers < leg_markers:
+        return False, (
+            f"可執行交易腿須各附「流動性／執行」註記（腿數 {leg_markers}，流動性行 {liq_markers}）"
+        )
     return True, ""
 
 
@@ -1938,6 +1989,7 @@ def validate_report(text: str) -> dict:
     exec_summary_ok, exec_summary_err = _exec_summary_html_ok(text)
     phase_a_ok, phase_a_err = _institutional_phase_a_html_ok(text)
     phase_b_ok, phase_b_err = _institutional_phase_b_html_ok(text)
+    phase_c_ok, phase_c_err = _institutional_phase_c_html_ok(text)
     too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
     has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
@@ -2093,6 +2145,8 @@ def validate_report(text: str) -> dict:
         issues.append(phase_a_err)
     if not phase_b_ok:
         issues.append(phase_b_err)
+    if not phase_c_ok:
+        issues.append(phase_c_err)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if not has_rumor_grade:

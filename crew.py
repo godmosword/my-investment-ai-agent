@@ -249,6 +249,7 @@ def build_crypto_structured_final_prompt(
         {_INSTITUTIONAL_VOICE_RULE}
         {_INSTITUTIONAL_PHASE_A_RULE}
         {_INSTITUTIONAL_PHASE_B_RULE}
+        {_INSTITUTIONAL_PHASE_C_RULE}
 
         === 填入 CryptoSection 欄位 ===
         - report_title_date: 使用 {today_str}
@@ -257,13 +258,14 @@ def build_crypto_structured_final_prompt(
         - narrative_of_day：今日主敘事一句 ≤45 字。
         - investment_thesis_one_liner / thesis_supporting_points（3）/ thesis_contrary_points（3）/ key_assumptions_lines（2–4）/ narrative_invalidation_summary：見【華爾街級 Phase A】。
         - portfolio_framing_summary / scenario_probability_notes：見【華爾街級 Phase B】。
+        - crypto_cycle_valuation_notes / equity_valuation_framing / event_calendar_lines：見【華爾街級 Phase C】。
         - macro_framework_lines：≤4 行宏觀 bullet。
         - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。
         - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據，且勿重複儀表板已列之同一讀數；**每則** `pricing_note` 見【華爾街級 Phase B】。
         - x_highlights：選填；主題式摘要句，非 X 即時推文（見【區塊②b｜x_highlights】）。
         - chatter：2–3 則呢喃，含可信度與（未確認）。
         - pick_reason / risk_budget_summary / signal_conflict_summary：供區塊④，順序與 Gate 一致。
-        - trade_legs：若可執行則填 ExecutableTradeLeg（含 internal_reasoning + narrative）；asset 勿含 $；R:R 等放於 rr 等字串欄位。
+        - trade_legs：若可執行則填 ExecutableTradeLeg（含 internal_reasoning + narrative + **liquidity_execution_note**）；asset 勿含 $；R:R 等放於 rr 等字串欄位。
           star_rating 1–4。若無法給價則 trade_legs 留空（由管線渲染觀望模式）。
         - qsrec：與 trade_legs 方向一致；每筆含 internal_reasoning + narrative；category 僅 CRYPTO；數字欄位為 JSON number；填滿選分與 repeat_days 等 Gate 欄位；**`regime` 欄請省略**（管線會以 market.regime 對齊）。
 
@@ -300,6 +302,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {_THINK_SHOW_ZONE_RULE}
         {_INSTITUTIONAL_VOICE_RULE}
         {_INSTITUTIONAL_PHASE_B_RULE}
+        {_INSTITUTIONAL_PHASE_C_RULE}
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段；勿再逐字複誦加密儀表板已給之 VIX/BTC 讀數，必要時指稱「見上方儀表板」。
@@ -308,7 +311,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         - x_highlights：選填；主題式摘要（見【區塊②b｜x_highlights】）。
         - chatter：2–3 產業鏈呢喃含可信度。
         - pick_reason / signal_conflict_summary / us_equity_allocation_note：遵守 AI 段 Gate（不重複今日風險預算整行）。
-        - trade_legs：兩檔美股為主；每筆 internal_reasoning + narrative；star_rating 1–4；留空則渲染觀望。
+        - trade_legs：兩檔美股為主；每筆 internal_reasoning + narrative + **liquidity_execution_note**；star_rating 1–4；留空則渲染觀望。
         - qsrec：category 僅 EQUITY；與 trade_legs 對齊；每筆 internal_reasoning + narrative；**`regime` 欄請省略**（管線會以加密段 market.regime 對齊 JSON，避免與【今日市場模式】不一致）。
 
         嚴禁 DATA_MISSING 方括號標記字面；嚴禁 multi_timeframe_tool 字樣。
@@ -351,6 +354,14 @@ _INSTITUTIONAL_PHASE_B_RULE = dedent("""\
       三個百分比須為整數且**合計 100**。
     - **每則** news（index 1–6）須填 `pricing_note`，**僅能**為下列字面之一（與模板 `<code>` 完全一致）：
       「未定價／增量資訊」「大致已定價」「已高度反應」——用於標註該則相對盤面是否已 priced-in。
+    """)
+
+_INSTITUTIONAL_PHASE_C_RULE = dedent("""\
+    【華爾街級 Phase C｜估值錨、事件日曆、流動性（CryptoSection + trade_legs）】
+    - `crypto_cycle_valuation_notes`：1–3 句 ≤220 字——BTC 週期位置與鏈上估值錨（NVT/MVRV 等）對價格含義；數字須與加密儀表板一致。
+    - `equity_valuation_framing`：2–4 句 ≤320 字——AI 權值相對大盤、盈利修正／利率對倍數壓力；勿發明儀表未列之精確本益比。
+    - `event_calendar_lines`：**3–6 條**字串，每條 ≤96 字，**每條開頭須含日期**（`MM/DD` 或 `YYYY-MM-DD`）＋事件類型（財報/Fed/期權到期/解鎖等）；僅寫已公告或可核之日程，**禁止捏造**未證實日期。
+    - **每筆** `trade_legs`（加密與美股，可執行腿）須填 `liquidity_execution_note`：一句 ≤100 字——ADV/買賣價差/大額可行性或建議限價區間（定性即可）；加密可寫主要所深度。
     """)
 
 _EDITOR_RULE = dedent("""\

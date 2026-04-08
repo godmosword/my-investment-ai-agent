@@ -49,6 +49,20 @@
 {% endif %}
 {% endfor %}
 {% endif %}
+{% if crypto.crypto_cycle_valuation_notes %}
+<b>【加密週期與估值錨】</b>
+{{ crypto.crypto_cycle_valuation_notes|tg_escape }}
+{% endif %}
+{% if crypto.equity_valuation_framing %}
+<b>【美股估值與修正框架】</b>
+{{ crypto.equity_valuation_framing|tg_escape }}
+{% endif %}
+{% if crypto.event_calendar_lines %}
+<b>【近端事件日曆】</b>
+{% for line in crypto.event_calendar_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
 ────────────
 {% endif %}
 {% if previous_recs_html %}
@@ -121,6 +135,9 @@
 {% endif %}
 
 · <b>敘事</b>：{{ leg.narrative|tg_escape }}
+{% if leg.liquidity_execution_note %}
+· <b>流動性／執行</b>：{{ leg.liquidity_execution_note|tg_escape }}
+{% endif %}
 
 {% endfor %}
 {% else %}
@@ -191,6 +208,9 @@
 {% endif %}
 
 · <b>敘事</b>：{{ leg.narrative|tg_escape }}
+{% if leg.liquidity_execution_note %}
+· <b>流動性／執行</b>：{{ leg.liquidity_execution_note|tg_escape }}
+{% endif %}
 
 {% endfor %}
 {% else %}

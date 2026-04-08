@@ -111,6 +111,7 @@ def _sample_trade_leg(sym: str) -> ExecutableTradeLeg:
         bull_scenario="多頭：突破前高，目標 110",
         base_scenario="基礎：區間震盪，持倉觀望",
         bear_scenario="空頭：跌破 95 停損出場",
+        liquidity_execution_note="主要所深度足，建議限價分批。",
     )
 
 
@@ -606,6 +607,13 @@ def test_render_contains_qsrec_and_passes_structured_gate():
             "· 基準：震盪（機率 45%）\n"
             "· 悲觀：收縮（機率 25%）"
         ),
+        crypto_cycle_valuation_notes="NVT 與儀表板一致；週期位置測試。",
+        equity_valuation_framing="AI 權值溢價與利率壓力測試敘述。",
+        event_calendar_lines=[
+            "03/25 NVDA 財報",
+            "03/26 FOMC",
+            "04/01 期權到期",
+        ],
         macro_framework_lines=["宏觀一行"],
         dashboard=[MetricLine(label="DXY", value="104")],
         news=_sample_news_crypto(),
