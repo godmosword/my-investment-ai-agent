@@ -24,6 +24,19 @@ logger = logging.getLogger(__name__)
 # Stripped from Telegram [QSREC_START]…[QSREC_END] JSON (internal CoT only).
 QSREC_JSON_EXCLUDE_FIELDS: frozenset[str] = frozenset({"internal_reasoning"})
 
+# NewsItem.pricing_note — must match rendered prefix for Gate (Phase B).
+_PRICING_NOTE_CANONICAL: tuple[str, ...] = ("未定價／增量資訊", "大致已定價", "已高度反應")
+_PRICING_NOTE_ALIASES: dict[str, str] = {
+    "未定價": "未定價／增量資訊",
+    "增量資訊": "未定價／增量資訊",
+    "未定價/增量資訊": "未定價／增量資訊",
+    "priced in": "大致已定價",
+    "priced-in": "大致已定價",
+    "已定價": "大致已定價",
+    "高度反應": "已高度反應",
+    "已反應": "已高度反應",
+}
+
 _NARRATIVE_FEW_SHOT = (
     "【風格】主詞或數據開頭，結論收束；冷靜俐落。"
     "❌「因為今天 VIX 飆升到 29.39 且期限倒掛，市場很恐慌，所以我們建議做空微軟避險，倉位約 1.5%。」"
@@ -337,6 +350,14 @@ class NewsItem(BaseModel):
             "Jinja 不會渲染此欄。summary／investment_takeaway／editor_consensus 僅寫展示用洗練句。"
         ),
     )
+    pricing_note: str = Field(
+        default="",
+        description=(
+            "市場定價註記（三擇一，須與模板「市場定價：」後文字完全一致）："
+            "「未定價／增量資訊」「大致已定價」「已高度反應」。"
+            "說明該則事件相對盤面是否已 priced-in。"
+        ),
+    )
 
     @field_validator("internal_reasoning", mode="before")
     @classmethod
@@ -351,6 +372,26 @@ class NewsItem(BaseModel):
         if isinstance(v, str):
             return ensure_news_timestamp_line_utc8(v)
         return v
+
+    @field_validator("pricing_note", mode="before")
+    @classmethod
+    def _scrub_pricing_note(cls, v: object) -> object:
+        if v is None:
+            return ""
+        if not isinstance(v, str):
+            s = str(v).strip()
+        else:
+            s = _strip_prompt_instruction_echoes(v).strip()
+        if not s:
+            return ""
+        if s in _PRICING_NOTE_CANONICAL:
+            return s
+        low = s.lower()
+        for alias, canon in _PRICING_NOTE_ALIASES.items():
+            if alias.lower() in low:
+                return canon
+        logger.warning("NewsItem.pricing_note unrecognized %r; clearing for Gate to catch", s)
+        return ""
 
 
 class MetricLine(BaseModel):
@@ -727,6 +768,21 @@ class CryptoSection(BaseModel):
             "說明何種證據若出現則本日主命題需重估。"
         ),
     )
+    portfolio_framing_summary: str = Field(
+        default="",
+        description=(
+            "【組合與曝險框架】2–4 句 ≤280 字：加密／美股合計總曝險意圖、淨方向、"
+            "與 SPY／BTC 相關性直覺、是否對沖；禁內部標籤。"
+        ),
+    )
+    scenario_probability_notes: str = Field(
+        default="",
+        description=(
+            "【三情境機率】恰好三行（換行分隔），每行 ≤72 字，格式："
+            "· 樂觀：…（機率 xx%）／· 基準：…（xx%）／· 悲觀：…（xx%）；"
+            "三機率須為整數百分比且合計 100%。"
+        ),
+    )
     market: MarketRegimeBlock
     narrative_of_day: str = Field(
         ...,
@@ -791,6 +847,8 @@ class CryptoSection(BaseModel):
     @field_validator(
         "investment_thesis_one_liner",
         "narrative_invalidation_summary",
+        "portfolio_framing_summary",
+        "scenario_probability_notes",
         mode="before",
     )
     @classmethod
@@ -1047,6 +1105,8 @@ def _structured_business_issues(report: "DailyBriefReport") -> list[str]:
     _check_section_alignment(ai_sec, "EQUITY", "AI")
     if os.getenv("STRICT_INSTITUTIONAL_PHASE_A_GATE", "0").lower() in ("1", "true", "yes"):
         issues.extend(_institutional_phase_a_structured_issues(cr))
+    if os.getenv("STRICT_INSTITUTIONAL_PHASE_B_GATE", "0").lower() in ("1", "true", "yes"):
+        issues.extend(_institutional_phase_b_structured_issues(cr, ai_sec))
     return issues
 
 
@@ -1070,6 +1130,56 @@ def _institutional_phase_a_structured_issues(cr: CryptoSection) -> list[str]:
     if not (cr.narrative_invalidation_summary or "").strip():
         out.append("結構化缺少敘事失效（narrative_invalidation_summary）")
     return out
+
+
+def _institutional_phase_b_structured_issues(cr: CryptoSection, ai_sec: AISection) -> list[str]:
+    """When STRICT_INSTITUTIONAL_PHASE_B_GATE=1, require Phase B blocks."""
+    out: list[str] = []
+    if not (cr.portfolio_framing_summary or "").strip():
+        out.append("結構化缺少組合與曝險框架（portfolio_framing_summary）")
+    probs, perr = _parse_scenario_probability_notes(cr.scenario_probability_notes or "")
+    if perr:
+        out.extend(perr)
+    elif probs is not None and sum(probs) != 100:
+        out.append(f"三情境機率合計須為 100%（當前合計 {sum(probs)}）")
+    for label, items in (("加密", cr.news), ("AI", ai_sec.news)):
+        for n in items:
+            pn = (n.pricing_note or "").strip()
+            if pn not in _PRICING_NOTE_CANONICAL:
+                out.append(
+                    f"{label}新聞〔{n.index}〕pricing_note 須為「未定價／增量資訊」「大致已定價」「已高度反應」之一"
+                )
+    return out
+
+
+def _parse_scenario_probability_notes(raw: str) -> tuple[list[int] | None, list[str]]:
+    """Parse bull/base/bear percentages from scenario_probability_notes; return (percents, error messages)."""
+    err: list[str] = []
+    text = (raw or "").strip()
+    if not text:
+        return None, ["結構化缺少三情境機率（scenario_probability_notes）"]
+    lines = [ln.strip() for ln in text.replace("\r\n", "\n").split("\n") if ln.strip()]
+    if len(lines) < 3:
+        return None, [f"三情境機率須恰好 3 行（當前 {len(lines)}）"]
+    lines = lines[:3]
+    pct_re = re.compile(r"(?:機率|概率)[：:\s]*(\d{1,3})\s*%|（\s*(\d{1,3})\s*%）|\(\s*(\d{1,3})\s*%\s*\)")
+    found: list[int] = []
+    for i, ln in enumerate(lines, start=1):
+        m = pct_re.search(ln)
+        if not m:
+            err.append(f"三情境機率第 {i} 行須含「機率 xx%」或「（xx%）」")
+            continue
+        g = m.groups()
+        p = int(next(x for x in g if x is not None))
+        if not (0 <= p <= 100):
+            err.append(f"三情境機率第 {i} 行百分比須 0–100")
+            continue
+        found.append(p)
+    if err:
+        return None, err
+    if len(found) != 3:
+        return None, ["三情境機率須每行可解析一個百分比"]
+    return found, []
 
 
 class DailyBriefReport(BaseModel):

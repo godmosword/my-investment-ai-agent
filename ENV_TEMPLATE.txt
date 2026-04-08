@@ -78,7 +78,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # SKIP_BIGQUERY=0
 # PIPELINE_STRICT_ENV=0   # 1=生產／排程硬擋：未 SKIP_TELEGRAM 須 TELEGRAM_BOT_TOKEN+CHAT_ID；未 SKIP_BIGQUERY 須 GCP_PROJECT_ID 與 GCP_SA_KEY 或 GOOGLE_APPLICATION_CREDENTIALS
 # STRICT_NEWS_FRESHNESS_GATE=0   # 排程／生產建議=1（見 docs/DEPLOY_RUNBOOK.md）；1=新聞時間戳須落在報告時間前 NEWS_FRESHNESS_WINDOW_HOURS 小時內
-# NEWS_FRESHNESS_WINDOW_HOURS=48
+# NEWS_FRESHNESS_WINDOW_HOURS=36   # 預設 36h（與 crew 新聞新鮮度一致）；可改 48
 # NEWS_FRESHNESS_SOURCE_WHITELIST=FRED,IMF   # 行內含關鍵字則略過該則新鮮度檢查（逗號分隔，大小寫不敏感）
 # PIPELINE_REPORT_DATE=   # YYYY-MM-DD：新聞新鮮度以該日 HKT 23:59:59 為參考；並注入 crew exclusion 開頭
 # REPORT_COMPARE_MODE=0   # Phase 3：1=每次 validate 後額外跑候選路徑並 log 差異（不切 Telegram/BQ 決策）
@@ -117,6 +117,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # STRICT_EXEC_SUMMARY_HTML_GATE=0   # 1=HTML 須含【執行摘要】且至少 2 條要點（·／→ 等）
 # STRICT_INSTITUTIONAL_PHASE_A_GATE=0  # 1=HTML 須含機構免責 blockquote、【投資命題】、支持/反駁各≥3 條·、【關鍵假設】2–4 條、【敘事失效】（blocking）；預設關閉
 # 結構化契約：同上開關=1 時 DailyBriefReport 亦要求 CryptoSection 填滿 investment_thesis_one_liner 等欄位（見 schemas._institutional_phase_a_structured_issues）
+# STRICT_INSTITUTIONAL_PHASE_B_GATE=0  # 1=HTML 須含【組合與曝險框架】、【三情境機率】（三行·、機率合計100%）、〔新聞 1–6〕各行「市場定價：」+ 三擇一字面；結構化同時要求 portfolio_framing_summary、scenario_probability_notes、每則 NewsItem.pricing_note
 # MIN_TOOL_CALLS_PER_PIPELINE=0     # >0 且本輪 traced 工具呼叫低於此值則拋錯重試（建議 SCRATCHPAD_ENABLED=1）
 # STRICT_PAIR_TRADE_UNIT_GATE=0     # 1=配對交易單位機檢升格為 blocking
 # STRICT_MACRO_CONFLICT_GATE=0      # 1=宏觀 2Y/利差矛盾升格 blocking

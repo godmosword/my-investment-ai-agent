@@ -37,6 +37,18 @@
 <b>【敘事失效】</b>
 {{ crypto.narrative_invalidation_summary|tg_escape }}
 {% endif %}
+{% if crypto.portfolio_framing_summary %}
+<b>【組合與曝險框架】</b>
+{{ crypto.portfolio_framing_summary|tg_escape }}
+{% endif %}
+{% if crypto.scenario_probability_notes %}
+<b>【三情境機率】</b>
+{% for line in crypto.scenario_probability_notes.split('\n') %}
+{% if line.strip() %}
+· {{ line.strip()|tg_escape }}
+{% endif %}
+{% endfor %}
+{% endif %}
 ────────────
 {% endif %}
 {% if previous_recs_html %}
@@ -69,6 +81,9 @@
 <blockquote>{{ n.summary|tg_escape }}</blockquote>
 <i>投資解讀</i>：{{ n.investment_takeaway|tg_escape }}
 <i>💎主編共識</i>：{{ n.editor_consensus|tg_escape }}
+{% if n.pricing_note %}
+<i>市場定價</i>：<code>{{ n.pricing_note|tg_escape }}</code>
+{% endif %}
 
 {% endfor %}
 {% if crypto.x_highlights %}
@@ -134,6 +149,9 @@
 <blockquote>{{ n.summary|tg_escape }}</blockquote>
 <i>投資解讀</i>：{{ n.investment_takeaway|tg_escape }}
 <i>💎主編共識</i>：{{ n.editor_consensus|tg_escape }}
+{% if n.pricing_note %}
+<i>市場定價</i>：<code>{{ n.pricing_note|tg_escape }}</code>
+{% endif %}
 
 {% endfor %}
 {% if ai.x_highlights %}

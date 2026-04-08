@@ -65,11 +65,11 @@ def _strict_news_freshness_gate() -> bool:
 
 
 def _news_freshness_window_hours() -> int:
-    """新鮮度視窗（小時），預設 48。可由 NEWS_FRESHNESS_WINDOW_HOURS 覆蓋。"""
+    """新鮮度視窗（小時），預設 36（與 crew 新聞新鮮度一致）。可由 NEWS_FRESHNESS_WINDOW_HOURS 覆蓋。"""
     try:
-        return int(os.getenv("NEWS_FRESHNESS_WINDOW_HOURS", "48"))
+        return int(os.getenv("NEWS_FRESHNESS_WINDOW_HOURS", "36"))
     except ValueError:
-        return 48
+        return 36
 
 
 # 允許不受新鮮度檢查的來源白名單（例如長期基本面數據源）。
@@ -89,6 +89,11 @@ def _strict_exec_summary_html_gate() -> bool:
 def _strict_institutional_phase_a_html_gate() -> bool:
     """華爾街級 Phase A：免責聲明、投資命題、支持/反駁/假設/敘事失效區塊。STRICT_INSTITUTIONAL_PHASE_A_GATE=1 啟用。"""
     return os.getenv("STRICT_INSTITUTIONAL_PHASE_A_GATE", "0").lower() in ("1", "true", "yes")
+
+
+def _strict_institutional_phase_b_html_gate() -> bool:
+    """華爾街級 Phase B：組合框架、三情境機率、每則新聞市場定價註記。STRICT_INSTITUTIONAL_PHASE_B_GATE=1 啟用。"""
+    return os.getenv("STRICT_INSTITUTIONAL_PHASE_B_GATE", "0").lower() in ("1", "true", "yes")
 
 
 def _span_after_heading(text: str, heading: str, max_chars: int = 2500) -> str:
@@ -138,6 +143,48 @@ def _institutional_phase_a_html_ok(text: str) -> tuple[bool, str]:
     inv_span = _span_after_heading(text, "【敘事失效】", max_chars=600)
     if not re.sub(r"<[^>]+>", " ", inv_span).strip():
         return False, "【敘事失效】內文為空"
+    return True, ""
+
+
+_PRICING_NOTE_CANONICAL_HTML: tuple[str, ...] = ("未定價／增量資訊", "大致已定價", "已高度反應")
+
+
+def _institutional_phase_b_html_ok(text: str) -> tuple[bool, str]:
+    if not _strict_institutional_phase_b_html_gate():
+        return True, ""
+    if "<b>【組合與曝險框架】</b>" not in text and "【組合與曝險框架】" not in text:
+        return False, "缺少【組合與曝險框架】區塊"
+    pf_span = _span_after_heading(text, "【組合與曝險框架】", max_chars=900)
+    if len(re.sub(r"<[^>]+>", " ", pf_span).strip()) < 24:
+        return False, "【組合與曝險框架】內文過短"
+    if "<b>【三情境機率】</b>" not in text and "【三情境機率】" not in text:
+        return False, "缺少【三情境機率】區塊"
+    scen_span = _span_after_heading(text, "【三情境機率】", max_chars=900)
+    scen_plain = re.sub(r"<[^>]+>", " ", scen_span)
+    pct_re = re.compile(r"(?:機率|概率)[：:\s]*(\d{1,3})\s*%|（\s*(\d{1,3})\s*%）|\(\s*(\d{1,3})\s*%\s*\)")
+    pcts: list[int] = []
+    for ln in scen_plain.splitlines():
+        ln = ln.strip()
+        if not ln.startswith("·") and not ln.startswith("•"):
+            continue
+        m = pct_re.search(ln)
+        if not m:
+            continue
+        g = m.groups()
+        pcts.append(int(next(x for x in g if x is not None)))
+    if len(pcts) != 3:
+        return False, "【三情境機率】須 3 條 · 行且每行含可解析之 xx%"
+    if sum(pcts) != 100:
+        return False, f"【三情境機率】三行百分比須合計 100（當前 {sum(pcts)}）"
+    for i in range(1, 7):
+        m = re.search(rf"〔新聞\s*{i}〕([\s\S]*?)(?=〔新聞\s*\d+〕|$)", text)
+        if not m:
+            return False, f"缺少〔新聞 {i}〕區塊（Phase B 市場定價檢查）"
+        chunk = strip_html(m.group(1))
+        if "市場定價" not in chunk:
+            return False, f"〔新聞 {i}〕缺少市場定價註記"
+        if not any(canon in chunk for canon in _PRICING_NOTE_CANONICAL_HTML):
+            return False, f"〔新聞 {i}〕市場定價須為「未定價／增量資訊」「大致已定價」「已高度反應」之一"
     return True, ""
 
 
@@ -1890,6 +1937,7 @@ def validate_report(text: str) -> dict:
     )
     exec_summary_ok, exec_summary_err = _exec_summary_html_ok(text)
     phase_a_ok, phase_a_err = _institutional_phase_a_html_ok(text)
+    phase_b_ok, phase_b_err = _institutional_phase_b_html_ok(text)
     too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
     has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
@@ -2043,6 +2091,8 @@ def validate_report(text: str) -> dict:
         issues.append(exec_summary_err)
     if not phase_a_ok:
         issues.append(phase_a_err)
+    if not phase_b_ok:
+        issues.append(phase_b_err)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if not has_rumor_grade:

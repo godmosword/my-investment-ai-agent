@@ -31,7 +31,7 @@ def test_news_freshness_within_window_passes():
     ref = datetime(2025, 3, 25, 12, 0, tzinfo=timezone.utc)
     with patch.dict(
         os.environ,
-        {"STRICT_NEWS_FRESHNESS_GATE": "1", "NEWS_FRESHNESS_WINDOW_HOURS": "48"},
+        {"STRICT_NEWS_FRESHNESS_GATE": "1", "NEWS_FRESHNESS_WINDOW_HOURS": "36"},
         clear=False,
     ):
         ok, err = _check_news_freshness(text, report_dt=ref)
@@ -45,7 +45,7 @@ def test_news_freshness_stale_fails():
     ref = datetime(2025, 3, 25, 12, 0, tzinfo=timezone.utc)
     with patch.dict(
         os.environ,
-        {"STRICT_NEWS_FRESHNESS_GATE": "1", "NEWS_FRESHNESS_WINDOW_HOURS": "48"},
+        {"STRICT_NEWS_FRESHNESS_GATE": "1", "NEWS_FRESHNESS_WINDOW_HOURS": "36"},
         clear=False,
     ):
         ok, err = _check_news_freshness(text, report_dt=ref)
@@ -61,7 +61,7 @@ def test_news_freshness_whitelist_skips_stale_line():
         os.environ,
         {
             "STRICT_NEWS_FRESHNESS_GATE": "1",
-            "NEWS_FRESHNESS_WINDOW_HOURS": "48",
+            "NEWS_FRESHNESS_WINDOW_HOURS": "36",
             "NEWS_FRESHNESS_SOURCE_WHITELIST": "FRED",
         },
         clear=False,

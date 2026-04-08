@@ -248,6 +248,7 @@ def build_crypto_structured_final_prompt(
         {_THINK_SHOW_ZONE_RULE}
         {_INSTITUTIONAL_VOICE_RULE}
         {_INSTITUTIONAL_PHASE_A_RULE}
+        {_INSTITUTIONAL_PHASE_B_RULE}
 
         === 填入 CryptoSection 欄位 ===
         - report_title_date: 使用 {today_str}
@@ -255,9 +256,10 @@ def build_crypto_structured_final_prompt(
         - market.regime / score_suffix / scorecard_lines：承接上一任務評分卡，regime 僅 risk_on|risk_off|neutral。
         - narrative_of_day：今日主敘事一句 ≤45 字。
         - investment_thesis_one_liner / thesis_supporting_points（3）/ thesis_contrary_points（3）/ key_assumptions_lines（2–4）/ narrative_invalidation_summary：見【華爾街級 Phase A】。
+        - portfolio_framing_summary / scenario_probability_notes：見【華爾街級 Phase B】。
         - macro_framework_lines：≤4 行宏觀 bullet。
         - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。
-        - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據，且勿重複儀表板已列之同一讀數。
+        - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據，且勿重複儀表板已列之同一讀數；**每則** `pricing_note` 見【華爾街級 Phase B】。
         - x_highlights：選填；主題式摘要句，非 X 即時推文（見【區塊②b｜x_highlights】）。
         - chatter：2–3 則呢喃，含可信度與（未確認）。
         - pick_reason / risk_budget_summary / signal_conflict_summary：供區塊④，順序與 Gate 一致。
@@ -297,11 +299,12 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {_HIT_STOP_STRATEGIST_RULE}
         {_THINK_SHOW_ZONE_RULE}
         {_INSTITUTIONAL_VOICE_RULE}
+        {_INSTITUTIONAL_PHASE_B_RULE}
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段；勿再逐字複誦加密儀表板已給之 VIX/BTC 讀數，必要時指稱「見上方儀表板」。
         - dashboard：AI 儀表板 MetricLine；**順序建議**：yfinance 族群（ai_sector_market_tool）→ FinancialDatasets（**NVDA+MSFT 各≥2 行**；其餘 watchlist 每檔≤3 行）→ ai_momentum（**≤2 行**）。yfinance 列 label 須含 ticker 與「yfinance」。
-        - news：3 則 index 4–6，格式同加密新聞；investment_takeaway 勿重複儀表板已列之同一讀數。
+        - news：3 則 index 4–6，格式同加密新聞；investment_takeaway 勿重複儀表板已列之同一讀數；**每則** `pricing_note` 見【華爾街級 Phase B】。
         - x_highlights：選填；主題式摘要（見【區塊②b｜x_highlights】）。
         - chatter：2–3 產業鏈呢喃含可信度。
         - pick_reason / signal_conflict_summary / us_equity_allocation_note：遵守 AI 段 Gate（不重複今日風險預算整行）。
@@ -336,6 +339,18 @@ _INSTITUTIONAL_PHASE_A_RULE = dedent("""\
     - `key_assumptions_lines`：**2–4 條**字串，每條 ≤80 字（利率路徑、盈利共識、流動性、資料可得性等）。
     - `narrative_invalidation_summary`：1–2 句 ≤160 字——**敘事級**失效條件（非單筆進場停損）：何種證據若出現則須重估本日主命題。
     - 免責聲明由管線固定注入 Telegram，**勿**在 JSON 內自行撰寫長段法律免責。
+    """)
+
+_INSTITUTIONAL_PHASE_B_RULE = dedent("""\
+    【華爾街級 Phase B｜組合、機率與新聞定價（CryptoSection + 每則 NewsItem）】
+    - `portfolio_framing_summary`：2–4 句 ≤280 字——加密＋美股合計曝險意圖、淨方向、與 SPY／BTC 相關性直覺、是否對沖（無對沖亦須明說）。
+    - `scenario_probability_notes`：**恰好三行**（字串內換行），每行 ≤72 字，格式示例：
+      · 樂觀：…（機率 30%）
+      · 基準：…（機率 45%）
+      · 悲觀：…（機率 25%）
+      三個百分比須為整數且**合計 100**。
+    - **每則** news（index 1–6）須填 `pricing_note`，**僅能**為下列字面之一（與模板 `<code>` 完全一致）：
+      「未定價／增量資訊」「大致已定價」「已高度反應」——用於標註該則相對盤面是否已 priced-in。
     """)
 
 _EDITOR_RULE = dedent("""\
@@ -378,6 +393,7 @@ _NEWS_FMT = dedent("""\
     - **AI 產業新聞（index 4–6）**：**三則須為 AI／雲端／半導體供應鏈或模型基建之獨立事件**；**禁止**以加密資產盤面、VIX 期限結構或純 BTC 技術面作為任一則之主標題或主摘要（跨市場傳導僅可於 `internal_reasoning` 一句帶過，**不得**作為 `investment_takeaway` 主數字錨點）。`investment_takeaway` 的**主數字錨點**必須來自 **AI 區塊①**（優先 **yfinance 族群** 之收盤或 1D／5D%；次選 FinancialDatasets 營收／同比%／FCF；再次 HuggingFace 下載／按讚）。**禁止**以 **BTC／ETH／SOL 現價、BTC RSI、VIX、DXY** 等精確數字作為主論據（該類讀數屬加密段或「宏觀連結」）；**SPY 若已列於 AI 區塊① yfinance 列**可作為主錨點之一。**禁止**以未出現在 AI 區塊①的 SPY 數字當主論據。
     - **validate_report「投資解讀量化」**：渲染為 `<i>投資解讀</i>：…`；**同一段落內**須有至少一個數字錨點（可為負數費率如 -0.0008%、多空比、Put/Call、金額）；僅「見儀表板」而無任何數字會觸發 Gate。
     - editor_consensus：1 句（≤28 字）且點名具體標的。
+    - **pricing_note（Phase B）**：每則必填，僅能為「未定價／增量資訊」「大致已定價」「已高度反應」之一；標註該事件相對現價是否已充分反應。
     - **跨板塊新聞**：單則若同時涉及加密與美股／AI，必須一句寫明傳導鏈（風險偏好、資金流、beta 等）；禁止無機制硬接。
     - 禁止輸出任何 HTML/Markdown 標籤與排版符號，僅輸出可映射 schema 的純文字欄位值。""")
 

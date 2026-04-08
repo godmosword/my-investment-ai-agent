@@ -18,6 +18,8 @@ from report_html_gates import (
     _risk_off_narrative_violations,
 )
 
+from schemas import validate_structured_report
+
 from main import (
     validate_report,
     strip_html,
@@ -73,6 +75,16 @@ _PHASE_A_HTML_FOR_GATE_TESTS = (
     "若通膨預期顯著重訂或現貨 ETF 資金流持續逆轉，應重估本日主命題。\n"
 )
 
+_PHASE_B_HTML_FOR_GATE_TESTS = (
+    "<b>【組合與曝險框架】</b>\n"
+    "加密與美股合計採風險預算內雙軸配置；淨曝險偏多但保留宏觀對沖空間；"
+    "與 SPY 相關性中高、與 BTC 同向風險偏好；未使用額外衍生對沖僅以倉位縮放管理。\n"
+    "<b>【三情境機率】</b>\n"
+    "· 樂觀：風險資產延續（機率 30%）\n"
+    "· 基準：區間震盪（機率 45%）\n"
+    "· 悲觀：流動性收縮（機率 25%）\n"
+)
+
 
 def _make_report(
     *,
@@ -89,6 +101,7 @@ def _make_report(
     include_source_health: bool = True,
     include_exec_summary: bool = True,
     include_phase_a_institutional: bool = True,
+    include_phase_b_institutional: bool = False,
     include_signal_conflict: bool = True,
     include_rumor_grade: bool = True,
     include_rr: bool = True,
@@ -99,7 +112,19 @@ def _make_report(
 ) -> str:
     news = ""
     for i in range(1, news_count + 1):
-        news += f"〔新聞 {i}〕[03/{i:02d} 10:00 UTC+8] 來源\n測試新聞標題 {i} 內容夠長超過十字元\n\n"
+        pricing_line = ""
+        if include_phase_b_institutional:
+            if i <= 3:
+                canon = "未定價／增量資訊"
+            elif i <= 6:
+                canon = "大致已定價"
+            else:
+                canon = "已高度反應"
+            pricing_line = f"\n市場定價：{canon}"
+        news += (
+            f"〔新聞 {i}〕[03/{i:02d} 10:00 UTC+8] 來源\n"
+            f"測試新聞標題 {i} 內容夠長超過十字元{pricing_line}\n\n"
+        )
 
     sections = [f"【今日市場模式】 {regime}"]
     if include_dashboard:
@@ -162,11 +187,111 @@ def _make_report(
             "→ 測試摘要乙：美股以 NVDA 財報催化為主軸\n\n"
         )
     phase_a = _PHASE_A_HTML_FOR_GATE_TESTS if include_phase_a_institutional else ""
-    body = news + exec_hdr + phase_a + joined + "\n" + extra
+    phase_b = _PHASE_B_HTML_FOR_GATE_TESTS if include_phase_b_institutional else ""
+    body = news + exec_hdr + phase_a + phase_b + joined + "\n" + extra
     # Pad to requested length
     if len(body) < length:
         body += "\n" + "x" * (length - len(body))
     return body
+
+
+def _make_minimal_structured_report_dbr(
+    *,
+    crypto_news: int = 3,
+    ai_news: int = 3,
+    has_qsrec_recs: bool = True,
+    partial_tier: bool = False,
+    portfolio_framing_summary: str = "",
+    scenario_probability_notes: str = "",
+):
+    """Build minimal valid DailyBriefReport for structured gate tests."""
+    from schemas import (
+        AISection,
+        CryptoSection,
+        DailyBriefReport,
+        MarketRegimeBlock,
+        MetricLine,
+        NewsItem,
+        TradeRecommendation,
+    )
+
+    _pn_cycle = ("未定價／增量資訊", "大致已定價", "已高度反應")
+
+    def _ni(idx: int) -> NewsItem:
+        return NewsItem(
+            index=idx,
+            timestamp_line=f"[03/{idx:02d} 10:00 UTC+8]",
+            title=f"Headline {idx}",
+            source_and_nature="Source confirmed",
+            summary=f"Summary line {idx}.",
+            investment_takeaway=f"BTC RSI 55, takeaway {idx}.",
+            editor_consensus="Positive on BTC.",
+            pricing_note=_pn_cycle[(idx - 1) % 3],
+        )
+
+    _scores = {
+        "selection_score": 80.0,
+        "catalyst_score": 70.0,
+        "flow_score": 75.0,
+        "technical_score": 72.0,
+        "risk_fit_score": 68.0,
+        "execution_score": 77.0,
+        "alt_candidate_score": 60.0,
+        "score_gap": 20.0,
+    }
+    qsrec = (
+        [
+            TradeRecommendation(
+                asset="BTC",
+                direction="LONG",
+                current_price=95000,
+                entry=94500,
+                target=100000,
+                stop=91000,
+                confidence=4,
+                category="CRYPTO",
+                narrative="ETF 流入延續偏多。",
+                trigger="突破前高",
+                invalidation="跌破支撐",
+                position_pct=5.0,
+                timeframe="3d",
+                bull_scenario="量能延續看 100k。",
+                base_scenario="區間震盪機率 50%。",
+                bear_scenario="跌破 91k 退場。",
+                **_scores,
+            )
+        ]
+        if has_qsrec_recs
+        else []
+    )
+    crypto = CryptoSection(
+        report_title_date="2026-03-24",
+        market=MarketRegimeBlock(regime="risk_on"),
+        narrative_of_day="BTC 上漲",
+        portfolio_framing_summary=portfolio_framing_summary,
+        scenario_probability_notes=scenario_probability_notes,
+        dashboard=[MetricLine(label="BTC", value="$95000")],
+        news=[_ni(i) for i in range(1, crypto_news + 1)],
+        pick_reason=(
+            "ETF 淨流入超過 12 億美元且鏈上 SOPR 回升，短期風險偏好延續有利風險資產配置"
+        ),
+        risk_budget_summary="risk_on 模式下總倉位 15%",
+        signal_conflict_summary="無顯著衝突",
+        qsrec=qsrec,
+    )
+    ai_sec = AISection(
+        dashboard=[MetricLine(label="NVDA", value="$890")],
+        news=[_ni(i) for i in range(4, 4 + ai_news)],
+        pick_reason=(
+            "NVDA 財報前瞻與 GPU 拉貨動能見於主流媒體，資料中心 Capex 敘事強化，故優先佈局 NVDA 核心部位"
+        ),
+        signal_conflict_summary="無衝突",
+    )
+    return DailyBriefReport(
+        crypto=crypto,
+        ai=ai_sec,
+        report_tier_partial_news=partial_tier,
+    )
 
 
 class TestStripHtml(unittest.TestCase):
@@ -1117,96 +1242,8 @@ class TestBlockingPrefixesCoverage(unittest.TestCase):
 
     # ── 11–14. 結構化驗證（via validate_structured_report） ─────────────────
 
-    def _make_minimal_structured_report(
-        self,
-        *,
-        crypto_news: int = 3,
-        ai_news: int = 3,
-        has_qsrec_recs: bool = True,
-        partial_tier: bool = False,
-    ):
-        from schemas import (
-            AISection,
-            CryptoSection,
-            DailyBriefReport,
-            MarketRegimeBlock,
-            MetricLine,
-            NewsItem,
-            TradeRecommendation,
-        )
-
-        def _ni(idx: int) -> NewsItem:
-            return NewsItem(
-                index=idx,
-                timestamp_line=f"[03/{idx:02d} 10:00 UTC+8]",
-                title=f"Headline {idx}",
-                source_and_nature="Source confirmed",
-                summary=f"Summary line {idx}.",
-                investment_takeaway=f"BTC RSI 55, takeaway {idx}.",
-                editor_consensus="Positive on BTC.",
-            )
-
-        _scores = {
-            "selection_score": 80.0,
-            "catalyst_score": 70.0,
-            "flow_score": 75.0,
-            "technical_score": 72.0,
-            "risk_fit_score": 68.0,
-            "execution_score": 77.0,
-            "alt_candidate_score": 60.0,
-            "score_gap": 20.0,
-        }
-        qsrec = (
-            [
-                TradeRecommendation(
-                    asset="BTC",
-                    direction="LONG",
-                    current_price=95000,
-                    entry=94500,
-                    target=100000,
-                    stop=91000,
-                    confidence=4,
-                    category="CRYPTO",
-                    narrative="ETF 流入延續偏多。",
-                    trigger="突破前高",
-                    invalidation="跌破支撐",
-                    position_pct=5.0,
-                    timeframe="3d",
-                    bull_scenario="量能延續看 100k。",
-                    base_scenario="區間震盪機率 50%。",
-                    bear_scenario="跌破 91k 退場。",
-                    **_scores,
-                )
-            ]
-            if has_qsrec_recs
-            else []
-        )
-        crypto = CryptoSection(
-            report_title_date="2026-03-24",
-            market=MarketRegimeBlock(regime="risk_on"),
-            narrative_of_day="BTC 上漲",
-            dashboard=[MetricLine(label="BTC", value="$95000")],
-            news=[_ni(i) for i in range(1, crypto_news + 1)],
-            pick_reason=(
-                "ETF 淨流入超過 12 億美元且鏈上 SOPR 回升，短期風險偏好延續有利風險資產配置"
-            ),
-            risk_budget_summary="risk_on 模式下總倉位 15%",
-            signal_conflict_summary="無顯著衝突",
-            qsrec=qsrec,
-        )
-        ai_sec = AISection(
-            dashboard=[MetricLine(label="NVDA", value="$890")],
-            news=[_ni(i) for i in range(4, 4 + ai_news)],
-            pick_reason=(
-                "NVDA 財報前瞻與 GPU 拉貨動能見於主流媒體，資料中心 Capex 敘事強化，故優先佈局 NVDA 核心部位"
-            ),
-            signal_conflict_summary="無衝突",
-        )
-        return DailyBriefReport(
-            crypto=crypto,
-            ai=ai_sec,
-            report_tier_partial_news=partial_tier,
-        )
+    def _make_minimal_structured_report(self, **kwargs):
+        return _make_minimal_structured_report_dbr(**kwargs)
 
     def test_structured_crypto_news_insufficient(self):
         with self.assertRaises(ValidationError) as ctx:
@@ -1507,6 +1544,56 @@ class TestStrictExecSummaryHtmlGate(unittest.TestCase):
         r = validate_report(t)
         issues = r.get("issues") or []
         self.assertTrue(any("【執行摘要】" in i for i in issues))
+
+
+class TestStrictInstitutionalPhaseBStructuredGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_B_GATE": "1"}, clear=False)
+    def test_passes_minimal_structured_with_phase_b_fields(self):
+        report = _make_minimal_structured_report_dbr(
+            portfolio_framing_summary=(
+                "加密與美股在風險預算內雙軸配置；淨曝險偏多；與 SPY 相關性中高；無額外衍生對沖。"
+            ),
+            scenario_probability_notes=(
+                "· 樂觀：延續（機率 30%）\n"
+                "· 基準：震盪（機率 45%）\n"
+                "· 悲觀：收縮（機率 25%）"
+            ),
+        )
+        res = validate_structured_report(report)
+        self.assertTrue(res["valid"], res["issues"])
+
+    def test_fails_when_probabilities_not_100(self):
+        report = _make_minimal_structured_report_dbr()
+        cr = report.crypto.model_copy(
+            update={
+                "portfolio_framing_summary": "測試組合敘述足夠長度以通過結構化門檻驗證用。",
+                "scenario_probability_notes": (
+                    "· 樂觀：x（機率 10%）\n· 基準：y（機率 20%）\n· 悲觀：z（機率 30%）"
+                ),
+            }
+        )
+        report = report.model_copy(update={"crypto": cr})
+        with patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_B_GATE": "1"}, clear=False):
+            res = validate_structured_report(report)
+        self.assertFalse(res["valid"])
+        self.assertTrue(any("100" in i for i in res["issues"]))
+
+
+class TestStrictInstitutionalPhaseBHtmlGate(unittest.TestCase):
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_B_GATE": "1"}, clear=False)
+    def test_passes_when_phase_b_present(self):
+        t = _make_report(include_phase_b_institutional=True)
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertFalse(any("【組合與曝險框架】" in i and "缺少" in i for i in issues), issues)
+        self.assertFalse(any("市場定價" in i and "〔新聞" in i for i in issues), issues)
+
+    @patch.dict(os.environ, {"STRICT_INSTITUTIONAL_PHASE_B_GATE": "1"}, clear=False)
+    def test_fails_when_phase_b_omitted(self):
+        t = _make_report(include_phase_b_institutional=False)
+        r = validate_report(t)
+        issues = r.get("issues") or []
+        self.assertTrue(any("組合與曝險" in i or "市場定價" in i or "三情境機率" in i for i in issues))
 
 
 class TestStrictInstitutionalPhaseAHtmlGate(unittest.TestCase):
