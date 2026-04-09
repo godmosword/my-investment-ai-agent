@@ -3,6 +3,12 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-12
+
+### Changed
+- [`earnings_watchlist.py`](earnings_watchlist.py)：`MEGA_CAP_TECH_EARNINGS_TICKERS` 新增 **AI 伺服器／ODM**（`SMCI`、`DELL`、`HPE`）、**資料中心網路**（`ANET`、`CSCO`）、**矽光子／光通訊供應鏈**（`LITE`、`COHR`、`FN`）。
+- [`README.md`](README.md)：watchlist 列表同步。
+
 ## 2026-04-11
 
 ### Changed

@@ -13,8 +13,8 @@ from typing import Final
 logger = logging.getLogger(__name__)
 
 # 大型科技／AI 供應鏈 — 財報日曆與 macro_context「錨定週財報」掃描用（yfinance）。
-# 擴編參考公開市場論述（hyperscaler、GPU／ASIC、HBM／記憶體、企業軟體 AI）；**非**投資建議、亦非即時熱度排名。
-# 與 crew `financial_datasets` watchlist 可部分重疊；財報聚焦日若命中多檔會增加工具呼叫。
+# 擴編參考公開市場論述（hyperscaler、GPU／ASIC、HBM、矽光子／光通訊、AI 伺服器／ODM、資料中心網路、企業軟體 AI）；
+# **非**投資建議、亦非即時熱度排名。財報聚焦日若命中多檔會增加工具呼叫。
 MEGA_CAP_TECH_EARNINGS_TICKERS: Final[tuple[str, ...]] = (
     "NVDA",
     "AMD",
@@ -25,6 +25,9 @@ MEGA_CAP_TECH_EARNINGS_TICKERS: Final[tuple[str, ...]] = (
     "MU",
     "TSM",
     "ARM",
+    "SMCI",
+    "DELL",
+    "HPE",
     "MSFT",
     "GOOGL",
     "AAPL",
@@ -37,6 +40,11 @@ MEGA_CAP_TECH_EARNINGS_TICKERS: Final[tuple[str, ...]] = (
     "PLTR",
     "CRWD",
     "NET",
+    "ANET",
+    "CSCO",
+    "LITE",
+    "COHR",
+    "FN",
 )
 
 
