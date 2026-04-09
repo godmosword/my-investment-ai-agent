@@ -10,7 +10,10 @@
 
 ## 營運必做（人工閘門）
 
-1. 在 GitHub **Settings → Environments → production** 設定 **Required reviewers**（至少一人核准才會跑 deploy secrets／步驟）。  
+1. 在 GitHub **Settings → Environments → `production`** 啟用 **Deployment protection rules** 裡的 **Required reviewers**（至少一名 reviewer），`build-and-deploy` job 才會在取用該環境的 secrets／variables 前**暫停並等待核准**。  
+   - **常見誤解**：僅在 **Environment variables**（或 Secrets）填值**不會**自動啟用人審；若未勾選 **Required reviewers**，workflow 會**直接繼續跑**，不會出現核准畫面。  
+   - **路徑**：Repo → **Settings** → **Environments** → 點 **production** → **Deployment protection rules** → 勾選 **Required reviewers** → 加入使用者或團隊 → **Save protection rules**。  
+   - **組織倉庫**：若畫面上無法勾選，可能是 Org 層級停用或需 Org 管理員核准 **Environments** 政策。  
 2. 確認 production secrets 與主線文件一致：`ENV_TEMPLATE.txt`、`README` 環境變數表。  
 3. 建議在排程／Cloud Run 等執行環境設 **`PIPELINE_STRICT_ENV=1`**，強制未 `SKIP_*` 時具備 Telegram 與 BigQuery 憑證（見 `main._validate_critical_env_strict`）。
 4. 新聞新鮮度：生產環境建議 **`STRICT_NEWS_FRESHNESS_GATE=1`**（必要時搭配 `NEWS_FRESHNESS_WINDOW_HOURS`／白名單）；細節見 [`ENV_TEMPLATE.txt`](../ENV_TEMPLATE.txt) 與 [`docs/CRITICAL_ENV_POLICY.md`](CRITICAL_ENV_POLICY.md)。
