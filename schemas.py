@@ -530,6 +530,18 @@ class ChatterItem(BaseModel):
         elif "主流媒體二次驗證" not in self.text:
             # Inline 可信度已存在（例如「可信度：B」）但漏 MSM 欄位時補齊，對齊 _CHATTER_FMT 與 STRICT_CHATTER_MSM_VERIFY_GATE。
             self.text = self.text.rstrip() + "｜主流媒體二次驗證：否"
+
+        # 每條須含「（未確認）」；常見漏寫為直接「傳…可信度：」—在可信度前補標記。
+        if "（未確認）" not in self.text and "(未確認)" not in self.text:
+            if re.search(r"可信度[：:]", self.text):
+                self.text = re.sub(
+                    r"(可信度[：:])",
+                    r"（未確認）｜\1",
+                    self.text,
+                    count=1,
+                )
+            else:
+                self.text = self.text.rstrip() + "（未確認）"
         return self
 
 

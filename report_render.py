@@ -16,7 +16,9 @@ from schemas import (
     AISection,
     CryptoSection,
     DailyBriefReport,
+    ExecutableTradeLeg,
     MetricLine,
+    NewsItem,
     QSREC_JSON_EXCLUDE_FIELDS,
     TradeRecommendation,
 )
@@ -789,12 +791,198 @@ def _scrub_exec_summary_history_slogans(lines: list[str]) -> list[str]:
     return out
 
 
+_BEAT_MISS_VERBS_RE = re.compile(
+    r"(超預期|遜於預期|優於共識|低於共識|beat|miss|Beat|Miss|EPS\s*beat|revenue\s*beat)",
+    re.IGNORECASE,
+)
+_CONSENSUS_CUE_RE = re.compile(
+    r"(共識|預期|預估|華爾街|分析師預期|Street|consensus|estimate|expected|預測)",
+    re.IGNORECASE,
+)
+_GENERIC_CALENDAR_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"礦企.*季報|算力調整|流動性釋放", re.IGNORECASE),
+    re.compile(r"Fed\s*官員.*談話|聯準會.*談話", re.IGNORECASE),
+    re.compile(r"季報披露.*公告", re.IGNORECASE),
+)
+
+
+def _scrub_generic_event_calendar_lines(lines: list[str]) -> list[str]:
+    """Remove vague LLM-plausible calendar rows (no verifiable headline)."""
+    out: list[str] = []
+    for ln in lines or []:
+        t = (ln or "").strip()
+        if not t:
+            continue
+        if any(p.search(t) for p in _GENERIC_CALENDAR_PATTERNS):
+            logger.warning("event_calendar_lines: removed generic unverified row: %s", t[:100])
+            continue
+        out.append(t)
+    return out
+
+
+def _neutral_regime_copy_soften(crypto: CryptoSection) -> CryptoSection:
+    """When market.regime is neutral, tone down risk-on phrases in portfolio + exec_summary."""
+    regime = (crypto.market.regime or "").strip().lower()
+    if regime != "neutral":
+        return crypto
+    replacements = (
+        ("同步做多偏好", "在 neutral 下維持有限 Beta 曝險（不超風險預算上限）"),
+        ("跨資產偏多配置", "跨資產在風險預算內配置（neutral，非全面 risk_on）"),
+        ("維持跨資產偏多", "跨資產僅在風險預算內加碼（對齊 neutral）"),
+    )
+    pf = crypto.portfolio_framing_summary or ""
+    new_pf = pf
+    for a, b in replacements:
+        if a in new_pf:
+            new_pf = new_pf.replace(a, b)
+    ex = list(crypto.exec_summary or [])
+    new_ex = []
+    for line in ex:
+        s = line
+        for a, b in replacements:
+            if a in s:
+                s = s.replace(a, b)
+        new_ex.append(s)
+    if new_pf == pf and new_ex == list(crypto.exec_summary or []):
+        return crypto
+    return crypto.model_copy(
+        update={
+            "portfolio_framing_summary": new_pf,
+            "exec_summary": new_ex,
+        }
+    )
+
+
+def _listed_equity_tickers(ai: AISection) -> set[str]:
+    out: set[str] = set()
+    for leg in ai.trade_legs or []:
+        a = (getattr(leg, "asset", None) or "").strip().upper().replace("$", "")
+        if a and a.isalnum():
+            out.add(a[:12])
+    for rec in ai.qsrec or []:
+        if getattr(rec, "category", None) == "EQUITY":
+            a = (getattr(rec, "asset", None) or "").strip().upper()
+            if a and a.isalnum():
+                out.add(a[:12])
+    return out
+
+
+def _sanitize_editor_consensus_tickers(ai: AISection) -> AISection:
+    """Replace $TICKER in editor_consensus when ticker not in trade_legs/QSREC EQUITY."""
+    allowed = _listed_equity_tickers(ai)
+    if not allowed:
+        return ai
+    pat = re.compile(r"\$([A-Z]{1,6})\b")
+
+    def _repl(m: re.Match[str]) -> str:
+        sym = m.group(1)
+        return m.group(0) if sym in allowed else f"{sym}（敘事參考，非本日建議標的）"
+
+    new_items: list[NewsItem] = []
+    changed = False
+    for n in ai.news or []:
+        ec = n.editor_consensus or ""
+        if "$" not in ec:
+            new_items.append(n)
+            continue
+        new_ec = pat.sub(_repl, ec)
+        if new_ec != ec:
+            logger.warning("news[%s]: editor_consensus adjusted for unlisted ticker", n.index)
+            changed = True
+            new_items.append(n.model_copy(update={"editor_consensus": new_ec}))
+        else:
+            new_items.append(n)
+    if not changed:
+        return ai
+    return ai.model_copy(update={"news": new_items})
+
+
+def _trade_trigger_allows_beat_miss(trigger: str, news_context: str) -> bool:
+    """beat/miss in trigger only if a consensus cue appears in news (not in trigger: 超預期 contains 預期)."""
+    if not _BEAT_MISS_VERBS_RE.search(trigger):
+        return True
+    return bool(_CONSENSUS_CUE_RE.search(news_context))
+
+
+def _news_allows_beat_miss(n: NewsItem) -> bool:
+    headline = f"{n.title or ''}\n{n.summary or ''}"
+    if not _BEAT_MISS_VERBS_RE.search(f"{n.investment_takeaway or ''}\n{n.editor_consensus or ''}"):
+        return True
+    return bool(_CONSENSUS_CUE_RE.search(headline))
+
+
+def _scrub_ai_news_beat_miss_copy(ai: AISection) -> AISection:
+    """Softens beat/miss wording in takeaway/consensus when headline lacks consensus cues."""
+    new_news: list[NewsItem] = []
+    changed = False
+    for n in ai.news or []:
+        if _news_allows_beat_miss(n):
+            new_news.append(n)
+            continue
+        tw = n.investment_takeaway or ""
+        ec = n.editor_consensus or ""
+        new_tw = _BEAT_MISS_VERBS_RE.sub("待官方／法說數據核實", tw)
+        new_ec = _BEAT_MISS_VERBS_RE.sub("待官方／法說數據核實", ec)
+        if new_tw != tw or new_ec != ec:
+            changed = True
+            logger.warning("news[%s]: softened beat/miss without headline consensus cue", n.index)
+            new_news.append(n.model_copy(update={"investment_takeaway": new_tw, "editor_consensus": new_ec}))
+        else:
+            new_news.append(n)
+    if not changed:
+        return ai
+    return ai.model_copy(update={"news": new_news})
+
+
+def _strip_unsupported_beat_miss_in_legs(
+    legs: list[ExecutableTradeLeg],
+    news_blob: str,
+) -> list[ExecutableTradeLeg]:
+    out: list[ExecutableTradeLeg] = []
+    for leg in legs:
+        tr = leg.trigger or ""
+        if not tr.strip() or _trade_trigger_allows_beat_miss(tr, news_blob):
+            out.append(leg)
+            continue
+        new_tr = _BEAT_MISS_VERBS_RE.sub("待官方／法說披露訂閱與指引", tr)
+        if new_tr != tr:
+            logger.warning("trade_leg %s: softened beat/miss wording in trigger (no consensus cue)", leg.asset)
+            out.append(leg.model_copy(update={"trigger": new_tr}))
+        else:
+            out.append(leg)
+    return out
+
+
+def _fix_chatter_unconfirmed(items: list) -> list:
+    """Ensure each chatter line contains （未確認） (re-validate via model_construct + model_validate)."""
+    from schemas import ChatterItem  # noqa: PLC0415
+
+    out: list = []
+    for item in items or []:
+        t = getattr(item, "text", "") or ""
+        if "（未確認）" in t or "(未確認)" in t:
+            out.append(item)
+            continue
+        cred = getattr(item, "credibility", None)
+        if re.search(r"可信度[：:]", t):
+            new_t = re.sub(r"(可信度[：:])", r"（未確認）｜\1", t, count=1)
+        else:
+            new_t = t.rstrip() + "（未確認）"
+        try:
+            out.append(ChatterItem.model_validate({"text": new_t, "credibility": cred}))
+        except Exception:
+            out.append(item)
+    return out
+
+
 def _postprocess_brief_data_hygiene(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
     """Assembly-time fixes: halving calendar scrub, scenario bullets, VIX wording, FD dedupe, news bleed."""
     report_day = _parse_report_title_date_iso(crypto.report_title_date)
-    cal = _remove_unverified_halving_calendar_lines(list(crypto.event_calendar_lines or []), report_day=report_day)
-    if cal != list(crypto.event_calendar_lines or []):
-        crypto = crypto.model_copy(update={"event_calendar_lines": cal})
+    _cal_orig = list(crypto.event_calendar_lines or [])
+    _cal_h = _remove_unverified_halving_calendar_lines(_cal_orig, report_day=report_day)
+    _cal_final = _scrub_generic_event_calendar_lines(_cal_h)
+    if _cal_final != _cal_orig:
+        crypto = crypto.model_copy(update={"event_calendar_lines": _cal_final})
 
     cyc = _scrub_crypto_cycle_halving_narrative(crypto.crypto_cycle_valuation_notes or "")
     if cyc != (crypto.crypto_cycle_valuation_notes or "").strip():
@@ -827,6 +1015,25 @@ def _postprocess_brief_data_hygiene(crypto: CryptoSection, ai: AISection) -> tup
     )
     if new_crypto_news != list(crypto.news):
         crypto = crypto.model_copy(update={"news": new_crypto_news})
+
+    crypto = _neutral_regime_copy_soften(crypto)
+
+    news_blob_ai = "\n".join(
+        f"{getattr(n, 'title', '')}\n{getattr(n, 'summary', '')}" for n in (ai.news or [])
+    )
+    new_legs = _strip_unsupported_beat_miss_in_legs(list(ai.trade_legs or []), news_blob_ai)
+    if new_legs != list(ai.trade_legs or []):
+        ai = ai.model_copy(update={"trade_legs": new_legs})
+
+    ai = _scrub_ai_news_beat_miss_copy(ai)
+    ai = _sanitize_editor_consensus_tickers(ai)
+
+    new_ch_ai = _fix_chatter_unconfirmed(list(ai.chatter or []))
+    if new_ch_ai != list(ai.chatter or []):
+        ai = ai.model_copy(update={"chatter": new_ch_ai})
+    new_ch_cr = _fix_chatter_unconfirmed(list(crypto.chatter or []))
+    if new_ch_cr != list(crypto.chatter or []):
+        crypto = crypto.model_copy(update={"chatter": new_ch_cr})
 
     return crypto, ai
 

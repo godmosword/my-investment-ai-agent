@@ -1242,3 +1242,259 @@ def test_assemble_strips_calendar_notionals_from_unrelated_news_takeaway():
     n1 = report.crypto.news[0]
     assert "28.5" not in n1.investment_takeaway
     assert "法律" in n1.investment_takeaway or "降低" in n1.investment_takeaway
+
+
+def test_assemble_neutral_softens_risk_on_phrases_in_portfolio_and_exec():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        exec_summary=["→ 維持跨資產偏多配置"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        portfolio_framing_summary="同步做多偏好，總曝險 40%。",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert "同步做多偏好" not in report.crypto.portfolio_framing_summary
+    assert "跨資產偏多配置" not in report.crypto.exec_summary[0]
+
+
+def test_assemble_removes_generic_event_calendar_rows():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+        event_calendar_lines=[
+            "04/12 礦企季報披露與算力調整公告",
+            "04/15 Fed 官員就流動性釋放發表談話",
+            "04/10 已核實之具體事件",
+        ],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    cal = report.crypto.event_calendar_lines
+    assert len(cal) == 1
+    assert "04/10" in cal[0]
+
+
+def test_assemble_fixes_chatter_missing_unconfirmed():
+    from schemas import ChatterItem
+
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[
+            ChatterItem(text="傳 AWS 內部測試｜可信度：B"),
+        ],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert "（未確認）" in report.crypto.chatter[0].text
+
+
+def test_assemble_softens_ai_news_beat_without_consensus_headline():
+    ai_news = list(_sample_news_ai())
+    ai_news[0] = ai_news[0].model_copy(
+        update={
+            "title": "Wearable launch",
+            "summary": "新硬體發表。",
+            "investment_takeaway": "營收超預期帶動估值。",
+        }
+    )
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=ai_news,
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    tw = report.ai.news[0].investment_takeaway
+    assert "超預期" not in tw
+
+
+def test_assemble_softens_equity_trigger_beat_without_consensus():
+    leg = _sample_trade_leg("NVDA").model_copy(
+        update={"trigger": "訂閱數據超預期且站穩支撐"}
+    )
+    def _bare(idx: int) -> NewsItem:
+        return NewsItem(
+            index=idx,
+            timestamp_line="[03/22 13:00 UTC+8]",
+            title="產業動態",
+            summary="事件更新。",
+            source_and_nature="來源：R｜性質：confirmed",
+            investment_takeaway="投資解讀：敘事延續。",
+            editor_consensus="💎主編共識：觀察龍頭",
+            pricing_note="未定價／增量資訊",
+        )
+
+    bare_ai_news = [_bare(4), _bare(5), _bare(6)]
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=bare_ai_news,
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[leg],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    tr = report.ai.trade_legs[0].trigger
+    assert "超預期" not in tr
+
+
+def test_assemble_rewrites_editor_consensus_ticker_not_in_legs():
+    ai_news = list(_sample_news_ai())
+    ai_news[0] = ai_news[0].model_copy(
+        update={"editor_consensus": "利好 $ONDO 敘事"}
+    )
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=ai_news,
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[_sample_trade_leg("NVDA"), _sample_trade_leg("MSFT")],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    ec = report.ai.news[0].editor_consensus
+    assert "$ONDO" not in ec
+    assert "ONDO" in ec

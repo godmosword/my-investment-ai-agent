@@ -15,19 +15,23 @@
 ### Tests / Tooling
 - [`pytest.ini`](pytest.ini)：設定 **`asyncio_default_fixture_loop_scope = function`**，消除 pytest-asyncio 預設 loop scope 棄用警告。
 
+## 2026-04-15
+
+### Changed
+- **Deploy／Cloud Run**：[`deploy.yml`](.github/workflows/deploy.yml) 於 `gcloud run jobs deploy` 加上 **`--update-env-vars=USE_LANGGRAPH_ENGINE`**，值取自 GitHub **Environments → production** 變數 `USE_LANGGRAPH_ENGINE`（未設則 `0`）。[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) 補操作說明。
+
 ## 2026-04-14
 
 ### Changed
 - **LangGraph Final_Formatter**：[`graph/graph_nodes.py`](graph/graph_nodes.py) 於 **`LANGGRAPH_SKIP_FORMATTER_CREW=1`** 時改走 **native**（slim 結構化 LLM + 決定性組裝 `CryptoSection`／`AISection`），不再回傳 stub；legacy 路徑將 Bull/Bear/Arbiter 摘要經 **`langgraph_debate_context`** 注入 [`crew.py`](crew.py) Formatter Crew。新增 [`graph/graph_formatter_schemas.py`](graph/graph_formatter_schemas.py)（`CryptoFormatterNarrative`／`AIFormatterNarrative`）；`regime` 可由 `agreed_regime` 或 `regime_scorecard` 字串回退；`score_suffix` 正則支援全形括號。
 - [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)：`LANGGRAPH_SKIP_FORMATTER_CREW` 註解對齊上述語意與 API 需求。
+- **日報組裝衛生層**：[`report_render.py`](report_render.py) `assemble_daily_brief_report` — **neutral** 時軟化「同步做多偏好／跨資產偏多」等措辭；刪除**泛化**事件日曆列（礦企季報／Fed 談話模板句）；**呢喃**補齊「（未確認）」；AI 新聞 **beat/miss** 若標題／摘要無共識對照語則軟化；美股 **trigger** 同理且**僅以新聞 context** 判斷對照語（避免「超預期」誤觸「預期」）；**editor_consensus** 之 `$TICKER` 若不在當輪 legs／QSREC 則改寫為敘事參考。
+- [`schemas.py`](schemas.py)：`ChatterItem` 驗證後若仍缺「（未確認）」則於可信度前補齊。
+- [`crew.py`](crew.py)：`neutral` 措辭與 **editor_consensus** 點名規則與上列對齊。
 
 ### Tests
 - [`test_graph_crew.py`](test_graph_crew.py)：Formatter mock、native assemble、`run_langgraph_category` 路徑覆蓋。
-
-## 2026-04-15
-
-### Changed
-- **Deploy／Cloud Run**：[`deploy.yml`](.github/workflows/deploy.yml) 於 `gcloud run jobs deploy` 加上 **`--update-env-vars=USE_LANGGRAPH_ENGINE`**，值取自 GitHub **Environments → production** 變數 `USE_LANGGRAPH_ENGINE`（未設則 `0`）。[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) 補操作說明。
+- [`test_report_render.py`](test_report_render.py)：上述組裝衛生層單元測試。
 
 ## 2026-04-13
 
