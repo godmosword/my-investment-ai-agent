@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from graph.graph_state import ResearchGraphState
+from graph.graph_tools import RESEARCH_TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,11 @@ def _hkt_now() -> str:
 
 def _tool_calls_enabled() -> bool:
     return os.getenv("GRAPH_ENABLE_TOOL_CALLS", "1").lower() in ("1", "true", "yes")
+
+
+def _deep_research_tool_llm_enabled() -> bool:
+    """When True, deep_research_node uses bind_tools + real tool execution (needs API keys)."""
+    return os.getenv("GRAPH_DEEP_RESEARCH_TOOL_LLM", "0").lower() in ("1", "true", "yes")
 
 
 def _llm_debate_enabled() -> bool:
@@ -301,8 +307,9 @@ def arbiter_node(state: ResearchGraphState) -> dict[str, Any]:
             "system",
             "你是 Q-Silicon 的首席仲裁主編。你需要審閱多空雙方的辯論。\n"
             "規則 1：如果雙方論點有明顯矛盾，但卻『缺乏具體數字佐證』"
-            "（例如只說 ETF 流出卻沒給金額，或只說跌破均線卻沒給具體價位），"
-            "你必須將 needs_deep_dive 設為 true，並給出明確的查證指令。\n"
+            "（例如只說 ETF 流出卻沒給金額，或只說跌破均線卻沒給具體均線價位），"
+            "你必須將 needs_deep_dive 設為 true，並給出『非常明確的 API 查詢關鍵字或指令』"
+            "（例如：請查詢 'liquidations' 或 NVDA 的財報數據）。\n"
             "規則 2：如果論點已經很紮實，或這是第二次以上的審查，"
             "請將 needs_deep_dive 設為 false，並寫下一句精準的共識總結。",
         ),
@@ -340,18 +347,123 @@ def arbiter_node(state: ResearchGraphState) -> dict[str, Any]:
     }
 
 
+def _tool_call_id(tc: Any) -> str:
+    if isinstance(tc, dict):
+        return str(tc.get("id") or "")
+    return str(getattr(tc, "id", "") or "")
+
+
+def _tool_call_name(tc: Any) -> str:
+    if isinstance(tc, dict):
+        return str(tc.get("name") or "")
+    return str(getattr(tc, "name", "") or "")
+
+
+def _tool_call_args(tc: Any) -> dict[str, Any]:
+    if isinstance(tc, dict):
+        raw = tc.get("args")
+        return dict(raw) if isinstance(raw, dict) else {}
+    raw = getattr(tc, "args", None)
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _deep_research_with_bound_tools(query: str) -> str:
+    """Run ChatOpenAI with bind_tools; execute tool_calls until model returns text."""
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+
+    logger.info("--- [Node] Deep Research (Tool Calling LLM) 啟動 ---")
+    llm = _get_debate_llm()
+    llm_with_tools = llm.bind_tools(RESEARCH_TOOLS)
+    tool_map = {t.name: t for t in RESEARCH_TOOLS}
+
+    system_text = (
+        "你是一位頂級的量化數據研究員。主編給了你一個具體的查核任務。"
+        "你『必須』使用提供的工具 (Tools) 去撈取真實數據來回答。"
+        "取得數據後，請用精準的數字（例如確切的百分比、金額、均線）回報給主編，嚴禁給出模糊的猜測。"
+    )
+    messages: list[Any] = [
+        SystemMessage(content=system_text),
+        HumanMessage(content=f"查核任務：{query}"),
+    ]
+
+    max_rounds = 6
+    tool_excerpts: list[str] = []
+    last_ai: AIMessage | None = None
+
+    for _ in range(max_rounds):
+        response = llm_with_tools.invoke(messages)
+        if not isinstance(response, AIMessage):
+            messages.append(response)
+            continue
+        last_ai = response
+        messages.append(response)
+
+        if not response.tool_calls:
+            break
+
+        logger.info(
+            "Deep Research tool_calls: %s",
+            [_tool_call_name(tc) for tc in response.tool_calls],
+        )
+        for tc in response.tool_calls:
+            name = _tool_call_name(tc)
+            selected = tool_map.get(name)
+            if not selected:
+                err = f"[DATA_MISSING:unknown_tool:{name}]"
+                tool_excerpts.append(f"【來自 {name}】\n{err}")
+                messages.append(
+                    ToolMessage(content=err, tool_call_id=_tool_call_id(tc) or name)
+                )
+                continue
+            try:
+                out = selected.invoke(_tool_call_args(tc))
+                out_s = out if isinstance(out, str) else str(out)
+            except Exception as exc:  # pragma: no cover - defensive
+                out_s = f"工具執行失敗: {exc}"
+            tool_excerpts.append(f"【來自 {name} 的真實數據】\n{out_s}")
+            messages.append(
+                ToolMessage(content=out_s, tool_call_id=_tool_call_id(tc) or name)
+            )
+
+    synthesis = (last_ai.content or "").strip() if last_ai else ""
+    if tool_excerpts and synthesis:
+        return "\n\n".join(tool_excerpts) + "\n\n【綜合】\n" + synthesis
+    if synthesis:
+        return synthesis
+    if tool_excerpts:
+        return "\n\n".join(tool_excerpts)
+    return "查證未完成：模型未回傳可讀摘要。"
+
+
 def deep_research_node(state: ResearchGraphState) -> dict[str, Any]:
-    """Fetch narrow, missing evidence requested by Arbiter."""
+    """Fetch narrow, missing evidence requested by Arbiter.
+
+    When GRAPH_DEEP_RESEARCH_TOOL_LLM=1 and GRAPH_ENABLE_TOOL_CALLS is on, uses
+    bind_tools + real tool execution. Otherwise uses deterministic probes
+    (onchain / financial_datasets) for CI and no-LLM runs.
+    """
     if not state.get("needs_deep_dive"):
         return {}
 
     category = state["category"]
     query = state.get("deep_dive_query", "")
+    depth = int(state.get("research_depth", 0))
+    new_data_key = f"deep_dive_round_{depth + 1}"
     patch: dict[str, Any] = {"deep_dive_query": query}
 
     if not _tool_calls_enabled():
         patch["deep_research"] = "[DATA_MISSING:tool_calls_disabled]"
-        return {"raw_data": patch, "research_depth": int(state.get("research_depth", 0)) + 1}
+        return {"raw_data": {new_data_key: f"針對【{query}】查核結果：\n{patch['deep_research']}"}, "research_depth": depth + 1}
+
+    if _deep_research_tool_llm_enabled():
+        try:
+            investigation = _deep_research_with_bound_tools(query or "依主編指令補齊客觀數據")
+        except Exception as exc:
+            logger.exception("Deep research tool LLM failed: %s", exc)
+            investigation = f"[DATA_MISSING:deep_research_llm] {exc}"
+        payload = f"針對【{query}】查核結果：\n{investigation}"
+        logger.info("查核完成（Tool LLM），%d 字元", len(payload))
+        return {"raw_data": {new_data_key: payload}, "research_depth": depth + 1}
 
     from tools import financial_datasets_tool, onchain_metrics_tool
 
@@ -361,7 +473,11 @@ def deep_research_node(state: ResearchGraphState) -> dict[str, Any]:
         probe = query if query else "watchlist"
         patch["deep_fundamentals_probe"] = _safe_tool_run(financial_datasets_tool, probe)
 
-    return {"raw_data": patch, "research_depth": int(state.get("research_depth", 0)) + 1}
+    investigation = "\n".join(f"{k}: {v}" for k, v in patch.items() if k != "deep_dive_query")
+    return {
+        "raw_data": {new_data_key: f"針對【{query}】查核結果：\n{investigation}"},
+        "research_depth": depth + 1,
+    }
 
 
 def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:

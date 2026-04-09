@@ -3,6 +3,18 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-09
+
+### Added
+- **LangGraph 深度查證工具橋接**：[`graph/graph_tools.py`](graph/graph_tools.py) 以 `langchain_core.tools.tool` 包裝 `coinglass_data_tool`、`financial_datasets_tool`、`newsapi_tool`，匯出 `RESEARCH_TOOLS` 供 `bind_tools` 使用。
+
+### Changed
+- [`graph/graph_nodes.py`](graph/graph_nodes.py)：`deep_research_node` 將查證結果寫入 `raw_data['deep_dive_round_N']`；可選 **`GRAPH_DEEP_RESEARCH_TOOL_LLM=1`**（且 `GRAPH_ENABLE_TOOL_CALLS=1`）時以 `bind_tools` 多輪執行真實工具並附 `ToolMessage`；預設仍走決定性 probe（CI／無金鑰安全）。Arbiter（LLM）規則 1 改為要求「非常明確的 API 查詢關鍵字或指令」。
+- [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)：補 `GRAPH_DEEP_RESEARCH_TOOL_LLM` 註解。
+
+### Tests
+- [`test_graph_crew.py`](test_graph_crew.py)：深度迴圈路徑斷言 `raw_data` 含 `deep_dive_round_1`。
+
 ## 2026-04-08
 
 ### Added

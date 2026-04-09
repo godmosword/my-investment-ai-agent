@@ -77,3 +77,4 @@ def test_graph_depth_guard_stops_infinite_loop(monkeypatch) -> None:
     assert result["research_depth"] == 1
     assert result["needs_deep_dive"] is False
     assert result["final_report"]["category"] == "AI"
+    assert "deep_dive_round_1" in result.get("raw_data", {})

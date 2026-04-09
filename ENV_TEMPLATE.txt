@@ -84,6 +84,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # REPORT_COMPARE_MODE=0   # Phase 3：1=每次 validate 後額外跑候選路徑並 log 差異（不切 Telegram/BQ 決策）
 # USE_LANGGRAPH_ENGINE=0  # Phase 3：1=啟用 LangGraph 狀態機（預設 0 走既有 CrewAI）
 # GRAPH_ENABLE_TOOL_CALLS=1  # LangGraph 節點是否呼叫工具；測試可設 0
+# GRAPH_DEEP_RESEARCH_TOOL_LLM=0  # 1=深度查證節點以 bind_tools 真實呼叫 RESEARCH_TOOLS（需 API 金鑰與 LLM）
 # LANGGRAPH_SKIP_FORMATTER_CREW=0  # 1=Final_Formatter 不呼叫既有 Crew（僅 smoke 測試）
 # MAX_REPORT_RETRIES=2
 # MAX_503_RETRIES=3
