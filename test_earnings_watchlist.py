@@ -8,6 +8,7 @@ import pytest
 
 from earnings_watchlist import (
     next_monday_sunday_after_weekend,
+    next_week_monday_sunday_for_eow_anchor,
     pipeline_anchor_date,
     week_range_containing,
 )
@@ -43,6 +44,21 @@ def test_next_monday_sunday_sunday():
 @pytest.mark.smoke
 def test_next_monday_sunday_weekday_none():
     assert next_monday_sunday_after_weekend(date(2026, 4, 8)) is None
+
+
+@pytest.mark.smoke
+def test_next_week_range_friday():
+    fri = date(2026, 4, 10)
+    span = next_week_monday_sunday_for_eow_anchor(fri)
+    assert span is not None
+    mon, sun = span
+    assert mon == date(2026, 4, 13)
+    assert sun == date(2026, 4, 19)
+
+
+@pytest.mark.smoke
+def test_next_week_range_monday_none():
+    assert next_week_monday_sunday_for_eow_anchor(date(2026, 4, 13)) is None
 
 
 @pytest.mark.smoke

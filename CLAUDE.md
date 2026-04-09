@@ -36,8 +36,8 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | File | Role |
 |------|------|
 | [`main.py`](main.py) | Entry: `_validate_required_keys`, `_validate_critical_env_strict` (`PIPELINE_STRICT_ENV`), `_validate_env_types`, prewarm, dual-crew run, retries, Telegram, BQ, charts |
-| [`earnings_watchlist.py`](earnings_watchlist.py) | 美股 mega-cap／AI 財報 watchlist 與錨定週邏輯（`macro_context`、財報聚焦、週末預告共用） |
-| [`earnings_focus.py`](earnings_focus.py) | 可選 **`EARNINGS_FOCUS_MODE`**；週末自動【下週財報預告】exclusion |
+| [`earnings_watchlist.py`](earnings_watchlist.py) | 美股 mega-cap／AI 財報 watchlist 與錨定週邏輯（`macro_context`、財報聚焦、**週五–日**下週預告共用） |
+| [`earnings_focus.py`](earnings_focus.py) | 可選 **`EARNINGS_FOCUS_MODE`**；**週五／週六／週日**自動【下週財報預告】exclusion |
 | [`crew.py`](crew.py) | CrewAI agents, tasks, LLM fallback chains |
 | [`graph/graph_crew.py`](graph/graph_crew.py) | LangGraph state machine compiler/runtime (`USE_LANGGRAPH_ENGINE=1` 時切換路徑) |
 | [`graph/graph_nodes.py`](graph/graph_nodes.py) + [`graph/graph_state.py`](graph/graph_state.py) | Phase 3 nodes（Gather/Bull/Bear/Arbiter/Deep/Formatter）與共享 state/reducer |

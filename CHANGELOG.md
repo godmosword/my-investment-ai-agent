@@ -3,6 +3,16 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-11
+
+### Changed
+- [`earnings_watchlist.py`](earnings_watchlist.py)：擴充 **AI／雲端／半導體** 財報 watchlist（`INTC`、`MRVL`、`QCOM`、`MU`、`ORCL`、`CRM`、`NOW`、`SNOW`、`PLTR`、`CRWD`、`NET` 等；來源為公開市場常見分類（非排名、非即時選股）。
+- [`earnings_focus.py`](earnings_focus.py)：**週五**錨定日亦注入 **【下週財報預告】**（與週六／日相同，指向下一曆週 Mon–Sun）。
+- [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`README.md`](README.md)：同步「週五亦預告」與擴充後代號列表。
+
+### Tests
+- [`test_earnings_watchlist.py`](test_earnings_watchlist.py)、[`test_earnings_focus.py`](test_earnings_focus.py)：週五範圍與預告文案。
+
 ## 2026-04-10
 
 ### Added

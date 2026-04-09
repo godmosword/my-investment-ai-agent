@@ -4,7 +4,7 @@ When enabled, detects tickers whose yfinance earnings calendar falls on the
 pipeline anchor date and injects exclusion context so crews pull quarterly
 fundamentals and center news on verified figures (no hallucination).
 
-Weekend runs (anchor Sat/Sun) prepend a **next-week earnings forecast** block.
+End-of-week runs (anchor **Fri/Sat/Sun**) prepend a **next-week earnings forecast** block.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Final
 
 from earnings_watchlist import (
     MEGA_CAP_TECH_EARNINGS_TICKERS,
-    next_monday_sunday_after_weekend,
+    next_week_monday_sunday_for_eow_anchor,
     pipeline_anchor_date,
     tickers_with_earnings_between,
 )
@@ -34,9 +34,9 @@ def earnings_focus_tickers_today() -> list[str]:
 
 
 def weekend_next_week_earnings_forecast_block() -> str:
-    """Sat/Sun anchor: inject next Mon–Sun watchlist earnings schedule."""
+    """Fri/Sat/Sun anchor: inject next Mon–Sun watchlist earnings schedule."""
     anchor = pipeline_anchor_date()
-    span = next_monday_sunday_after_weekend(anchor)
+    span = next_week_monday_sunday_for_eow_anchor(anchor)
     if span is None:
         return ""
     monday, sunday = span
@@ -45,13 +45,14 @@ def weekend_next_week_earnings_forecast_block() -> str:
         sched = "（watchlist 內 yfinance 日曆未顯示下週已排程日期；仍以 macro_context 與新聞交叉驗證。）"
     else:
         sched = " · ".join(f"{sym} {ed.strftime('%m/%d')}" for sym, ed in pairs)
+    wd_label = ("週五" if anchor.weekday() == 4 else "週末")
     return (
-        "【下週財報預告】錨定日為週末；以下為 **下一完整曆週**（"
+        f"【下週財報預告】錨定日為{wd_label}；以下為 **下一完整曆週**（"
         f"{monday.strftime('%m/%d')}（一）–{sunday.strftime('%m/%d')}（日））"
         f" watchlist 之 yfinance 財報日：<code>{sched}</code>\n"
         "· AI 段：於【近端事件日曆】或宏觀銜接至少 **1 行**摘錄上表；"
         "若實際發佈落在盤前／盤後，須以新聞時間戳與工具讀值區分「已發／待發」。\n"
-        "· 週一開盤前日報可再開 **EARNINGS_FOCUS_MODE** 觸發【財報聚焦日】深化季報工具。\n"
+        "· 下個交易日開盤前日報可再開 **EARNINGS_FOCUS_MODE** 觸發【財報聚焦日】深化季報工具。\n"
     )
 
 

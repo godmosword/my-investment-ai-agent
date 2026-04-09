@@ -12,19 +12,31 @@ from typing import Final
 
 logger = logging.getLogger(__name__)
 
-# 大型科技／AI 供應鏈 — 財報日曆與 macro_context「本週財報」掃描用（yfinance）。
-# 與 crew `financial_datasets` watchlist（NVDA/MSFT/AAPL…）重疊但非完全一致；擴名單請同步 crew 與文件。
+# 大型科技／AI 供應鏈 — 財報日曆與 macro_context「錨定週財報」掃描用（yfinance）。
+# 擴編參考公開市場論述（hyperscaler、GPU／ASIC、HBM／記憶體、企業軟體 AI）；**非**投資建議、亦非即時熱度排名。
+# 與 crew `financial_datasets` watchlist 可部分重疊；財報聚焦日若命中多檔會增加工具呼叫。
 MEGA_CAP_TECH_EARNINGS_TICKERS: Final[tuple[str, ...]] = (
     "NVDA",
     "AMD",
+    "INTC",
+    "AVGO",
+    "MRVL",
+    "QCOM",
+    "MU",
+    "TSM",
+    "ARM",
     "MSFT",
     "GOOGL",
     "AAPL",
     "META",
     "AMZN",
-    "TSM",
-    "AVGO",
-    "ARM",
+    "ORCL",
+    "CRM",
+    "NOW",
+    "SNOW",
+    "PLTR",
+    "CRWD",
+    "NET",
 )
 
 
@@ -39,16 +51,32 @@ def pipeline_anchor_date() -> date:
     return datetime.now(timezone.utc).date()
 
 
-def next_monday_sunday_after_weekend(anchor: date) -> tuple[date, date] | None:
-    """If anchor is Saturday or Sunday, return (next Monday, that week's Sunday)."""
+def next_week_monday_sunday_for_eow_anchor(anchor: date) -> tuple[date, date] | None:
+    """If anchor is Fri/Sat/Sun, return (next calendar week's Monday, Sunday).
+
+    Used for「下週財報預告」— 週五日報預告「下週一–日」之 watchlist 排程。
+    """
     wd = anchor.weekday()  # Mon=0 .. Sun=6
-    if wd not in (5, 6):
+    if wd == 4:  # Friday → +3
+        monday = anchor + timedelta(days=3)
+    elif wd == 5:  # Saturday → +2
+        monday = anchor + timedelta(days=2)
+    elif wd == 6:  # Sunday → +1
+        monday = anchor + timedelta(days=1)
+    else:
         return None
-    # Sat → +2, Sun → +1
-    days_to_mon = 2 if wd == 5 else 1
-    monday = anchor + timedelta(days=days_to_mon)
     sunday = monday + timedelta(days=6)
     return monday, sunday
+
+
+def next_monday_sunday_after_weekend(anchor: date) -> tuple[date, date] | None:
+    """Sat/Sun only → next week's Monday–Sunday (tests / legacy callers)."""
+    wd = anchor.weekday()
+    if wd not in (5, 6):
+        return None
+    days_to_mon = 2 if wd == 5 else 1
+    monday = anchor + timedelta(days=days_to_mon)
+    return monday, monday + timedelta(days=6)
 
 
 def week_range_containing(d: date) -> tuple[date, date]:

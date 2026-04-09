@@ -51,8 +51,24 @@ def test_weekend_prepends_forecast_without_focus_mode(monkeypatch):
     )
     out = earnings_focus.maybe_prepend_earnings_focus_exclusion("tail")
     assert "下週財報預告" in out
+    assert "週末" in out
     assert "NVDA" in out
     assert "tail" in out
+
+
+@pytest.mark.smoke
+def test_friday_prepends_forecast_without_focus_mode(monkeypatch):
+    monkeypatch.delenv("EARNINGS_FOCUS_MODE", raising=False)
+    monkeypatch.setattr(earnings_focus, "pipeline_anchor_date", lambda: date(2026, 4, 10))
+    monkeypatch.setattr(
+        earnings_focus,
+        "tickers_with_earnings_between",
+        lambda *_a, **_k: [("MSFT", date(2026, 4, 14))],
+    )
+    out = earnings_focus.maybe_prepend_earnings_focus_exclusion("z")
+    assert "下週財報預告" in out
+    assert "週五" in out
+    assert "MSFT" in out
 
 
 @pytest.mark.smoke

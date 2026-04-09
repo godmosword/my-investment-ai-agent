@@ -147,7 +147,7 @@ flowchart TB
 
 除啟動四項外，常見還有：`NEWSAPI_KEY`、`TAVILY_API_KEY`、`COINGLASS_API_KEY`、`FRED_API_KEY`、`FINANCIAL_DATASETS_API_KEY`、`TELEGRAM_*`、`GCP_*`、可選 **`STRICT_INSTITUTIONAL_PHASE_A_GATE`**／**B**／**C**、**`STRICT_NEWS_FRESHNESS_GATE`**、**`EARNINGS_FOCUS_MODE`**（財報日／週末預告 exclusion，見 [`earnings_focus.py`](earnings_focus.py)、[`earnings_watchlist.py`](earnings_watchlist.py)）等。**權威列表**：`ENV_TEMPLATE.txt`。
 
-**Mega-cap／AI 財報 watchlist**（yfinance 日曆掃描與財報聚焦共用）：`NVDA`、`AMD`、`MSFT`、`GOOGL`、`AAPL`、`META`、`AMZN`、`TSM`、`AVGO`、`ARM`。
+**Mega-cap／AI 財報 watchlist**（yfinance 日曆掃描與財報聚焦共用；公開市場常見分類擴編，非即時熱度排名）：`NVDA`、`AMD`、`INTC`、`AVGO`、`MRVL`、`QCOM`、`MU`、`TSM`、`ARM`、`MSFT`、`GOOGL`、`AAPL`、`META`、`AMZN`、`ORCL`、`CRM`、`NOW`、`SNOW`、`PLTR`、`CRWD`、`NET`。
 
 ---
 
