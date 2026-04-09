@@ -277,7 +277,7 @@
 
 ## 修訂紀錄
 
-- **2026-04-09**：**全文重寫**（精簡章節、檔首同步、**LangGraph 路徑** LG-1～3、**Phase 3** 標註部分落地、Pri 8 改為模板／欄位審計表述）；**已落地**補 **2026-04-09** 工具橋接。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-09 Docs**。
+- **2026-04-09**：**全文重寫**（精簡章節、檔首同步、**LangGraph 路徑** LG-1～3、**Phase 3** 標註部分落地、Pri 8 改為模板／欄位審計表述）；**已落地**補 **2026-04-09** 工具橋接；[`README.md`](README.md) 明示 **預設分支 `main`** 與 README／本檔以 **`main` 為準**。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-09 Docs**。
 - **2026-04-04（晚）**：演進計畫 — Critical env、閾值實驗、`adaptive_gate_thresholds`、Gate digest、dry-run、mock-smoke、scratchpad、`asset_market`、觀望 vs QSREC — CHANGELOG **2026-04-04**。
 - **2026-04-04**：四維評分與新建議 backlog — 見上表；[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) 對照。
 - **2026-04-03**：OSS Scout 自動區格式 — CHANGELOG **2026-04-03**。
