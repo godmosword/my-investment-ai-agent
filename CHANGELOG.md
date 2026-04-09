@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-14
+
+### Changed
+- **LangGraph Final_Formatter**：[`graph/graph_nodes.py`](graph/graph_nodes.py) 於 **`LANGGRAPH_SKIP_FORMATTER_CREW=1`** 時改走 **native**（slim 結構化 LLM + 決定性組裝 `CryptoSection`／`AISection`），不再回傳 stub；legacy 路徑將 Bull/Bear/Arbiter 摘要經 **`langgraph_debate_context`** 注入 [`crew.py`](crew.py) Formatter Crew。新增 [`graph/graph_formatter_schemas.py`](graph/graph_formatter_schemas.py)（`CryptoFormatterNarrative`／`AIFormatterNarrative`）；`regime` 可由 `agreed_regime` 或 `regime_scorecard` 字串回退；`score_suffix` 正則支援全形括號。
+- [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)：`LANGGRAPH_SKIP_FORMATTER_CREW` 註解對齊上述語意與 API 需求。
+
+### Tests
+- [`test_graph_crew.py`](test_graph_crew.py)：Formatter mock、native assemble、`run_langgraph_category` 路徑覆蓋。
+
 ## 2026-04-13
 
 ### Changed

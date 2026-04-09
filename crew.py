@@ -821,6 +821,7 @@ class CryptoResearchCrew:
         price_context: str = "",
         prev_recs_block: str = "",
         agreed_regime: str | None = None,
+        langgraph_debate_context: str | None = None,
         recent_lessons: str = (
             "[系統反思記憶] 近期無停損紀錄，請維持客觀的風險控管。"
         ),
@@ -840,6 +841,10 @@ class CryptoResearchCrew:
             f" 全文 regime 欄位必須一律使用 {agreed_regime}，嚴禁輸出其他 regime 值。\n"
             if agreed_regime else ""
         )
+        debate_ctx = (
+            f"\n【LangGraph 辯論摘要（必須納入最終判斷）】\n{langgraph_debate_context}\n"
+            if (langgraph_debate_context or "").strip() else ""
+        )
         _sentiment_instr = (
             "· sentiment_score_tool(news_and_tweets=<將上方新聞標題與摘要拼接後傳入>)（可選：時間緊可跳過；情緒 -1～+1）\n"
             if not _PIPELINE_SKIP_SENTIMENT_SCORE
@@ -849,6 +854,7 @@ class CryptoResearchCrew:
         _crypto_common_header = dedent(f"""
             {_CREW_RULE_BLOCK}
             {excl}
+            {debate_ctx}
         """).strip()
 
         if _crew_parallel_research_enabled():
@@ -1076,6 +1082,7 @@ class AIResearchCrew:
         exclude_context: str | None = None,
         price_context: str = "",
         agreed_regime: str | None = None,
+        langgraph_debate_context: str | None = None,
         recent_lessons: str = (
             "[系統反思記憶] 近期無停損紀錄，請維持客觀的風險控管。"
         ),
@@ -1091,10 +1098,15 @@ class AIResearchCrew:
             f" 全文 regime 欄位必須一律使用 {agreed_regime}，嚴禁輸出其他 regime 值。\n"
             if agreed_regime else ""
         )
+        debate_ctx = (
+            f"\n【LangGraph 辯論摘要（必須納入最終判斷）】\n{langgraph_debate_context}\n"
+            if (langgraph_debate_context or "").strip() else ""
+        )
 
         _ai_common_header = dedent(f"""
             {_CREW_RULE_BLOCK}
             {excl}
+            {debate_ctx}
         """).strip()
 
         if _crew_parallel_research_enabled():

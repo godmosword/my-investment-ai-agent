@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
+from graph.graph_formatter_schemas import AIFormatterNarrative, CryptoFormatterNarrative
 from graph.graph_state import ResearchGraphState
 from graph.graph_tools import RESEARCH_TOOLS
+from schemas import AISection, CryptoSection, MarketRegimeBlock, MetricLine
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +99,18 @@ def _get_arbiter_llm() -> Any:
     )
 
 
+def _get_formatter_llm() -> Any:
+    """Low-temperature LLM for strict formatter schema adherence."""
+    from langchain_openai import ChatOpenAI
+    from config import MODEL_GPT
+
+    return ChatOpenAI(
+        model=_strip_provider_prefix(MODEL_GPT),
+        temperature=0.1,
+        max_retries=3,
+    )
+
+
 def _safe_tool_run(tool_obj: Any, *args: Any, **kwargs: Any) -> Any:
     try:
         runner = getattr(tool_obj, "run", None)
@@ -118,6 +134,133 @@ def _extract_numeric_lines(raw_data: dict[str, Any], limit: int = 4) -> list[str
     if not lines:
         lines.append("尚無可引用的客觀讀數，需補抓工具輸出。")
     return lines
+
+
+def _build_debate_context(state: ResearchGraphState) -> str:
+    bull_args = state.get("bull_arguments", [])
+    bear_args = state.get("bear_arguments", [])
+    arbiter_summary = state.get("arbiter_summary", "")
+    numeric_lines = _extract_numeric_lines(state.get("raw_data", {}), limit=4)
+    return (
+        f"主編共識：{arbiter_summary or '（無）'}\n"
+        f"多方論點：{' | '.join(bull_args) if bull_args else '（無）'}\n"
+        f"空方論點：{' | '.join(bear_args) if bear_args else '（無）'}\n"
+        f"客觀讀數：{' | '.join(numeric_lines)}"
+    )
+
+
+def _build_formatter_context(state: ResearchGraphState) -> str:
+    raw_data = state.get("raw_data", {})
+    raw_lines = []
+    for key, value in raw_data.items():
+        text = str(value)
+        if len(text) > 500:
+            text = f"{text[:500]}... [TRUNCATED]"
+        raw_lines.append(f"{key}: {text}")
+    return (
+        f"【主編共識】\n{state.get('arbiter_summary', '無主編共識')}\n\n"
+        f"【多方視角】\n{chr(10).join(state.get('bull_arguments', [])) or '（無）'}\n\n"
+        f"【空方視角】\n{chr(10).join(state.get('bear_arguments', [])) or '（無）'}\n\n"
+        f"【Regime 鎖定】\n{state.get('agreed_regime') or '未鎖定'}\n\n"
+        f"【系統即時報價】\n{state.get('price_context', '') or '（無）'}\n\n"
+        f"【客觀數據】\n{chr(10).join(raw_lines) or '（無）'}\n\n"
+        f"【系統反思】\n{state.get('recent_lessons', '') or '（無）'}\n"
+    )
+
+
+def _infer_regime(state: ResearchGraphState) -> MarketRegimeBlock:
+    raw_scorecard = str(state.get("raw_data", {}).get("regime_scorecard", ""))
+    agreed = str(state.get("agreed_regime") or "").strip().lower().replace("-", "_")
+    source_token = agreed
+    if not source_token and raw_scorecard:
+        scorecard_norm = raw_scorecard.lower().replace("-", "_")
+        if "risk_on" in scorecard_norm:
+            source_token = "risk_on"
+        elif "risk_off" in scorecard_norm:
+            source_token = "risk_off"
+        elif "neutral" in scorecard_norm:
+            source_token = "neutral"
+
+    if "risk_on" in source_token:
+        regime = "risk_on"
+    elif "risk_off" in source_token:
+        regime = "risk_off"
+    elif source_token in {"on", "bull", "bullish"}:
+        regime = "risk_on"
+    elif source_token in {"off", "bear", "bearish"}:
+        regime = "risk_off"
+    else:
+        regime = "neutral"
+
+    score_suffix = ""
+    score_lines: list[str] = []
+    if raw_scorecard:
+        match = re.search(r"[\(（][+-]?\d+/\d+[\)）]", raw_scorecard)
+        if match:
+            score_suffix = match.group(0)
+        for line in raw_scorecard.splitlines():
+            line = line.strip()
+            if line.startswith("✅") or line.startswith("❌"):
+                score_lines.append(line)
+            if len(score_lines) >= 4:
+                break
+
+    return MarketRegimeBlock(
+        regime=regime,
+        score_suffix=score_suffix,
+        scorecard_lines=score_lines,
+    )
+
+
+def _build_dashboard(raw_data: dict[str, Any], limit: int = 8) -> list[MetricLine]:
+    rows: list[MetricLine] = []
+    for line in _extract_numeric_lines(raw_data, limit=limit):
+        if ":" in line:
+            label, value = line.split(":", 1)
+            rows.append(MetricLine(label=label.strip(), value=value.strip()))
+        else:
+            rows.append(MetricLine(label="指標", value=line.strip()))
+    if not rows:
+        rows.append(MetricLine(label="資料狀態", value="N/A"))
+    return rows
+
+
+def _assemble_crypto_section(
+    state: ResearchGraphState, slim: CryptoFormatterNarrative
+) -> CryptoSection:
+    payload: dict[str, Any] = {
+        "report_title_date": _hkt_now().split(" ")[0],
+        "market": _infer_regime(state).model_dump(mode="json"),
+        "narrative_of_day": slim.narrative_of_day,
+        "macro_framework_lines": slim.macro_framework_lines[:4],
+        "dashboard": [row.model_dump(mode="json") for row in _build_dashboard(state.get("raw_data", {}), limit=8)],
+        "news": [],
+        "x_highlights": [],
+        "chatter": [],
+        "pick_reason": slim.pick_reason,
+        "risk_budget_summary": slim.risk_budget_summary,
+        "signal_conflict_summary": slim.signal_conflict_summary,
+        "trade_legs": [],
+        "qsrec": [],
+    }
+    return CryptoSection.model_validate(payload)
+
+
+def _assemble_ai_section(
+    state: ResearchGraphState, slim: AIFormatterNarrative
+) -> AISection:
+    payload: dict[str, Any] = {
+        "macro_bridge_lines": slim.macro_bridge_lines[:2],
+        "dashboard": [row.model_dump(mode="json") for row in _build_dashboard(state.get("raw_data", {}), limit=8)],
+        "news": [],
+        "x_highlights": [],
+        "chatter": [],
+        "pick_reason": slim.pick_reason,
+        "signal_conflict_summary": slim.signal_conflict_summary,
+        "trade_legs": [],
+        "qsrec": [],
+    }
+    return AISection.model_validate(payload)
 
 
 def data_gatherer_node(state: ResearchGraphState) -> dict[str, Any]:
@@ -481,36 +624,72 @@ def deep_research_node(state: ResearchGraphState) -> dict[str, Any]:
 
 
 def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
-    """Format final output aligned with existing schemas via legacy crews."""
-    if not _formatter_uses_legacy_crews():
-        return {
-            "final_report": {
-                "category": state["category"],
-                "arbiter_summary": state.get("arbiter_summary", ""),
-                "bull_arguments": state.get("bull_arguments", []),
-                "bear_arguments": state.get("bear_arguments", []),
-            },
-            "needs_deep_dive": False,
-        }
-
-    from crew import AIResearchCrew, CryptoResearchCrew
-
+    """Final formatter with legacy fallback and native structured mode."""
     category = state["category"]
-    use_fallback_llm = bool(state.get("use_fallback_llm", False))
+    if _formatter_uses_legacy_crews():
+        logger.info("--- [Node] Final Formatter (Legacy Crew) 啟動 ---")
+        from crew import AIResearchCrew, CryptoResearchCrew
+
+        use_fallback_llm = bool(state.get("use_fallback_llm", False))
+        debate_context = _build_debate_context(state)
+        if category == "CRYPTO":
+            section = CryptoResearchCrew(use_fallback_llm=use_fallback_llm).run(
+                exclude_context=state.get("exclude_context", ""),
+                price_context=state.get("price_context", ""),
+                prev_recs_block=state.get("prev_recs_block", ""),
+                agreed_regime=state.get("agreed_regime"),
+                langgraph_debate_context=debate_context,
+                recent_lessons=state.get("recent_lessons", ""),
+            )
+        else:
+            section = AIResearchCrew(use_fallback_llm=use_fallback_llm).run(
+                exclude_context=state.get("exclude_context", ""),
+                price_context=state.get("price_context", ""),
+                agreed_regime=state.get("agreed_regime"),
+                langgraph_debate_context=debate_context,
+                recent_lessons=state.get("recent_lessons", ""),
+            )
+        return {"final_report": section.model_dump(mode="json"), "needs_deep_dive": False}
+
+    logger.info("--- [Node] Final Formatter (Native Structured Output) 啟動 ---")
+    llm = _get_formatter_llm()
+    context_text = _build_formatter_context(state)
+
     if category == "CRYPTO":
-        section = CryptoResearchCrew(use_fallback_llm=use_fallback_llm).run(
-            exclude_context=state.get("exclude_context", ""),
-            price_context=state.get("price_context", ""),
-            prev_recs_block=state.get("prev_recs_block", ""),
-            agreed_regime=state.get("agreed_regime"),
-            recent_lessons=state.get("recent_lessons", ""),
-        )
+        structured_llm = llm.with_structured_output(CryptoFormatterNarrative)
+        prompt = ChatPromptTemplate.from_messages([
+            (
+                "system",
+                "你是 Q-Silicon 最終排版總編。"
+                "你只能根據提供的內部簡報生成內容，禁止捏造新聞、價格、代碼、交易腿。"
+                "輸出需精簡、機構語氣、可直接寫入 JSON 欄位。",
+            ),
+            ("human", "板塊：CRYPTO\n\n內部簡報：\n{context_text}"),
+        ])
+        chain = prompt | structured_llm
+        try:
+            slim = chain.invoke({"context_text": context_text})
+            section = _assemble_crypto_section(state, slim)
+        except Exception as exc:
+            logger.error("Native formatter (CRYPTO) failed: %s", exc)
+            raise RuntimeError(f"Native formatter failed for CRYPTO: {exc}") from exc
     else:
-        section = AIResearchCrew(use_fallback_llm=use_fallback_llm).run(
-            exclude_context=state.get("exclude_context", ""),
-            price_context=state.get("price_context", ""),
-            agreed_regime=state.get("agreed_regime"),
-            recent_lessons=state.get("recent_lessons", ""),
-        )
+        structured_llm = llm.with_structured_output(AIFormatterNarrative)
+        prompt = ChatPromptTemplate.from_messages([
+            (
+                "system",
+                "你是 Q-Silicon 最終排版總編。"
+                "你只能根據提供的內部簡報生成內容，禁止捏造新聞、價格、代碼、交易腿。"
+                "輸出需精簡、機構語氣、可直接寫入 JSON 欄位。",
+            ),
+            ("human", "板塊：AI\n\n內部簡報：\n{context_text}"),
+        ])
+        chain = prompt | structured_llm
+        try:
+            slim = chain.invoke({"context_text": context_text})
+            section = _assemble_ai_section(state, slim)
+        except Exception as exc:
+            logger.error("Native formatter (AI) failed: %s", exc)
+            raise RuntimeError(f"Native formatter failed for AI: {exc}") from exc
 
     return {"final_report": section.model_dump(mode="json"), "needs_deep_dive": False}
