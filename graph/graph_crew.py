@@ -14,18 +14,20 @@ from graph.graph_nodes import (
     data_gatherer_node,
     deep_research_node,
     final_formatter_node,
+    news_scraper_node,
+    trade_picker_node,
 )
 from graph.graph_state import ResearchGraphState
 from schemas import AISection, CryptoSection
 
 
-RouteKey = Literal["deep_research", "final_formatter"]
+RouteKey = Literal["deep_research", "news_scraper"]
 
 
 def _route_after_arbiter(state: ResearchGraphState) -> RouteKey:
     if state.get("needs_deep_dive", False):
         return "deep_research"
-    return "final_formatter"
+    return "news_scraper"
 
 
 def build_research_graph() -> Any:
@@ -36,6 +38,8 @@ def build_research_graph() -> Any:
     builder.add_node("bear_agent", bear_agent_node)
     builder.add_node("arbiter", arbiter_node)
     builder.add_node("deep_research", deep_research_node)
+    builder.add_node("news_scraper", news_scraper_node)
+    builder.add_node("trade_picker", trade_picker_node)
     builder.add_node("final_formatter", final_formatter_node)
 
     builder.add_edge(START, "data_gatherer")
@@ -49,11 +53,13 @@ def build_research_graph() -> Any:
         _route_after_arbiter,
         {
             "deep_research": "deep_research",
-            "final_formatter": "final_formatter",
+            "news_scraper": "news_scraper",
         },
     )
     builder.add_edge("deep_research", "bull_agent")
     builder.add_edge("deep_research", "bear_agent")
+    builder.add_edge("news_scraper", "trade_picker")
+    builder.add_edge("trade_picker", "final_formatter")
     builder.add_edge("final_formatter", END)
 
     return builder.compile()
@@ -87,6 +93,8 @@ def run_langgraph_category(
         "recent_lessons": recent_lessons,
         "use_fallback_llm": use_fallback_llm,
         "raw_data": {},
+        "raw_news": [],
+        "proposed_trades": [],
         "bull_arguments": [],
         "bear_arguments": [],
         "arbiter_summary": "",

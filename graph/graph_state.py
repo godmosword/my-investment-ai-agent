@@ -25,6 +25,8 @@ class ResearchGraphState(TypedDict):
     recent_lessons: str
     use_fallback_llm: bool
     raw_data: Annotated[dict[str, Any], merge_raw_data]
+    raw_news: list[dict[str, Any]]
+    proposed_trades: list[dict[str, Any]]
     bull_arguments: list[str]
     bear_arguments: list[str]
     arbiter_summary: str

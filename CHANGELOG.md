@@ -3,6 +3,18 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-16
+
+### Changed
+- **LangGraph `news_scraper_node`**：[`graph/graph_nodes.py`](graph/graph_nodes.py) 對多來源新聞改以 **`ThreadPoolExecutor`** 並行呼叫既有工具，再依原先來源順序合併與 dedupe（上限 6 則），縮短牆鐘時間。
+- **`trade_picker`**：`_get_trade_picker_llm` 改為 **`lru_cache(maxsize=1)`** 單例，避免同程序多次 graph invoke 重複建構客戶端。
+
+### Docs
+- [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)：補 **`GRAPH_LLM_TRADE_PICKER`**；更新 **`LANGGRAPH_SKIP_FORMATTER_CREW`** 註解（對齊 news／trade 節點組裝）。
+
+### Tests / Tooling
+- [`pytest.ini`](pytest.ini)：設定 **`asyncio_default_fixture_loop_scope = function`**，消除 pytest-asyncio 預設 loop scope 棄用警告。
+
 ## 2026-04-14
 
 ### Changed

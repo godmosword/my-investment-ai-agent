@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from functools import lru_cache
+from typing import Any, Literal
 
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
@@ -14,7 +16,16 @@ from pydantic import BaseModel, Field
 from graph.graph_formatter_schemas import AIFormatterNarrative, CryptoFormatterNarrative
 from graph.graph_state import ResearchGraphState
 from graph.graph_tools import RESEARCH_TOOLS
-from schemas import AISection, CryptoSection, MarketRegimeBlock, MetricLine
+from schemas import (
+    AISection,
+    CryptoSection,
+    ExecutableTradeLeg,
+    MarketRegimeBlock,
+    MetricLine,
+    NewsItem,
+    TradeRecommendation,
+)
+from validation_rules import ensure_news_timestamp_line_utc8
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +77,19 @@ class ArbiterDecision(BaseModel):
     )
 
 
+class TradeIntent(BaseModel):
+    """Structured intent returned by trade picker LLM (no numeric prices)."""
+
+    asset: str = Field(..., description="Ticker without $, uppercase preferred.")
+    direction: Literal["LONG", "SHORT"] = Field(...)
+    star_rating: int = Field(..., ge=1, le=2, description="Conviction 1-2 only.")
+    thesis_one_liner: str = Field(..., description="One-line external narrative seed.")
+
+
+class TradePickerOutput(BaseModel):
+    intents: list[TradeIntent] = Field(default_factory=list)
+
+
 # ==========================================
 # LLM factory helpers (lazy import to avoid module-load side effects)
 # ==========================================
@@ -111,6 +135,23 @@ def _get_formatter_llm() -> Any:
     )
 
 
+@lru_cache(maxsize=1)
+def _get_trade_picker_llm() -> Any:
+    """Low-temperature LLM for compact trade intent extraction (singleton per process)."""
+    from langchain_openai import ChatOpenAI
+    from config import MODEL_GPT
+
+    return ChatOpenAI(
+        model=_strip_provider_prefix(MODEL_GPT),
+        temperature=0.2,
+        max_retries=3,
+    )
+
+
+def _trade_picker_enabled() -> bool:
+    return os.getenv("GRAPH_LLM_TRADE_PICKER", "0").lower() in ("1", "true", "yes")
+
+
 def _safe_tool_run(tool_obj: Any, *args: Any, **kwargs: Any) -> Any:
     try:
         runner = getattr(tool_obj, "run", None)
@@ -121,6 +162,22 @@ def _safe_tool_run(tool_obj: Any, *args: Any, **kwargs: Any) -> Any:
         return "[DATA_MISSING:tool_not_callable]"
     except Exception as exc:  # pragma: no cover - defensive wrapper
         return f"[DATA_MISSING:{exc}]"
+
+
+def _fetch_parsed_news_source(
+    name: str, tool_obj: Any, kwargs: dict[str, Any]
+) -> tuple[str, list[dict[str, Any]]]:
+    """Run one news tool and return (source_name, parsed items). Thread-safe for parallel fetch."""
+    result = _safe_tool_run(tool_obj, **kwargs)
+    text = str(result)
+    if not text or text.startswith("[DATA_MISSING"):
+        return name, []
+    parsed = (
+        _parse_cryptopanic_blocks(text)
+        if name == "cryptopanic"
+        else _parse_news_lines(text, name)
+    )
+    return name, parsed
 
 
 def _extract_numeric_lines(raw_data: dict[str, Any], limit: int = 4) -> list[str]:
@@ -225,23 +282,309 @@ def _build_dashboard(raw_data: dict[str, Any], limit: int = 8) -> list[MetricLin
     return rows
 
 
+def _extract_first_number(text: str) -> str:
+    match = re.search(r"[-+]?\d[\d,]*(?:\.\d+)?%?", text or "")
+    if not match:
+        return ""
+    return match.group(0)
+
+
+def _dashboard_numeric_anchor(dashboard: list[MetricLine] | list[dict[str, Any]]) -> str:
+    for row in dashboard:
+        if isinstance(row, MetricLine):
+            token = _extract_first_number(row.value)
+        else:
+            token = _extract_first_number(str(row.get("value", "")))
+        if token:
+            return token
+    return "0"
+
+
+def _parse_cryptopanic_blocks(raw: str) -> list[dict[str, Any]]:
+    blocks = re.split(r"\n\s*\n", raw.strip())
+    parsed: list[dict[str, Any]] = []
+    for block in blocks:
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        if len(lines) < 2:
+            continue
+        meta = lines[0]
+        title = lines[1]
+        url = ""
+        published_at = ""
+        source = "unknown"
+        if len(lines) >= 3:
+            url = lines[2].replace("URL:", "").strip()
+        ts_match = re.search(r"時間：([^｜]+)", meta)
+        src_match = re.search(r"來源：([^｜]+)", meta)
+        if ts_match:
+            published_at = ts_match.group(1).strip()
+        if src_match:
+            source = src_match.group(1).strip()
+        if not title:
+            continue
+        parsed.append(
+            {
+                "title": title,
+                "url": url,
+                "source": source,
+                "published_at": published_at,
+                "raw_body": block,
+                "feed": "cryptopanic",
+            }
+        )
+    return parsed
+
+
+def _parse_news_lines(raw: str, feed: str) -> list[dict[str, Any]]:
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    parsed: list[dict[str, Any]] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        if line.startswith("【"):
+            continue
+        meta = re.match(r"^〔([^｜]+)｜([^〕]+)〕(.*)$", line)
+        if not meta:
+            continue
+        published_at = meta.group(1).strip()
+        source = meta.group(2).strip()
+        title = meta.group(3).strip()
+        url = ""
+        if i < len(lines):
+            nxt = lines[i]
+            if nxt.startswith("http"):
+                url = nxt
+                i += 1
+        if not title:
+            continue
+        parsed.append(
+            {
+                "title": title,
+                "url": url,
+                "source": source,
+                "published_at": published_at,
+                "raw_body": line,
+                "feed": feed,
+            }
+        )
+    return parsed
+
+
+def _to_timestamp_line(published_at: str) -> str:
+    ts = (published_at or "").strip()
+    hkt = timezone(timedelta(hours=8))
+    dt: datetime | None = None
+    if ts:
+        iso = ts.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(iso)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            mdhm = re.search(r"(\d{1,2})/(\d{1,2})\s+(\d{1,2}):(\d{2})", ts)
+            if mdhm:
+                now = datetime.now(hkt)
+                dt = datetime(
+                    year=now.year,
+                    month=int(mdhm.group(1)),
+                    day=int(mdhm.group(2)),
+                    hour=int(mdhm.group(3)),
+                    minute=int(mdhm.group(4)),
+                    tzinfo=hkt,
+                )
+    if dt is None:
+        dt = datetime.now(hkt)
+    ts_line = f"[{dt.astimezone(hkt).strftime('%m/%d %H:%M')} UTC+8]"
+    return ensure_news_timestamp_line_utc8(ts_line)
+
+
+def _resolve_spot_price(asset: str, price_context: str, category: str) -> float | None:
+    symbol = (asset or "").strip().upper().lstrip("$")
+    if not symbol:
+        return None
+    probe = symbol.split("/")[0]
+    ctx = price_context or ""
+    patterns = (
+        rf"\b{re.escape(probe)}\b\s*[:=]?\s*\$?\s*([0-9][0-9,]*(?:\.\d+)?)",
+        rf"\${re.escape(probe)}\s*[:=]?\s*([0-9][0-9,]*(?:\.\d+)?)",
+    )
+    for pattern in patterns:
+        m = re.search(pattern, ctx, flags=re.IGNORECASE)
+        if m:
+            return float(m.group(1).replace(",", ""))
+
+    fallback_symbol = probe
+    if category == "AI":
+        fallback_symbol = probe.upper()
+    try:
+        from tracker import _current_price_for_asset  # noqa: PLC0415
+
+        val = _current_price_for_asset(fallback_symbol)
+        if val is None:
+            return None
+        if isinstance(val, (int, float)):
+            return float(val)
+        token = _extract_first_number(str(val)).replace(",", "")
+        return float(token) if token else None
+    except Exception:  # pragma: no cover - graceful degradation
+        return None
+
+
+def _proposed_trades_to_legs_and_qsrec(
+    category: Literal["CRYPTO", "AI"],
+    proposed_trades: list[dict[str, Any]],
+    price_context: str,
+    agreed_regime: str | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if "risk_off" in (agreed_regime or "").lower().replace("-", "_"):
+        return [], []
+
+    legs: list[dict[str, Any]] = []
+    qsrec: list[dict[str, Any]] = []
+    for item in proposed_trades:
+        try:
+            intent = TradeIntent.model_validate(item)
+        except Exception:
+            continue
+        spot = _resolve_spot_price(intent.asset, price_context, category)
+        if spot is None or spot <= 0:
+            continue
+
+        direction = intent.direction
+        if direction == "LONG":
+            entry = spot
+            target = spot * 1.03
+            stop = spot * 0.98
+            tgt_pct = 3.0
+            stop_pct = -2.0
+        else:
+            entry = spot
+            target = spot * 0.97
+            stop = spot * 1.02
+            tgt_pct = -3.0
+            stop_pct = 2.0
+
+        rr_value = abs((target - entry) / (entry - stop)) if entry != stop else 1.0
+        confidence = max(1, min(2, int(intent.star_rating)))
+        asset_market = "CRYPTO" if category == "CRYPTO" else "US"
+        tr_category = "CRYPTO" if category == "CRYPTO" else "EQUITY"
+
+        rec = TradeRecommendation.model_validate(
+            {
+                "asset": intent.asset.upper().lstrip("$"),
+                "direction": direction,
+                "current_price": round(spot, 6),
+                "entry": round(entry, 6),
+                "target": round(target, 6),
+                "stop": round(stop, 6),
+                "confidence": confidence,
+                "category": tr_category,
+                "asset_market": asset_market,
+                "narrative": intent.thesis_one_liner.strip() or "—",
+                "trigger": f"若價格觸及 {entry:.2f} 附近進場。",
+                "invalidation": f"若價格觸及 {stop:.2f} 視為失效。",
+                "position_pct": 0.05 if confidence == 2 else 0.03,
+                "rr_ratio": round(rr_value, 2),
+                "max_drawdown_pct": round(-abs((stop - entry) / entry) * 100, 2),
+                "expected_win_rate": 52.0,
+                "signal_score": 58.0,
+            }
+        )
+        leg = ExecutableTradeLeg.model_validate(
+            {
+                "asset_market": asset_market,
+                "asset": intent.asset.upper().lstrip("$"),
+                "direction": direction,
+                "current_price": f"{spot:.2f}",
+                "star_rating": confidence,
+                "entry": f"{entry:.2f}",
+                "target": f"{target:.2f} ({tgt_pct:+.1f}%)",
+                "stop": f"{stop:.2f} ({stop_pct:+.1f}%)",
+                "rr": f"1:{rr_value:.2f}",
+                "max_drawdown_pct": f"{-abs((stop - entry) / entry) * 100:.1f}%",
+                "expected_win_rate": "52%",
+                "signal_score": "58/100",
+                "trigger": f"價格觸及 {entry:.2f} 進場。",
+                "sizing_logic": "先小倉位測試，確認後再加碼。",
+                "invalidation": f"跌破/突破 {stop:.2f} 立即退出。",
+                "position_pct": "3-5%",
+                "liquidity_execution_note": "以限價單分批成交，避免滑價擴大。",
+                "narrative": intent.thesis_one_liner.strip() or "—",
+                "bull_scenario": f"站穩 {target:.2f} 延續趨勢",
+                "base_scenario": f"{entry:.2f}-{target:.2f} 區間整理",
+                "bear_scenario": f"觸及 {stop:.2f} 失效",
+            }
+        )
+        qsrec.append(rec.model_dump(mode="json"))
+        legs.append(leg.model_dump(mode="json"))
+    return legs, qsrec
+
+
+def _raw_news_to_news_items(
+    category: Literal["CRYPTO", "AI"],
+    raw_news: list[dict[str, Any]],
+    dashboard: list[MetricLine],
+    start_index: int,
+) -> list[dict[str, Any]]:
+    anchor = _dashboard_numeric_anchor(dashboard)
+    out: list[dict[str, Any]] = []
+    for index, item in enumerate(raw_news[:3], start=start_index):
+        title = str(item.get("title", "")).strip()
+        if not title:
+            continue
+        source = str(item.get("source", "unknown")).strip() or "unknown"
+        news_asset = "BTC" if category == "CRYPTO" else "NVDA"
+        try:
+            news = NewsItem.model_validate(
+                {
+                    "index": index,
+                    "timestamp_line": _to_timestamp_line(str(item.get("published_at", ""))),
+                    "title": title[:220],
+                    "source_and_nature": f"{source}｜confirmed",
+                    "summary": title[:90],
+                    "investment_takeaway": f"{anchor} 為當前關鍵讀數；事件延續現有交易主軸。",
+                    "editor_consensus": f"{news_asset} 以紀律倉位應對。",
+                    "pricing_note": "大致已定價",
+                }
+            )
+        except Exception as exc:
+            logger.warning("Skip invalid news item: %s", exc)
+            continue
+        out.append(news.model_dump(mode="json"))
+    return out
+
+
 def _assemble_crypto_section(
     state: ResearchGraphState, slim: CryptoFormatterNarrative
 ) -> CryptoSection:
+    dashboard = _build_dashboard(state.get("raw_data", {}), limit=8)
+    news_rows = _raw_news_to_news_items(
+        "CRYPTO",
+        state.get("raw_news", []),
+        dashboard,
+        start_index=1,
+    )
+    trade_legs, qsrec = _proposed_trades_to_legs_and_qsrec(
+        "CRYPTO",
+        state.get("proposed_trades", []),
+        state.get("price_context", ""),
+        state.get("agreed_regime"),
+    )
     payload: dict[str, Any] = {
         "report_title_date": _hkt_now().split(" ")[0],
         "market": _infer_regime(state).model_dump(mode="json"),
         "narrative_of_day": slim.narrative_of_day,
         "macro_framework_lines": slim.macro_framework_lines[:4],
-        "dashboard": [row.model_dump(mode="json") for row in _build_dashboard(state.get("raw_data", {}), limit=8)],
-        "news": [],
+        "dashboard": [row.model_dump(mode="json") for row in dashboard],
+        "news": news_rows,
         "x_highlights": [],
         "chatter": [],
         "pick_reason": slim.pick_reason,
         "risk_budget_summary": slim.risk_budget_summary,
         "signal_conflict_summary": slim.signal_conflict_summary,
-        "trade_legs": [],
-        "qsrec": [],
+        "trade_legs": trade_legs,
+        "qsrec": qsrec,
     }
     return CryptoSection.model_validate(payload)
 
@@ -249,16 +592,29 @@ def _assemble_crypto_section(
 def _assemble_ai_section(
     state: ResearchGraphState, slim: AIFormatterNarrative
 ) -> AISection:
+    dashboard = _build_dashboard(state.get("raw_data", {}), limit=8)
+    news_rows = _raw_news_to_news_items(
+        "AI",
+        state.get("raw_news", []),
+        dashboard,
+        start_index=4,
+    )
+    trade_legs, qsrec = _proposed_trades_to_legs_and_qsrec(
+        "AI",
+        state.get("proposed_trades", []),
+        state.get("price_context", ""),
+        state.get("agreed_regime"),
+    )
     payload: dict[str, Any] = {
         "macro_bridge_lines": slim.macro_bridge_lines[:2],
-        "dashboard": [row.model_dump(mode="json") for row in _build_dashboard(state.get("raw_data", {}), limit=8)],
-        "news": [],
+        "dashboard": [row.model_dump(mode="json") for row in dashboard],
+        "news": news_rows,
         "x_highlights": [],
         "chatter": [],
         "pick_reason": slim.pick_reason,
         "signal_conflict_summary": slim.signal_conflict_summary,
-        "trade_legs": [],
-        "qsrec": [],
+        "trade_legs": trade_legs,
+        "qsrec": qsrec,
     }
     return AISection.model_validate(payload)
 
@@ -301,6 +657,123 @@ def data_gatherer_node(state: ResearchGraphState) -> dict[str, Any]:
         raw_data["ai_fundamentals"] = _safe_tool_run(financial_datasets_tool, "watchlist")
 
     return {"raw_data": raw_data}
+
+
+def news_scraper_node(state: ResearchGraphState) -> dict[str, Any]:
+    """Deterministically collect news from existing tools and normalize into raw_news."""
+    if not _tool_calls_enabled():
+        return {"raw_news": []}
+
+    from tools import (  # noqa: PLC0415
+        cryptopanic_tool,
+        gnews_tool,
+        newsapi_tool,
+        rss_feed_tool,
+    )
+
+    category = state.get("category", "CRYPTO")
+    raw_news: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+
+    def _append(items: list[dict[str, Any]]) -> None:
+        for item in items:
+            title = str(item.get("title", "")).strip()
+            url = str(item.get("url", "")).strip()
+            dedupe_key = (url or title).lower()
+            if not title or not dedupe_key or dedupe_key in seen_keys:
+                continue
+            seen_keys.add(dedupe_key)
+            raw_news.append(item)
+            if len(raw_news) >= 6:
+                return
+
+    if category == "CRYPTO":
+        sources = [
+            ("cryptopanic", cryptopanic_tool, {"topic": "bitcoin"}),
+            ("newsapi", newsapi_tool, {"query": "bitcoin OR ethereum crypto market"}),
+            ("gnews", gnews_tool, {"query": "bitcoin OR ethereum crypto market"}),
+            ("rss", rss_feed_tool, {"category": "crypto"}),
+        ]
+    else:
+        sources = [
+            ("newsapi", newsapi_tool, {"query": "artificial intelligence stocks NVDA MSFT"}),
+            ("gnews", gnews_tool, {"query": "artificial intelligence stocks NVDA MSFT"}),
+            ("rss", rss_feed_tool, {"category": "ai"}),
+        ]
+
+    # Parallel HTTP/tool calls; merge in configured source order for stable priority / dedupe.
+    max_workers = min(4, len(sources))
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(_fetch_parsed_news_source, name, tool_obj, dict(kwargs))
+            for name, tool_obj, kwargs in sources
+        ]
+        for fut in as_completed(futures):
+            name, items = fut.result()
+            by_name[name] = items
+
+    for name, _tool_obj, _kwargs in sources:
+        if len(raw_news) >= 6:
+            break
+        _append(by_name.get(name, []))
+
+    return {"raw_news": raw_news[:6]}
+
+
+def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
+    """Use structured LLM output for trade intents; prices are materialized later."""
+    if not _trade_picker_enabled():
+        return {"proposed_trades": []}
+
+    agreed_regime = str(state.get("agreed_regime") or "")
+    arbiter_summary = str(state.get("arbiter_summary") or "")
+    regime_hint = f"{agreed_regime}\n{arbiter_summary}".lower().replace("-", "_")
+    if "risk_off" in regime_hint:
+        return {"proposed_trades": []}
+
+    category = state.get("category", "CRYPTO")
+    price_context = state.get("price_context", "")
+    raw_news = state.get("raw_news", []) or []
+    news_titles = [str(item.get("title", "")).strip() for item in raw_news[:5] if str(item.get("title", "")).strip()]
+    news_blob = "\n".join(f"- {title}" for title in news_titles) or "（無）"
+
+    llm = _get_trade_picker_llm()
+    structured_llm = llm.with_structured_output(TradePickerOutput)
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "你是交易篩選編輯。僅輸出 0-2 筆 trade intents。"
+                "嚴禁輸出任何價格數字，僅可輸出 asset/direction/star_rating/thesis_one_liner。"
+                "star_rating 只能是 1 或 2。若訊號不足，回傳空陣列。",
+            ),
+            (
+                "human",
+                "板塊：{category}\n"
+                "主編共識：{arbiter_summary}\n"
+                "市場模式：{agreed_regime}\n"
+                "系統報價上下文（僅供參考，禁止輸出價格）：\n{price_context}\n"
+                "新聞標題：\n{news_blob}\n",
+            ),
+        ]
+    )
+    try:
+        out: TradePickerOutput = (prompt | structured_llm).invoke(
+            {
+                "category": category,
+                "arbiter_summary": arbiter_summary,
+                "agreed_regime": agreed_regime or "neutral",
+                "price_context": price_context or "（無）",
+                "news_blob": news_blob,
+            }
+        )
+    except Exception as exc:
+        logger.warning("trade_picker_node failed, fallback to empty: %s", exc)
+        return {"proposed_trades": []}
+
+    intents = [intent.model_dump(mode="json") for intent in out.intents]
+    return {"proposed_trades": intents}
 
 
 def bull_agent_node(state: ResearchGraphState) -> dict[str, Any]:

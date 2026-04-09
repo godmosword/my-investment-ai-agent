@@ -4,7 +4,12 @@ import pytest
 
 import graph.graph_nodes as graph_nodes
 from graph.graph_crew import build_research_graph, run_langgraph_category
-from graph.graph_nodes import arbiter_node, final_formatter_node
+from graph.graph_nodes import (
+    arbiter_node,
+    final_formatter_node,
+    news_scraper_node,
+    trade_picker_node,
+)
 from graph.graph_state import ResearchGraphState
 from graph.graph_state import merge_raw_data
 
@@ -19,6 +24,8 @@ def _initial_state(category: str = "CRYPTO", max_depth: int = 2) -> dict:
         "recent_lessons": "test",
         "use_fallback_llm": False,
         "raw_data": {},
+        "raw_news": [],
+        "proposed_trades": [],
         "bull_arguments": [],
         "bear_arguments": [],
         "arbiter_summary": "",
@@ -124,6 +131,52 @@ def test_final_formatter_native_assembles_schema(monkeypatch) -> None:
     assert isinstance(payload["dashboard"], list) and payload["dashboard"]
     assert payload["news"] == []
     assert payload["trade_legs"] == []
+
+
+def test_final_formatter_maps_raw_news_and_proposed_trades(monkeypatch) -> None:
+    monkeypatch.setenv("LANGGRAPH_SKIP_FORMATTER_CREW", "1")
+    monkeypatch.setattr(graph_nodes, "_get_formatter_llm", lambda: _FakeFormatterLLM())
+    state: ResearchGraphState = _initial_state("CRYPTO", max_depth=1)
+    state["agreed_regime"] = "neutral"
+    state["price_context"] = "BTC=100000"
+    state["raw_data"] = {"regime_scorecard": "【今日市場模式】neutral（+0/6）", "price": "BTC=100000"}
+    state["raw_news"] = [
+        {
+            "title": "ETF flows stabilize after volatility spike",
+            "url": "https://example.com/news-1",
+            "source": "Reuters",
+            "published_at": "2026-04-09T01:00:00Z",
+            "feed": "newsapi",
+        }
+    ]
+    state["proposed_trades"] = [
+        {
+            "asset": "BTC",
+            "direction": "LONG",
+            "star_rating": 2,
+            "thesis_one_liner": "資金流穩定，等待突破延續。",
+        }
+    ]
+
+    payload = final_formatter_node(state)["final_report"]
+    assert len(payload["news"]) == 1
+    assert len(payload["trade_legs"]) == 1
+    assert len(payload["qsrec"]) == 1
+
+
+def test_news_scraper_returns_empty_when_tools_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("GRAPH_ENABLE_TOOL_CALLS", "0")
+    result = news_scraper_node(_initial_state("CRYPTO", max_depth=1))
+    assert result["raw_news"] == []
+
+
+def test_trade_picker_respects_env_off(monkeypatch) -> None:
+    monkeypatch.setenv("GRAPH_LLM_TRADE_PICKER", "0")
+    state = _initial_state("AI", max_depth=1)
+    state["arbiter_summary"] = "test"
+    state["agreed_regime"] = "neutral"
+    result = trade_picker_node(state)
+    assert result["proposed_trades"] == []
 
 
 def test_run_langgraph_category_smoke_with_mocked_formatter(monkeypatch) -> None:
