@@ -15,6 +15,7 @@
 3. 建議在排程／Cloud Run 等執行環境設 **`PIPELINE_STRICT_ENV=1`**，強制未 `SKIP_*` 時具備 Telegram 與 BigQuery 憑證（見 `main._validate_critical_env_strict`）。
 4. 新聞新鮮度：生產環境建議 **`STRICT_NEWS_FRESHNESS_GATE=1`**（必要時搭配 `NEWS_FRESHNESS_WINDOW_HOURS`／白名單）；細節見 [`ENV_TEMPLATE.txt`](../ENV_TEMPLATE.txt) 與 [`docs/CRITICAL_ENV_POLICY.md`](CRITICAL_ENV_POLICY.md)。
 5. **錨定報告日**（可選）：補跑／跨日邊界時設 **`PIPELINE_REPORT_DATE=YYYY-MM-DD`**，新聞新鮮度以該日 HKT 日末為參考，並注入 crew context（見 `main._run_pipeline_once`）。
+6. **LangGraph 路徑**（可選）：`USE_LANGGRAPH_ENGINE=1` 時走 `graph/` 狀態機（見 `main.py`、`ENV_TEMPLATE.txt`）。**GitHub Actions → Cloud Run**：在 **Settings → Environments → `production` → Environment variables** 新增 **`USE_LANGGRAPH_ENGINE`** = **`1`**（未設則 deploy 寫入 **`0`**）；重新跑一次 **Deploy — Cloud Run Job** 後 Job 即帶該變數。亦可只在 **GCP Console → Cloud Run → Job → 編輯 → 變數** 手動新增（下次若 deploy 未帶 `--update-env-vars` 可能被覆寫；以本 repo 的 [`deploy.yml`](../.github/workflows/deploy.yml) 為準時，以 GitHub `production` 變數控制最一致）。回滾 CrewAI 主路徑：變數改 **`0`** 或刪除後將 deploy 預設寫回 0。
 
 ## LLM 成本與延遲（Secret／環境變數）
 

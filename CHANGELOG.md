@@ -12,6 +12,11 @@
 ### Tests
 - [`test_graph_crew.py`](test_graph_crew.py)：Formatter mock、native assemble、`run_langgraph_category` 路徑覆蓋。
 
+## 2026-04-15
+
+### Changed
+- **Deploy／Cloud Run**：[`deploy.yml`](.github/workflows/deploy.yml) 於 `gcloud run jobs deploy` 加上 **`--update-env-vars=USE_LANGGRAPH_ENGINE`**，值取自 GitHub **Environments → production** 變數 `USE_LANGGRAPH_ENGINE`（未設則 `0`）。[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) 補操作說明。
+
 ## 2026-04-13
 
 ### Changed

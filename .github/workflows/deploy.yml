@@ -126,6 +126,11 @@ jobs:
           # REMOVE_VARS="$REMOVE_VARS,CRYPTOQUANT_API_KEY,FRED_API_KEY,FINANCIAL_DATASETS_API_KEY"
           # REMOVE_VARS="$REMOVE_VARS,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID"
 
+          # LangGraph：預設 0（CrewAI 雙 Crew）。在 GitHub → Settings → Environments → production
+          # 新增變數 USE_LANGGRAPH_ENGINE=1 後重新 deploy，即會寫入 Cloud Run Job（每次 deploy 覆寫該鍵）。
+          LG_FLAG="${{ vars.USE_LANGGRAPH_ENGINE }}"
+          if [ -z "$LG_FLAG" ]; then LG_FLAG=0; fi
+
           # 日報管線含雙 Crew、多輪 LLM 與重試，實測常超過 1h；3600s 會被 Cloud Run 硬殺。
           # Cloud Run Jobs 單一 task 上限可至 168h；此處 4h 為安全預設，仍不足可再調高。
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
@@ -136,5 +141,6 @@ jobs:
             --memory 2Gi \
             --task-timeout 14400 \
             --set-secrets="$SECRETS" \
+            --update-env-vars="USE_LANGGRAPH_ENGINE=${LG_FLAG}" \
             --remove-env-vars="$REMOVE_PLAIN" \
             --quiet
