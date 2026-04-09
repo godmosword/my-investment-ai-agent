@@ -527,6 +527,9 @@ class ChatterItem(BaseModel):
         if not _CHATTER_CRED_INLINE_RE.search(self.text):
             grade = self.credibility or "C"
             self.text = self.text.rstrip() + f"｜可信度：{grade}｜主流媒體二次驗證：否"
+        elif "主流媒體二次驗證" not in self.text:
+            # Inline 可信度已存在（例如「可信度：B」）但漏 MSM 欄位時補齊，對齊 _CHATTER_FMT 與 STRICT_CHATTER_MSM_VERIFY_GATE。
+            self.text = self.text.rstrip() + "｜主流媒體二次驗證：否"
         return self
 
 

@@ -950,3 +950,295 @@ def test_assemble_backfills_na_equity_prices_and_synth_target_stop(mock_pf, monk
     assert "55" in leg.target and "%" in leg.target
     assert "48" in leg.stop and "%" in leg.stop
     mock_pf.assert_called_once()
+
+
+def test_chatter_item_appends_msm_when_credibility_inline_only():
+    item = ChatterItem(text="流動性傳聞（未確認）｜來源：社群｜可信度：B")
+    assert "主流媒體二次驗證" in item.text
+
+
+def test_assemble_neutralizes_halving_calendar_row():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+        event_calendar_lines=[
+            "04/10 BTC 月度期權到期",
+            "04/12 PPI",
+            "04/20 BTC 預期減半日（區塊高度 840,000）",
+        ],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    cal = report.crypto.event_calendar_lines
+    assert len(cal) == 3
+    assert "840" not in cal[2] or "略過" in cal[2]
+    assert "減半" not in cal[2] or "略過" in cal[2]
+
+
+def test_assemble_strips_scenario_probability_leading_bullets():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+        scenario_probability_notes=(
+            "· 樂觀：x（機率 30%）\n"
+            "· 基準：y（機率 45%）\n"
+            "· 悲觀：z（機率 25%）"
+        ),
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    lines = [ln for ln in report.crypto.scenario_probability_notes.split("\n") if ln.strip()]
+    assert len(lines) == 3
+    assert not lines[0].lstrip().startswith("·")
+
+
+def test_assemble_syncs_invalidation_when_macro_contango_and_backwardation():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=["VIX 期貨維持 Contango"],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+        narrative_invalidation_summary="若 VIX 期限結構轉為 Backwardation 則命題失效。",
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert "Backwardation" not in report.crypto.narrative_invalidation_summary
+    assert "VIX 現貨升破 25" in report.crypto.narrative_invalidation_summary
+
+
+def test_assemble_fills_crypto_fd_from_ai_dashboard():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[
+            MetricLine(
+                label="MSFT FinancialDatasets Revenue",
+                value="N/A (第三方資料源未回傳)",
+            )
+        ],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[
+            MetricLine(
+                label="FinancialDatasets MSFT 營收",
+                value="<code>$61.86B</code>",
+            )
+        ],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    msft_row = next(r for r in report.crypto.dashboard if "MSFT" in r.label)
+    assert "N/A" not in msft_row.value
+    assert "61.86" in msft_row.value
+
+
+def test_assemble_scrubs_halving_from_crypto_cycle_notes():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+        crypto_cycle_valuation_notes="BTC 處於減半前夕，區塊高度 840,000 將至。",
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert "略" in report.crypto.crypto_cycle_valuation_notes or "移除" in report.crypto.crypto_cycle_valuation_notes
+
+
+def test_assemble_softens_exec_summary_history_slogan():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        exec_summary=["→ 歷史顯示此為反彈前兆"],
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert "歷史顯示" not in report.crypto.exec_summary[0]
+
+
+def test_assemble_strips_calendar_notionals_from_unrelated_news_takeaway():
+    news = list(_sample_news_crypto())
+    news[0] = news[0].model_copy(
+        update={
+            "investment_takeaway": (
+                "投資解讀：法律風險降低；總持倉 $28.5B 衍生品結構支撐修復行情。"
+            )
+        }
+    )
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC", value="1")],
+        news=news,
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+        event_calendar_lines=["04/10 BTC 期權到期（名目價值 $28.5B）"],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    n1 = report.crypto.news[0]
+    assert "28.5" not in n1.investment_takeaway
+    assert "法律" in n1.investment_takeaway or "降低" in n1.investment_takeaway

@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
@@ -528,6 +529,308 @@ def _ensure_btc_ma_dashboard_rows(crypto: CryptoSection) -> CryptoSection:
     return crypto.model_copy(update={"dashboard": merged})
 
 
+def _parse_report_title_date_iso(s: str) -> date | None:
+    """Parse CryptoSection.report_title_date (YYYY-MM-DD) for assembly-time guards."""
+    raw = (s or "").strip()
+    if len(raw) >= 10:
+        raw = raw[:10]
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+_HALVING_CALENDAR_RE = re.compile(
+    r"(減半|halving|840\s*,?\s*000|84萬|八十四萬)",
+    re.IGNORECASE,
+)
+
+
+_EVENT_CAL_LINE_DATE_PREFIX_RE = re.compile(
+    r"^(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?)\s*"
+)
+
+
+def _remove_unverified_halving_calendar_lines(
+    lines: list[str],
+    *,
+    report_day: date | None,
+) -> list[str]:
+    """Drop or neutralize rows that claim BTC halving / block 840k (stale LLM trope)."""
+
+    def _neutralize_halving_line(raw: str) -> str:
+        t = (raw or "").strip()
+        m = _EVENT_CAL_LINE_DATE_PREFIX_RE.match(t)
+        prefix = m.group(1) if m else ""
+        note = (
+            "行事曆備註：略過未經鏈上工具驗證之 BTC 減半／高度敘述（請勿以本列作為減半時間依據）。"
+        )
+        if prefix:
+            return f"{prefix} {note}"
+        day = report_day
+        if day is None:
+            day = datetime.now(timezone(timedelta(hours=8))).date()
+        return f"{day.month:02d}/{day.day:02d} {note}"
+
+    out: list[str] = []
+    for ln in lines:
+        t = (ln or "").strip()
+        if not t:
+            continue
+        if _HALVING_CALENDAR_RE.search(t):
+            logger.warning("event_calendar_lines: neutralized unverified halving row")
+            out.append(_neutralize_halving_line(t))
+            continue
+        if report_day is not None and ("840" in t and "000" in t and ("區塊" in t or "block" in t.lower())):
+            logger.warning("event_calendar_lines: neutralized suspicious block-height row")
+            out.append(_neutralize_halving_line(t))
+            continue
+        out.append(t)
+    return out
+
+
+def _strip_leading_bullet_chars(s: str) -> str:
+    t = (s or "").strip()
+    while t and t[0] in "·•●◦▪\u2022":
+        t = t[1:].lstrip()
+    return t
+
+
+def _normalize_scenario_probability_notes(raw: str) -> str:
+    """Avoid double bullets in Telegram (template already prefixes ·)."""
+    text = (raw or "").strip()
+    if not text:
+        return text
+    lines = [ln.strip() for ln in text.replace("\r\n", "\n").split("\n") if ln.strip()]
+    if len(lines) < 3:
+        return raw
+    fixed = [_strip_leading_bullet_chars(ln) for ln in lines[:3]]
+    return "\n".join(fixed)
+
+
+_CONTANGO_RE = re.compile(r"Contango|正價差|遠月\s*溢價", re.IGNORECASE)
+_BACKWARDATION_RE = re.compile(r"Backwardation|倒價差|遠月\s*折價", re.IGNORECASE)
+
+
+def _sync_narrative_invalidation_vix_term_structure(
+    crypto: CryptoSection,
+    macro_blob: str,
+    inv: str,
+) -> str:
+    """If macro mentions Contango but invalidation only cites Backwardation, soften to avoid same-day contradiction."""
+    s = (inv or "").strip()
+    if not s:
+        return s
+    if _BACKWARDATION_RE.search(s) and _CONTANGO_RE.search(macro_blob) and not _CONTANGO_RE.search(s):
+        s = _BACKWARDATION_RE.sub("VIX 現貨升破 25 且波動風險溢價顯著擴大", s, count=1)
+        logger.info("narrative_invalidation_summary: aligned VIX term-structure wording with macro Contango context")
+    return s
+
+
+_CAL_BILLION_TOKEN_RE = re.compile(
+    r"(?:\$?\s*)?\d+(?:,\d{3})*(?:\.\d+)?\s*[BbＢｂ](?![A-Za-z])",
+)
+
+
+def _calendar_billion_tokens(cal_lines: list[str]) -> set[str]:
+    blob = " ".join(str(x) for x in cal_lines)
+    return {m.group(0).strip() for m in _CAL_BILLION_TOKEN_RE.finditer(blob)}
+
+
+def _strip_news_takeaway_calendar_number_bleed(
+    news: list,
+    *,
+    cal_lines: list[str],
+    dashboard_blob: str,
+) -> list:
+    """Remove sentences that paste calendar-only $XB figures into unrelated investment_takeaway (Phase C hygiene)."""
+    tokens = _calendar_billion_tokens(cal_lines)
+    if not tokens:
+        return news
+    dash = dashboard_blob or ""
+    out = []
+    for item in news:
+        tw = getattr(item, "investment_takeaway", "") or ""
+        if not tw.strip():
+            out.append(item)
+            continue
+        summary = getattr(item, "summary", "") or ""
+        # Split on Chinese / Asian punctuation that ends a clause
+        pieces = re.split(r"(?<=[。；])", tw)
+        kept: list[str] = []
+        for chunk in pieces:
+            if not chunk.strip():
+                continue
+            drop = False
+            for tok in tokens:
+                if not tok or tok not in chunk:
+                    continue
+                compact_tok = re.sub(r"\s+", "", tok).lower()
+                compact_dash = re.sub(r"\s+", "", dash).lower()
+                if compact_tok in compact_dash:
+                    continue
+                if tok in summary:
+                    continue
+                # Heuristic: large notionals in takeaway without dashboard/summary anchor → likely calendar bleed
+                if any(
+                    k in chunk
+                    for k in ("名目", "衍生品", "期權", "持倉", "未平倉", "選擇權", "到期", "結算")
+                ):
+                    drop = True
+                    break
+            if not drop:
+                kept.append(chunk)
+        new_tw = "".join(kept).strip()
+        if new_tw and new_tw != tw:
+            logger.warning(
+                "news[%s]: stripped calendar-numeric bleed from investment_takeaway",
+                getattr(item, "index", "?"),
+            )
+            out.append(item.model_copy(update={"investment_takeaway": new_tw}))
+        else:
+            out.append(item)
+    return out
+
+
+def _financialdatasets_anchor_map(ai: AISection) -> dict[str, list[tuple[str, str]]]:
+    """Map NVDA/MSFT -> [(label, value), ...] from AI dashboard FinancialDatasets rows."""
+    m: dict[str, list[tuple[str, str]]] = {}
+    for row in ai.dashboard:
+        lab = (row.label or "")
+        val = (row.value or "").strip()
+        if "financialdatasets" not in lab.lower():
+            continue
+        sym = None
+        for tick in ("NVDA", "MSFT", "AAPL", "GOOGL", "META", "AMZN"):
+            if tick in lab.upper():
+                sym = tick
+                break
+        if sym is None:
+            continue
+        m.setdefault(sym, []).append((lab, val))
+    return m
+
+
+def _dedupe_crypto_fundamentals_dashboard_rows(crypto: CryptoSection, ai: AISection) -> CryptoSection:
+    """When crypto dashboard has FinancialDatasets N/A but AI section has real FD rows, copy values to reduce reader confusion."""
+    anchors = _financialdatasets_anchor_map(ai)
+    if not anchors:
+        return crypto
+    new_rows: list[MetricLine] = []
+    changed = False
+    for row in crypto.dashboard:
+        lab_u = (row.label or "").upper()
+        val = (row.value or "").strip()
+        if "FINANCIALDATASETS" not in lab_u or "N/A" not in val.upper():
+            new_rows.append(row)
+            continue
+        sym = next((t for t in anchors if t in lab_u), None)
+        if sym is None:
+            new_rows.append(row)
+            continue
+        candidates = anchors.get(sym) or []
+        # Prefer same metric keyword in label (營收 / revenue)
+        pick = None
+        if "營收" in (row.label or "") or "REVENUE" in lab_u:
+            pick = next((c for c in candidates if "營收" in c[0] or "REVENUE" in c[0].upper()), None)
+        if pick is None:
+            pick = candidates[0] if candidates else None
+        if pick and pick[1] and "N/A" not in pick[1].upper():
+            new_rows.append(
+                MetricLine(
+                    label=row.label,
+                    value=pick[1],
+                    status_emoji=row.status_emoji,
+                )
+            )
+            changed = True
+            logger.info(
+                "crypto dashboard: filled FinancialDatasets %s from AI anchor (%s)",
+                sym,
+                pick[0][:60],
+            )
+        else:
+            new_rows.append(row)
+    if not changed:
+        return crypto
+    return crypto.model_copy(update={"dashboard": new_rows})
+
+
+def _scrub_crypto_cycle_halving_narrative(raw: str) -> str:
+    """Remove stale halving / 840k tropes from cycle notes when LLM ignores Phase C rules."""
+    s = (raw or "").strip()
+    if not s:
+        return s
+    if not _HALVING_CALENDAR_RE.search(s) and not re.search(r"840\s*,?\s*000", s, re.IGNORECASE):
+        return s
+    note = "（週期敘述略：已移除未經鏈上工具驗證之減半日期／高度表述；請以儀表板鏈上讀值為準。）"
+    if note in s:
+        return s
+    return (s + " " + note).strip()
+
+
+def _scrub_exec_summary_history_slogans(lines: list[str]) -> list[str]:
+    """Soften unverifiable 'history shows' rebound lines in exec_summary."""
+    out: list[str] = []
+    for ln in lines or []:
+        t = (ln or "").strip()
+        if not t:
+            continue
+        if re.search(r"歷史顯示|統計上常見|往往反彈", t) and not re.search(
+            r"\d+%|勝率|樣本|回測", t
+        ):
+            t = re.sub(
+                r"歷史顯示[^。；]*",
+                "讀數驅動：見儀表板極端情緒與價格錨點",
+                t,
+                count=1,
+            )
+        out.append(t)
+    return out
+
+
+def _postprocess_brief_data_hygiene(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
+    """Assembly-time fixes: halving calendar scrub, scenario bullets, VIX wording, FD dedupe, news bleed."""
+    report_day = _parse_report_title_date_iso(crypto.report_title_date)
+    cal = _remove_unverified_halving_calendar_lines(list(crypto.event_calendar_lines or []), report_day=report_day)
+    if cal != list(crypto.event_calendar_lines or []):
+        crypto = crypto.model_copy(update={"event_calendar_lines": cal})
+
+    cyc = _scrub_crypto_cycle_halving_narrative(crypto.crypto_cycle_valuation_notes or "")
+    if cyc != (crypto.crypto_cycle_valuation_notes or "").strip():
+        crypto = crypto.model_copy(update={"crypto_cycle_valuation_notes": cyc})
+
+    ex = _scrub_exec_summary_history_slogans(list(crypto.exec_summary or []))
+    if ex != list(crypto.exec_summary or []):
+        crypto = crypto.model_copy(update={"exec_summary": ex})
+
+    scen = _normalize_scenario_probability_notes(crypto.scenario_probability_notes or "")
+    if scen != (crypto.scenario_probability_notes or "").strip():
+        crypto = crypto.model_copy(update={"scenario_probability_notes": scen})
+
+    macro_blob = " ".join(crypto.macro_framework_lines or []) + " " + " ".join(ai.macro_bridge_lines or [])
+    inv = _sync_narrative_invalidation_vix_term_structure(
+        crypto,
+        macro_blob,
+        crypto.narrative_invalidation_summary or "",
+    )
+    if inv != (crypto.narrative_invalidation_summary or ""):
+        crypto = crypto.model_copy(update={"narrative_invalidation_summary": inv})
+
+    crypto = _dedupe_crypto_fundamentals_dashboard_rows(crypto, ai)
+    dash_blob = " ".join(f"{r.label} {r.value}" for r in crypto.dashboard + ai.dashboard)
+
+    new_crypto_news = _strip_news_takeaway_calendar_number_bleed(
+        list(crypto.news),
+        cal_lines=list(crypto.event_calendar_lines or []),
+        dashboard_blob=dash_blob,
+    )
+    if new_crypto_news != list(crypto.news):
+        crypto = crypto.model_copy(update={"news": new_crypto_news})
+
+    return crypto, ai
+
+
 def _ensure_crypto_liquidation_fallback_note(crypto: CryptoSection) -> CryptoSection:
     """If dashboard never mentions 爆倉/清算, add one ⬜ note (readers know how to read tape without CoinGlass)."""
     blob = " ".join(f"{r.label} {r.value}" for r in crypto.dashboard)
@@ -711,6 +1014,7 @@ def assemble_daily_brief_report(
         ai = _fix_us_equity_allocation_misbranded_risk_off(ai, crypto.market.regime)
     crypto = _ensure_btc_ma_dashboard_rows(crypto)
     crypto = _ensure_crypto_liquidation_fallback_note(crypto)
+    crypto, ai = _postprocess_brief_data_hygiene(crypto, ai)
     crypto, ai = _coerce_trade_leg_position_pcts(crypto, ai)
     ai = _coerce_ai_equity_trade_prices_from_market(ai)
     crypto, ai = _normalize_pick_reason_repeat_headers(crypto, ai)

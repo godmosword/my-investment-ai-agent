@@ -11,12 +11,16 @@
 ### Changed
 - [`graph/graph_nodes.py`](graph/graph_nodes.py)：`deep_research_node` 將查證結果寫入 `raw_data['deep_dive_round_N']`；可選 **`GRAPH_DEEP_RESEARCH_TOOL_LLM=1`**（且 `GRAPH_ENABLE_TOOL_CALLS=1`）時以 `bind_tools` 多輪執行真實工具並附 `ToolMessage`；預設仍走決定性 probe（CI／無金鑰安全）。Arbiter（LLM）規則 1 改為要求「非常明確的 API 查詢關鍵字或指令」。
 - [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)：補 `GRAPH_DEEP_RESEARCH_TOOL_LLM` 註解。
+- [`report_render.py`](report_render.py)：`assemble_daily_brief_report` 新增 **`_postprocess_brief_data_hygiene`**：中和未驗證之 **BTC 減半／840,000** 日曆列；**三情境**去重行首 `·`；宏觀寫 **Contango** 時將敘事失效之 **Backwardation** 改寫為現貨 VIX 門檻；**加密儀表板** FinancialDatasets `N/A` 時自 **AI 儀表板**補 NVDA/MSFT 錨點；剪除新聞 **investment_takeaway** 與日曆名目金額無關硬湊；**crypto_cycle**／**exec_summary** 弱化減半與無來源「歷史顯示」句。
+- [`schemas.py`](schemas.py)：`ChatterItem` 在已有可信度標記但缺 **主流媒體二次驗證** 時自動補「否」。
+- [`crew.py`](crew.py)：`exec_summary` 禁無來源統計口號；Phase A/B/C 規則補 **減半禁寫**、**VIX 期限結構一致**、**scenario_probability_notes** 勿重複行首 `·`、日曆金額勿剪貼進無關新聞解讀。
 
 ### Tests
 - [`test_graph_crew.py`](test_graph_crew.py)：深度迴圈路徑斷言 `raw_data` 含 `deep_dive_round_1`。
+- [`test_report_render.py`](test_report_render.py)：組裝衛生（減半日曆、三情境 bullet、VIX 同步、FD 補齊、新聞剪貼、週期／執行摘要 scrub、Chatter MSM 補齊）。
 
 ### Docs
-- [`README.md`](README.md)：重寫為精簡導覽（情境表、Mermaid、`graph/` 與 **`graph_tools`／`RESEARCH_TOOLS`**、`GRAPH_DEEP_RESEARCH_TOOL_LLM` 對照表、驗證／CI 索引）。
+- [`README.md`](README.md)：重寫為精簡導覽（情境表、Mermaid、`graph/` 與 **`graph_tools`／`RESEARCH_TOOLS`**、`GRAPH_DEEP_RESEARCH_TOOL_LLM` 對照表、驗證／CI 索引）；**預設分支 `main`**、直推觸發 deploy 見 [`AGENTS.md`](AGENTS.md)。
 - [`TODOS.md`](TODOS.md)：檔首同步 **2026-04-09**；補 **LangGraph 路徑**未勾選項；**演進藍圖 Phase 3** 標註骨架與 deep research 工具橋接已部分落地；Pri 表與模板工程債敘述收斂。
 
 ## 2026-04-08
