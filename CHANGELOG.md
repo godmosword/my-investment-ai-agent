@@ -16,7 +16,7 @@
 - [`test_graph_crew.py`](test_graph_crew.py)：深度迴圈路徑斷言 `raw_data` 含 `deep_dive_round_1`。
 
 ### Docs
-- [`README.md`](README.md)：重寫為精簡導覽（情境表、Mermaid、`graph/` 與 **`graph_tools`／`RESEARCH_TOOLS`**、`GRAPH_DEEP_RESEARCH_TOOL_LLM` 對照表、驗證／CI 索引）；**明示預設分支 `main`**、文件以 `main` 為準與 **`git push origin main`** 觸發 deploy（對齊 [`AGENTS.md`](AGENTS.md)）。
+- [`README.md`](README.md)：重寫為精簡導覽（情境表、Mermaid、`graph/` 與 **`graph_tools`／`RESEARCH_TOOLS`**、`GRAPH_DEEP_RESEARCH_TOOL_LLM` 對照表、驗證／CI 索引）。
 - [`TODOS.md`](TODOS.md)：檔首同步 **2026-04-09**；補 **LangGraph 路徑**未勾選項；**演進藍圖 Phase 3** 標註骨架與 deep research 工具橋接已部分落地；Pri 表與模板工程債敘述收斂。
 
 ## 2026-04-08

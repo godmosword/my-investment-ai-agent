@@ -13,8 +13,6 @@
 
 **本 README 對齊 repo 現況（2026-04-09）。** 細節與紅線亦見 [`.cursorrules`](.cursorrules)。
 
-**預設分支：`main`** — 本檔與 [`TODOS.md`](TODOS.md)、[`CHANGELOG.md`](CHANGELOG.md) 以 **`main` 樹狀內容為準**（勿以未合併分支為唯一依據）。變更合併進 `main` 後執行 **`git push origin main`** 觸發 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)；細節見 [`AGENTS.md`](AGENTS.md)。
-
 ---
 
 ## 設計紅線
