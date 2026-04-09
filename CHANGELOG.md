@@ -3,6 +3,20 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-10
+
+### Added
+- [`earnings_watchlist.py`](earnings_watchlist.py)：共用 **mega-cap／AI 財報 watchlist**、`pipeline_anchor_date`、錨定**曆週**（Mon–Sun）掃描、週末→**下週一～日**範圍輔助。
+
+### Changed
+- [`tools_legacy.py`](tools_legacy.py) `macro_context_tool`：本週財報改為 **錨定週**（`PIPELINE_REPORT_DATE` 或 UTC 當日所在週）內之 watchlist 排程；並附 **盤前／盤後**說明行（yfinance 多僅公告日）。
+- [`earnings_focus.py`](earnings_focus.py)：**週六／週日錨定日**一律注入 **【下週財報預告】**（下一完整曆週）；【財報聚焦日】補 **盤前／盤後**與「已發／待發」規則。
+- [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`README.md`](README.md)、[`CLAUDE.md`](CLAUDE.md)：文件補齊 watchlist 列表與週末行為。
+
+### Tests
+- [`test_earnings_watchlist.py`](test_earnings_watchlist.py)（smoke）：曆週與週末 Mon–Sun 範圍。
+- [`test_earnings_focus.py`](test_earnings_focus.py)：週末預告、盤前盤後字樣。
+
 ## 2026-04-09
 
 ### Added

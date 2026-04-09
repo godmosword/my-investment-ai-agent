@@ -145,7 +145,9 @@ flowchart TB
 
 ## 環境變數摘錄
 
-除啟動四項外，常見還有：`NEWSAPI_KEY`、`TAVILY_API_KEY`、`COINGLASS_API_KEY`、`FRED_API_KEY`、`FINANCIAL_DATASETS_API_KEY`、`TELEGRAM_*`、`GCP_*`、可選 **`STRICT_INSTITUTIONAL_PHASE_A_GATE`**／**B**／**C**、**`STRICT_NEWS_FRESHNESS_GATE`**、**`EARNINGS_FOCUS_MODE`**（財報日自動注入 exclusion，見 [`earnings_focus.py`](earnings_focus.py)）等。**權威列表**：`ENV_TEMPLATE.txt`。
+除啟動四項外，常見還有：`NEWSAPI_KEY`、`TAVILY_API_KEY`、`COINGLASS_API_KEY`、`FRED_API_KEY`、`FINANCIAL_DATASETS_API_KEY`、`TELEGRAM_*`、`GCP_*`、可選 **`STRICT_INSTITUTIONAL_PHASE_A_GATE`**／**B**／**C**、**`STRICT_NEWS_FRESHNESS_GATE`**、**`EARNINGS_FOCUS_MODE`**（財報日／週末預告 exclusion，見 [`earnings_focus.py`](earnings_focus.py)、[`earnings_watchlist.py`](earnings_watchlist.py)）等。**權威列表**：`ENV_TEMPLATE.txt`。
+
+**Mega-cap／AI 財報 watchlist**（yfinance 日曆掃描與財報聚焦共用）：`NVDA`、`AMD`、`MSFT`、`GOOGL`、`AAPL`、`META`、`AMZN`、`TSM`、`AVGO`、`ARM`。
 
 ---
 

@@ -3385,10 +3385,6 @@ def financial_datasets_tool(query: str) -> str:
 # Macro Context Tool（美債利率、殖利率曲線、Fed 期貨、本週財報）
 # ═══════════════════════════════════════════════════════════════════
 
-# 固定追蹤的大型科技/AI 相關財報標的
-_EARNINGS_WATCHLIST = ["NVDA", "AMD", "MSFT", "GOOGL", "AAPL", "META", "AMZN", "TSM", "AVGO", "ARM"]
-
-
 @tool
 def macro_context_tool(query: str = "") -> str:
     """
@@ -3536,45 +3532,33 @@ def macro_context_tool(query: str = "") -> str:
         if sofr_missing:
             lines.append("🎯 Fed SOFR 期貨: <code>N/A</code>")
 
-        # ── 3. 本週重要財報（使用 yfinance 查詢財報日期）─────────────────
-        today = datetime.now(timezone.utc).date()
-        week_end = today + timedelta(days=7)
-        upcoming_earnings: list[str] = []
+        # ── 3. 錨定週重要財報（yfinance 日曆；與 earnings_watchlist 一致）──
+        from earnings_watchlist import (  # noqa: PLC0415
+            MEGA_CAP_TECH_EARNINGS_TICKERS,
+            pipeline_anchor_date,
+            tickers_with_earnings_between,
+            week_range_containing,
+        )
 
-        for ticker_sym in _EARNINGS_WATCHLIST:
-            try:
-                t = yf.Ticker(ticker_sym)
-                cal = t.calendar
-                if cal is None:
-                    continue
-                # yfinance calendar 回傳格式多種，嘗試 'Earnings Date' 欄位
-                if hasattr(cal, "get"):
-                    ed = cal.get("Earnings Date")
-                elif hasattr(cal, "iloc"):
-                    # DataFrame 格式
-                    ed = cal.iloc[0].get("Earnings Date") if not cal.empty else None
-                else:
-                    ed = None
-                if ed is None:
-                    continue
-                # 可能是 list 或單一值
-                dates = ed if isinstance(ed, list) else [ed]
-                for d in dates:
-                    try:
-                        ed_date = d.date() if hasattr(d, "date") else None
-                        if ed_date and today <= ed_date <= week_end:
-                            upcoming_earnings.append(f"{ticker_sym}({ed_date.strftime('%m/%d')})")
-                            break
-                    except (TypeError, ValueError, AttributeError) as ed_e:
-                        logger.warning("macro_context earnings date parse %s: %s", ticker_sym, ed_e)
-            except Exception as e:
-                logger.warning("macro_context earnings calendar %s: %s", ticker_sym, e)
-                continue
+        anchor = pipeline_anchor_date()
+        week_start, week_end = week_range_containing(anchor)
+        pairs = tickers_with_earnings_between(MEGA_CAP_TECH_EARNINGS_TICKERS, week_start, week_end)
+        upcoming_earnings = [f"{sym}({ed.strftime('%m/%d')})" for sym, ed in pairs]
 
         if upcoming_earnings:
-            lines.append(f"📅 本週財報: <code>{' · '.join(upcoming_earnings)}</code>")
+            lines.append(
+                f"📅 本週財報（錨定週 {week_start.strftime('%m/%d')}–{week_end.strftime('%m/%d')}）: "
+                f"<code>{' · '.join(upcoming_earnings)}</code>"
+            )
         else:
-            lines.append("📅 本週財報: <code>本週無主要科技財報</code>")
+            lines.append(
+                f"📅 本週財報（錨定週 {week_start.strftime('%m/%d')}–{week_end.strftime('%m/%d')}）: "
+                "<code>本檔 watchlist 無已排程日期</code>"
+            )
+        lines.append(
+            "📌 財報時段：yfinance 多僅給「公告日」；**盤前／盤後**以當日主流媒體／公司 IR 為準，"
+            "日報敘述須區分「盤前已發／盤後待發／僅日曆日」且數字僅能複述工具與已列新聞。"
+        )
 
         # ── 低置信度聲明（Fix 3）：yield 缺值時自動注入 ────────────────
         na_yield_fields = []
