@@ -8,6 +8,7 @@
 ### Changed
 - [`crew.py`](crew.py)：新增 **【華爾街級財報分析】** 寫作規則（結論→工具數字證據→倍數／指引含義；禁臆造共識 EPS／beat-miss；主編共識與區塊④須回溯季報讀值），並注入 `_CREW_RULE_BLOCK` 與 Crypto／AI **結構化最終主編** prompt。
 - [`earnings_focus.py`](earnings_focus.py)：【財報聚焦日】exclusion 對齊同一敘事骨架。
+- [`crew.py`](crew.py)、[`earnings_focus.py`](earnings_focus.py)：**beat／miss** 僅允許於新聞 **title/summary** 已含「共識／預期／Street…」等對照語時使用；**FY／前瞻指引**僅能複述同則新聞字面，否則僅能寫「待法說／IR」。
 
 ## 2026-04-12
 
