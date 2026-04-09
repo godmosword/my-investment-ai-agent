@@ -36,6 +36,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | File | Role |
 |------|------|
 | [`main.py`](main.py) | Entry: `_validate_required_keys`, `_validate_critical_env_strict` (`PIPELINE_STRICT_ENV`), `_validate_env_types`, prewarm, dual-crew run, retries, Telegram, BQ, charts |
+| [`earnings_focus.py`](earnings_focus.py) | 可選 **`EARNINGS_FOCUS_MODE`**：財報日偵測並注入 exclusion，強化 AI 段季報工具與財報主線新聞 |
 | [`crew.py`](crew.py) | CrewAI agents, tasks, LLM fallback chains |
 | [`graph/graph_crew.py`](graph/graph_crew.py) | LangGraph state machine compiler/runtime (`USE_LANGGRAPH_ENGINE=1` 時切換路徑) |
 | [`graph/graph_nodes.py`](graph/graph_nodes.py) + [`graph/graph_state.py`](graph/graph_state.py) | Phase 3 nodes（Gather/Bull/Bear/Arbiter/Deep/Formatter）與共享 state/reducer |

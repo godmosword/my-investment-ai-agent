@@ -576,6 +576,14 @@ def _run_pipeline_once(
                 "非實時時鐘。）\n\n" + (trimmed_exclusion or "")
             ).strip()
 
+        try:
+            from earnings_focus import maybe_prepend_earnings_focus_exclusion
+
+            trimmed_exclusion = maybe_prepend_earnings_focus_exclusion(trimmed_exclusion) or ""
+            trimmed_exclusion = _truncate_text(trimmed_exclusion, MAX_EXCLUSION_CONTEXT_CHARS)
+        except Exception as _ef_err:
+            logger.warning("Earnings focus injection skipped: %s", _ef_err)
+
         prev_recs = ""
         if not SKIP_BIGQUERY:
             try:
