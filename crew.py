@@ -232,6 +232,7 @@ def build_crypto_structured_final_prompt(
         {_QUOTE_RULE}
         {_NARRATIVE_CONSISTENCY_RULE}
         {_TOOL_TRUTH_RULE}
+        {_EARNINGS_ANALYSIS_WALL_STREET_RULE}
         {_RISK_MODE_RULE}
         {_REGIME_POSITION_POLICY}
         {_PAIR_TRADE_RULE}
@@ -287,6 +288,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {_QUOTE_RULE}
         {_NARRATIVE_CONSISTENCY_RULE}
         {_TOOL_TRUTH_RULE}
+        {_EARNINGS_ANALYSIS_WALL_STREET_RULE}
         {_RISK_MODE_RULE}
         {_REGIME_POSITION_POLICY}
         {_PAIR_TRADE_RULE}
@@ -491,9 +493,23 @@ _QUOTE_RULE = dedent("""\
     以及 RSI(14)、MA20/MA50、VIX 期限結構等技術指標，
     必須直接使用上方【系統強制即時報價】+【技術指標與結構】Context；不得自行捏造或改寫。""")
 
+_EARNINGS_ANALYSIS_WALL_STREET_RULE = dedent("""\
+    【華爾街級財報分析｜美股／AI 標的】（凡觸及財報、法說、季報窗口或 exclusion【財報聚焦日】時必守）
+    - **敘事骨架**（讀者版）：**一句結論**（營收／獲利相對敘事：僅能寫「優於／遜於／大致符合**已列新聞**之法說敘述」；無新聞佐證則僅能寫「季報數字已出／待法說」）→ **一句證據**（必含工具已列之**阿拉伯數字**：營收、營收同比%、FCF、毛利率等擇一，來自 `financial_datasets_tool` 或 AI 區塊① FinancialDatasets 列）→ **一句含義**（對估值倍數、Capex 週期、或指引不確定性之**機構式**一句，禁空談「長期看好」）。
+    - **禁止**：臆造「共識 EPS」「beat/miss 幅度」「Street 預期」除非**同一則新聞**已寫明且可對照；禁止複述記憶中的歷史季報；禁止與儀表板已列季報數字**矛盾**。
+    - **主編共識／投資解讀**：須點名**定價**（已反應／增量資訊）與**下一個催化**（指引、下季能見度、監管、供應鏈），並與 `pricing_note` 一致；避免「震盪整理」「靜待明確」等無信息增益句。
+    - **區塊④與 QSREC**：`pick_reason`、`signal_conflict_summary`、`trade_legs.narrative` 須能**回溯**到區塊①同一季報讀值或已報導法說要點；觀望須寫「財報後波動／指引不明」等**可驗證**理由，不得與多頭敘事無接縫跳轉。
+    - **跨段**：加密段不得發明美股財報數字；`equity_valuation_framing` 須與當日利率敘事（宏觀）及財報線一致（倍數壓力／盈利韌性擇一論述，須有錨點）。""")
+
 # Crypto／AI 研究員 task 共用注入（與逐行展開等價，避免重複字面值）
 _CREW_RULE_BLOCK = (
-    _DATA_RULES.rstrip() + "\n" + _TOOL_TRUTH_RULE.rstrip() + "\n" + _QUOTE_RULE.rstrip()
+    _DATA_RULES.rstrip()
+    + "\n"
+    + _TOOL_TRUTH_RULE.rstrip()
+    + "\n"
+    + _QUOTE_RULE.rstrip()
+    + "\n"
+    + _EARNINGS_ANALYSIS_WALL_STREET_RULE.rstrip()
 )
 
 _NARRATIVE_CONSISTENCY_RULE = dedent("""\

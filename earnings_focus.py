@@ -68,6 +68,8 @@ def earnings_focus_exclusion_block(tickers: list[str]) -> str:
         f"<code>{joined}</code>。\n"
         "· **盤前／盤後**：若新聞已載明 Before market open／After market close／美東時段，"
         "標題或 timestamp_line 須可讀出時段；投資解讀須區分「數字已出」vs「僅日曆、待發佈」。\n"
+        "· **華爾街級財報敘事**（財報主線新聞與主編共識）：**結論（一句）**＋**證據（一句，必含工具已列營收／同比%／FCF 擇一）**＋**含義（一句：倍數／指引／Capex）**；"
+        "禁空談 beat／miss 除非同則新聞已寫明。\n"
         "· AI 段（強制）：對上列**每一檔**必呼叫 <code>financial_datasets_tool('TICKER:quarterly')</code>；"
         "儀表板須含**季報口徑**之營收／同比%（或工具回傳之最近一季欄位），label 仍須含 FinancialDatasets 與代號。\n"
         "· 區塊② 至少 **1 則**新聞須以該檔**財報／法說／指引**為主線；"
