@@ -1,243 +1,224 @@
 # Q-Silicon — 工程與產品待辦（彙總）
 
-**唯一彙總**：改版請同步 [`CHANGELOG.md`](CHANGELOG.md)；路線願景對照 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。  
-**執行版路線圖**：見 [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md)（2026 Q2）。
-**同步狀態**（2026-04-07）：**已完成項**已自下方章節移除，細節以 [`CHANGELOG.md`](CHANGELOG.md)（2026-03-28～31、**2026-03-29**、**2026-04-01**～**03**）與「**已落地（備查）**」為準；本檔僅保留 **未勾選 `[ ]`** 與索引。未完成項之**四維評分與新建議**見 [未完成項四維評分與新建議（2026-04）](#未完成項四維評分與新建議2026-04)。長期項見 [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。**演進藍圖（Mock／Plugin／執行層／LangGraph 等）**見 [演進藍圖 — 技術路線](#roadmap-technical-saas-execution-brain)。
+**變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md)。**路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。**執行版路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md)（2026 Q2）。
+
+**同步狀態（2026-04-09）**：本檔僅列 **`[ ]` 未完成** 與維護者排序；**已交付行為**以 CHANGELOG 與下方「已落地（備查）」為準。四維評分表與新建議 backlog 仍適用，見 [未完成項四維評分（2026-04）](#未完成項四維評分與新建議2026-04)。長期里程碑 → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。演進藍圖（Mock／Plugin／LangGraph 等）→ [演進藍圖](#演進藍圖--技術路線)。
 
 ---
 
-## 維護者意見（執行順序與取捨）
+## 維護者意見（執行順序）
 
-1. **先穩「選標多樣性 + Gate 可信」再堆功能**：Direction **1A／2A** 與「選幣選股過於固定」直接影響信任。**1B 商業化暫緩** → 階段 E；對齊 [`ROADMAP_VISION`](docs/ROADMAP_VISION.md)。
-2. **Direction 2B**：[`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 寫入 `docs/oss_candidates/` 並合併勾選項至下方 **OSS Scout 週報（自動）**（不自動 merge 程式）。排程見 [`.github/workflows/weekly-scout.yml`](.github/workflows/weekly-scout.yml)。
-3. **Direction 3**：試點 [`crew_company.py`](crew_company.py)；擴四職能前先量測 **`CREW_FUTURE_TIMEOUT_SEC`** 與 token。
-4. **P0「全 API hard fail」**：與 `[DATA_MISSING]` 假設衝突；務實做法：**[`PIPELINE_STRICT_ENV`](main.py)** + 金鑰盤點，僅排程／生產強制。
+1. **先穩「選標多樣性 + Gate 可信」再堆功能** — Direction **1A／2A**；**1B 商業化暫緩** → 階段 E。
+2. **Direction 2B** — [`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 寫入 `docs/oss_candidates/`；排程 [`.github/workflows/weekly-scout.yml`](.github/workflows/weekly-scout.yml)。**勿手改**下方 `OSS_SCOUT_AUTO_*` 區塊。
+3. **Direction 3** — [`crew_company.py`](crew_company.py) 試點；擴四職能前先量測 **`CREW_FUTURE_TIMEOUT_SEC`**。
+4. **P0「全 API hard fail」** — 務實做法：**[`PIPELINE_STRICT_ENV`](main.py)** + 金鑰盤點；生產／排程強制。
 
 ---
 
-## 未勾選項總覽與建議執行波次
+## 未勾選項速覽
 
-以下為仍為 `[ ]` 的項目（不含 **OSS Scout 週報** 自動表，由 workflow 維護）。
+| 波次 | 項目（詳見下方章節） |
+|------|----------------------|
+| **A** | 閾值實驗、Critical env 定稿 |
+| **B** | 日報契約持續收斂（細節見 CHANGELOG） |
+| **C** | Gate 人審提示、自適應門檻 BQ 接線 |
+| **D** | OSS：HF／GraphQL、整合提案 Agent |
+| **E** | Company 四職能、War Room、PWA Web Push |
 
-| 波次 | 建議時機 | 項目（對照下方章節） |
-|------|----------|----------------------|
-| **A — 營運／產品決策** | 先開 1–2 週實驗 | **閾值實驗** [`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)；**Critical env** [`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) |
-| **B — 日報契約與品質** | 與 A 並行 | 契約與後處理已落地（CHANGELOG **2026-03-28**～**31**）；持續收斂見「已落地」 |
-| **C — 觀測與自適應** | 需穩定 `gate_failure_log` | **Gate 提示人審** [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md)；自適應 BQ 接線 [`adaptive_gate_thresholds.py`](adaptive_gate_thresholds.py) |
-| **D — OSS 深化** | 人力可負荷 | **2B** HuggingFace／GraphQL、**整合提案 Agent** |
-| **E — Company／前端** | 長期 | **3** 四職能、Arbiter、War Room；**1A** PWA Web Push 持久化 |
+### Priority（未完成，1＝最優先）
 
-### Priority 排序（僅未完成）
+| Pri | 項目 | 說明 |
+|-----|------|------|
+| **1** | 閾值實驗 | [`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md) |
+| **2** | Critical env 定稿 | [`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) |
+| **3** | Gate 失敗 → 人審提示 | [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md)（禁自動改 prompt） |
+| **4** | PWA Web Push 持久化 | 不阻塞日報主線 |
+| **5** | HuggingFace／GraphQL | Direction 2B |
+| **6** | 整合提案 Agent | 建議在 (5) 之後 |
+| **7** | Direction 3 四職能 + War Room | [`docs/COMPANY_CREW_ROADMAP.md`](docs/COMPANY_CREW_ROADMAP.md) |
+| **8** | 模板／QSREC 顯示審計 | 若結構化輸出含 `$` 的 `rr`／`max_drawdown_pct` 等欄位進模板，需與既有 `replace('$','')` 規則一致（見 [`templates/telegram_report.j2`](templates/telegram_report.j2)） |
+| **9** | 台股代號顯示 | render 層前綴／格式；[`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md) |
 
-| Pri | 項目 | 類型 | 說明 |
-|-----|------|------|------|
-| **1** | 橫切 **閾值實驗** | 營運 | [`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md) |
-| **2** | P0 **Critical env 策略定稿** | 產品＋工程 | [`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) |
-| **3** | P3 **Gate 失敗 → 提示（人審）** | 營運＋工程 | [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) |
-| **4** | 1A **PWA Web Push 持久化** | 前端 | 不阻塞日報主線 |
-| **5** | 2B **HuggingFace／GraphQL** | 工程 | 人力可負荷時 |
-| **6** | 2B **整合提案 Agent** | 工程 | 建議在 (5) 之後 |
-| **7** | Direction **3**（四職能、Arbiter、War Room） | 長期 | [`docs/COMPANY_CREW_ROADMAP.md`](docs/COMPANY_CREW_ROADMAP.md) |
-| **8** | Jinja **trade leg `$` 審計** | 工程 | `position_pct`、`rr`、`max_drawdown_pct` 等尚未 `replace('$', '')`；見 [`templates/telegram_report.j2`](templates/telegram_report.j2) |
-| **9** | Template **台股代號 `$` 前綴** | 工程 | render 層 `_format_asset_display`；見 [`templates/telegram_report.j2`](templates/telegram_report.j2) |
-| *—* | *1B 商業化* | *長期* | *階段 E* |
+### LangGraph 路徑（可選引擎）
+
+| Pri | 項目 | 說明 |
+|-----|------|------|
+| **LG-1** | 生產觀測 | `GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 下成本、延遲、失敗率；是否與 `GRAPH_LLM_DEBATE` 預設組合文件化 |
+| **LG-2** | 工具覆蓋 | [`graph/graph_tools.py`](graph/graph_tools.py) 是否擴充 `onchain_metrics_tool` 等（維持工具邊界與 cache 慣例） |
+| **LG-3** | 測試 | mock LLM tool_calls 之整合測試（避免 CI 依賴真 API） |
 
 <a id="未完成項四維評分與新建議2026-04"></a>
 
 ## 未完成項四維評分與新建議（2026-04）
 
-> 下列為未完成項之**決策用評分**（非程式 Gate）。維度皆為 **1–5**；**成本**越高數字越大。綜合：**高影響、低成本、高信任、高策略契合**者優先；商業化與執行屬高成本、策略暫緩則排後。策略契合指與本檔 [維護者意見](#維護者意見執行順序與取捨)、[`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)（先穩選標＋Gate）之對齊。**信任／紅線**指與無數據幻覺、`validate_report`、`main.py` 雙線程安全、Telegram HTML 白名單之一致性（5＝強化紅線）。
+維度 **1–5**（成本越高數字越大）。**信任／紅線**＝與無幻覺、`validate_report`、`main.py` 雙線程、Telegram HTML 白名單之一致性。
 
-### Priority 表（Pri 1–9）四維評分
+### Pri 1–9 簡表
 
-| 項目 | 影響力 | 成本 | 信任／紅線 | 策略契合 | 簡評 |
-|------|:------:|:----:|:----------:|:--------:|------|
-| **1 閾值實驗** | 4 | 2 | 4 | 5 | 低成本驗證選標是否仍過於固定；與維護者排序一致。 |
-| **2 Critical env 定稿** | 4 | 2 | 5 | 5 | 生產穩定性與金鑰契約；文件＋環境矩陣可落地。 |
-| **3 Gate 失敗人審提示** | 4 | 3 | 5 | 4 | 閉合 `gate_failure_log`→人行為；嚴禁無審核自動改 prompt。 |
-| **4 PWA Web Push 持久化** | 2 | 3 | 4 | 3 | 體驗加分，不阻塞日報主線。 |
-| **5 HF／GraphQL 擴充** | 3 | 4 | 3 | 3 | 擴資料覆蓋但易引入非工具數字風險，須嚴格掛工具／mock。 |
-| **6 整合提案 Agent** | 3 | 5 | 3 | 2 | 自動開 PR 之安全與 review 負載大；宜在 (5) 與 Scout 流程穩定後。 |
-| **7 Direction 3 四職能＋War Room** | 3 | 5 | 3 | 2 | token／timeout 風險大；擴四職能前先量測 `CREW_FUTURE_TIMEOUT_SEC`。 |
-| **8 Jinja trade leg `$` 審計** | 3 | 2 | 4 | 4 | 小工程債；[`templates/telegram_report.j2`](templates/telegram_report.j2) 顯示一致性。 |
-| **9 台股 `$` 前綴** | 2 | 2 | 4 | 3 | 區域化顯示；若無台股標的可降優先。 |
+| 項目 | 影響 | 成本 | 信任 | 策略契合 | 簡評 |
+|------|:---:|:---:|:---:|:---:|------|
+| 1 閾值實驗 | 4 | 2 | 4 | 5 | 驗證選標是否過於固定 |
+| 2 Critical env | 4 | 2 | 5 | 5 | 生產契約 |
+| 3 Gate 人審 | 4 | 3 | 5 | 4 | 閉合 `gate_failure_log` |
+| 4 Web Push | 2 | 3 | 4 | 3 | 體驗加分 |
+| 5 HF／GraphQL | 3 | 4 | 3 | 3 | 須嚴格掛工具 |
+| 6 提案 Agent | 3 | 5 | 3 | 2 | 安全與 review 負載 |
+| 7 Direction 3 | 3 | 5 | 3 | 2 | token／timeout |
+| 8 模板審計 | 3 | 2 | 4 | 4 | 顯示一致性 |
+| 9 台股顯示 | 2 | 2 | 4 | 3 | 區域化 |
 
-### 波次與演進區塊（濃縮評分）
+### 波次／Phase 濃縮
 
-| 區塊 | 影響力 | 成本 | 信任／紅線 | 策略契合 | 備註 |
-|------|:------:|:----:|:----------:|:--------:|------|
-| **C 自適應門檻 BQ 接線**（[`adaptive_gate_thresholds.py`](adaptive_gate_thresholds.py)） | 4 | 3 | 4 | 4 | 骨架已落地；接上穩定 `gate_failure_log` 後 ROI 高。 |
-| **階段 E 商業化（整包）** | 變現 5 | 5 | 2 | 1 | 本檔暫緩；與「先信任後變現」衝突時讓路。 |
-| **Phase 1 Mock／Plugin／Compose** | 4 | 4 | 4 | 4 | 與 [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md)、[`TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) 一致。 |
-| **Phase 2 Execution／Monitor V2** | 3 | 5 | 2 | 2 | 執行層涉合規與實盤風險；須產品表態與「研究日報」定位。 |
-| **Phase 3 LangGraph／Debate** | 3 | 5 | 3 | 2 | 保留 [`crew.py`](crew.py) 退路與工具邊界。 |
-| **Phase 4 Glassbox／RAG／語音** | 2–3 | 4–5 | 3 | 2 | RAG 若未嚴格錨定當日報告內文易牴觸無幻覺原則。 |
-| **OSS 週報 spike 勾選（15 repo）** | 2 | 4 | 4 | 3 | 人力決策清單；逐項評估即可。 |
+| 區塊 | 備註 |
+|------|------|
+| 自適應門檻 BQ | [`adaptive_gate_thresholds.py`](adaptive_gate_thresholds.py) 骨架已備 |
+| Phase 1 Mock／Plugin | [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md) |
+| Phase 2 Execution | 合規與產品表態後 |
+| Phase 3 LangGraph | **部分落地**：`graph/`、`USE_LANGGRAPH_ENGINE`、deep research **`RESEARCH_TOOLS`**（CHANGELOG **2026-04-09**）；完整取代 `crew.py` 仍為長期項 |
+| Phase 4 Glassbox／RAG | RAG 須錨定當日報告內文 |
 
-### 建議實作順序（與上表一致）
+### 建議順序
 
-1. Pri **2**＋**1**（Critical env 定稿與 staging 閾值實驗並行）  
-2. Pri **8**（短衝刺）  
-3. 波次 **C**（自適應 BQ 接線）＋ Pri **3**（Gate 人審提示；觀測閉環）  
-4. Pri **4**、**9**（視是否要 Push／台股）  
-5. **5→6**、**7**、**Phase 2+**（資源與產品決策明確後）
+1. Pri **2** + **1** → 2. Pri **8**、**9**（視需求）→ 3. 波次 **C** + Pri **3** → 4. Pri **4** → 5. **5→6**、**7** 與 Phase 2+（依資源）
 
-### 新建議 backlog（七項已落地骨架；細節持續迭代）
+### 新建議 backlog（骨架已備；持續迭代）
 
-1. **Gate 儀表板（內部）**：指引 [`docs/GATE_INTERNAL_DASHBOARD.md`](docs/GATE_INTERNAL_DASHBOARD.md)；CLI 草稿 [`scripts/gate_failure_hint_digest.py`](scripts/gate_failure_hint_digest.py)。  
-2. **結構化預檢 dry-run**：[`scripts/validate_report_dry_run.py`](scripts/validate_report_dry_run.py)＋骨架 [`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)；smoke [`test_validate_report_dry_run_smoke.py`](test_validate_report_dry_run_smoke.py)。  
-3. **美股價位備援可觀測性**：[`report_render.py`](report_render.py) 觸發備援時寫 scratchpad `equity_price_backfill`（`EQUITY_BACKFILL_SCRATCHPAD_LOG`）。  
-4. **Prompt 變更登記簿**：[`docs/PROMPT_CHANGELOG.md`](docs/PROMPT_CHANGELOG.md)。  
-5. **資產市場枚舉**：[`schemas.py`](schemas.py) `ExecutableTradeLeg.asset_market`／`TradeRecommendation.asset_market`；模板行為見 [`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md)。  
-6. **Contributor mock-smoke**：[`scripts/run_mock_smoke.sh`](scripts/run_mock_smoke.sh)。  
-7. **觀望 vs QSREC**：[`schemas.py`](schemas.py) `AISection._warn_watch_mode_vs_equity_qsrec`（warning）；測試 [`test_aisection_watch_warning.py`](test_aisection_watch_warning.py)。
+1. Gate 內部儀表 — [`docs/GATE_INTERNAL_DASHBOARD.md`](docs/GATE_INTERNAL_DASHBOARD.md)、[`scripts/gate_failure_hint_digest.py`](scripts/gate_failure_hint_digest.py)  
+2. 結構化 dry-run — [`scripts/validate_report_dry_run.py`](scripts/validate_report_dry_run.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)  
+3. 美股備援觀測 — `EQUITY_BACKFILL_SCRATCHPAD_LOG`  
+4. Prompt 登記 — [`docs/PROMPT_CHANGELOG.md`](docs/PROMPT_CHANGELOG.md)  
+5. `asset_market` — [`schemas.py`](schemas.py)、[`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md)  
+6. Mock smoke — [`scripts/run_mock_smoke.sh`](scripts/run_mock_smoke.sh)  
+7. 觀望 vs QSREC — [`test_aisection_watch_warning.py`](test_aisection_watch_warning.py)
 
 ---
 
-## 橫切：選幣／選股「仍然很固定」— 診斷與改善項
+## 橫切：選幣／選股仍偏固定
 
-**機制摘要**（仍適用）：[`fetch_exclusion_context`](bigquery_writer.py)、[`report_html_gates`](report_html_gates.py) `STRICT_PICK_ROTATION`、HIT_STOP 注入、研究員工具覆蓋 — 已完成項見「已落地」。
-
-**待辦**
-
-- [ ] **閾值實驗**：staging 調高 `PICK_ROTATION_OVERRIDE_MIN_GAP` 或暫緊 `PICK_REPEAT_MIN_SELECTION_SCORE`（[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)）。
+- [ ] **閾值實驗**：staging 調整 `PICK_ROTATION_OVERRIDE_MIN_GAP` 等 — [`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)
 
 ---
 
-## P0 — 防止管線崩潰與資料品質
+## P0 — 管線穩定性
 
-- [ ] **Critical env 策略定稿**：[`PIPELINE_STRICT_ENV`](main.py)；[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md)。
-
----
-
-## P1 — 日報品質（已落地細節 → CHANGELOG）
-
-（後處理 band-aid、軟 Gate、新聞錨定日、工具呼叫下限等 — **2026-03-28** CHANGELOG 與「已落地」。）
+- [ ] **Critical env 策略定稿** — [`PIPELINE_STRICT_ENV`](main.py)、[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md)
 
 ---
 
-## P2 — 自動化與工程債（已落地細節 → CHANGELOG）
+## P1 — 日報品質
 
-（回測權重、`tools_cache_http`、bench、離線 fixtures — **2026-03-28** CHANGELOG 與「已落地」。）
+（多數規則與後處理已落地 — 見 CHANGELOG **2026-03-28** 起。）
 
 ---
 
-## P3 — 長期
+## P2 — 自動化與工程債
 
-- [ ] **Gate 失敗 → 提示注入（人審）** — [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md)；**嚴禁**無審核自動改 prompt。
+（cache 拆分、bench、fixtures — 見 CHANGELOG。）
 
-（自適應門檻骨架、`MIN_TOOL_CALLS_PER_CREW` — 已落地，見「已落地」。）
+---
+
+## P3 — 觀測與自適應
+
+- [ ] **Gate 失敗 → 提示（人審）** — [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md)
 
 ---
 
 ## Direction 1A — 視覺化
 
-**已落地**：Panel 4 funding、Dashboard 鏈上 Tab、Telegram 歷史連結、API Web Push 預留 — 見「已落地」與 CHANGELOG。
-
-**未完成**
-
-- [ ] **PWA Web Push 持久化**（Service Worker 等）。
+- [ ] **PWA Web Push 持久化**（Service Worker 等）
 
 ---
 
 ## Direction 1B — 商業化（暫緩）
 
-見 **階段 E — 商業化**。
+見 **階段 E**。
 
 ---
 
-## Direction 2A — 績效反饋閉環
+## Direction 2A — 績效反饋
 
-**已落地**：回測權重 workflow、HIT_STOP 敘事、自適應門檻骨架 — 見「已落地」與 CHANGELOG。
+（回測權重、HIT_STOP、自適應骨架 — 已落地，見「已落地」。）
 
 ---
 
-## Direction 2B — OSS Scout Agent
+## Direction 2B — OSS Scout
 
 | 狀態 | 項目 |
 |------|------|
-| [ ] | **HuggingFace／GraphQL** 擴充、過濾規則。 |
-| [ ] | **整合提案 Agent**：clone → 分析 → diff → smoke → 開 PR（不自動 merge）。 |
-
-**已落地**：[`oss_scout_candidates.py`](scripts/oss_scout_candidates.py)、[`weekly-scout.yml`](.github/workflows/weekly-scout.yml)、[`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 合併週報至本檔 — 見「已落地」。
+| [ ] | HuggingFace／GraphQL 擴充 |
+| [ ] | 整合提案 Agent（不自動 merge） |
 
 ---
 
-## Direction 3 — Multi-Agent（新創規模）
+## Direction 3 — Multi-Agent
 
 | 狀態 | 項目 |
 |------|------|
-| [ ] | **Product / Growth / Finance / Engineering** 四職能 crew。 |
-| [ ] | **Arbiter** 跨部門一致性 + 風險預算。 |
-| [ ] | **Company War Room**（PWA 唯讀）；可選 `main.py` 入口。 |
+| [ ] | 四職能 crew |
+| [ ] | 跨部門 Arbiter + 風險預算 |
+| [ ] | Company War Room（PWA） |
 
-**已落地**：`COMPANY_CREW_ENABLED` 試點 — 見「已落地」。
-
----
-
-## 已落地（備查，不再重複開票）
-
-**2026-03-31**：自本檔主體移除之 `[x]` 項目（rotation 語意／crew 多樣性／HIT_STOP／儀表板、P0 DATA_MISSING+schema、P1 後處理／Gate／錨定日／工具下限、P2 回測／cache_http／bench／fixtures、P3 adaptive 骨架／per-crew tool 下限、Direction 1A 表列、2A 表列、2B 腳本+workflow、3 試點）— **詳見 [`CHANGELOG.md`](CHANGELOG.md) 2026-03-28～31** 與下列連結。
-
-- API schema guard：[`api_schema.py`](api_schema.py)、[`test_api_schema.py`](test_api_schema.py)。
-- 盤中監控：[`monitor_intraday.py`](monitor_intraday.py)、[`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml)（[`requirements-monitor.txt`](requirements-monitor.txt)；cron 預設關閉）。
-- LLM run log → BQ：[`bigquery_writer.write_llm_run_log`](bigquery_writer.py)、[`main.py`](main.py)。
-- **Gate 失敗結構化 log**：`write_gate_failure_log`、`GATE_FAILURE_BQ_LOG`、[`test_gate_failure_log.py`](test_gate_failure_log.py)；SQL [`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)。
-- 新聞新鮮度：[`report_html_gates.py`](report_html_gates.py)、[`test_news_freshness.py`](test_news_freshness.py)。
-- 啟動硬擋：`PIPELINE_STRICT_ENV`、[`_validate_critical_env_strict`](main.py)。
-- 權重：[`signal_weights_store.py`](signal_weights_store.py)、[`scripts/write_ml_weights.py`](scripts/write_ml_weights.py)、`WEIGHTS_CONTEXT_ENABLED`。
-- Exclusion：[`fetch_exclusion_context`](bigquery_writer.py)（近 3 日、HIT_STOP、rotation、權重摘要）。
-- **錨定報告日**、Telegram 歷史、Web Push 預留、tools 快取拆分、離線 Gate fixtures、後處理 band-aid — `ENV_TEMPLATE.txt`、CHANGELOG **2026-03-28**。
-- **日報品質（2026-03-30）**：同標補註（初版「重複選用理由」）、tracker 進場價過濾、資金費率近零、crew／模板 — CHANGELOG **2026-03-30**。
-- **日報品質（2026-03-31）**：`crypto.risk_budget_summary` 缺 regime token 時 assemble 補 canonical；近 30 天績效週報附指標／回撤說明與 regime 小樣本註記；同標補註改 **「連日維持…」** 避免雙重抬頭；crew 補 NVT vs RSI、呢喃欄位順序；[`test_tracker.py`](test_tracker.py) 績效摘要 mock — CHANGELOG **2026-03-31**。
-- **日報品質（2026-04-01）**：`pick_reason` 若以「重複選用／選股／持有理由：」開頭則 assemble 改寫或剥除（對齊昨日 BQ QSREC）；呢喃自動補可信度改 **「｜可信度：…｜主流媒體二次驗證：否」** — CHANGELOG **2026-04-01**。
-- 文件：[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`docs/AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md)、[`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh)。
+**已試點**：`COMPANY_CREW_ENABLED` — CHANGELOG。
 
 ---
 
-## 階段 E — 長期里程碑（啟動索引）
+## 已落地（備查）
 
-與商業／人力綁定，非本 sprint 必交；[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。
+**2026-04-09**：LangGraph **`graph/graph_tools.py`**、`RESEARCH_TOOLS`、**`GRAPH_DEEP_RESEARCH_TOOL_LLM`**、**`deep_dive_round_*`** raw_data — CHANGELOG 當日 **Added／Changed**。
 
-### 階段 E — 商業化（長期／暫緩）
+**2026-03-31 前主表已移除之 `[x]`** — 詳見 CHANGELOG **2026-03-28～31** 與下列：
+
+- API guard：[`api_schema.py`](api_schema.py)  
+- 盤中監控：[`monitor_intraday.py`](monitor_intraday.py)、[`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml)  
+- LLM log／Gate failure BQ：[`bigquery_writer.py`](bigquery_writer.py)、[`test_gate_failure_log.py`](test_gate_failure_log.py)  
+- 新聞新鮮度、錨定日、Telegram 歷史、tools 快取拆分、離線 fixtures — `ENV_TEMPLATE.txt` + CHANGELOG  
+- 文件：[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)
+
+---
+
+## 階段 E — 長期里程碑
+
+索引：[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。
+
+### 商業化（暫緩）
 
 | 狀態 | 項目 |
 |------|------|
-| [ ] | **Firebase Auth** + FastAPI `Depends`。 |
-| [ ] | **Stripe** Checkout + Webhook。 |
-| [ ] | **API tier**、rate limit；[`docs/COMMERCE_NEXT_STEPS.md`](docs/COMMERCE_NEXT_STEPS.md)。 |
-| [ ] | **多租戶 Telegram**。 |
-| [ ] | **Landing page** + Checkout 導流。 |
+| [ ] | Firebase Auth + FastAPI `Depends` |
+| [ ] | Stripe Checkout + Webhook |
+| [ ] | API tier、rate limit — [`docs/COMMERCE_NEXT_STEPS.md`](docs/COMMERCE_NEXT_STEPS.md) |
+| [ ] | 多租戶 Telegram |
+| [ ] | Landing + Checkout 導流 |
 
 ---
 
 <a id="roadmap-technical-saas-execution-brain"></a>
 
-## 演進藍圖 — 技術路線（開源 SaaS × 執行層 × 次世代大腦）
+## 演進藍圖 — 技術路線
 
-由「日報管線」邁向「開源 SaaS」與「交易大腦」。時程僅供參考；衝突時以 [**維護者意見**](#維護者意見執行順序與取捨) 與 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) 為準。精簡版：[ROADMAP_VISION](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[PHASE_F_BACKLOG](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)。
+精簡版：[ROADMAP_VISION](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[PHASE_F_BACKLOG](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)。**時程敘述僅供對照產品文件；工程排程以維護者意見為準。**
 
-### Phase 1：開源生態與容錯基礎設施（0–1 個月）
+### Phase 1：開源生態與容錯
 
-- [ ] **Mock-Driven Development** — **部分**：`MOCK_APIS`、`tools/base`、`market_fixture_dict`、[`tests/fixtures/mock_data/`](tests/fixtures/mock_data/) 已接線；`tools` 套件 re-export [`tools_legacy`](tools_legacy.py)；`api.py` 短路與各 `@tool` mock 分支仍待擴充 — [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md)。
-- [ ] **Tool Plugin System** — [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)、`plugins/`。
-- [ ] **Docker Compose 全端** — [`docker-compose.yml`](docker-compose.yml)、FastAPI + Vite + Redis。
+- [ ] **Mock-Driven Development** — **部分**：`MOCK_APIS`、`tools/base`、`market_fixture_dict`、fixtures 已接線  
+- [ ] **Tool Plugin System** — [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)  
+- [ ] **Docker Compose 全端** — [`docker-compose.yml`](docker-compose.yml)
 
-### Phase 2：跨越「訊號」到「執行」（1–3 個月）
+### Phase 2：訊號 → 執行
 
-- [ ] **Execution Layer** — `execution_engine.py`、CCXT／Alpaca／IB、BQ → TWAP／VWAP。
-- [ ] **Intraday Monitor V2** — WebSocket、觸價 Telegram（HTML 白名單）。
+- [ ] **Execution Layer** — 合規與定位確認後  
+- [ ] **Intraday Monitor V2**
 
-### Phase 3：次世代大腦（3–6 個月）
+### Phase 3：次世代大腦
 
-- [ ] **LangGraph 等** — 重構 [`crew.py`](crew.py)；保留 `CREW_DISABLE_ASYNC_RESEARCH` 退路。
-- [ ] **Multi-Agent Debate** — Bull／Bear、多輪、收斂至主編。
+- [ ] **LangGraph 完整取代 crew 主路徑** — **部分**：`graph/`、`USE_LANGGRAPH_ENGINE`、debate／arbiter／deep research（含 **工具橋接**，CHANGELOG **2026-04-09**）；保留 Crew 退路  
+- [ ] **Multi-Agent Debate 產品化** — 與成本／timeout 治理綁定
 
-### Phase 4：觀測儀表與 IP（6 個月以上）
+### Phase 4：觀測與 IP
 
-- [ ] **Glassbox 圖表** — lightweight-charts、Entry／Target／Stop。
-- [ ] **RAG「Chat with the Report」**。
-- [ ] **語音晨報** — TTS、Telegram 語音推播。
+- [ ] **Glassbox 圖表深化**  
+- [ ] **RAG「Chat with the Report」**（須錨定當日內文）  
+- [ ] **語音晨報**
 
 ---
 
@@ -296,11 +277,12 @@
 
 ## 修訂紀錄
 
-- **2026-04-04（晚）**：演進計畫實作 — Critical env／閾值實驗文件定稿；`adaptive_gate_thresholds` BQ 接線；Gate digest／dry-run／mock-smoke／scratchpad 備援觀測；`asset_market`、觀望 vs QSREC warning；PWA／台股說明文件。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-04 Added**。
-- **2026-04-04**：新增 **[未完成項四維評分與新建議（2026-04）](#未完成項四維評分與新建議2026-04)**（Pri 1–9、波次／Phase 濃縮表、建議順序、七條新建議 backlog）；檔首索引連結；[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) 補對照段落。
-- **2026-04-03**：**OSS Scout 自動區**改為連結＋表＋短勾選（`fit_rationale` 只在研究稿／JSON）；研究稿模板補「維護者勾選追蹤」— CHANGELOG **2026-04-03**。
-- **2026-04-02**：檔首同步含 CHANGELOG **2026-04-02**（CI `workflow_dispatch`、`market.json` fixture、tools 套件鏡射）；**勿手改** `<!-- OSS_SCOUT_AUTO_BEGIN -->`～`END` 區塊（由 workflow 覆寫）。
-- **2026-04-01**：已落地補 **pick_reason 重複抬頭正規化**、呢喃補填讀者面；**OSS Scout 週報** 更新候選＋研究稿 [`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md)；檔首同步含 CHANGELOG **2026-04-01**。
-- **2026-03-31**：**TODOS 精簡** — 移除已完成 `[x]` 主表（細節改以 CHANGELOG／「已落地」為準）；補 **OSS Scout 週報** `OSS_SCOUT_AUTO_BEGIN/END` 與 [`oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 契約對齊。**同日對齊 CHANGELOG 2026-03-31**：已落地條目補績效註解／risk_budget coerce／連日維持補註等；檔首與波次 B 日期區間更新為～31。
-- **2026-03-29**：**演進藍圖**（Phase 1–4；精簡版 → [`ROADMAP_VISION`](docs/ROADMAP_VISION.md#roadmap-evolution-condensed)、[`PHASE_F_BACKLOG`](docs/PHASE_F_BACKLOG.md#roadmap-phases-1-4-condensed)）＋ **OSS Scout 週期**（`oss_weekly_pipeline.py`、`weekly-scout.yml`）。
-- **2026-03-28**：**已完成項 → CHANGELOG**；商業化暫緩；Priority／fixtures／波次表。
+- **2026-04-09**：**全文重寫**（精簡章節、檔首同步、**LangGraph 路徑** LG-1～3、**Phase 3** 標註部分落地、Pri 8 改為模板／欄位審計表述）；**已落地**補 **2026-04-09** 工具橋接。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-09 Docs**。
+- **2026-04-04（晚）**：演進計畫 — Critical env、閾值實驗、`adaptive_gate_thresholds`、Gate digest、dry-run、mock-smoke、scratchpad、`asset_market`、觀望 vs QSREC — CHANGELOG **2026-04-04**。
+- **2026-04-04**：四維評分與新建議 backlog — 見上表；[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) 對照。
+- **2026-04-03**：OSS Scout 自動區格式 — CHANGELOG **2026-04-03**。
+- **2026-04-02**：**勿手改** `OSS_SCOUT_AUTO_BEGIN`～`END`。
+- **2026-04-01**：OSS 候選更新 — 研究稿 `docs/oss_candidates/2026-04-01-revision-plan-draft.md`。
+- **2026-03-31**：TODOS 精簡、OSS 週報契約 — CHANGELOG **2026-03-31**。
+- **2026-03-29**：演進藍圖、OSS 週期 — CHANGELOG **2026-03-29**。
+- **2026-03-28**：已完成項遷移 CHANGELOG — 商業化暫緩。
