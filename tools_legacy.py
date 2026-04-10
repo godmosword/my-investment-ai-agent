@@ -798,8 +798,11 @@ def _ai_momentum_rss_fallback() -> str | None:
         return None
 
 
-# AI／半導體族群：ETF + 大型平台股 + SPY 基準（yfinance 日線）
-_AI_SECTOR_BASKET_DEFAULT: tuple[str, ...] = ("SMH", "SOXX", "NVDA", "MSFT", "GOOGL", "SPY")
+def _ai_sector_basket_symbols() -> tuple[str, ...]:
+    """SMH/SOXX + merged equity universe from ``assets_config.json`` + SPY."""
+    from assets_universe import ai_sector_yfinance_symbols  # noqa: PLC0415
+
+    return ai_sector_yfinance_symbols()
 
 
 def _yf_pct_changes_for_symbol(close_series) -> tuple[float | None, float | None, float | None]:
@@ -829,7 +832,7 @@ def _ai_sector_market_yfinance_body() -> str:
     import pandas as pd  # noqa: PLC0415
     import yfinance as yf  # noqa: PLC0415
 
-    syms = list(_AI_SECTOR_BASKET_DEFAULT)
+    syms = list(_ai_sector_basket_symbols())
     lines: list[str] = [
         "【AI／半導體族群市場｜yfinance 日線】",
         "（下為最近收盤與估算 1 日／5 交易日報酬；儀表板每行一標的，label 須含符號與「yfinance」字樣）",
@@ -896,13 +899,13 @@ def _ai_sector_market_yfinance_body() -> str:
 def ai_sector_market_tool(query: str = "") -> str:
     """
     取得 AI／半導體相關美股與 ETF 的最近收盤與 1 日／約 5 交易日報酬（yfinance 日線）。
-    固定一籃：SMH、SOXX、NVDA、MSFT、GOOGL、SPY（SPY 為大盤基準）。供區塊①「可交易讀數」；
-    與 HuggingFace 開源熱度（敘事參考）分開列示。
+    一籃由 ``assets_config.json`` 的 core_equity／extended_equity 合併後加上 SMH、SOXX、SPY（基準）。
+    供區塊①「可交易讀數」；與 HuggingFace 開源熱度（敘事參考）分開列示。
     query 保留擴充用，目前可留空。
     """
 
     def _run() -> str:
-        cache_key = ("ai_sector_market", "default_v1")
+        cache_key = ("ai_sector_market", ",".join(_ai_sector_basket_symbols()))
         cached = _get_cache(cache_key)
         if cached:
             return _append_data_as_of(cached, "ai_sector_market")
@@ -3334,16 +3337,18 @@ def _fd_summarize_ticker(sym: str, period: str) -> list[str]:
 def financial_datasets_tool(query: str) -> str:
     """
     從 Financial Datasets API（financialdatasets.ai）取得美股損益表、資產負債表、現金流摘要。
-    query：留空或 \"watchlist\"＝一次查 NVDA、MSFT、AAPL（免費層常開放）；
+    query：留空或 \"watchlist\"＝依 ``assets_config.json`` 之 core_equity+extended_equity 合併清單批次查詢（annual）；
     或單一代號如 \"NVDA\"；或 \"NVDA:quarterly\" 指定季報。
     需將回傳中的營收／現金流等數字寫入 AI 儀表板 MetricLine，且 label 须含 FinancialDatasets 字樣。
     """
 
     def _run() -> str:
+        from assets_universe import financial_datasets_watchlist_tickers  # noqa: PLC0415
+
         raw = (query or "").strip()
         low = raw.lower()
         if not low or low == "watchlist":
-            tickers = ["NVDA", "MSFT", "AAPL"]
+            tickers = financial_datasets_watchlist_tickers()
             period = "annual"
         elif ":" in raw:
             sym, per = raw.split(":", 1)

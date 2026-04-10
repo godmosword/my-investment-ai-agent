@@ -67,7 +67,7 @@ TELEGRAM_CHAT_ID=
 GCP_PROJECT_ID=my-investment-ai-agent
 
 # ---------- 資產清單（選填）----------
-# ASSETS_CONFIG_PATH=  # 覆寫 tracker 用 crypto 清單 JSON；未設則用專案根目錄 assets_config.json
+# ASSETS_CONFIG_PATH=  # 覆寫 assets_config.json 路徑；影響 tracker（crypto）、financial_datasets_tool「watchlist」批次、ai_sector_market_tool yfinance 籃
 
 # ---------- 選填：除錯與行為 ----------
 # LOG_LEVEL=INFO

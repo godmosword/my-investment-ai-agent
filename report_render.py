@@ -12,6 +12,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
+from assets_universe import equity_universe_merged
 from schemas import (
     AISection,
     CryptoSection,
@@ -695,16 +696,18 @@ def _strip_news_takeaway_calendar_number_bleed(
 
 
 def _financialdatasets_anchor_map(ai: AISection) -> dict[str, list[tuple[str, str]]]:
-    """Map NVDA/MSFT -> [(label, value), ...] from AI dashboard FinancialDatasets rows."""
+    """Map known equity tickers -> [(label, value), ...] from AI dashboard FinancialDatasets rows."""
     m: dict[str, list[tuple[str, str]]] = {}
+    tick_order = sorted(equity_universe_merged(), key=len, reverse=True)
     for row in ai.dashboard:
         lab = (row.label or "")
         val = (row.value or "").strip()
         if "financialdatasets" not in lab.lower():
             continue
         sym = None
-        for tick in ("NVDA", "MSFT", "AAPL", "GOOGL", "META", "AMZN"):
-            if tick in lab.upper():
+        lab_u = lab.upper()
+        for tick in tick_order:
+            if tick in lab_u:
                 sym = tick
                 break
         if sym is None:

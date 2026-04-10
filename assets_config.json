@@ -3,7 +3,8 @@
     "BTC", "ETH", "SOL", "BNB", "XRP", "AVAX", "LINK", "DOT", "MATIC",
     "ARB", "OP", "SUI", "APT", "INJ", "TIA", "NEAR", "ATOM", "DOGE", "ADA"
   ],
-  "equity": [
-    "NVDA", "MSFT", "AAPL", "TSLA", "GOOGL", "AMZN", "META"
+  "core_equity": ["NVDA", "MSFT"],
+  "extended_equity": [
+    "AAPL", "TSLA", "GOOGL", "GOOG", "AMZN", "META", "AVGO", "TSM"
   ]
 }

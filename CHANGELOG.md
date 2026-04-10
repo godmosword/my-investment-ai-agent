@@ -3,6 +3,22 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-17
+
+### Added
+- [`assets_universe.py`](assets_universe.py)：自 [`assets_config.json`](assets_config.json) 讀取 **core_equity**／**extended_equity**（相容舊版僅 `equity`：前兩檔為 core、其餘 extended），供工具與 prompt 共用。
+
+### Changed
+- [`assets_config.json`](assets_config.json)：改為分層欄位；**extended** 納入 **GOOG**、**AVGO**、**TSM**（與既有 GOOGL 並存）。
+- [`tools_legacy.py`](tools_legacy.py)：`financial_datasets_tool` 之 `watchlist`／空 query 改為批次合併宇宙；`ai_sector_market_tool` yfinance 籃＝SMH／SOXX／合併美股＋SPY（cache key 隨籃變更）。
+- [`crew.py`](crew.py)：AI 儀表板規則改述為 **core ≥2 行 FD／extended ≤3 行**，yfinance 可複述符號表由設定檔驅動。
+- [`report_render.py`](report_render.py)：`FinancialDatasets` 錨點對照改掃描合併宇宙（支援 GOOG／AVGO／TSM 等）。
+- [`tracker.py`](tracker.py)：`GOOG`／`AVGO`／`TSM` 進場價 sanity 區間。
+- [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`CLAUDE.md`](CLAUDE.md)：`ASSETS_CONFIG_PATH` 與檔案角色說明。
+
+### Tests
+- [`test_assets_universe.py`](test_assets_universe.py)、[`test_financial_datasets_tool.py`](test_financial_datasets_tool.py)、[`test_ai_sector_market_tool.py`](test_ai_sector_market_tool.py)。
+
 ## 2026-04-16
 
 ### Changed

@@ -65,6 +65,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`monitor_intraday.py`](monitor_intraday.py) | Intraday monitor script + workflow companion |
 | [`visualizer.py`](visualizer.py) | Chart generation |
 | [`backtest.py`](backtest.py) | ML backtest CLI |
+| [`assets_config.json`](assets_config.json) + [`assets_universe.py`](assets_universe.py) | 美股 **core_equity**（儀表板 FD 錨點≥2 行）／**extended_equity**（每檔≤3 行）＋合併後 `watchlist`／yfinance 籃 |
 
 ### Subdirectories
 

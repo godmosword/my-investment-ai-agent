@@ -14,7 +14,7 @@ class TestAiSectorMarketYfinance(unittest.TestCase):
     def test_body_formats_pct_lines(self) -> None:
         import tools_legacy as tl
 
-        tickers = list(tl._AI_SECTOR_BASKET_DEFAULT)
+        tickers = list(tl._ai_sector_basket_symbols())
         idx = pd.bdate_range("2025-03-03", periods=8, freq="B")
         cols = pd.MultiIndex.from_arrays([["Close"] * len(tickers), tickers])
         row = np.arange(8, dtype=float)
