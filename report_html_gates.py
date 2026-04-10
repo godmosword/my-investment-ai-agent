@@ -138,10 +138,10 @@ def _institutional_phase_a_html_ok(text: str) -> tuple[bool, str]:
         return False, "【投資命題】內文為空"
     sup_n = _count_bullet_lines(_span_after_heading(text, "【支持論點】"))
     con_n = _count_bullet_lines(_span_after_heading(text, "【反駁論點】"))
-    if sup_n < 3:
-        return False, f"【支持論點】須至少 3 條 · 行（當前 {sup_n}）"
-    if con_n < 3:
-        return False, f"【反駁論點】須至少 3 條 · 行（當前 {con_n}）"
+    if not (2 <= sup_n <= 3):
+        return False, f"【支持論點】須 2–3 條 · 行（當前 {sup_n}）"
+    if not (2 <= con_n <= 3):
+        return False, f"【反駁論點】須 2–3 條 · 行（當前 {con_n}）"
     ass_n = _count_bullet_lines(_span_after_heading(text, "【關鍵假設】"))
     if not (2 <= ass_n <= 4):
         return False, f"【關鍵假設】須 2–4 條 · 行（當前 {ass_n}）"

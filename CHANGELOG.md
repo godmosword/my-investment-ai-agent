@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-19
+
+### Changed
+- **日報 Telegram 排版（投行掃讀）**：[`templates/telegram_report.j2`](templates/telegram_report.j2) — 執行摘要後加「掃讀順序」；**市場模式／宏觀／加密①–④／AI①–④** 前置；**投資命題與 Phase A–C** 移至文末 **【機構速讀｜命題與情境】**；**SourceHealth** 區塊回到 **QSREC 前**；區塊④前加管線生成之 **部位摘要** 行。
+- [`report_render.py`](report_render.py)：`instrument_sections_for_ib_layout` — 儀表板依關鍵字插入分區小標（`MetricLine.is_section_header`）；組裝時注入 `crypto_block4_recommendation_line`／`ai_block4_recommendation_line`。
+- [`schemas.py`](schemas.py)：`MetricLine.is_section_header`；`thesis_supporting_points`／`thesis_contrary_points` 改 **2–3 條**（結構化 + Phase A HTML Gate 對齊）。
+- [`report_html_gates.py`](report_html_gates.py)：Phase A HTML — 支持／反駁 **2–3 條**。
+- [`crew.py`](crew.py)、[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)：與新版順序與儀表板分區說明對齊。
+
 ## 2026-04-18
 
 ### Changed

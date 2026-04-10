@@ -1041,6 +1041,237 @@ def _postprocess_brief_data_hygiene(crypto: CryptoSection, ai: AISection) -> tup
     return crypto, ai
 
 
+_DASH_MACRO_KW: frozenset[str] = frozenset(
+    {
+        "VIX",
+        "DXY",
+        "美債",
+        "殖利率",
+        "FED",
+        "SOFR",
+        "CPI",
+        "FOMC",
+        "宏觀",
+        "相關係數",
+        "相關性",
+        "SPX",
+        "S&P",
+        "美元指數",
+        "利差",
+        "10Y",
+        "2Y",
+    }
+)
+_DASH_DERIV_KW: frozenset[str] = frozenset(
+    {
+        "資金費率",
+        "FUNDING",
+        "爆倉",
+        "清算",
+        "未平倉",
+        "OI",
+        "PUT/CALL",
+        "期權",
+        "選擇權",
+        "COINGLASS",
+        "ETF 流",
+        "ETF淨",
+        "期貨",
+        "CME",
+        "COT",
+        "多空比",
+    }
+)
+_DASH_ONCHAIN_KW: frozenset[str] = frozenset(
+    {
+        "MVRV",
+        "NVT",
+        "DOMINANCE",
+        "SOPR",
+        "NUPL",
+        "鏈上",
+        "交易所",
+        "淨流",
+        "巨鯨",
+        "活躍地址",
+        "GBTC",
+        "ETHE",
+        "恐懼",
+        "貪婪",
+        "FEAR",
+        "GREED",
+    }
+)
+_DASH_TECH_KW: frozenset[str] = frozenset(
+    {
+        "RSI",
+        "MA20",
+        "MA50",
+        "均線",
+        "BTC 現價",
+        "ETH 現價",
+        "SOL 現價",
+        "技術",
+        "KD",
+        "MACD",
+    }
+)
+_SECTION_TITLES: dict[str, str] = {
+    "macro": "宏觀與跨資產",
+    "deriv": "流動性／衍生品",
+    "onchain": "鏈上與情緒",
+    "tech": "價格與技術結構",
+    "other": "其他讀數",
+}
+
+
+def _dashboard_row_bucket(row: MetricLine) -> str:
+    if getattr(row, "is_section_header", False):
+        return ""
+    blob = f"{row.label or ''} {row.value or ''}".upper()
+    for kw in _DASH_MACRO_KW:
+        if kw.upper() in blob or kw in (row.label or ""):
+            return "macro"
+    for kw in _DASH_DERIV_KW:
+        if kw.upper() in blob or kw in (row.label or ""):
+            return "deriv"
+    for kw in _DASH_ONCHAIN_KW:
+        if kw.upper() in blob or kw in (row.label or ""):
+            return "onchain"
+    for kw in _DASH_TECH_KW:
+        if kw.upper() in blob or kw in (row.label or ""):
+            return "tech"
+    return "other"
+
+
+def _inject_dashboard_section_groups(rows: list[MetricLine]) -> list[MetricLine]:
+    """Insert MetricLine section headers (is_section_header) for IB-style grouping."""
+    out: list[MetricLine] = []
+    seen: set[str] = set()
+    for row in rows:
+        if getattr(row, "is_section_header", False):
+            out.append(row)
+            continue
+        b = _dashboard_row_bucket(row)
+        if b not in seen:
+            seen.add(b)
+            title = _SECTION_TITLES.get(b, "其他讀數")
+            out.append(
+                MetricLine(
+                    label=title,
+                    value=" ",
+                    is_section_header=True,
+                )
+            )
+        out.append(row)
+    return out
+
+
+def _parse_risk_budget_cap_percent(summary: str) -> str | None:
+    """Extract a single total risk budget percent from 今日風險預算 line if present."""
+    s = (summary or "").strip()
+    if not s:
+        return None
+    m = re.search(r"總風險預算[^%]*?(\d{1,3})\s*%", s)
+    if m:
+        return f"{m.group(1)}%"
+    m2 = re.search(r"(?:上限|不超過|限制在)\s*(\d{1,3})\s*%", s)
+    if m2:
+        return f"{m2.group(1)}%"
+    return None
+
+
+def _first_conflict_clause(conflict: str) -> str:
+    t = (conflict or "").strip()
+    if not t:
+        return ""
+    for sep in ("｜", "|", "；", ";"):
+        if sep in t:
+            return t.split(sep, 1)[0].strip()
+    if "。" in t and len(t) > 50:
+        return t.split("。", 1)[0].strip() + "。"
+    return t[:72] + ("…" if len(t) > 72 else "")
+
+
+def _esc_code(s: str, *, max_len: int = 96) -> str:
+    t = html.escape((s or "").strip(), quote=False)
+    if len(t) > max_len:
+        return t[: max_len - 1] + "…"
+    return t
+
+
+def _crypto_recommendation_summary_line(crypto: CryptoSection) -> str:
+    legs = list(crypto.trade_legs or [])
+    regime = _esc_code((crypto.market.regime or "").strip() or "N/A", max_len=24)
+    cap = _parse_risk_budget_cap_percent(crypto.risk_budget_summary or "")
+    cap_part = f"｜<b>總風險預算</b>：<code>{_esc_code(cap)}</code>" if cap else ""
+    risk = _first_conflict_clause(crypto.signal_conflict_summary or "")
+    risk_part = f"｜<b>主要張力</b>：<code>{_esc_code(risk)}</code>" if risk else ""
+    if not legs:
+        return (
+            f"<b>加密部位摘要</b>：<code>觀望</code>｜<b>Regime</b>：<code>{regime}</code>"
+            f"{cap_part}{risk_part}"
+        )
+    parts: list[str] = []
+    for leg in legs[:3]:
+        sym = str(leg.asset or "").replace("$", "").strip() or "?"
+        d = str(leg.direction or "").upper()
+        stars = max(1, min(4, int(leg.star_rating or 1)))
+        ss = "⭐️" * stars
+        parts.append(f"{sym}/{d}/{ss}")
+    blob = _esc_code("；".join(parts), max_len=120)
+    return (
+        f"<b>加密部位摘要</b>：<code>{blob}</code>｜<b>Regime</b>：<code>{regime}</code>"
+        f"{cap_part}{risk_part}"
+    )
+
+
+def _ai_recommendation_summary_line(ai: AISection, regime: str) -> str:
+    legs = list(ai.trade_legs or [])
+    r = _esc_code((regime or "").strip() or "N/A", max_len=24)
+    note = (ai.us_equity_allocation_note or "").strip()
+    cap = None
+    if note:
+        m = re.search(r"(\d{1,3})\s*%", note)
+        if m:
+            cap = f"{m.group(1)}%"
+    cap_part = f"｜<b>部位上限</b>：<code>{_esc_code(cap)}</code>" if cap else ""
+    risk = _first_conflict_clause(ai.signal_conflict_summary or "")
+    risk_part = f"｜<b>主要張力</b>：<code>{_esc_code(risk)}</code>" if risk else ""
+    if not legs:
+        return f"<b>美股部位摘要</b>：<code>觀望</code>｜<b>Regime</b>：<code>{r}</code>{cap_part}{risk_part}"
+    parts: list[str] = []
+    for leg in legs[:3]:
+        sym = str(leg.asset or "").replace("$", "").strip() or "?"
+        d = str(leg.direction or "").upper()
+        stars = max(1, min(4, int(leg.star_rating or 1)))
+        ss = "⭐️" * stars
+        parts.append(f"{sym}/{d}/{ss}")
+    blob = _esc_code("；".join(parts), max_len=120)
+    return f"<b>美股部位摘要</b>：<code>{blob}</code>｜<b>Regime</b>：<code>{r}</code>{cap_part}{risk_part}"
+
+
+def instrument_sections_for_ib_layout(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
+    """投行式排版：儀表板分區、區塊④一行摘要；不重排四大區塊順序。"""
+    cr = crypto.model_copy(
+        update={"dashboard": _inject_dashboard_section_groups(list(crypto.dashboard or []))}
+    )
+    ai_new = ai.model_copy(
+        update={"dashboard": _inject_dashboard_section_groups(list(ai.dashboard or []))}
+    )
+    cr = cr.model_copy(
+        update={"crypto_block4_recommendation_line": _crypto_recommendation_summary_line(cr)}
+    )
+    ai_new = ai_new.model_copy(
+        update={
+            "ai_block4_recommendation_line": _ai_recommendation_summary_line(
+                ai_new, cr.market.regime or ""
+            )
+        }
+    )
+    return cr, ai_new
+
+
 def _ensure_crypto_liquidation_fallback_note(crypto: CryptoSection) -> CryptoSection:
     """If dashboard never mentions 爆倉/清算, add one ⬜ note (readers know how to read tape without CoinGlass)."""
     blob = " ".join(f"{r.label} {r.value}" for r in crypto.dashboard)
@@ -1229,6 +1460,7 @@ def assemble_daily_brief_report(
     ai = _coerce_ai_equity_trade_prices_from_market(ai)
     crypto, ai = _normalize_pick_reason_repeat_headers(crypto, ai)
     crypto, ai = _apply_repeat_pick_disclaimer_if_needed(crypto, ai)
+    crypto, ai = instrument_sections_for_ib_layout(crypto, ai)
     disclaimer = _low_confidence_disclaimer_plain(crypto, ai)
     return DailyBriefReport(
         crypto=crypto,

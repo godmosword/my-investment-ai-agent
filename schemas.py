@@ -406,6 +406,13 @@ class MetricLine(BaseModel):
         default=None,
         description="Optional ✅ ❌ ⬜ prefix for regime scorecard style lines.",
     )
+    is_section_header: bool = Field(
+        default=False,
+        description=(
+            "When True, template renders only a grouping subhead (投行式儀表板分區)；"
+            "value may be a single space — omit <code> value line."
+        ),
+    )
 
     @field_validator("value", mode="before")
     @classmethod
@@ -773,11 +780,11 @@ class CryptoSection(BaseModel):
     )
     thesis_supporting_points: list[str] = Field(
         default_factory=list,
-        description="支持論點恰好 3 條，每條 ≤72 字；須可對照儀表板或新聞，禁止空泛形容詞。",
+        description="支持論點 2–3 條（投行速讀），每條 ≤72 字；須可對照儀表板或新聞，禁止空泛形容詞。",
     )
     thesis_contrary_points: list[str] = Field(
         default_factory=list,
-        description="反駁／風險論點恰好 3 條，每條 ≤72 字；與主命題對稱，禁止只寫「波動大」。",
+        description="反駁／風險論點 2–3 條，每條 ≤72 字；與主命題對稱，禁止只寫「波動大」。",
     )
     key_assumptions_lines: list[str] = Field(
         default_factory=list,
@@ -878,6 +885,13 @@ class CryptoSection(BaseModel):
     qsrec: list[TradeRecommendation] = Field(
         default_factory=list,
         description="CRYPTO category recommendations for QSREC JSON block.",
+    )
+    crypto_block4_recommendation_line: str = Field(
+        default="",
+        description=(
+            "管線注入：區塊④開頭一行「部位摘要」（含 whitelist HTML）；"
+            "非 LLM 輸出，由 assemble 填入。"
+        ),
     )
 
     @field_validator("narrative_of_day", mode="before")
@@ -995,6 +1009,10 @@ class AISection(BaseModel):
     chatter: list[ChatterItem] = Field(
         default_factory=list,
         description="2–3 AI supply-chain chatter lines with credibility.",
+    )
+    ai_block4_recommendation_line: str = Field(
+        default="",
+        description="管線注入：AI 區塊④開頭一行部位摘要（whitelist HTML）；非 LLM。",
     )
     pick_reason: str = Field(
         ...,
@@ -1182,10 +1200,10 @@ def _institutional_phase_a_structured_issues(cr: CryptoSection) -> list[str]:
         out.append("投資命題過長（>90 字建議上限）")
     sup = [str(x).strip() for x in cr.thesis_supporting_points if str(x).strip()]
     con = [str(x).strip() for x in cr.thesis_contrary_points if str(x).strip()]
-    if len(sup) != 3:
-        out.append(f"支持論點須恰好 3 條（當前 {len(sup)}）")
-    if len(con) != 3:
-        out.append(f"反駁論點須恰好 3 條（當前 {len(con)}）")
+    if not (2 <= len(sup) <= 3):
+        out.append(f"支持論點須 2–3 條（當前 {len(sup)}）")
+    if not (2 <= len(con) <= 3):
+        out.append(f"反駁論點須 2–3 條（當前 {len(con)}）")
     ass = [str(x).strip() for x in cr.key_assumptions_lines if str(x).strip()]
     if not (2 <= len(ass) <= 4):
         out.append(f"關鍵假設須 2–4 條（當前 {len(ass)}）")

@@ -277,11 +277,11 @@ def build_crypto_structured_final_prompt(
         - exec_summary：3–5 則 bullet（見【Executive Summary】）；加密與美股主倉若方向明顯相反，其一則須框定跨資產組合邏輯。
         - market.regime / score_suffix / scorecard_lines：承接上一任務評分卡，regime 僅 risk_on|risk_off|neutral。
         - narrative_of_day：今日主敘事一句 ≤45 字。
-        - investment_thesis_one_liner / thesis_supporting_points（3）/ thesis_contrary_points（3）/ key_assumptions_lines（2–4）/ narrative_invalidation_summary：見【華爾街級 Phase A】。
+        - investment_thesis_one_liner / thesis_supporting_points（2–3）/ thesis_contrary_points（2–3）/ key_assumptions_lines（2–4）/ narrative_invalidation_summary：見【華爾街級 Phase A】。
         - portfolio_framing_summary / scenario_probability_notes：見【華爾街級 Phase B】。
         - crypto_cycle_valuation_notes / equity_valuation_framing / event_calendar_lines：見【華爾街級 Phase C】。
         - macro_framework_lines：≤4 行宏觀 bullet。
-        - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。
+        - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。**可選**以分區掃讀：管線會依 label/value 關鍵字自動插入「宏觀與跨資產／流動性·衍生品／鏈上與情緒／價格與技術結構」小標（勿手動塞 `is_section_header`，除非你知道格式）；每區指標列仍須一行一讀數。
         - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據，且勿重複儀表板已列之同一讀數；**每則** `pricing_note` 見【華爾街級 Phase B】。
         - x_highlights：選填；主題式摘要句，非 X 即時推文（見【區塊②b｜x_highlights】）。
         - chatter：2–3 則呢喃，含可信度與（未確認）。
@@ -328,7 +328,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
 
         === 填入 AISection 欄位 ===
         - macro_bridge_lines：承上宏觀，勿重貼完整美債段；勿再逐字複誦加密儀表板已給之 VIX/BTC 讀數，必要時指稱「見上方儀表板」。
-        - dashboard：AI 儀表板 MetricLine；**順序建議**：yfinance 族群（ai_sector_market_tool）→ FinancialDatasets（**{_CREW_FD_CORE_PHRASE}**；**extended** watchlist 其餘檔位每檔≤3 行）→ ai_momentum（**≤2 行**）。yfinance 列 label 須含 ticker 與「yfinance」。
+        - dashboard：AI 儀表板 MetricLine；**順序建議**：yfinance 族群（ai_sector_market_tool）→ FinancialDatasets（**{_CREW_FD_CORE_PHRASE}**；**extended** watchlist 其餘檔位每檔≤3 行）→ ai_momentum（**≤2 行**）。yfinance 列 label 須含 ticker 與「yfinance」。管線會自動插入與加密段相同邏輯之分區小標以利掃讀。
         - news：3 則 index 4–6，格式同加密新聞；investment_takeaway 勿重複儀表板已列之同一讀數；**每則** `pricing_note` 見【華爾街級 Phase B】。
         - x_highlights：選填；主題式摘要（見【區塊②b｜x_highlights】）。
         - chatter：2–3 產業鏈呢喃含可信度。
@@ -359,8 +359,8 @@ _THINK_SHOW_ZONE_RULE = dedent("""\
 _INSTITUTIONAL_PHASE_A_RULE = dedent("""\
     【華爾街級 Phase A｜投資命題與假設（CryptoSection 必填）】
     - `investment_thesis_one_liner`：一句可檢驗主命題（≤90 字），須涵蓋**加密與美股**主軸或明確寫出跨資產邏輯；禁內部標籤。
-    - `thesis_supporting_points`：**恰好 3 條**字串，每條 ≤72 字；須可對照儀表板或新聞中的具體讀數／事件。
-    - `thesis_contrary_points`：**恰好 3 條**字串，每條 ≤72 字；為對稱反駁（流動性、宏觀、估值、監管等），禁只寫「波動大」。
+    - `thesis_supporting_points`：**2–3 條**字串，每條 ≤72 字；須可對照儀表板或新聞中的具體讀數／事件（投行速讀；模板將本區置於文末「機構速讀」）。
+    - `thesis_contrary_points`：**2–3 條**字串，每條 ≤72 字；為對稱反駁（流動性、宏觀、估值、監管等），禁只寫「波動大」。
     - `key_assumptions_lines`：**2–4 條**字串，每條 ≤80 字（利率路徑、盈利共識、流動性、資料可得性等）。
     - `narrative_invalidation_summary`：1–2 句 ≤160 字——**敘事級**失效條件（非單筆進場停損）：何種證據若出現則須重估本日主命題。若宏觀段已寫 VIX 期限結構為 **Contango**，失效條件**不得**單獨依賴「轉為 Backwardation」除非同段已給出期限結構來源與定義；否則改用**現貨 VIX 門檻**或**與上文一致**之可觀測條件。
     - 免責聲明由管線固定注入 Telegram，**勿**在 JSON 內自行撰寫長段法律免責。

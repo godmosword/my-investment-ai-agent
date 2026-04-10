@@ -303,6 +303,63 @@ def test_chatter_item_downgrades_credibility_a_when_unconfirmed():
 
 
 @pytest.mark.smoke
+def test_assemble_ib_layout_dashboard_groups_and_block4_summary():
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事",
+        macro_framework_lines=["宏觀"],
+        investment_thesis_one_liner="BTC 與美股雙軸在風險預算內偏多。",
+        thesis_supporting_points=["論點甲：ETF 流與儀表板一致", "論點乙：鏈上費率偏多"],
+        thesis_contrary_points=["反駁甲：清算壓力", "反駁乙：利率重訂"],
+        key_assumptions_lines=["假設一：流動性大致穩定", "假設二：主要標的深度足"],
+        narrative_invalidation_summary="若 ETF 資金流逆轉則重估。",
+        dashboard=[
+            MetricLine(label="VIX", value="<code>20</code>"),
+            MetricLine(label="資金費率", value="<code>0.01</code>"),
+            MetricLine(label="BTC RSI", value="<code>55</code>"),
+        ],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。",
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="空方主線一句｜多方主線一句",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["承上"],
+        dashboard=[
+            MetricLine(label="NVDA yfinance", value="1"),
+            MetricLine(label="NVDA FinancialDatasets", value="2"),
+        ],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="NVDA 財報前瞻與 GPU 拉貨見於主流新聞，資料中心 Capex 敘事強化，故選 NVDA。",
+        signal_conflict_summary="無",
+        trade_legs=[_sample_trade_leg("NVDA")],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="【SourceHealth】 ok",
+        report_tier_partial_news=False,
+    )
+    html = render_telegram_daily_brief(report)
+    assert "掃讀順序" in html
+    assert "· <b>宏觀與跨資產</b>" in html or "宏觀與跨資產" in html
+    assert "<b>加密部位摘要</b>" in html
+    assert "<b>美股部位摘要</b>" in html
+    assert "【機構速讀｜命題與情境】" in html
+    assert "【投資命題】" in html
+    assert "【SourceHealth】" in html
+    assert "[QSREC_START]" in html
+    assert html.find("【SourceHealth】") < html.find("[QSREC_START]")
+
+
+@pytest.mark.smoke
 def test_assemble_fills_empty_trade_leg_position_pct():
     leg_crypto = _sample_trade_leg("BTC").model_copy(update={"position_pct": ""})
     leg_ai = _sample_trade_leg("NVDA").model_copy(update={"position_pct": "   "})
