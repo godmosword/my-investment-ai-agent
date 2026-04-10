@@ -3,6 +3,13 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-18
+
+### Changed
+- [`report_html_gates.py`](report_html_gates.py)：動態選幣 `_CRYPTO_PICK_KW` 納入**技術盤面**（RSI、均線、MA20/50、超買／超賣、多頭排列等）與**宏觀／估值讀值**（DXY、VIX、美債、殖利率、利差、SOFR、NVT、Dominance），使「本日選擇理由」可僅以儀表板對齊之讀值敘事滿足 ≥2 線索；錯誤提示文案同步更新。
+- [`crew.py`](crew.py)：`GATE_VALIDATE_PICK_RULE` 加密段與上列對齊。
+- [`test_validate_report.py`](test_validate_report.py)：模糊理由改為長句無關鍵詞；新增 RSI+DXY 通過案例。
+
 ## 2026-04-17
 
 ### Added

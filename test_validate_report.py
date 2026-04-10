@@ -649,9 +649,13 @@ class TestPickRotation(unittest.TestCase):
 class TestPickJustification(unittest.TestCase):
     def test_vague_crypto_reason_fails(self):
         report = _make_report(news_count=8)
+        # ≥34 字但不含機檢認可之催化／鏈上／技術／宏觀關鍵詞（避免誤觸「過短」分支）
+        vague = (
+            "本日選擇理由：盤面觀望為主，僅依既有部位微調曝險，未見足以改變方向的增量訊號，故維持 BTC 觀察倉。"
+        )
         report = report.replace(
             "本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。",
-            "本日選擇理由：技術面偏多。",
+            vague,
         )
         r = validate_report(report)
         self.assertFalse(r["pick_justification_crypto_ok"])
@@ -858,6 +862,19 @@ class TestValidateReport(unittest.TestCase):
     def test_crypto_pick_futures_and_cme_count_as_catalyst_keywords(self):
         """期貨／CME 類敘述須計入動態選幣「強關鍵詞」。"""
         reason = "CME 機構期貨淨多單變化與監管新聞同向，故維持 BTC 為單邊主倉。"
+        recs = [{"asset": "BTC", "category": "CRYPTO"}]
+        old = (
+            "本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。\n"
+        )
+        report = _make_report(regime="risk_on").replace(old, "本日選擇理由：" + reason + "\n")
+        ok, err = _pick_justification_crypto_ok(report, recs)
+        self.assertTrue(ok, err)
+
+    def test_crypto_pick_rsi_and_dxy_count_as_evidence_keywords(self):
+        """RSI／DXY 等技術與宏觀讀值須可計入動態選幣（≥2 線索）。"""
+        reason = (
+            "連日維持與昨日相同建議標的；BTC 站穩支撐且 DXY 走弱，RSI 超買但仍採減碼後連日持有。"
+        )
         recs = [{"asset": "BTC", "category": "CRYPTO"}]
         old = (
             "本日選擇理由：現貨 ETF 淨流入與監管新聞構成催化，鏈上資金費率與多空比同步支持偏多結構，選 BTC 作為單邊主倉。\n"
