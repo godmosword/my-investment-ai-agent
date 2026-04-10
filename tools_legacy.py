@@ -3387,6 +3387,177 @@ def financial_datasets_tool(query: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# Prediction markets（Polymarket Gamma API，公開唯讀）
+# ═══════════════════════════════════════════════════════════════════
+
+_GAMMA_EVENTS_URL = "https://gamma-api.polymarket.com/events"
+
+
+def _parse_outcome_prices(raw: object) -> list[float] | None:
+    """Gamma API: outcomePrices may be JSON list string or list of strings."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(raw, list) or len(raw) < 1:
+        return None
+    out: list[float] = []
+    for x in raw:
+        try:
+            out.append(float(x))
+        except (TypeError, ValueError):
+            return None
+    return out
+
+
+def fetch_polymarket_hot_highlight_lines(*, limit_events: int = 40, top_n: int = 5) -> list[str]:
+    """Return 3–6 plain-text lines for CryptoSection.prediction_market_highlight_lines (no HTML).
+
+    Uses Polymarket Gamma ``/events`` (24h volume order). Picks binary markets with Yes price in (0.02, 0.98).
+    """
+    if os.getenv("MOCK_APIS", "").lower() in ("1", "true", "yes"):
+        return [
+            "Polymarket Yes≈55.0%｜24h量≈$1.2M｜【MOCK】示例：某政策事件是否於 Q2 前落地",
+            "Polymarket Yes≈42.0%｜24h量≈$800K｜【MOCK】示例：Fed 年內降息次數 ≥3",
+            "Polymarket Yes≈38.5%｜24h量≈$500K｜【MOCK】示例：加密現貨 ETF 週淨流入連續為正",
+        ]
+    n_ev = max(10, min(int(limit_events), 80))
+    n_top = max(3, min(int(top_n), 8))
+    cache_key = ("polymarket_hot", str(n_ev), str(n_top))
+    cached = _get_cache(cache_key)
+    if cached:
+        try:
+            data = json.loads(cached)
+            if isinstance(data, list) and data:
+                return [str(x) for x in data if str(x).strip()][:6]
+        except json.JSONDecodeError:
+            pass
+
+    params = {
+        "active": "true",
+        "closed": "false",
+        "limit": str(n_ev),
+        "order": "volume24hr",
+        "ascending": "false",
+    }
+    try:
+        resp = _http_get(_GAMMA_EVENTS_URL, params=params, timeout=18)
+    except Exception as e:
+        logger.warning("polymarket gamma GET failed: %s", e)
+        return []
+
+    if resp.status_code != 200:
+        logger.warning("polymarket gamma HTTP %s", resp.status_code)
+        return []
+
+    try:
+        events = resp.json()
+    except ValueError as e:
+        logger.warning("polymarket gamma JSON error: %s", e)
+        return []
+
+    if not isinstance(events, list):
+        return []
+
+    scored: list[tuple[float, float, str]] = []
+    for ev in events:
+        if not isinstance(ev, dict):
+            continue
+        markets = ev.get("markets")
+        if not isinstance(markets, list):
+            continue
+        for m in markets:
+            if not isinstance(m, dict):
+                continue
+            prices = _parse_outcome_prices(m.get("outcomePrices"))
+            if not prices:
+                continue
+            yes = prices[0]
+            if not 0.02 < yes < 0.98:
+                continue
+            q = (m.get("question") or ev.get("title") or "").strip()
+            if not q:
+                continue
+            vol_raw = m.get("volume24hr")
+            if vol_raw is None:
+                vol_raw = m.get("volume")
+            if vol_raw is None:
+                vol_raw = ev.get("volume24hr") or ev.get("volume") or 0
+            try:
+                vol = float(vol_raw or 0)
+            except (TypeError, ValueError):
+                vol = 0.0
+            scored.append((vol, yes, q))
+
+    scored.sort(key=lambda t: t[0], reverse=True)
+    lines: list[str] = []
+    for vol, yes, q in scored[:n_top]:
+        pct = yes * 100.0
+        q_short = q if len(q) <= 88 else q[:85] + "…"
+        if vol >= 1_000_000:
+            vs = f"{vol / 1_000_000:.2f}M"
+        elif vol >= 1_000:
+            vs = f"{vol / 1_000:.1f}K"
+        else:
+            vs = f"{vol:.0f}"
+        lines.append(
+            f"Polymarket Yes≈{pct:.1f}%｜24h量≈${vs}｜{q_short}"
+        )
+
+    if len(lines) < 3 and scored:
+        for vol, yes, q in scored[n_top : n_top + 4]:
+            if len(lines) >= 3:
+                break
+            pct = yes * 100.0
+            q_short = q if len(q) <= 88 else q[:85] + "…"
+            lines.append(f"Polymarket Yes≈{pct:.1f}%｜{q_short}")
+
+    if lines:
+        _set_cache(cache_key, json.dumps(lines, ensure_ascii=False))
+    return lines[:6]
+
+
+@tool
+def prediction_markets_tool(query: str = "") -> str:
+    """
+    預測市場熱門事件（Polymarket Gamma API，無需 API Key）。
+    回傳按 24h 成交排序之二元市場：Yes 隱含機率（非官方預測）＋成交量級＋題目摘要。
+    query 可留空；或 \"limit=40\" 調整拉取事件數（測試用）。
+    戰報【預測市場熱門】欄位須與本工具一致，禁止捏造機率。
+    """
+
+    def _run() -> str:
+        lim = 40
+        low = (query or "").strip().lower()
+        if "limit=" in low:
+            try:
+                part = [p for p in low.replace(" ", "").split(";") if p.startswith("limit=")]
+                if part:
+                    lim = int(part[0].split("=", 1)[1])
+            except (ValueError, IndexError):
+                pass
+        lines = fetch_polymarket_hot_highlight_lines(limit_events=lim, top_n=5)
+        if not lines:
+            return (
+                "[DATA_MISSING:prediction_markets] Polymarket Gamma 無可用熱門市場或請求失敗。"
+                " 可稍後重試；戰報請填 <code>N/A</code> 或省略本欄。"
+            )
+        header = (
+            "【預測市場熱門｜Polymarket Gamma】\n"
+            "（以下為平台成交加權之二元 Yes 價；非投資建議，流動性與規則風險自負）\n"
+        )
+        body = "\n".join(f"· {ln}" for ln in lines)
+        result = header + body
+        return _append_data_as_of(result, "prediction_markets")
+
+    q = (query or "").strip()
+    return traced_tool_execution("prediction_markets_tool", {"query": q or "(default)"}, _run)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Macro Context Tool（美債利率、殖利率曲線、Fed 期貨、本週財報）
 # ═══════════════════════════════════════════════════════════════════
 

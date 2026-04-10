@@ -1251,6 +1251,25 @@ def _ai_recommendation_summary_line(ai: AISection, regime: str) -> str:
     return f"<b>美股部位摘要</b>：<code>{blob}</code>｜<b>Regime</b>：<code>{r}</code>{cap_part}{risk_part}"
 
 
+def _inject_prediction_market_highlights(crypto: CryptoSection) -> CryptoSection:
+    """Fill prediction_market_highlight_lines from Polymarket API when empty or sparse."""
+    if os.getenv("PREDICTION_MARKETS_IN_BRIEF", "1").lower() in ("0", "false", "no"):
+        return crypto
+    existing = [str(x).strip() for x in (crypto.prediction_market_highlight_lines or []) if str(x).strip()]
+    if len(existing) >= 3:
+        return crypto
+    try:
+        from tools_legacy import fetch_polymarket_hot_highlight_lines  # noqa: PLC0415
+
+        lines = fetch_polymarket_hot_highlight_lines()
+    except Exception as exc:
+        logger.warning("prediction market highlights skipped: %s", exc)
+        return crypto
+    if not lines:
+        return crypto
+    return crypto.model_copy(update={"prediction_market_highlight_lines": lines})
+
+
 def instrument_sections_for_ib_layout(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
     """投行式排版：儀表板分區、區塊④一行摘要；不重排四大區塊順序。"""
     cr = crypto.model_copy(
@@ -1461,6 +1480,7 @@ def assemble_daily_brief_report(
     crypto, ai = _normalize_pick_reason_repeat_headers(crypto, ai)
     crypto, ai = _apply_repeat_pick_disclaimer_if_needed(crypto, ai)
     crypto, ai = instrument_sections_for_ib_layout(crypto, ai)
+    crypto = _inject_prediction_market_highlights(crypto)
     disclaimer = _low_confidence_disclaimer_plain(crypto, ai)
     return DailyBriefReport(
         crypto=crypto,

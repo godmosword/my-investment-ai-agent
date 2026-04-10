@@ -35,6 +35,7 @@ from tools import (
     multi_timeframe_tool,
     newsapi_tool,
     onchain_metrics_tool,
+    prediction_markets_tool,
     regime_scorecard_tool,
     rss_feed_tool,
     rumor_scanner_tool,
@@ -86,6 +87,7 @@ def _crypto_researcher_tools():
         etf_flow_tool,
         econ_calendar_tool,
         onchain_metrics_tool,
+        prediction_markets_tool,
     ]
     tail = [
         correlation_matrix_tool,
@@ -282,6 +284,7 @@ def build_crypto_structured_final_prompt(
         - crypto_cycle_valuation_notes / equity_valuation_framing / event_calendar_lines：見【華爾街級 Phase C】。
         - macro_framework_lines：≤4 行宏觀 bullet。
         - dashboard：幣圈儀表板，每列 MetricLine；缺值 value="N/A"。**可選**以分區掃讀：管線會依 label/value 關鍵字自動插入「宏觀與跨資產／流動性·衍生品／鏈上與情緒／價格與技術結構」小標（勿手動塞 `is_section_header`，除非你知道格式）；每區指標列仍須一行一讀數。
+        - prediction_market_highlight_lines：**請留空陣列 `[]`**（管線於 `assemble_daily_brief_report` 自 Polymarket 注入）；若你呼叫 `prediction_markets_tool` 僅供內文參考，**勿**手動抄入 JSON 以免與管線不一致。
         - news：3 則 index 1–3；timestamp_line 必含 UTC+8；investment_takeaway 至少一個數字化數據，且勿重複儀表板已列之同一讀數；**每則** `pricing_note` 見【華爾街級 Phase B】。
         - x_highlights：選填；主題式摘要句，非 X 即時推文（見【區塊②b｜x_highlights】）。
         - chatter：2–3 則呢喃，含可信度與（未確認）。
@@ -414,7 +417,8 @@ _TOOL_TRUTH_RULE = dedent(f"""\
     - 若儀表板已出現 Binance 備援、資金費率或多空比等數值，不得稱「籌碼面全缺失」；應寫「CoinGlass 不可用，已採備援／近似指標觀察短線情緒」。
     - **美股基本面（精簡）**：營收、淨利、現金流等敘述必須來自 `financial_datasets_tool` 回傳。儀表板 **僅要求 anchor（core）**：{_CREW_FD_CORE_BACKTICK} MetricLine，label 皆含 **`FinancialDatasets`** 與該代號，優先 **營收**、**營收同比%**（次選 **自由現金流**；缺欄則 value=`N/A` 並 ≤20 字原因）。**extended watchlist 其餘檔位**：每檔 **至多三行**（同上三指標擇優），避免儀表板過長；禁止整檔濃縮成單行卻在正文大段複述未列示之財務數字。
     - **AI 族群市場（可交易讀數）**：僅能複述 `ai_sector_market_tool` 回傳之 **{_CREW_YF_ENUM}** 各標的收盤與 1D／5D 報酬；每標的一行 MetricLine，**label 須含 ticker 與「yfinance」** 字樣；禁止發明股價或報酬。
-    - AI 儀表板（HuggingFace／OpenRouter／RSS）：**敘事參考、非股價訊號**；禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；**至多兩行**；僅能複述 `ai_momentum_tool` 回傳中 **排序最前之一至二則** 模型行或 RSS 備援標題（勿列 Top5）；缺資料則單行 value=`N/A`（≤30 字原因）—不得捏造數字。""")
+    - AI 儀表板（HuggingFace／OpenRouter／RSS）：**敘事參考、非股價訊號**；禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；**至多兩行**；僅能複述 `ai_momentum_tool` 回傳中 **排序最前之一至二則** 模型行或 RSS 備援標題（勿列 Top5）；缺資料則單行 value=`N/A`（≤30 字原因）—不得捏造數字。
+    - **預測市場**：`prediction_markets_tool` 提供 Polymarket 熱門二元市場之 **Yes 隱含機率與成交量級**；`prediction_market_highlight_lines` **建議留空**（管線組裝時自動注入）。若自填，須與工具回傳逐字一致；**禁止**臆造機率或平台。""")
 
 _NEWS_FMT = dedent("""\
     【新聞資料欄位規格（純資料，非排版）】
@@ -832,7 +836,12 @@ class CryptoResearchCrew:
             goal="整合研究成果，輸出戰報上半部。",
             backstory="最終排版與風控守門員；嚴守【思考區／展示區】與【機構級寫作】Bloomberg 式洗練。",
             llm=gemini,
-            tools=[coinglass_data_tool, ml_quant_tool, multi_timeframe_tool],
+            tools=[
+                coinglass_data_tool,
+                ml_quant_tool,
+                multi_timeframe_tool,
+                prediction_markets_tool,
+            ],
             verbose=_VERBOSE,
         )
 

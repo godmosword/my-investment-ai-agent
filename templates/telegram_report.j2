@@ -29,6 +29,13 @@
 · {{ line|tg_escape }}
 {% endfor %}
 
+{% if crypto.prediction_market_highlight_lines %}
+<b>【預測市場熱門】</b> <i>（Polymarket 二元 Yes 價；非投資建議）</i>
+{% for line in crypto.prediction_market_highlight_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+
 ────────────
 ══════ <b>📊 加密市場</b> ══════
 <b>區塊①</b>【數據儀表板】

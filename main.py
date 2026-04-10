@@ -506,6 +506,7 @@ def _prewarm_tool_caches() -> None:
         regime_scorecard_tool,
         macro_context_tool,
         financial_datasets_tool,
+        prediction_markets_tool,
     )
 
     # 定義所有獨立的 tool 呼叫（無互相依賴）
@@ -522,6 +523,7 @@ def _prewarm_tool_caches() -> None:
         "regime_scorecard":       lambda: regime_scorecard_tool.run(),
         "macro_context":          lambda: macro_context_tool.run(),
         "financial_datasets":     lambda: financial_datasets_tool.run("watchlist"),
+        "prediction_markets":     lambda: prediction_markets_tool.run(),
     }
 
     logger.info("Pre-warming %d tool caches in parallel...", len(tasks))

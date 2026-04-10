@@ -641,11 +641,13 @@ def data_gatherer_node(state: ResearchGraphState) -> dict[str, Any]:
         financial_datasets_tool,
         macro_context_tool,
         onchain_metrics_tool,
+        prediction_markets_tool,
         regime_scorecard_tool,
     )
 
     raw_data["regime_scorecard"] = _safe_tool_run(regime_scorecard_tool)
     raw_data["macro_context"] = _safe_tool_run(macro_context_tool)
+    raw_data["prediction_markets"] = _safe_tool_run(prediction_markets_tool)
 
     if category == "CRYPTO":
         raw_data["fear_greed"] = _safe_tool_run(fear_greed_tool)

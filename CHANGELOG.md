@@ -3,6 +3,18 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-20
+
+### Added
+- **`prediction_markets_tool`**（[`tools_legacy.py`](tools_legacy.py)）：Polymarket **Gamma** `GET /events` 熱門二元市場（Yes 隱含機率、24h 成交量級）；`_get_cache`／`_set_cache`；`MOCK_APIS=1` 時回固定三行。
+- **`CryptoSection.prediction_market_highlight_lines`**：[`report_render.assemble_daily_brief_report`](report_render.py) 以 `fetch_polymarket_hot_highlight_lines` 注入（`PREDICTION_MARKETS_IN_BRIEF` 關閉可跳過）；[`templates/telegram_report.j2`](templates/telegram_report.j2) 宏觀後獨立 **【預測市場熱門】**。
+- **Crew／LangGraph**：研究員與主編掛載 `prediction_markets_tool`；`graph_nodes` `raw_data["prediction_markets"]`；[`graph/graph_tools.py`](graph/graph_tools.py) `fetch_prediction_market_hot_events`。
+- **main** `prewarm` 預熱 `prediction_markets`。
+- [`test_prediction_markets_tool.py`](test_prediction_markets_tool.py)。
+
+### Docs
+- [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
+
 ## 2026-04-19
 
 ### Changed

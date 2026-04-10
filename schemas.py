@@ -833,6 +833,13 @@ class CryptoSection(BaseModel):
             "與事件類型（財報/Fed/期權到期/解鎖等）；禁止虛構未公告日期。"
         ),
     )
+    prediction_market_highlight_lines: list[str] = Field(
+        default_factory=list,
+        description=(
+            "【預測市場熱門】3–6 條獨立掃讀行；管線由 Polymarket Gamma API 注入即時隱含機率／成交量，"
+            "LLM 勿捏造；正文僅複述本欄與工具回傳。"
+        ),
+    )
     market: MarketRegimeBlock
     narrative_of_day: str = Field(
         ...,

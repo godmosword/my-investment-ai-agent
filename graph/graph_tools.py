@@ -11,7 +11,12 @@ from typing import Any
 
 from langchain_core.tools import tool
 
-from tools import coinglass_data_tool, financial_datasets_tool, newsapi_tool
+from tools import (
+    coinglass_data_tool,
+    financial_datasets_tool,
+    newsapi_tool,
+    prediction_markets_tool,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +70,19 @@ def fetch_latest_news(query: str) -> str:
     return _run_legacy_tool(newsapi_tool, query)
 
 
+@tool
+def fetch_prediction_market_hot_events(query: str = "") -> str:
+    """取得 Polymarket 等平台之預測市場熱門二元事件（Yes 隱含機率、成交量級）。
+
+    query 可留空。僅能複述回傳列，禁止自行推算機率。
+    """
+    logger.info("[Tool Call] fetch_prediction_market_hot_events: %s", query or "(default)")
+    return _run_legacy_tool(prediction_markets_tool, query or "")
+
+
 RESEARCH_TOOLS = [
     fetch_crypto_derivatives,
     fetch_us_equity_financials,
     fetch_latest_news,
+    fetch_prediction_market_hot_events,
 ]

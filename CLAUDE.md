@@ -42,7 +42,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`graph/graph_crew.py`](graph/graph_crew.py) | LangGraph state machine compiler/runtime (`USE_LANGGRAPH_ENGINE=1` 時切換路徑) |
 | [`graph/graph_nodes.py`](graph/graph_nodes.py) + [`graph/graph_state.py`](graph/graph_state.py) | Phase 3 nodes（Gather/Bull/Bear/Arbiter/Deep/Formatter）與共享 state/reducer |
 | [`graph/graph_tools.py`](graph/graph_tools.py) | LangChain `RESEARCH_TOOLS` 橋接層（`GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 時 deep research 以 `bind_tools` 呼叫原生 tools） |
-| [`tools/`](tools/) + [`tools_legacy.py`](tools_legacy.py) | Crew import `tools` (package re-exports legacy); new scaffold `tools.base` / `tools.market` + ADR [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md); split plan [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) |
+| [`tools/`](tools/) + [`tools_legacy.py`](tools_legacy.py) | Crew import `tools` (package re-exports legacy); new scaffold `tools.base` / `tools.market` + ADR [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md); split plan [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)；**`prediction_markets_tool`**（Polymarket Gamma 熱門事件 → 日報【預測市場熱門】） |
 | [`schemas.py`](schemas.py) | Pydantic — `DailyBriefReport`, sections, QSREC |
 | [`config.py`](config.py) | `PROJECT_ID`, table IDs, model env names, `GATE_FAILURE_LOG_TABLE`, etc. |
 | [`report_render.py`](report_render.py) | Assemble + render Telegram HTML from crew output |
