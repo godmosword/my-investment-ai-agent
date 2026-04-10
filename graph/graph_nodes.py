@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -13,9 +14,16 @@ from typing import Any, Literal
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from graph.graph_formatter_schemas import AIFormatterNarrative, CryptoFormatterNarrative
+from graph.graph_formatter_schemas import (
+    AIFormatterNarrative,
+    CryptoFormatterNarrative,
+    FormatterInputPacket,
+    FormatterNewsInput,
+    FormatterTradeIntentInput,
+)
 from graph.graph_state import ResearchGraphState
 from graph.graph_tools import RESEARCH_TOOLS
+from execution_intents import append_execution_intents
 from schemas import (
     AISection,
     CryptoSection,
@@ -164,11 +172,21 @@ def _safe_tool_run(tool_obj: Any, *args: Any, **kwargs: Any) -> Any:
         return f"[DATA_MISSING:{exc}]"
 
 
+def _tool_registry():
+    from tools import market  # noqa: PLC0415
+    import tools as tools_pkg  # noqa: PLC0415
+
+    return market.build_tool_registry(tools_pkg)
+
+
 def _fetch_parsed_news_source(
-    name: str, tool_obj: Any, kwargs: dict[str, Any]
+    name: str, tool_key: str, kwargs: dict[str, Any]
 ) -> tuple[str, list[dict[str, Any]]]:
     """Run one news tool and return (source_name, parsed items). Thread-safe for parallel fetch."""
-    result = _safe_tool_run(tool_obj, **kwargs)
+    try:
+        result = _tool_registry().get_news_payload(tool_key, **kwargs)
+    except Exception as exc:  # pragma: no cover - defensive wrapper
+        result = f"[DATA_MISSING:{exc}]"
     text = str(result)
     if not text or text.startswith("[DATA_MISSING"):
         return name, []
@@ -206,22 +224,54 @@ def _build_debate_context(state: ResearchGraphState) -> str:
     )
 
 
-def _build_formatter_context(state: ResearchGraphState) -> str:
+def _build_formatter_input_packet(state: ResearchGraphState) -> FormatterInputPacket:
     raw_data = state.get("raw_data", {})
-    raw_lines = []
+    raw_data_digest: dict[str, str] = {}
     for key, value in raw_data.items():
-        text = str(value)
-        if len(text) > 500:
-            text = f"{text[:500]}... [TRUNCATED]"
-        raw_lines.append(f"{key}: {text}")
-    return (
-        f"【主編共識】\n{state.get('arbiter_summary', '無主編共識')}\n\n"
-        f"【多方視角】\n{chr(10).join(state.get('bull_arguments', [])) or '（無）'}\n\n"
-        f"【空方視角】\n{chr(10).join(state.get('bear_arguments', [])) or '（無）'}\n\n"
-        f"【Regime 鎖定】\n{state.get('agreed_regime') or '未鎖定'}\n\n"
-        f"【系統即時報價】\n{state.get('price_context', '') or '（無）'}\n\n"
-        f"【客觀數據】\n{chr(10).join(raw_lines) or '（無）'}\n\n"
-        f"【系統反思】\n{state.get('recent_lessons', '') or '（無）'}\n"
+        text = str(value).strip()
+        if len(text) > 280:
+            text = f"{text[:280]}... [TRUNCATED]"
+        raw_data_digest[str(key)] = text
+
+    news_rows: list[FormatterNewsInput] = []
+    for item in state.get("raw_news", [])[:6]:
+        title = str(item.get("title", "")).strip()
+        if not title:
+            continue
+        news_rows.append(
+            FormatterNewsInput(
+                title=title[:220],
+                source=str(item.get("source", "")).strip() or str(item.get("feed", "unknown")).strip() or "unknown",
+                published_at=str(item.get("published_at", "")).strip(),
+            )
+        )
+
+    intents: list[FormatterTradeIntentInput] = []
+    for item in state.get("proposed_trades", [])[:2]:
+        try:
+            intent = TradeIntent.model_validate(item)
+        except Exception:
+            continue
+        intents.append(
+            FormatterTradeIntentInput(
+                asset=intent.asset.upper().lstrip("$"),
+                direction=intent.direction,
+                star_rating=intent.star_rating,
+                thesis_one_liner=intent.thesis_one_liner.strip(),
+            )
+        )
+
+    return FormatterInputPacket(
+        category=str(state.get("category", "")),
+        agreed_regime=str(state.get("agreed_regime") or ""),
+        arbiter_summary=str(state.get("arbiter_summary", "")),
+        bull_arguments=[str(x).strip() for x in state.get("bull_arguments", []) if str(x).strip()],
+        bear_arguments=[str(x).strip() for x in state.get("bear_arguments", []) if str(x).strip()],
+        price_context=str(state.get("price_context", "")),
+        recent_lessons=str(state.get("recent_lessons", "")),
+        raw_data_digest=raw_data_digest,
+        raw_news=news_rows,
+        proposed_trades=intents,
     )
 
 
@@ -534,6 +584,7 @@ def _raw_news_to_news_items(
         if not title:
             continue
         source = str(item.get("source", "unknown")).strip() or "unknown"
+        source_and_nature = f"{source}｜confirmed"
         news_asset = "BTC" if category == "CRYPTO" else "NVDA"
         try:
             news = NewsItem.model_validate(
@@ -541,7 +592,7 @@ def _raw_news_to_news_items(
                     "index": index,
                     "timestamp_line": _to_timestamp_line(str(item.get("published_at", ""))),
                     "title": title[:220],
-                    "source_and_nature": f"{source}｜confirmed",
+                    "source_and_nature": source_and_nature,
                     "summary": title[:90],
                     "investment_takeaway": f"{anchor} 為當前關鍵讀數；事件延續現有交易主軸。",
                     "editor_consensus": f"{news_asset} 以紀律倉位應對。",
@@ -632,31 +683,20 @@ def data_gatherer_node(state: ResearchGraphState) -> dict[str, Any]:
         raw_data["tool_mode"] = "disabled_by_GRAPH_ENABLE_TOOL_CALLS"
         return {"raw_data": raw_data}
 
-    # Lazy import to avoid module-load side effects during tests.
-    from tools import (
-        ai_momentum_tool,
-        ai_sector_market_tool,
-        etf_flow_tool,
-        fear_greed_tool,
-        financial_datasets_tool,
-        macro_context_tool,
-        onchain_metrics_tool,
-        prediction_markets_tool,
-        regime_scorecard_tool,
-    )
+    registry = _tool_registry()
 
-    raw_data["regime_scorecard"] = _safe_tool_run(regime_scorecard_tool)
-    raw_data["macro_context"] = _safe_tool_run(macro_context_tool)
-    raw_data["prediction_markets"] = _safe_tool_run(prediction_markets_tool)
+    raw_data["regime_scorecard"] = registry.get_snapshot("regime_scorecard_tool")
+    raw_data["macro_context"] = registry.get_snapshot("macro_context_tool")
+    raw_data["prediction_markets"] = registry.get_snapshot("prediction_markets_tool")
 
     if category == "CRYPTO":
-        raw_data["fear_greed"] = _safe_tool_run(fear_greed_tool)
-        raw_data["etf_flow"] = _safe_tool_run(etf_flow_tool)
-        raw_data["onchain_metrics"] = _safe_tool_run(onchain_metrics_tool)
+        raw_data["fear_greed"] = registry.get_snapshot("fear_greed_tool")
+        raw_data["etf_flow"] = registry.get_snapshot("etf_flow_tool")
+        raw_data["onchain_metrics"] = registry.get_snapshot("onchain_metrics_tool")
     else:
-        raw_data["ai_sector_market"] = _safe_tool_run(ai_sector_market_tool)
-        raw_data["ai_momentum"] = _safe_tool_run(ai_momentum_tool, "openrouter_rankings")
-        raw_data["ai_fundamentals"] = _safe_tool_run(financial_datasets_tool, "watchlist")
+        raw_data["ai_sector_market"] = registry.get_snapshot("ai_sector_market_tool")
+        raw_data["ai_momentum"] = registry.get_snapshot("ai_momentum_tool", "openrouter_rankings")
+        raw_data["ai_fundamentals"] = registry.get_snapshot("financial_datasets_tool", "watchlist")
 
     return {"raw_data": raw_data}
 
@@ -665,13 +705,6 @@ def news_scraper_node(state: ResearchGraphState) -> dict[str, Any]:
     """Deterministically collect news from existing tools and normalize into raw_news."""
     if not _tool_calls_enabled():
         return {"raw_news": []}
-
-    from tools import (  # noqa: PLC0415
-        cryptopanic_tool,
-        gnews_tool,
-        newsapi_tool,
-        rss_feed_tool,
-    )
 
     category = state.get("category", "CRYPTO")
     raw_news: list[dict[str, Any]] = []
@@ -691,16 +724,16 @@ def news_scraper_node(state: ResearchGraphState) -> dict[str, Any]:
 
     if category == "CRYPTO":
         sources = [
-            ("cryptopanic", cryptopanic_tool, {"topic": "bitcoin"}),
-            ("newsapi", newsapi_tool, {"query": "bitcoin OR ethereum crypto market"}),
-            ("gnews", gnews_tool, {"query": "bitcoin OR ethereum crypto market"}),
-            ("rss", rss_feed_tool, {"category": "crypto"}),
+            ("cryptopanic", "cryptopanic_tool", {"topic": "bitcoin"}),
+            ("newsapi", "newsapi_tool", {"query": "bitcoin OR ethereum crypto market"}),
+            ("gnews", "gnews_tool", {"query": "bitcoin OR ethereum crypto market"}),
+            ("rss", "rss_feed_tool", {"category": "crypto"}),
         ]
     else:
         sources = [
-            ("newsapi", newsapi_tool, {"query": "artificial intelligence stocks NVDA MSFT"}),
-            ("gnews", gnews_tool, {"query": "artificial intelligence stocks NVDA MSFT"}),
-            ("rss", rss_feed_tool, {"category": "ai"}),
+            ("newsapi", "newsapi_tool", {"query": "artificial intelligence stocks NVDA MSFT"}),
+            ("gnews", "gnews_tool", {"query": "artificial intelligence stocks NVDA MSFT"}),
+            ("rss", "rss_feed_tool", {"category": "ai"}),
         ]
 
     # Parallel HTTP/tool calls; merge in configured source order for stable priority / dedupe.
@@ -708,19 +741,34 @@ def news_scraper_node(state: ResearchGraphState) -> dict[str, Any]:
     by_name: dict[str, list[dict[str, Any]]] = {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(_fetch_parsed_news_source, name, tool_obj, dict(kwargs))
-            for name, tool_obj, kwargs in sources
+            executor.submit(_fetch_parsed_news_source, name, tool_key, dict(kwargs))
+            for name, tool_key, kwargs in sources
         ]
         for fut in as_completed(futures):
             name, items = fut.result()
             by_name[name] = items
 
-    for name, _tool_obj, _kwargs in sources:
+    for name, _tool_key, _kwargs in sources:
         if len(raw_news) >= 6:
             break
         _append(by_name.get(name, []))
 
-    return {"raw_news": raw_news[:6]}
+    freshness_whitelist = {
+        token.strip().upper()
+        for token in (os.getenv("NEWS_FRESHNESS_SOURCE_WHITELIST", "").split(","))
+        if token.strip()
+    }
+    normalized: list[dict[str, Any]] = []
+    for item in raw_news[:6]:
+        source = str(item.get("source", "")).strip() or str(item.get("feed", "")).strip() or "unknown"
+        item = {
+            **item,
+            "source": source,
+            "source_whitelisted_for_freshness": source.upper() in freshness_whitelist,
+        }
+        normalized.append(item)
+
+    return {"raw_news": normalized}
 
 
 def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
@@ -775,6 +823,11 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
         return {"proposed_trades": []}
 
     intents = [intent.model_dump(mode="json") for intent in out.intents]
+    append_execution_intents(
+        category=category,
+        regime=agreed_regime,
+        proposed_trades=intents,
+    )
     return {"proposed_trades": intents}
 
 
@@ -1083,13 +1136,13 @@ def deep_research_node(state: ResearchGraphState) -> dict[str, Any]:
         logger.info("查核完成（Tool LLM），%d 字元", len(payload))
         return {"raw_data": {new_data_key: payload}, "research_depth": depth + 1}
 
-    from tools import financial_datasets_tool, onchain_metrics_tool
+    registry = _tool_registry()
 
     if category == "CRYPTO":
-        patch["deep_onchain_probe"] = _safe_tool_run(onchain_metrics_tool)
+        patch["deep_onchain_probe"] = registry.get_snapshot("onchain_metrics_tool")
     else:
         probe = query if query else "watchlist"
-        patch["deep_fundamentals_probe"] = _safe_tool_run(financial_datasets_tool, probe)
+        patch["deep_fundamentals_probe"] = registry.get_snapshot("financial_datasets_tool", probe)
 
     investigation = "\n".join(f"{k}: {v}" for k, v in patch.items() if k != "deep_dive_query")
     return {
@@ -1128,7 +1181,8 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
 
     logger.info("--- [Node] Final Formatter (Native Structured Output) 啟動 ---")
     llm = _get_formatter_llm()
-    context_text = _build_formatter_context(state)
+    packet = _build_formatter_input_packet(state)
+    packet_json = json.dumps(packet.model_dump(mode="json"), ensure_ascii=False, indent=2)
 
     if category == "CRYPTO":
         structured_llm = llm.with_structured_output(CryptoFormatterNarrative)
@@ -1139,11 +1193,19 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
                 "你只能根據提供的內部簡報生成內容，禁止捏造新聞、價格、代碼、交易腿。"
                 "輸出需精簡、機構語氣、可直接寫入 JSON 欄位。",
             ),
-            ("human", "板塊：CRYPTO\n\n內部簡報：\n{context_text}"),
+            (
+                "human",
+                "板塊：CRYPTO\n\n"
+                "內部簡報（唯一資料來源，結構化封包 JSON）：\n{packet_json}",
+            ),
         ])
         chain = prompt | structured_llm
         try:
-            slim = chain.invoke({"context_text": context_text})
+            slim = chain.invoke(
+                {
+                    "packet_json": packet_json,
+                }
+            )
             section = _assemble_crypto_section(state, slim)
         except Exception as exc:
             logger.error("Native formatter (CRYPTO) failed: %s", exc)
@@ -1157,11 +1219,19 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
                 "你只能根據提供的內部簡報生成內容，禁止捏造新聞、價格、代碼、交易腿。"
                 "輸出需精簡、機構語氣、可直接寫入 JSON 欄位。",
             ),
-            ("human", "板塊：AI\n\n內部簡報：\n{context_text}"),
+            (
+                "human",
+                "板塊：AI\n\n"
+                "內部簡報（唯一資料來源，結構化封包 JSON）：\n{packet_json}",
+            ),
         ])
         chain = prompt | structured_llm
         try:
-            slim = chain.invoke({"context_text": context_text})
+            slim = chain.invoke(
+                {
+                    "packet_json": packet_json,
+                }
+            )
             section = _assemble_ai_section(state, slim)
         except Exception as exc:
             logger.error("Native formatter (AI) failed: %s", exc)

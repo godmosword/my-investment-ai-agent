@@ -86,3 +86,12 @@ export function useOpenPositions(days = 90) {
     retry: 1,
   });
 }
+
+export function useWarRoomLatest() {
+  return useQuery({
+    queryKey: ["war-room", "latest"],
+    queryFn: () => apiFetch("/api/war-room/latest"),
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}

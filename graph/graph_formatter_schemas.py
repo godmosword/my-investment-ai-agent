@@ -9,6 +9,47 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class FormatterNewsInput(BaseModel):
+    """Compact, tool-grounded news input for native formatter prompts."""
+
+    title: str = Field(..., description="Headline plain text.")
+    source: str = Field(..., description="Source label shown to the formatter.")
+    published_at: str = Field(default="", description="Original timestamp string if available.")
+
+
+class FormatterTradeIntentInput(BaseModel):
+    """Compact trade-intent view for formatter prompts."""
+
+    asset: str = Field(..., description="Ticker without $.")
+    direction: str = Field(..., description="LONG or SHORT.")
+    star_rating: int = Field(..., description="Conviction 1-2.")
+    thesis_one_liner: str = Field(..., description="One-line trade thesis.")
+
+
+class FormatterInputPacket(BaseModel):
+    """Structured internal brief passed into the native formatter LLM."""
+
+    category: str = Field(..., description="CRYPTO or AI.")
+    agreed_regime: str = Field(default="", description="Locked regime token if available.")
+    arbiter_summary: str = Field(default="", description="Arbiter consensus summary.")
+    bull_arguments: list[str] = Field(default_factory=list, description="Bull debate lines.")
+    bear_arguments: list[str] = Field(default_factory=list, description="Bear debate lines.")
+    price_context: str = Field(default="", description="Current price snapshot context.")
+    recent_lessons: str = Field(default="", description="Recent lessons / reflection context.")
+    raw_data_digest: dict[str, str] = Field(
+        default_factory=dict,
+        description="Keyed, truncated objective tool outputs.",
+    )
+    raw_news: list[FormatterNewsInput] = Field(
+        default_factory=list,
+        description="Top normalized news items already collected by deterministic tools.",
+    )
+    proposed_trades: list[FormatterTradeIntentInput] = Field(
+        default_factory=list,
+        description="Structured trade intents from trade_picker_node.",
+    )
+
+
 class CryptoFormatterNarrative(BaseModel):
     """Narrative-only fields that can be derived from internal debate brief."""
 

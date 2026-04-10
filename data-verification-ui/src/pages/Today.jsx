@@ -1,4 +1,4 @@
-import { useMetricsLatest, useReport, useOpenPositions } from "../hooks/useApi";
+import { useMetricsLatest, useReport, useOpenPositions, useWarRoomLatest } from "../hooks/useApi";
 import MetricCard from "../components/MetricCard";
 import TradeCard from "../components/TradeCard";
 import PositionHealthStrip from "../components/PositionHealthStrip";
@@ -15,6 +15,7 @@ export default function Today() {
   const { data: metrics, isLoading: mLoading, error: mError } = useMetricsLatest();
   const { data: report, isLoading: rLoading, error: rError } = useReport(today);
   const { data: openPos, isLoading: oLoading, error: oError } = useOpenPositions(90);
+  const { data: warRoom, isLoading: wLoading, error: wError } = useWarRoomLatest();
 
   const forceDemo = useGlassboxDemoMode();
   const allSettled = !mLoading && !rLoading && !oLoading;
@@ -73,6 +74,71 @@ export default function Today() {
         <div className="page-title">今日戰情室</div>
         {ts && <div className="page-subtitle">更新：{ts}</div>}
       </div>
+
+      <div className="section-header subtle">War Room（Gate / Scratchpad / Intent）</div>
+      {wLoading && !useDemo && <div className="loading">載入 War Room 快照中…</div>}
+      {!wLoading && !wError && warRoom && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div className="card-title">最新健康狀態</div>
+          <div style={{ fontSize: 12, lineHeight: 1.6, color: "var(--muted)" }}>
+            <div>
+              Gate failure：
+              <strong style={{ color: "var(--text)" }}>
+                {warRoom?.gate_failure?.issue_count ?? 0} 項
+              </strong>
+            </div>
+            <div>
+              Scratchpad：
+              <strong style={{ color: "var(--text)" }}>
+                {warRoom?.scratchpad?.final_status ?? "N/A"}
+              </strong>
+            </div>
+            <div>
+              Pending intents：
+              <strong style={{ color: "var(--text)" }}>
+                {Array.isArray(warRoom?.execution_intents) ? warRoom.execution_intents.length : 0}
+              </strong>
+            </div>
+          </div>
+
+          {Array.isArray(warRoom?.execution_intents) && warRoom.execution_intents.length > 0 && (
+            <>
+              <div className="section-header subtle" style={{ marginTop: 12, marginBottom: 8 }}>
+                最新 Signals
+              </div>
+              {warRoom.execution_intents.slice(-3).reverse().map((it) => (
+                <div
+                  key={`${it.signal_id}-${it.created_at}`}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    fontSize: 12,
+                    padding: "8px 0",
+                    borderTop: "1px solid var(--border)",
+                  }}
+                >
+                  <div>
+                    <strong>{it.asset}</strong> {it.direction}
+                    <div style={{ color: "var(--muted)" }}>
+                      {it.category} / {it.regime || "neutral"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", color: "var(--muted)" }}>
+                    <div>{it.status || "PENDING_REVIEW"}</div>
+                    <div>{it.star_rating}★</div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+      {!useDemo && wError && (
+        <div className="error-msg" style={{ marginBottom: 12 }}>
+          無法載入 War Room 快照（<code>/api/war-room/latest</code>）：{wError.message}
+        </div>
+      )}
 
       {!useDemo && mError && (
         <div className="error-msg" style={{ marginBottom: 12 }}>

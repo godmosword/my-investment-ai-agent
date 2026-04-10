@@ -38,8 +38,11 @@ def _initial_state(category: str = "CRYPTO", max_depth: int = 2) -> dict:
 
 
 class _FakeFormatterLLM:
+    last_inputs = None
+
     def with_structured_output(self, model_cls):
         def _runner(_inputs):
+            _FakeFormatterLLM.last_inputs = _inputs
             if model_cls.__name__ == "CryptoFormatterNarrative":
                 return model_cls(
                     narrative_of_day="主敘事：風險偏好回升但保留防守。",
@@ -164,10 +167,64 @@ def test_final_formatter_maps_raw_news_and_proposed_trades(monkeypatch) -> None:
     assert len(payload["qsrec"]) == 1
 
 
+def test_final_formatter_passes_structured_packet_to_prompt(monkeypatch) -> None:
+    monkeypatch.setenv("LANGGRAPH_SKIP_FORMATTER_CREW", "1")
+    monkeypatch.setattr(graph_nodes, "_get_formatter_llm", lambda: _FakeFormatterLLM())
+    state: ResearchGraphState = _initial_state("AI", max_depth=1)
+    state["agreed_regime"] = "neutral"
+    state["arbiter_summary"] = "主編等待更強催化。"
+    state["raw_data"] = {"regime_scorecard": "【今日市場模式】neutral（+0/6）", "ai_sector_market": "NVDA 120.5"}
+    state["raw_news"] = [
+        {
+            "title": "AI capex outlook remains firm",
+            "source": "Reuters",
+            "published_at": "2026-04-09T01:00:00Z",
+        }
+    ]
+    state["proposed_trades"] = [
+        {
+            "asset": "NVDA",
+            "direction": "LONG",
+            "star_rating": 2,
+            "thesis_one_liner": "資本支出預期支撐高流動性龍頭。",
+        }
+    ]
+
+    final_formatter_node(state)
+
+    prompt_text = _FakeFormatterLLM.last_inputs.messages[-1].content
+    assert '"raw_news"' in prompt_text
+    assert '"proposed_trades"' in prompt_text
+    assert "AI capex outlook remains firm" in prompt_text
+    assert "NVDA" in prompt_text
+
+
 def test_news_scraper_returns_empty_when_tools_disabled(monkeypatch) -> None:
     monkeypatch.setenv("GRAPH_ENABLE_TOOL_CALLS", "0")
     result = news_scraper_node(_initial_state("CRYPTO", max_depth=1))
     assert result["raw_news"] == []
+
+
+def test_news_scraper_marks_freshness_whitelist(monkeypatch) -> None:
+    monkeypatch.setenv("NEWS_FRESHNESS_SOURCE_WHITELIST", "REUTERS")
+    monkeypatch.setattr(
+        graph_nodes,
+        "_fetch_parsed_news_source",
+        lambda name, _tool_key, _kwargs: (
+            name,
+            [
+                {
+                    "title": "ETF flows stabilize after volatility spike",
+                    "url": "https://example.com/news-1",
+                    "source": "Reuters",
+                    "published_at": "2026-04-09T01:00:00Z",
+                }
+            ],
+        ),
+    )
+    result = news_scraper_node(_initial_state("CRYPTO", max_depth=1))
+    assert result["raw_news"][0]["source"] == "Reuters"
+    assert result["raw_news"][0]["source_whitelisted_for_freshness"] is True
 
 
 def test_trade_picker_respects_env_off(monkeypatch) -> None:

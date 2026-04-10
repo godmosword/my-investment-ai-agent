@@ -2,7 +2,7 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md)。**路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。**執行版路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md)（2026 Q2）。
 
-**同步狀態（2026-04-09）**：本檔僅列 **`[ ]` 未完成** 與維護者排序；**已交付行為**以 CHANGELOG 與下方「已落地（備查）」為準。四維評分表與新建議 backlog 仍適用，見 [未完成項四維評分（2026-04）](#未完成項四維評分與新建議2026-04)。長期里程碑 → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。演進藍圖（Mock／Plugin／LangGraph 等）→ [演進藍圖](#演進藍圖--技術路線)。
+**同步狀態（2026-04-10）**：本檔僅列 **`[ ]` 未完成** 與維護者排序；**已交付行為**以 CHANGELOG 與下方「已落地（備查）」為準。四維評分表與新建議 backlog 仍適用，見 [未完成項四維評分（2026-04）](#未完成項四維評分與新建議2026-04)。長期里程碑 → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。演進藍圖（Mock／Plugin／LangGraph 等）→ [演進藍圖](#演進藍圖--技術路線)。**本輪未完** → [本輪後續／未完（2026-04-10）](#本輪後續未完2026-04-10)。**開源對接細項** → [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)。
 
 ---
 
@@ -24,6 +24,7 @@
 | **C** | Gate 人審提示、自適應門檻 BQ 接線 |
 | **D** | OSS：HF／GraphQL、整合提案 Agent |
 | **E** | Company 四職能、War Room、PWA Web Push |
+| **F** | [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)（rtk／goose／fredapi、戰情室圖表、OMS 模擬盤、回測） |
 
 ### Priority（未完成，1＝最優先）
 
@@ -46,6 +47,17 @@
 | **LG-1** | 生產觀測 | `GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 下成本、延遲、失敗率；是否與 `GRAPH_LLM_DEBATE` 預設組合文件化 |
 | **LG-2** | 工具覆蓋 | [`graph/graph_tools.py`](graph/graph_tools.py) 是否擴充 `onchain_metrics_tool` 等（維持工具邊界與 cache 慣例） |
 | **LG-3** | 測試 | mock LLM tool_calls 之整合測試（避免 CI 依賴真 API） |
+
+<a id="本輪後續未完2026-04-10"></a>
+
+### 本輪後續／未完（2026-04-10）
+
+> **已落地（本輪對齊，細節見 CHANGELOG）**：LangGraph native `final_formatter` 以結構化 **`FormatterInputPacket` JSON** 為 prompt 唯一輸入；`trade_picker` 經 [`execution_intents.py`](execution_intents.py) 追加 **`.qsilicon/execution_intents.jsonl`**（不下單）；FastAPI [`GET /api/war-room/latest`](api.py)；PWA **Today** 讀 war-room（[`data-verification-ui/`](data-verification-ui/)）；graph 工具窄介面／`MOCK_APIS` fixture 路徑。
+
+- [ ] **PWA 拋光**：War Room 抽成獨立元件（如 `WarRoomCard.jsx`）、execution intent **狀態篩選**／錯誤態 UX
+- [ ] **RAG／Glassbox**：「Chat with the Report」須錨定當日報告內文（與 [演進 Phase 4](#演進藍圖--技術路線) 一致；嚴守工具數字紅線）
+- [ ] **真 OMS／執行層**：獨立 daemon、BQ／SQLite 輪詢 `PENDING` intent、風控與合規表態（目前僅 jsonl 骨架；見下方 [OSS Phase 3](#phase-3-模擬盤與訂單管理系統-oms--paper-trading)）
+- [ ] **觀測**：`GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 下成本、延遲、**cache／重試命中率**（對齊 **LG-1**、與下方 **rtk** 節流）
 
 <a id="未完成項四維評分與新建議2026-04"></a>
 
@@ -222,6 +234,71 @@
 
 ---
 
+<a id="oss-開源生態整合計畫oss-integration-roadmap"></a>
+
+## OSS 開源生態整合計畫（OSS Integration Roadmap）
+
+基於「降本增效、解耦架構、走向自動化交易」原則，將頂級開源專案對接至 Q-Silicon 投研管線。**與上方 [演進藍圖](#演進藍圖--技術路線) 互補**：此節為**可勾選執行細項**；排程仍以檔首維護者意見與紅線為準。
+
+### Phase 1：基礎建設與降本增效（Infrastructure & Cost Reduction）
+
+**目標**：降低開發與 API 成本，強化主編（Arbiter）的客觀數據感知力。
+
+- [ ] **導入 Token 節流代理（`rtk`）**
+  - [ ] 部署本地 `rtk`（Rust Proxy）服務
+  - [ ] 修改 [`config.py`](config.py) 與 LiteLLM 呼叫層，將流量導向代理
+  - [ ] 驗證多空 Agent 辯論重試時的 Cache 命中率（預期節省 60–90% Token）
+- [ ] **零成本本地開發 Agent（`goose`）**
+  - [ ] 安裝 `goose` 作為本機開發選項（對照付費 CLI 流程）
+  - [ ] 建立專屬 `.gooserules` 或 Prompt，對齊 Q-Silicon LangGraph／紅線
+- [ ] **彭博級總經數據接入（`fredapi`）**
+  - [ ] 安裝 `fredapi` 套件
+  - [ ] 重構 [`macro_context_tool`](tools_legacy.py)（目前於 `tools_legacy.py`；可拆分至 `tools/` 模組），串接 FRED（可輔以 `fredapi`）：CPI、失業率、美債殖利率等（**數字僅來自 API／工具**，禁止 LLM 捏造）
+  - [ ] 確保 `arbiter_node` 與 `deep_research_node` 能穩定調用並解讀上述數據
+
+### Phase 2：戰情室視覺化升級（War Room Visualization Upgrade）
+
+**目標**：將結構化報告轉為機構級實時監控面板。
+
+- [ ] **整合輕量級 K 線圖表（`lightweight-charts`）**
+  - [ ] 在 [`data-verification-ui/`](data-verification-ui/) 安裝 `lightweight-charts`
+  - [ ] 開發 `ChartComponent.jsx`，讀取 SQLite／BigQuery 歷史報價（權限與快取策略另定）
+  - [ ] 將 LangGraph `bull_arguments`／`bear_arguments` 渲染為 K 線圖互動標註（Markers）
+- [ ] **終端實時監控介面（參考 `polyrec`）**
+  - [ ] 評估 Terminal UI 框架（如 `rich` 或 `textual`）
+  - [ ] 升級 [`monitor_intraday.py`](monitor_intraday.py)：CLI 實時監控資金費率、訂單簿深度等
+
+### Phase 3：模擬盤與訂單管理系統（OMS & Paper Trading）
+
+**目標**：零實盤資金風險下驗證執行層與選幣／選股邏輯。
+
+- [ ] **獨立 OMS 執行引擎（參考 `polybot` 解耦思維）**
+  - [ ] 新增 `execution_engine.py`（純 Python Daemon，**不含 LLM**）
+  - [ ] SQLite／BigQuery 輪詢，監聽狀態為 `PENDING` 的交易意圖（Intent）
+  - [ ] 嚴格風控：部位上限、最大回撤鎖定等
+- [ ] **AI 專屬模擬盤（參考 `polymarket-paper-trader`）**
+  - [ ] `PaperTraderClient`：模擬 CCXT／Alpaca 下單 API
+  - [ ] 手續費（Fee）與滑價（Slippage）模型
+  - [ ] `trade_picker_node` 虛擬資金（如 USD 100,000）前向測試（Forward Testing）
+
+### Phase 4：策略強化與機構級回測（Strategy Enhancement & Backtesting）
+
+**目標**：導入高品質 Alpha 訊號與可信量化回測管線。
+
+- [ ] **「聰明錢／巨鯨跟單」雷達**
+  - [ ] 爬蟲或 API：Nansen／Arkham 標籤或特定鏈上合約監控（**合規與 ToS 先行**）
+  - [ ] 整合至 [`onchain_metrics_tool`](tools_legacy.py)（或拆分後的 `tools/` 模組）
+  - [ ] 調整 LangGraph Prompt：對「聰明錢買入」等訊號權重（仍須錨定工具輸出）
+- [ ] **策略邏輯逆向工程（借鑒 `Polymarket-Trading-Bot`）**
+  - [ ] 解析動能、套利、均值回歸等策略邏輯
+  - [ ] 翻譯為自然語言 **Strategy Guidelines**，作為 Context 餵給 `trade_picker_node`
+- [ ] **專業級策略回測管線（`prediction-market-backtesting`／Nautilus 等）**
+  - [ ] 研究並整合基於 **NautilusTrader**（或選定引擎）至 [`backtest.py`](backtest.py)
+  - [ ] 將 BigQuery AI 決策日誌匯出並轉為相容格式
+  - [ ] 產出含 Sharpe、Max Drawdown 等之回測報告
+
+---
+
 ## OSS Scout 週報（自動）
 
 > 每週搜尋 GitHub 熱門／指定 topic 之 repo；**適配理由、README 摘錄、低分說明**僅在當日研究稿與 JSON。**本節**只保留連結、摘要表與短勾選（避免 TODOS 被長標籤洗版）。詳稿：`docs/oss_candidates/YYYY-MM-DD-revision-plan-draft.md`。
@@ -277,6 +354,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-10**：新增 [本輪後續／未完（2026-04-10）](#本輪後續未完2026-04-10)；新增 [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)（Phase 1–4 可勾選細項）；檔首同步日期與錨點；**未勾選項速覽**增波次 **F**。
 - **2026-04-09**：**全文重寫**（精簡章節、檔首同步、**LangGraph 路徑** LG-1～3、**Phase 3** 標註部分落地、Pri 8 改為模板／欄位審計表述）；**已落地**補 **2026-04-09** 工具橋接。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-09 Docs**。
 - **2026-04-04（晚）**：演進計畫 — Critical env、閾值實驗、`adaptive_gate_thresholds`、Gate digest、dry-run、mock-smoke、scratchpad、`asset_market`、觀望 vs QSREC — CHANGELOG **2026-04-04**。
 - **2026-04-04**：四維評分與新建議 backlog — 見上表；[`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) 對照。

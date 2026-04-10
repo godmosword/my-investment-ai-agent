@@ -114,6 +114,22 @@
 - [`test_earnings_watchlist.py`](test_earnings_watchlist.py)（smoke）：曆週與週末 Mon–Sun 範圍。
 - [`test_earnings_focus.py`](test_earnings_focus.py)：週末預告、盤前盤後字樣。
 
+### Added（LangGraph／War Room／PWA）
+- [`execution_intents.py`](execution_intents.py)：`trade_picker_node` 於回傳前 **`append_execution_intents`** 寫入 **`.qsilicon/execution_intents.jsonl`**（僅記錄意圖，**不下單**）。
+- **FastAPI**：[`api.py`](api.py) **`GET /api/war-room/latest`** — 彙總 gate failure 摘要、scratchpad 摘要、**`latest_execution_intents`**。
+- **PWA**：[`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js) **`useWarRoomLatest`**；[`Today.jsx`](data-verification-ui/src/pages/Today.jsx) War Room 區塊。
+
+### Changed（LangGraph Formatter／工具埠）
+- [`graph/graph_formatter_schemas.py`](graph/graph_formatter_schemas.py)：**`FormatterInputPacket`**／**`FormatterNewsInput`**／**`FormatterTradeIntentInput`**；native **`final_formatter_node`** 以 **`packet_json`** 為 prompt 唯一結構化輸入（見 [`graph/graph_nodes.py`](graph/graph_nodes.py)）。
+- [`tools/market.py`](tools/market.py)：**`ToolRegistryPort`**、**`build_tool_registry`**；graph **`data_gatherer_node`**、**`news_scraper`** 並行 fetch、**`deep_research_node`** 探針經 registry（**`MOCK_APIS`**／`market.json` **snapshots**／**news**）。
+- **`news_scraper_node`**：來源 **`source`** 正規化並附 **`source_whitelisted_for_freshness`**（對齊新聞新鮮度 Gate）。
+
+### Tests
+- [`test_graph_crew.py`](test_graph_crew.py)、[`test_api_push.py`](test_api_push.py)：Formatter 封包、war-room API、news 白名單等。
+
+### Docs
+- [`TODOS.md`](TODOS.md)：本輪後續未完、**OSS 開源生態整合計畫**（Phase 1–4）、未勾選項速覽波次 **F**。
+
 ## 2026-04-09
 
 ### Added

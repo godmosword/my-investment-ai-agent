@@ -7,9 +7,11 @@ Usage:
     uvicorn api:app --reload --port 8000
 """
 
+import json
 import logging
 import os
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
@@ -18,6 +20,7 @@ from google.cloud import bigquery
 from pydantic import BaseModel, Field
 
 from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
+from execution_intents import latest_execution_intents
 
 logger = logging.getLogger(__name__)
 
@@ -404,6 +407,72 @@ class WebPushSubscribeBody(BaseModel):
     keys: dict[str, str] | None = None
 
 
+class WarRoomSnapshot(BaseModel):
+    gate_failure: dict[str, Any] | None = None
+    scratchpad: dict[str, Any] | None = None
+    execution_intents: list[dict[str, Any]] = Field(default_factory=list)
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _read_json_if_exists(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.warning("Could not read JSON file %s: %s", path, exc)
+        return None
+
+
+def _latest_scratchpad_summary() -> dict[str, Any] | None:
+    scratchpad_dir = _repo_root() / ".qsilicon" / "scratchpad"
+    if not scratchpad_dir.is_dir():
+        return None
+    files = sorted(scratchpad_dir.glob("*.jsonl"))
+    if not files:
+        return None
+    latest = files[-1]
+    try:
+        lines = [
+            json.loads(line)
+            for line in latest.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.warning("Could not read scratchpad %s: %s", latest, exc)
+        return None
+    if not lines:
+        return {"path": str(latest), "events": []}
+    init_event = next((line for line in lines if line.get("type") == "init"), None)
+    gate_events = [line for line in lines if line.get("type") == "gate_result"]
+    final_event = next((line for line in reversed(lines) if line.get("type") == "run_end"), None)
+    return {
+        "path": str(latest),
+        "run_id": lines[0].get("runId"),
+        "event_count": len(lines),
+        "init_meta": (init_event or {}).get("meta", {}),
+        "latest_gate_result": gate_events[-1] if gate_events else None,
+        "final_status": (final_event or {}).get("status"),
+        "final_event": final_event,
+    }
+
+
+def _latest_gate_failure_summary() -> dict[str, Any] | None:
+    out_dir = _repo_root() / ".qsilicon" / "last_gate_failure"
+    summary = _read_json_if_exists(out_dir / "validation_summary.json")
+    if summary is None:
+        return None
+    issues_path = out_dir / "issues.txt"
+    return {
+        **summary,
+        "issues_path": str(issues_path) if issues_path.is_file() else None,
+        "artifact_dir": str(out_dir),
+    }
+
+
 @app.post("/api/push/subscribe")
 def push_subscribe(_body: WebPushSubscribeBody) -> dict[str, Any]:
     """Web Push 訂閱預留：須 VAPID、持久化與 rate limit 審核後才啟用。
@@ -420,3 +489,14 @@ def push_subscribe(_body: WebPushSubscribeBody) -> dict[str, Any]:
         )
     logger.warning("WEB_PUSH_ENABLED=1 but subscription persistence not implemented — no-op accept")
     return {"ok": True, "stored": False}
+
+
+@app.get("/api/war-room/latest")
+def get_war_room_latest() -> dict[str, Any]:
+    """Read-only War Room snapshot from local gate-failure artifacts and scratchpad."""
+    payload = WarRoomSnapshot(
+        gate_failure=_latest_gate_failure_summary(),
+        scratchpad=_latest_scratchpad_summary(),
+        execution_intents=latest_execution_intents(limit=20),
+    )
+    return payload.model_dump(mode="json")
