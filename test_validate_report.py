@@ -976,6 +976,14 @@ class TestRumorGradePostprocess(unittest.TestCase):
         vr = validate_report(out)
         self.assertFalse(vr["has_data_missing"])
 
+    def test_main_postprocess_scrubs_duplicate_government_typo(self):
+        """管線最終 HTML 清洗應修正 LLM 贅字「美國政府政府」。"""
+        from main import _postprocess_report_for_resilience as main_postprocess
+
+        out = main_postprocess("美國政府政府關稅政策\n")
+        self.assertNotIn("美國政府政府", out)
+        self.assertIn("美國政府", out)
+
     def test_code_leak_detected(self):
         report = _make_report(extra="multi_timeframe_tool (arg)")
         result = validate_report(report)

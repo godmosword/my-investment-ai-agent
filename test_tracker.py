@@ -12,6 +12,8 @@ from tracker import (
     strip_tracker_blocks,
     canonical_asset_key,
     previous_rec_row_should_skip,
+    previous_rec_pnl_implausible_for_display,
+    _infer_previous_rec_category,
     _compute_trade_metrics,
     _current_prices_for_assets,
     _validate_rec,
@@ -64,6 +66,57 @@ class TestPreviousRecRowShouldSkip(unittest.TestCase):
 
     def test_skips_entry_outside_sanity_range(self):
         self.assertTrue(previous_rec_row_should_skip("BTC", "LONG", 5000.0, 66000.0))
+
+
+class TestPreviousRecPnlPlausibility(unittest.TestCase):
+    def test_equity_huge_pnl_within_two_days_omitted(self):
+        self.assertTrue(
+            previous_rec_pnl_implausible_for_display(
+                category="EQUITY",
+                report_date=date.today(),
+                pnl_pct=94.0,
+            )
+        )
+
+    def test_equity_moderate_kept(self):
+        self.assertFalse(
+            previous_rec_pnl_implausible_for_display(
+                category="EQUITY",
+                report_date=date.today(),
+                pnl_pct=20.0,
+            )
+        )
+
+    def test_equity_huge_but_old_kept(self):
+        self.assertFalse(
+            previous_rec_pnl_implausible_for_display(
+                category="EQUITY",
+                report_date=date(2020, 1, 1),
+                pnl_pct=94.0,
+            )
+        )
+
+    def test_crypto_threshold_one_day(self):
+        self.assertTrue(
+            previous_rec_pnl_implausible_for_display(
+                category="CRYPTO",
+                report_date=date.today(),
+                pnl_pct=60.0,
+            )
+        )
+        self.assertFalse(
+            previous_rec_pnl_implausible_for_display(
+                category="CRYPTO",
+                report_date=date.today(),
+                pnl_pct=40.0,
+            )
+        )
+
+    def test_infer_category_from_asset_when_bq_null(self):
+        self.assertEqual(_infer_previous_rec_category("BTC", None), "CRYPTO")
+        self.assertEqual(_infer_previous_rec_category("SMH", None), "EQUITY")
+        self.assertEqual(_infer_previous_rec_category("NVDA", "EQUITY"), "EQUITY")
+
 
 REPORT_BAD_JSON = """\
 [QSREC_START]

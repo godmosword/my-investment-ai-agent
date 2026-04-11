@@ -122,6 +122,8 @@ def _postprocess_report_for_resilience(text: str) -> str:
     """Jinja 已決定性排版；僅做 Telegram HTML 安全清洗。"""
     if not text:
         return text
+    # Reader-facing typo scrubs (LLM duplicates)
+    text = text.replace("美國政府政府", "美國政府")
     return sanitize_telegram_html(text)
 
 

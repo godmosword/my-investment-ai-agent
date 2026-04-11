@@ -150,6 +150,42 @@ def previous_rec_row_should_skip(
             return True
     return False
 
+
+def _infer_previous_rec_category(asset: str, raw_category: str | None) -> str:
+    """Normalize EQUITY vs CRYPTO for PnL plausibility (BQ category may be null on old rows)."""
+    c = (raw_category or "").upper().strip()
+    if c in ("CRYPTO", "EQUITY"):
+        return c
+    sym = str(asset or "").upper().strip().lstrip("$")
+    if "-USD" in sym or sym in _get_crypto_assets():
+        return "CRYPTO"
+    return "EQUITY"
+
+
+def previous_rec_pnl_implausible_for_display(
+    *,
+    category: str,
+    report_date: date | None,
+    pnl_pct: float,
+) -> bool:
+    """True = omit row when |PnL| is implausible given rec age (stale entry vs spot)."""
+    if report_date is None:
+        return False
+    try:
+        days_since = (date.today() - report_date).days
+    except TypeError:
+        return False
+    if days_since < 0:
+        days_since = 0
+    cat = (category or "").upper().strip()
+    abs_p = abs(float(pnl_pct))
+    if cat == "EQUITY" and days_since <= 2 and abs_p > 35.0:
+        return True
+    if cat == "CRYPTO" and days_since <= 1 and abs_p > 55.0:
+        return True
+    return False
+
+
 # 依市場模式限制單筆建議倉位（%）
 _REGIME_POSITION_CAP: dict[str, float] = {
     "risk_off": 5.0,
@@ -938,6 +974,7 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
               SELECT
                 asset,
                 direction,
+                category,
                 entry_price,
                 target_price,
                 stop_price,
@@ -962,6 +999,7 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
               SELECT
                 asset,
                 direction,
+                category,
                 entry_price,
                 target_price,
                 stop_price,
@@ -976,7 +1014,7 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
                 ) AS rn
               FROM normalized
             )
-            SELECT asset, direction, entry_price, target_price, stop_price, narrative, report_date
+            SELECT asset, direction, category, entry_price, target_price, stop_price, narrative, report_date
             FROM ranked
             WHERE rn = 1
               AND entry_price > 0
@@ -1037,6 +1075,29 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
                     "Skipping %s %s from tracking: P&L %+.1f%% exceeds sanity threshold "
                     "(entry=$%s current=$%s — likely unit/data error)",
                     asset, direction, pnl, entry, current,
+                )
+                continue
+
+            rec_cat = _infer_previous_rec_category(asset, row.get("category"))
+            rd = row.get("report_date")
+            if previous_rec_pnl_implausible_for_display(
+                category=rec_cat,
+                report_date=rd if isinstance(rd, date) else None,
+                pnl_pct=pnl,
+            ):
+                try:
+                    d_s = (date.today() - rd).days if isinstance(rd, date) else None
+                except TypeError:
+                    d_s = None
+                logger.warning(
+                    "Skipping %s %s from previous-recs: implausible P&L %+.1f%% "
+                    "(category=%s report_date=%s days_since=%s)",
+                    asset,
+                    direction,
+                    pnl,
+                    rec_cat,
+                    rd,
+                    d_s,
                 )
                 continue
 

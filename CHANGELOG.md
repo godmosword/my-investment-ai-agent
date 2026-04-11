@@ -3,6 +3,17 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-21
+
+### Changed
+- [`main.py`](main.py)：`_postprocess_report_for_resilience` 於 Telegram HTML 安全清洗前，將 LLM 贅字 **「美國政府政府」** 正為 **「美國政府」**。
+- [`crew.py`](crew.py)：**`_DATA_RULES`** 補〔新聞 4–6〕與 **36 小時**／**`STRICT_NEWS_FRESHNESS_GATE`** 銜接及主錨點須落在 AI 區塊①；**`_NEWS_FMT`** 明定 SOL／ETH／BNB 美元現價須對齊加密區塊① `<code>`（**`STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE`** 精神）；**`_TRADE_JSON_RULE`** 補 **QSREC 同標延續**（`repeat_days≤2`、連持建議填 1、`selection_score≥75`）與 **Gate 警示**對齊說明。
+- [`tracker.py`](tracker.py)：**「上期建議追蹤」** BigQuery 查詢帶出 **`category`**；若 **EQUITY** 建議日距今 **≤2 日**且 **|PnL|>35%**，或 **CRYPTO** **≤1 日**且 **|PnL|>55%**，略過該列顯示並 **`logger.warning`**（降低髒進場價／單位錯誤洗版）；**`_infer_previous_rec_category`** 於舊列無 `category` 時依代號推斷 CRYPTO／EQUITY。
+
+### Tests
+- [`test_validate_report.py`](test_validate_report.py)：`test_main_postprocess_scrubs_duplicate_government_typo`。
+- [`test_tracker.py`](test_tracker.py)：`TestPreviousRecPnlPlausibility`。
+
 ## 2026-04-20
 
 ### Added

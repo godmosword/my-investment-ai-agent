@@ -408,6 +408,7 @@ _REGIME_POSITION_POLICY = dedent("""\
     必須在交易段落前輸出「今日風險預算」摘要，並讓每筆 position_pct 與 regime 一致。""")
 _DATA_RULES = dedent("""\
     【新鮮度】新聞事件／報導時間戳須在 **36 小時內**（相對本輪管線執行時刻）；超時 **必須捨棄並重搜**，禁止把逾時素材改標為「分析」硬塞；仍無合格素材則走 partial tier／減則，**嚴禁捏造**。
+    【AI 段新聞（index 4–6）】事件時間戳與上列 **36 小時** 一致；啟用 STRICT_NEWS_FRESHNESS_GATE 時與 Gate 視窗對齊。若用法說／季報回顧素材，標題或首句須註明「資料／事件日期」，且 **investment_takeaway 主數字錨點仍須為當日 AI 區塊① 已列 yfinance／FinancialDatasets 讀值**，避免 Gate 或讀者感知「多日舊聞拼貼」。
     【嚴禁播報系統錯誤】若任何 Tool 回傳 `[DATA_MISSING...]`、`失敗` 或 `API 未設定`，絕對禁止將這些錯誤訊息寫成新聞！請直接忽略該工具的輸出。若無足夠真實新聞，寧可減少新聞數量，也絕不允許播報系統日誌！""")
 
 _TOOL_TRUTH_RULE = dedent(f"""\
@@ -427,6 +428,7 @@ _NEWS_FMT = dedent("""\
     - summary：1 句核心事實（≤40 字，禁止主觀評論）。
     - investment_takeaway：1~2 句（≤90 字）。**每一則**須含至少一個阿拉伯數字，且該數字須能對到**同一大段（加密或 AI）區塊①儀表板**已輸出之讀數（例：加密段寫「BTC 日線 RSI 38.6」時，儀表板須已有對應 RSI 讀數；可寫與儀表一致的小數）。**禁止**在儀表板未出現該列時寫入精確報價或比率（如 SOL 現價、BTC Dominance 百分比、未列標的之 OI）；缺欄則改寫質性句或「見上方儀表板」並改引用儀表既有指標。
     - **加密新聞（index 1–3）**：若引用 **BTC MA20／MA50 價位**，須與區塊① **`BTC MA20（日線）`／`BTC MA50（日線）`** 之 value 一致（管線可由 yfinance 注入；若該列 value 為 N/A 則不得寫精確 MA 價）。
+    - **〔新聞 1–3〕SOL／ETH／BNB 美元現價**：若 `investment_takeaway` 寫具體幣價，加密區塊① **須**有對應 `<code>` 指標列（label 點名該幣）；無列則勿寫價，改質性句（對齊 STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE）。
     - **AI 產業新聞（index 4–6）**：**三則須為 AI／雲端／半導體供應鏈或模型基建之獨立事件**；**禁止**以加密資產盤面、VIX 期限結構或純 BTC 技術面作為任一則之主標題或主摘要（跨市場傳導僅可於 `internal_reasoning` 一句帶過，**不得**作為 `investment_takeaway` 主數字錨點）。`investment_takeaway` 的**主數字錨點**必須來自 **AI 區塊①**（優先 **yfinance 族群** 之收盤或 1D／5D%；次選 FinancialDatasets 營收／同比%／FCF；再次 HuggingFace 下載／按讚）。**禁止**以 **BTC／ETH／SOL 現價、BTC RSI、VIX、DXY** 等精確數字作為主論據（該類讀數屬加密段或「宏觀連結」）；**SPY 若已列於 AI 區塊① yfinance 列**可作為主錨點之一。**禁止**以未出現在 AI 區塊①的 SPY 數字當主論據。
     - **validate_report「投資解讀量化」**：渲染為 `<i>投資解讀</i>：…`；**同一段落內**須有至少一個數字錨點（可為負數費率如 -0.0008%、多空比、Put/Call、金額）；僅「見儀表板」而無任何數字會觸發 Gate。
     - editor_consensus：1 句（≤28 字）且點名具體標的；**禁止**以 `$TICKER` 點名未出現於本輪 **AI 區塊④ trade_legs 或 QSREC（EQUITY）** 之股票（可改寫「RWA 板塊／敘事標的」而不點名小幣股代號）。
@@ -595,6 +597,7 @@ _TRADE_JSON_RULE = dedent("""\
     - repeat_days（連續同標天數，當天首次選用可填 0）
     可附加欄位：rr_ratio、max_drawdown_pct、expected_win_rate、signal_score、regime。
     P4 三情境分析欄位（confidence ≥ 3 強制填；< 3 可 null）：bull_scenario、base_scenario、bear_scenario。
+    【同標延續與 Gate 警示】若與昨日 BQ 為相同標的連續持有：除 score_gap≥12 與「重複選用理由」外，**務必**使至少一筆滿足 **repeat_days≤2**（連持建議填 1）且 **selection_score≥75**；否則 validate_report 將於報告頂端插入 **Gate 警示**（仍送出）。selection_score 須與敘事一致，勿虛低。
     【方向唯一｜硬 Gate】同一 JSON 陣列內，每個 (category, asset) 組合**最多一筆**；禁止出現兩筆皆為 EQUITY+NVDA（或任一 ticker）卻一筆 LONG、一筆 SHORT。若盤點後發現兩筆同代號，請刪併為單一淨方向或改正其中一筆的 asset／direction 筆誤。若需多空對沖敘事，請改為**比值／價差**單筆（見【配對交易單位一致性】）或兩檔**不同 ticker**；否則 validate_report 會回報「QSREC 同資產方向互斥」並擋推送。
     【正文對齊】區塊④內每個 `· $<b>代號</b> (LONG)` 或 `(SHORT)` 交易行，其方向必須與 QSREC 內同 asset、同 category 的 `direction` 一致（加密／美股分開檢視）。""")
 
