@@ -1140,9 +1140,11 @@ def deep_research_node(state: ResearchGraphState) -> dict[str, Any]:
 
     if category == "CRYPTO":
         patch["deep_onchain_probe"] = registry.get_snapshot("onchain_metrics_tool")
+        patch["deep_prediction_probe"] = registry.get_snapshot("prediction_markets_tool")
     else:
         probe = query if query else "watchlist"
         patch["deep_fundamentals_probe"] = registry.get_snapshot("financial_datasets_tool", probe)
+        patch["deep_prediction_probe"] = registry.get_snapshot("prediction_markets_tool")
 
     investigation = "\n".join(f"{k}: {v}" for k, v in patch.items() if k != "deep_dive_query")
     return {

@@ -15,6 +15,7 @@ from tools import (
     coinglass_data_tool,
     financial_datasets_tool,
     newsapi_tool,
+    onchain_metrics_tool,
     prediction_markets_tool,
 )
 
@@ -71,6 +72,16 @@ def fetch_latest_news(query: str) -> str:
 
 
 @tool
+def fetch_onchain_metrics_btc() -> str:
+    """取得 BTC 鏈上指標摘要（SOPR、交易所淨流、活躍地址、NUPL 等）。
+
+    無參數；用於深度查證或補齊鏈上讀數。僅能複述工具回傳。
+    """
+    logger.info("[Tool Call] fetch_onchain_metrics_btc")
+    return _run_legacy_tool(onchain_metrics_tool)
+
+
+@tool
 def fetch_prediction_market_hot_events(query: str = "") -> str:
     """取得 Polymarket 等平台之預測市場熱門二元事件（Yes 隱含機率、成交量級）。
 
@@ -84,5 +95,6 @@ RESEARCH_TOOLS = [
     fetch_crypto_derivatives,
     fetch_us_equity_financials,
     fetch_latest_news,
+    fetch_onchain_metrics_btc,
     fetch_prediction_market_hot_events,
 ]

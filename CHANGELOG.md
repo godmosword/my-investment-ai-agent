@@ -3,6 +3,22 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-22
+
+### Added
+- [`graph/graph_tools.py`](graph/graph_tools.py)：`fetch_onchain_metrics_btc`（`onchain_metrics_tool`）納入 `RESEARCH_TOOLS`。
+- 社群／授權骨架：根目錄 [`LICENSE`](LICENSE)（MIT）、[`CONTRIBUTING.md`](CONTRIBUTING.md)、[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)；[`README.md`](README.md) 表格連結。
+- PWA：[`data-verification-ui/src/components/WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx)（execution intent 狀態篩選）並由 [`Today.jsx`](data-verification-ui/src/pages/Today.jsx) 引用。
+
+### Changed
+- [`report_render.py`](report_render.py)：`strip_usd_for_template` Jinja 濾鏡 `strip_usd`；[`templates/telegram_report.j2`](templates/telegram_report.j2) 交易卡價位欄改走該濾鏡，避免 `$` 重複。
+- [`schemas.py`](schemas.py)：`ExecutableTradeLeg` 對 `rr`、`max_drawdown_pct`、`expected_win_rate`、`signal_score` 去除前導 `$`。
+- [`graph/graph_nodes.py`](graph/graph_nodes.py)：`deep_research_node` 決定性路徑額外附帶 `deep_prediction_probe`（`prediction_markets_tool` 快照）。
+- [`TODOS.md`](TODOS.md)：標註 Pri 8／LG-2／LG-3／PWA War Room／G-7 部分完成；**移除台股 Pri 9 作為現行優先項**（台股顯示不在本輪範圍）。
+
+### Tests
+- [`test_report_render_filters.py`](test_report_render_filters.py)、[`test_graph_tools_extended.py`](test_graph_tools_extended.py)、[`test_graph_crew.py`](test_graph_crew.py)（`test_deep_research_deterministic_includes_prediction_probe`）。
+
 ## 2026-04-21
 
 ### Changed

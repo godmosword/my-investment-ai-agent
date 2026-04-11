@@ -6,6 +6,7 @@ import graph.graph_nodes as graph_nodes
 from graph.graph_crew import build_research_graph, run_langgraph_category
 from graph.graph_nodes import (
     arbiter_node,
+    deep_research_node,
     final_formatter_node,
     news_scraper_node,
     trade_picker_node,
@@ -114,6 +115,28 @@ def test_graph_depth_guard_stops_infinite_loop(monkeypatch) -> None:
     assert result["final_report"]["pick_reason"]
     assert result["final_report"]["signal_conflict_summary"]
     assert "deep_dive_round_1" in result.get("raw_data", {})
+
+
+@pytest.mark.smoke
+def test_deep_research_deterministic_includes_prediction_probe(monkeypatch) -> None:
+    monkeypatch.setenv("GRAPH_ENABLE_TOOL_CALLS", "1")
+    monkeypatch.setenv("GRAPH_DEEP_RESEARCH_TOOL_LLM", "0")
+
+    class _FakeReg:
+        def get_snapshot(self, key: str, *args, **kwargs):
+            return f"stub:{key}"
+
+    monkeypatch.setattr(graph_nodes, "_tool_registry", lambda: _FakeReg())
+
+    state = _initial_state("CRYPTO", max_depth=2)
+    state["needs_deep_dive"] = True
+    state["deep_dive_query"] = "probe"
+    state["research_depth"] = 0
+
+    out = deep_research_node(state)
+    blob = out["raw_data"]["deep_dive_round_1"]
+    assert "deep_prediction_probe" in blob
+    assert "stub:prediction_markets_tool" in blob
 
 
 def test_final_formatter_native_assembles_schema(monkeypatch) -> None:
