@@ -38,16 +38,15 @@
 | **5** | HuggingFace／GraphQL | Direction 2B |
 | **6** | 整合提案 Agent | 建議在 (5) 之後 |
 | **7** | Direction 3 四職能 + War Room | [`docs/COMPANY_CREW_ROADMAP.md`](docs/COMPANY_CREW_ROADMAP.md) |
-| **8** | 模板／QSREC 顯示審計 | 若結構化輸出含 `$` 的 `rr`／`max_drawdown_pct` 等欄位進模板，需與既有 `replace('$','')` 規則一致（見 [`templates/telegram_report.j2`](templates/telegram_report.j2)） |
-| **9** | 台股代號顯示 | render 層前綴／格式；[`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md) |
+| **8** | 模板／QSREC 顯示審計 | ~~進行中~~ **已收斂（2026-04-21）**：`strip_usd` 濾鏡 + `ExecutableTradeLeg` 對 `rr` 等欄位去 `$`；見 [`templates/telegram_report.j2`](templates/telegram_report.j2)、[`schemas.py`](schemas.py) |
 
 ### LangGraph 路徑（可選引擎）
 
 | Pri | 項目 | 說明 |
 |-----|------|------|
 | **LG-1** | 生產觀測 | `GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 下成本、延遲、失敗率；是否與 `GRAPH_LLM_DEBATE` 預設組合文件化 |
-| **LG-2** | 工具覆蓋 | [`graph/graph_tools.py`](graph/graph_tools.py) 是否擴充 `onchain_metrics_tool` 等（維持工具邊界與 cache 慣例） |
-| **LG-3** | 測試 | mock LLM tool_calls 之整合測試（避免 CI 依賴真 API） |
+| **LG-2** | 工具覆蓋 | ~~待評估~~ **已擴充（2026-04-21）**：[`graph/graph_tools.py`](graph/graph_tools.py) 納入 `fetch_onchain_metrics_btc`（`onchain_metrics_tool`） |
+| **LG-3** | 測試 | ~~mock tool_calls~~ **部分落地（2026-04-21）**：`deep_research` 決定性路徑 + `RESEARCH_TOOLS` 覆蓋測試（`test_graph_crew.py`、`test_graph_tools_extended.py`）；完整 mock LLM multi-round 仍待補 |
 
 <a id="本輪後續未完2026-04-10"></a>
 
@@ -55,7 +54,7 @@
 
 > **已落地（本輪對齊，細節見 CHANGELOG）**：LangGraph native `final_formatter` 以結構化 **`FormatterInputPacket` JSON** 為 prompt 唯一輸入；`trade_picker` 經 [`execution_intents.py`](execution_intents.py) 追加 **`.qsilicon/execution_intents.jsonl`**（不下單）；FastAPI [`GET /api/war-room/latest`](api.py)；PWA **Today** 讀 war-room（[`data-verification-ui/`](data-verification-ui/)）；graph 工具窄介面／`MOCK_APIS` fixture 路徑。
 
-- [ ] **PWA 拋光**：War Room 抽成獨立元件（如 `WarRoomCard.jsx`）、execution intent **狀態篩選**／錯誤態 UX
+- [x] **PWA War Room 元件（首期）**：[`WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx) + intent 狀態篩選；進一步視覺拋光／錯誤態 UX 仍待迭代
 - [ ] **RAG／Glassbox**：「Chat with the Report」須錨定當日報告內文（與 [演進 Phase 4](#演進藍圖--技術路線) 一致；嚴守工具數字紅線）
 - [ ] **真 OMS／執行層**：獨立 daemon、BQ／SQLite 輪詢 `PENDING` intent、風控與合規表態（目前僅 jsonl 骨架；見下方 [OSS Phase 3](#phase-3-模擬盤與訂單管理系統-oms--paper-trading)）
 - [ ] **觀測**：`GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 下成本、延遲、**cache／重試命中率**（對齊 **LG-1**、與下方 **rtk** 節流）
@@ -77,8 +76,7 @@
 | 5 HF／GraphQL | 3 | 4 | 3 | 3 | 須嚴格掛工具 |
 | 6 提案 Agent | 3 | 5 | 3 | 2 | 安全與 review 負載 |
 | 7 Direction 3 | 3 | 5 | 3 | 2 | token／timeout |
-| 8 模板審計 | 3 | 2 | 4 | 4 | 顯示一致性 |
-| 9 台股顯示 | 2 | 2 | 4 | 3 | 區域化 |
+| 8 模板審計 | 3 | 2 | 4 | 4 | 顯示一致性（已落地 strip_usd + schema 去 `$`） |
 
 ### 波次／Phase 濃縮
 
@@ -92,7 +90,7 @@
 
 ### 建議順序
 
-1. Pri **2** + **1** → 2. Pri **8**、**9**（視需求）→ 3. 波次 **C** + Pri **3** → 4. Pri **4** → 5. **5→6**、**7** 與 Phase 2+（依資源）
+1. Pri **2** + **1** → 2. Pri **8**（已完成首輪）→ 3. 波次 **C** + Pri **3** → 4. Pri **4** → 5. **5→6**、**7** 與 Phase 2+（依資源）
 
 ### 新建議 backlog（骨架已備；持續迭代）
 
@@ -100,7 +98,7 @@
 2. 結構化 dry-run — [`scripts/validate_report_dry_run.py`](scripts/validate_report_dry_run.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)  
 3. 美股備援觀測 — `EQUITY_BACKFILL_SCRATCHPAD_LOG`  
 4. Prompt 登記 — [`docs/PROMPT_CHANGELOG.md`](docs/PROMPT_CHANGELOG.md)  
-5. `asset_market` — [`schemas.py`](schemas.py)、[`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md)  
+5. `asset_market` 展示規則細化 — [`schemas.py`](schemas.py)（台股專項已自維護清單移除）  
 6. Mock smoke — [`scripts/run_mock_smoke.sh`](scripts/run_mock_smoke.sh)  
 7. 觀望 vs QSREC — [`test_aisection_watch_warning.py`](test_aisection_watch_warning.py)
 
@@ -133,9 +131,9 @@
 - [ ] **Formatter 分層**：預設輕量模型、僅 `PIPELINE_STRICT_ENV=1` 等機構模式用高階模型（對齊 crew／graph formatter）
 - [ ] **Metrics**：`prometheus_client` 暴露 `llm_tokens_total`、`cost_usd_total`（可選 sidecar；不影響預設無 K8s 部署）
 
-### G-4 — 功能擴展與產品化（對齊階段 E、Direction 3、台股 Pri 9）
+### G-4 — 功能擴展與產品化（對齊階段 E、Direction 3）
 
-- [ ] **台股／供應鏈宇宙**：擴充 `assets_universe` + 資料源（`yfinance`／TWSE 等）；與 [`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md) 一致
+- [ ] **區域／供應鏈宇宙擴充**（非台股專線）：擴充 `assets_universe` + 資料源；須另開產品範圍與資料授權評估
 - [ ] **Flash Brief**：`monitor_intraday` 升級 WebSocket／SSE（FastAPI），條件觸發（波動、財報前窗口）— **頻率與 API 成本** 須 Gate
 - [ ] **多語輸出**：`report_render` 路徑加英／繁／簡（翻譯 API 或離線；**HTML 白名單**不變）
 - [ ] **Backtest 2.0**：`vectorbt`／`backtrader` 等 + Sharpe／MDD／WinRate 寫入 BQ（與 [OSS Phase 4](#phase-4策略強化與機構級回測strategy-enhancement--backtesting) 合併評估）
@@ -160,8 +158,8 @@
 ### G-7 — 文件、社群與開源經營
 
 - [ ] **README**：Badges（Python、CI、License）、1 分鐘 Demo 連結（Loom 等）
-- [ ] **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`**
-- [ ] **License**：明確 **MIT** 或 **Apache-2.0**（`LICENSE` 與 README 同步）
+- [x] **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`** + **`LICENSE`（MIT）**（2026-04-21）
+- [ ] **License**：README 與根目錄 `LICENSE` 同步聲明（可補 badge）
 - [ ] **ADR 索引**：`docs/` 內 ADR 匯總頁或 GitHub Wiki 導覽
 - [ ] **對外內容**：技術文章／串文（零幻覺管線、雙軌 Gate 等）— 與產品節奏協調
 

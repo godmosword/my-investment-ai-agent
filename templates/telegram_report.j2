@@ -87,11 +87,11 @@
 {% if not loop.first %}
 ────────
 {% endif %}
-· <b>${{ (leg.asset|string|replace('$', ''))|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|replace('$', ''))|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+· <b>${{ (leg.asset|string|strip_usd)|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|strip_usd)|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
-· <b>計畫</b>：進場 <code>{{ (leg.entry|string|replace('$', ''))|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|replace('$', ''))|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|replace('$', ''))|tg_escape }}</code>（建議倉位 {{ (leg.position_pct|string|replace('$', ''))|tg_escape }}）
+· <b>計畫</b>：進場 <code>{{ (leg.entry|string|strip_usd)|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|strip_usd)|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|strip_usd)|tg_escape }}</code>（建議倉位 {{ (leg.position_pct|string|strip_usd)|tg_escape }}）
 
-· <b>執行</b>：{{ (leg.trigger|default('', true)|string|replace('$', ''))|replace('。。', '。')|tg_escape }}
+· <b>執行</b>：{{ (leg.trigger|default('', true)|string|strip_usd)|replace('。。', '。')|tg_escape }}
 {% if leg.invalidation %}
 · <b>失效</b>：{{ leg.invalidation|clean_invalidation|tg_escape }}
 {% endif %}
@@ -168,11 +168,11 @@
 {% if not loop.first %}
 ────────
 {% endif %}
-· <b>${{ (leg.asset|string|replace('$', ''))|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|replace('$', ''))|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+· <b>${{ (leg.asset|string|strip_usd)|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|strip_usd)|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
-· <b>計畫</b>：進場 <code>{{ (leg.entry|string|replace('$', ''))|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|replace('$', ''))|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|replace('$', ''))|tg_escape }}</code>（建議倉位 {{ (leg.position_pct|string|replace('$', ''))|tg_escape }}）
+· <b>計畫</b>：進場 <code>{{ (leg.entry|string|strip_usd)|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|strip_usd)|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|strip_usd)|tg_escape }}</code>（建議倉位 {{ (leg.position_pct|string|strip_usd)|tg_escape }}）
 
-· <b>執行</b>：{{ (leg.trigger|default('', true)|string|replace('$', ''))|replace('。。', '。')|tg_escape }}
+· <b>執行</b>：{{ (leg.trigger|default('', true)|string|strip_usd)|replace('。。', '。')|tg_escape }}
 {% if leg.invalidation %}
 · <b>失效</b>：{{ leg.invalidation|clean_invalidation|tg_escape }}
 {% endif %}

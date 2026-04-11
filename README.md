@@ -4,6 +4,7 @@
 
 | 連結 | 用途 |
 |------|------|
+| 授權 | [`LICENSE`](LICENSE)（MIT）·[`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
 | 待辦 | [`TODOS.md`](TODOS.md) |
 | 變更紀錄 | [`CHANGELOG.md`](CHANGELOG.md) |
 | 執行路線圖 | [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) |

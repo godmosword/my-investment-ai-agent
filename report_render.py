@@ -83,6 +83,16 @@ def tg_escape(value: object) -> str:
     return html.escape(str(value), quote=False)
 
 
+def strip_usd_for_template(value: object) -> str:
+    """Strip leading $ from price-like strings before template prepends $ (avoids $$ in HTML)."""
+    if value is None:
+        return ""
+    s = str(value).strip()
+    while s.startswith("$"):
+        s = s[1:].lstrip()
+    return s
+
+
 def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str:
     """Approximate HTML N/A density for the same Gate threshold as validate_report."""
     parts: list[str] = []
@@ -1502,6 +1512,7 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
         lstrip_blocks=True,
     )
     env.filters["tg_escape"] = tg_escape
+    env.filters["strip_usd"] = strip_usd_for_template
     env.filters["clean_invalidation"] = _clean_invalidation
 
     qsrec_list = [

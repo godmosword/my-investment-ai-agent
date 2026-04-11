@@ -701,6 +701,14 @@ class ExecutableTradeLeg(BaseModel):
             return _strip_prompt_instruction_echoes(v)
         return v
 
+    @field_validator("rr", "max_drawdown_pct", "expected_win_rate", "signal_score", mode="before")
+    @classmethod
+    def _strip_dollar_from_metric_strings(cls, v: object) -> object:
+        """Avoid $$ in Telegram when template prepends $ to adjacent fields."""
+        if isinstance(v, str):
+            return v.lstrip("$").strip()
+        return v
+
     @field_validator("narrative", mode="before")
     @classmethod
     def _truncate_narrative(cls, v: object) -> object:
