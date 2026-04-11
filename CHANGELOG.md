@@ -14,6 +14,9 @@
 - [`test_validate_report.py`](test_validate_report.py)：`test_main_postprocess_scrubs_duplicate_government_typo`。
 - [`test_tracker.py`](test_tracker.py)：`TestPreviousRecPnlPlausibility`。
 
+### Docs
+- [`TODOS.md`](TODOS.md)：新增 **波次 G** 與外部架構審閱 backlog（8 板塊，G-1～G-8 可勾選項，對齊 Pri／OSS／演進藍圖）；檔首導覽與修訂紀錄更新。
+
 ## 2026-04-20
 
 ### Added
