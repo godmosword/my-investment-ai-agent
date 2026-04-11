@@ -2,7 +2,7 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md)。**路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。**執行版路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md)（2026 Q2）。
 
-**同步狀態（2026-04-10）**：本檔僅列 **`[ ]` 未完成** 與維護者排序；**已交付行為**以 CHANGELOG 與下方「已落地（備查）」為準。四維評分表與新建議 backlog 仍適用，見 [未完成項四維評分（2026-04）](#未完成項四維評分與新建議2026-04)。長期里程碑 → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。演進藍圖（Mock／Plugin／LangGraph 等）→ [演進藍圖](#演進藍圖--技術路線)。**本輪未完** → [本輪後續／未完（2026-04-10）](#本輪後續未完2026-04-10)。**開源對接細項** → [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)。
+**同步狀態（2026-04-21）**：本檔僅列 **`[ ]` 未完成** 與維護者排序；**已交付行為**以 CHANGELOG 與下方「已落地（備查）」為準。四維評分表與新建議 backlog 仍適用，見 [未完成項四維評分（2026-04）](#未完成項四維評分與新建議2026-04)。長期里程碑 → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。演進藍圖（Mock／Plugin／LangGraph 等）→ [演進藍圖](#演進藍圖--技術路線)。**本輪未完** → [本輪後續／未完（2026-04-10）](#本輪後續未完2026-04-10)。**開源對接細項** → [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)。**外部架構審閱（機構級建議彙整）** → [8 板塊 backlog](#外部架構審閱-backlog8-板塊2026-04)（與波次 **G**、OSS／演進藍圖交叉對照，**不取代**檔首維護者排序與紅線）。
 
 ---
 
@@ -25,6 +25,7 @@
 | **D** | OSS：HF／GraphQL、整合提案 Agent |
 | **E** | Company 四職能、War Room、PWA Web Push |
 | **F** | [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)（rtk／goose／fredapi、戰情室圖表、OMS 模擬盤、回測） |
+| **G** | [外部架構審閱 backlog](#外部架構審閱-backlog8-板塊2026-04)（套件化、觀測、成本、產品化、安全、部署、開源經營、測試與前瞻） |
 
 ### Priority（未完成，1＝最優先）
 
@@ -102,6 +103,74 @@
 5. `asset_market` — [`schemas.py`](schemas.py)、[`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md)  
 6. Mock smoke — [`scripts/run_mock_smoke.sh`](scripts/run_mock_smoke.sh)  
 7. 觀望 vs QSREC — [`test_aisection_watch_warning.py`](test_aisection_watch_warning.py)
+
+<a id="外部架構審閱-backlog8-板塊2026-04"></a>
+
+## 外部架構審閱 backlog（8 板塊，2026-04）
+
+來源：針對 [**Q-Silicon Institutional Research AI Agent**](https://github.com/godmosword/my-investment-ai-agent) 之機構級書面審閱；以下拆成**可勾選工程項**，並**對齊**本檔既有章節（維護者排序、紅線、[`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)、[OSS 計畫](#oss-開源生態整合計畫oss-integration-roadmap)、[演進藍圖](#演進藍圖--技術路線)、[`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)）。**建議執行序（審閱方）**：先 **1→2→5**（組織、可靠性、安全）約 1 週；再 **3→4**（成本、產品化）2–4 週；長期 **6→7→8**。
+
+### G-1 — 代碼組織與可維護性（對齊波次 B／工具模組化 ADR）
+
+- [ ] **標準套件目錄**：評估 `src/` + `agent/`、`pipeline/`、`report/`、`storage/`、`ui/` 等拆分（現為根目錄 flat scripts；遷移須對齊 `pytest`、`Dockerfile`、`main` 進入點）
+- [ ] **`pyproject.toml`**：`uv` 或 `poetry` 鎖依版本；`ruff` 擴規則（如 `I`、`UP`、`SIM`、`RET`）；**型別** `pyright` 或 `mypy`（漸進 strict，避免一次性全紅）
+- [ ] **設定集中**：`pydantic-settings` v2（`SettingsConfigDict`）統一 env 驗證；與現有 [`config.py`](config.py)、[`main.py`](main.py) `_validate_env_types` **漸進合併**，避免破壞 `PIPELINE_STRICT_ENV`
+
+### G-2 — 可靠性、觀測性與錯誤處理（對齊 P3、LG-1、`gate_failure_log`）
+
+- [ ] **結構化日誌**：`structlog`（或等價）統一 tool／LLM／gate 事件格式
+- [ ] **分散式追蹤**：OpenTelemetry，`trace_id` 貫穿 tool call、LLM、validate_report（與現有 BQ log 互補）
+- [ ] **錯誤匯聚**：Sentry 或 GCP Error Reporting；Gate 失敗可選自動開 issue／通知（與 [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 協調）
+- [ ] **Circuit breaker**：`pybreaker` 或自寫，套於 CoinGlass／Tavily／Financial Datasets 等外連（與 **無幻覺** 一致：斷路時回傳 `[DATA_MISSING:…]` 或 N/A，禁止 LLM 補數字）
+- [ ] **全局限流**：`aiolimiter`（或既有 retry 之上）+ 設定如 `MAX_CONCURRENT_TOOLS`（對齊 `main.py` ThreadPoolExecutor 安全）
+- [ ] **降級路徑**：validate 全失敗時「簡易模式」（例：僅雙軌研究員、略過審計／編輯）— **須產品表態** 與 Telegram 讀者標示，避免與正式日報混淆
+
+### G-3 — 成本優化與 LLM 管理（對齊 OSS Phase 1 rtk、[`docs/COST_PER_MODEL.md`](docs/COST_PER_MODEL.md)）
+
+- [ ] **LLM Router**：依 `task` + `budget_level` 選模型（接 LiteLLM／現有 `MODEL_*` env）
+- [ ] **Prompt 快取**：LiteLLM caching（Redis 或 DiskCache）；與 **rtk** 節流代理實驗並列評估
+- [ ] **Graph deep research 預算**：token／tool-call 硬上限（呼應 `GRAPH_DEEP_RESEARCH_TOOL_LLM`）
+- [ ] **Formatter 分層**：預設輕量模型、僅 `PIPELINE_STRICT_ENV=1` 等機構模式用高階模型（對齊 crew／graph formatter）
+- [ ] **Metrics**：`prometheus_client` 暴露 `llm_tokens_total`、`cost_usd_total`（可選 sidecar；不影響預設無 K8s 部署）
+
+### G-4 — 功能擴展與產品化（對齊階段 E、Direction 3、台股 Pri 9）
+
+- [ ] **台股／供應鏈宇宙**：擴充 `assets_universe` + 資料源（`yfinance`／TWSE 等）；與 [`docs/TW_EQUITY_DISPLAY.md`](docs/TW_EQUITY_DISPLAY.md) 一致
+- [ ] **Flash Brief**：`monitor_intraday` 升級 WebSocket／SSE（FastAPI），條件觸發（波動、財報前窗口）— **頻率與 API 成本** 須 Gate
+- [ ] **多語輸出**：`report_render` 路徑加英／繁／簡（翻譯 API 或離線；**HTML 白名單**不變）
+- [ ] **Backtest 2.0**：`vectorbt`／`backtrader` 等 + Sharpe／MDD／WinRate 寫入 BQ（與 [OSS Phase 4](#phase-4策略強化與機構級回測strategy-enhancement--backtesting) 合併評估）
+- [ ] **Human-in-the-Loop**：Gradio／Chainlit + Telegram reply 觸發局部重產（與 [`report_editor.py`](report_editor.py) 整合）
+- [ ] **Macro 第三軌**：專責 FRED／IMF 等之 `MacroAgent` 或節點（與 [fredapi](#phase-1基礎建設與降本增效infrastructure--cost-reduction)、現有 macro 工具 **單一數字來源**）
+
+### G-5 — 安全性、合規與 Secret（對齊 P0、紅線）
+
+- [ ] **Secret 託管**：GCP Secret Manager 或 Infisical；本機仍可用 `.env`（[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）
+- [ ] **CI Secret 掃描**：GitHub Actions 強制 `gitleaks`（已有 [`.gitleaks.toml`](.gitleaks.toml) 則補 workflow）
+- [ ] **免責與法遵**：[`templates/telegram_report.j2`](templates/telegram_report.j2) 固定投資人免責段落（與 **STRICT_INSTITUTIONAL_PHASE_A** 等現有 `blockquote` 不衝突為原則）
+- [ ] **BQ 最小權限**：寫入用 SA 僅必要 dataset／表（見 [`bigquery_writer.py`](bigquery_writer.py) 部署說明）
+- [ ] **PII／GDPR 預研**：若未來訂閱制／多租戶，資料分類與保留策略
+
+### G-6 — 部署與擴展性（對齊 [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)、演進 Phase 1）
+
+- [ ] **`docker-compose.prod.yml`**：Redis + Prometheus + Grafana（可選；與現有 [`Dockerfile`](Dockerfile) 並存）
+- [ ] **Nightly 效能基準**：workflow 將管線耗時、token 摘要寫 BQ 或 artifact（與 [`nightly-ci.yml`](.github/workflows/nightly-ci.yml) 協調）
+- [ ] **排程基礎設施**：Cloud Run + Scheduler vs GKE + Argo **評估文件**（成本／維運）
+- [ ] **多租戶執行**：Celery／佇列化 `main` 路徑（與 [階段 E — 商業化](#階段-e--長期里程碑) 綁定；**資產宇宙隔離**）
+
+### G-7 — 文件、社群與開源經營
+
+- [ ] **README**：Badges（Python、CI、License）、1 分鐘 Demo 連結（Loom 等）
+- [ ] **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`**
+- [ ] **License**：明確 **MIT** 或 **Apache-2.0**（`LICENSE` 與 README 同步）
+- [ ] **ADR 索引**：`docs/` 內 ADR 匯總頁或 GitHub Wiki 導覽
+- [ ] **對外內容**：技術文章／串文（零幻覺管線、雙軌 Gate 等）— 與產品節奏協調
+
+### G-8 — 測試與技術前瞻
+
+- [ ] **Property-based**：`hypothesis` 擴充 [`schemas.py`](schemas.py)／邊界契約（與 `pytest -m boundary`、[`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md)）
+- [ ] **E2E**：Playwright 跑 Streamlit + PWA 關鍵路徑（與 [`data-verification-ui/`](data-verification-ui/)）
+- [ ] **LLM 可觀測**：LangSmith 或 LangFuse（與 G-2 OTel **擇一或分層**）
+- [ ] **前瞻**：新模型（如 Grok 世代）tool-use 評估；多模態（圖表 + vision）**僅在工具輸出影像／URL 可驗證時** 納入，避免違反數字紅線
 
 ---
 
@@ -354,6 +423,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-21**：新增 [外部架構審閱 backlog（8 板塊）](#外部架構審閱-backlog8-板塊2026-04)（G-1～G-8 可勾選項，對齊波次 B／P0–P3、OSS、演進藍圖）；檔首導覽與**未勾選項速覽**增波次 **G**。
 - **2026-04-10**：新增 [本輪後續／未完（2026-04-10）](#本輪後續未完2026-04-10)；新增 [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)（Phase 1–4 可勾選細項）；檔首同步日期與錨點；**未勾選項速覽**增波次 **F**。
 - **2026-04-09**：**全文重寫**（精簡章節、檔首同步、**LangGraph 路徑** LG-1～3、**Phase 3** 標註部分落地、Pri 8 改為模板／欄位審計表述）；**已落地**補 **2026-04-09** 工具橋接。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-09 Docs**。
 - **2026-04-04（晚）**：演進計畫 — Critical env、閾值實驗、`adaptive_gate_thresholds`、Gate digest、dry-run、mock-smoke、scratchpad、`asset_market`、觀望 vs QSREC — CHANGELOG **2026-04-04**。
