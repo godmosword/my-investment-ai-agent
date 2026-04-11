@@ -1,0 +1,60 @@
+{
+  "source": "2026-04-22-candidates.json (manual curated)",
+  "generated_at": "2026-04-22T00:00:00Z",
+  "repos": [
+    {
+      "full_name": "tradingview/lightweight-charts",
+      "html_url": "https://github.com/tradingview/lightweight-charts",
+      "readme_excerpt": "See draft §1. Canvas charts; no server telemetry in lib itself.",
+      "readme_note": "manual_curated"
+    },
+    {
+      "full_name": "mortada/fredapi",
+      "html_url": "https://github.com/mortada/fredapi",
+      "readme_excerpt": "See draft §2. Python wrapper for FRED series; align with macro_context_tool.",
+      "readme_note": "manual_curated"
+    },
+    {
+      "full_name": "evan-kolberg/prediction-market-backtesting",
+      "html_url": "https://github.com/evan-kolberg/prediction-market-backtesting",
+      "readme_excerpt": "See draft §3. Nautilus adapters; spike only before requirements merge.",
+      "readme_note": "manual_curated"
+    },
+    {
+      "full_name": "txbabaxyz/polyrec",
+      "html_url": "https://github.com/txbabaxyz/polyrec",
+      "readme_excerpt": "See draft §4. TUI monitoring reference; not primary daily pipeline path.",
+      "readme_note": "manual_curated"
+    },
+    {
+      "full_name": "dylanpersonguy/Polymarket-Trading-Bot",
+      "html_url": "https://github.com/dylanpersonguy/Polymarket-Trading-Bot",
+      "readme_excerpt": "See draft §5. TS strategies; document-only default.",
+      "readme_note": "manual_curated"
+    },
+    {
+      "full_name": "ent0n29/polybot",
+      "html_url": "https://github.com/ent0n29/polybot",
+      "readme_excerpt": "See draft §6. OMS/Kafka/CH reference; do not vendor full stack blindly.",
+      "readme_note": "manual_curated"
+    },
+    {
+      "full_name": "agent-next/polymarket-paper-trader",
+      "html_url": "https://github.com/agent-next/polymarket-paper-trader",
+      "readme_excerpt": "See draft §7. Paper trading; verify fee/slippage model vs live API.",
+      "readme_note": "manual_curated"
+    },
+    {
+      "full_name": "rtk-ai/rtk",
+      "html_url": "https://github.com/rtk-ai/rtk",
+      "readme_excerpt": "See draft §8. Rust LLM proxy; dev/CI optional; supply-chain review.",
+      "readme_note": "manual_curated"
+    },
+    {
+      "full_name": "block/goose",
+      "html_url": "https://github.com/block/goose",
+      "readme_excerpt": "See draft §9. Local agent CLI; does not replace main.py crew.",
+      "readme_note": "manual_curated"
+    }
+  ]
+}

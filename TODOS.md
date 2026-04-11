@@ -2,7 +2,7 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md)。**路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)。**執行版路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md)（2026 Q2）。
 
-**同步狀態（2026-04-21）**：本檔僅列 **`[ ]` 未完成** 與維護者排序；**已交付行為**以 CHANGELOG 與下方「已落地（備查）」為準。四維評分表與新建議 backlog 仍適用，見 [未完成項四維評分（2026-04）](#未完成項四維評分與新建議2026-04)。長期里程碑 → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。演進藍圖（Mock／Plugin／LangGraph 等）→ [演進藍圖](#演進藍圖--技術路線)。**本輪未完** → [本輪後續／未完（2026-04-10）](#本輪後續未完2026-04-10)。**開源對接細項** → [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)。**外部架構審閱（機構級建議彙整）** → [8 板塊 backlog](#外部架構審閱-backlog8-板塊2026-04)（與波次 **G**、OSS／演進藍圖交叉對照，**不取代**檔首維護者排序與紅線）。
+**同步狀態（2026-04-22）**：本檔僅列 **`[ ]` 未完成** 與維護者排序；**已交付行為**以 CHANGELOG 與下方「已落地（備查）」為準。四維評分表與新建議 backlog 仍適用，見 [未完成項四維評分（2026-04）](#未完成項四維評分與新建議2026-04)。長期里程碑 → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)。演進藍圖（Mock／Plugin／LangGraph 等）→ [演進藍圖](#演進藍圖--技術路線)。**本輪未完** → [本輪後續／未完（2026-04-10）](#本輪後續未完2026-04-10)。**開源對接細項** → [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)。**訂閱取代手動研究** → [`2026-04-22-revision-plan-subscription-stack.md`](docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md)。**外部架構審閱（機構級建議彙整）** → [8 板塊 backlog](#外部架構審閱-backlog8-板塊2026-04)（與波次 **G**、OSS／演進藍圖交叉對照，**不取代**檔首維護者排序與紅線）。
 
 ---
 
@@ -25,7 +25,7 @@
 | **D** | OSS：HF／GraphQL、整合提案 Agent |
 | **E** | Company 四職能、War Room、PWA Web Push |
 | **F** | [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)（rtk／goose／fredapi、戰情室圖表、OMS 模擬盤、回測） |
-| **G** | [外部架構審閱 backlog](#外部架構審閱-backlog8-板塊2026-04)（套件化、觀測、成本、產品化、安全、部署、開源經營、測試與前瞻） |
+| **G** | [外部架構審閱 backlog](#外部架構審閱-backlog8-板塊2026-04)（[G-1](#g-1-code-organization)／[G-2](#g-2-reliability-observability)／[G-3](#g-3-cost-llm)／[G-4](#g-4-productization)／[G-5](#g-5-security-compliance)／[G-6](#g-6-deploy-scale)／[G-7](#g-7-docs-community)／[G-8](#g-8-testing-future)） |
 
 ### Priority（未完成，1＝最優先）
 
@@ -38,7 +38,7 @@
 | **5** | HuggingFace／GraphQL | Direction 2B |
 | **6** | 整合提案 Agent | 建議在 (5) 之後 |
 | **7** | Direction 3 四職能 + War Room | [`docs/COMPANY_CREW_ROADMAP.md`](docs/COMPANY_CREW_ROADMAP.md) |
-| **8** | 模板／QSREC 顯示審計 | ~~進行中~~ **已收斂（2026-04-21）**：`strip_usd` 濾鏡 + `ExecutableTradeLeg` 對 `rr` 等欄位去 `$`；見 [`templates/telegram_report.j2`](templates/telegram_report.j2)、[`schemas.py`](schemas.py) |
+| **8** | 模板／QSREC 顯示審計（備查） | **已落地（2026-04-21）**：`strip_usd` 濾鏡 + `ExecutableTradeLeg` 對 `rr` 等欄位去 `$`；見 [`templates/telegram_report.j2`](templates/telegram_report.j2)、[`schemas.py`](schemas.py)、[`CHANGELOG.md`](CHANGELOG.md) |
 
 ### LangGraph 路徑（可選引擎）
 
@@ -109,12 +109,14 @@
 來源：針對 [**Q-Silicon Institutional Research AI Agent**](https://github.com/godmosword/my-investment-ai-agent) 之機構級書面審閱；以下拆成**可勾選工程項**，並**對齊**本檔既有章節（維護者排序、紅線、[`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)、[OSS 計畫](#oss-開源生態整合計畫oss-integration-roadmap)、[演進藍圖](#演進藍圖--技術路線)、[`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md)）。**建議執行序（審閱方）**：先 **1→2→5**（組織、可靠性、安全）約 1 週；再 **3→4**（成本、產品化）2–4 週；長期 **6→7→8**。
 
 ### G-1 — 代碼組織與可維護性（對齊波次 B／工具模組化 ADR）
+<a id="g-1-code-organization"></a>
 
 - [ ] **標準套件目錄**：評估 `src/` + `agent/`、`pipeline/`、`report/`、`storage/`、`ui/` 等拆分（現為根目錄 flat scripts；遷移須對齊 `pytest`、`Dockerfile`、`main` 進入點）
 - [ ] **`pyproject.toml`**：`uv` 或 `poetry` 鎖依版本；`ruff` 擴規則（如 `I`、`UP`、`SIM`、`RET`）；**型別** `pyright` 或 `mypy`（漸進 strict，避免一次性全紅）
 - [ ] **設定集中**：`pydantic-settings` v2（`SettingsConfigDict`）統一 env 驗證；與現有 [`config.py`](config.py)、[`main.py`](main.py) `_validate_env_types` **漸進合併**，避免破壞 `PIPELINE_STRICT_ENV`
 
 ### G-2 — 可靠性、觀測性與錯誤處理（對齊 P3、LG-1、`gate_failure_log`）
+<a id="g-2-reliability-observability"></a>
 
 - [ ] **結構化日誌**：`structlog`（或等價）統一 tool／LLM／gate 事件格式
 - [ ] **分散式追蹤**：OpenTelemetry，`trace_id` 貫穿 tool call、LLM、validate_report（與現有 BQ log 互補）
@@ -124,6 +126,7 @@
 - [ ] **降級路徑**：validate 全失敗時「簡易模式」（例：僅雙軌研究員、略過審計／編輯）— **須產品表態** 與 Telegram 讀者標示，避免與正式日報混淆
 
 ### G-3 — 成本優化與 LLM 管理（對齊 OSS Phase 1 rtk、[`docs/COST_PER_MODEL.md`](docs/COST_PER_MODEL.md)）
+<a id="g-3-cost-llm"></a>
 
 - [ ] **LLM Router**：依 `task` + `budget_level` 選模型（接 LiteLLM／現有 `MODEL_*` env）
 - [ ] **Prompt 快取**：LiteLLM caching（Redis 或 DiskCache）；與 **rtk** 節流代理實驗並列評估
@@ -132,6 +135,7 @@
 - [ ] **Metrics**：`prometheus_client` 暴露 `llm_tokens_total`、`cost_usd_total`（可選 sidecar；不影響預設無 K8s 部署）
 
 ### G-4 — 功能擴展與產品化（對齊階段 E、Direction 3）
+<a id="g-4-productization"></a>
 
 - [ ] **區域／供應鏈宇宙擴充**（非台股專線）：擴充 `assets_universe` + 資料源；須另開產品範圍與資料授權評估
 - [ ] **Flash Brief**：`monitor_intraday` 升級 WebSocket／SSE（FastAPI），條件觸發（波動、財報前窗口）— **頻率與 API 成本** 須 Gate
@@ -141,6 +145,7 @@
 - [ ] **Macro 第三軌**：專責 FRED／IMF 等之 `MacroAgent` 或節點（與 [fredapi](#phase-1基礎建設與降本增效infrastructure--cost-reduction)、現有 macro 工具 **單一數字來源**）
 
 ### G-5 — 安全性、合規與 Secret（對齊 P0、紅線）
+<a id="g-5-security-compliance"></a>
 
 - [ ] **Secret 託管**：GCP Secret Manager 或 Infisical；本機仍可用 `.env`（[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）
 - [ ] **CI Secret 掃描**：GitHub Actions 強制 `gitleaks`（已有 [`.gitleaks.toml`](.gitleaks.toml) 則補 workflow）
@@ -149,6 +154,7 @@
 - [ ] **PII／GDPR 預研**：若未來訂閱制／多租戶，資料分類與保留策略
 
 ### G-6 — 部署與擴展性（對齊 [`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)、演進 Phase 1）
+<a id="g-6-deploy-scale"></a>
 
 - [ ] **`docker-compose.prod.yml`**：Redis + Prometheus + Grafana（可選；與現有 [`Dockerfile`](Dockerfile) 並存）
 - [ ] **Nightly 效能基準**：workflow 將管線耗時、token 摘要寫 BQ 或 artifact（與 [`nightly-ci.yml`](.github/workflows/nightly-ci.yml) 協調）
@@ -156,6 +162,7 @@
 - [ ] **多租戶執行**：Celery／佇列化 `main` 路徑（與 [階段 E — 商業化](#階段-e--長期里程碑) 綁定；**資產宇宙隔離**）
 
 ### G-7 — 文件、社群與開源經營
+<a id="g-7-docs-community"></a>
 
 - [ ] **README**：Badges（Python、CI、License）、1 分鐘 Demo 連結（Loom 等）
 - [x] **`CONTRIBUTING.md`** + **`CODE_OF_CONDUCT.md`** + **`LICENSE`（MIT）**（2026-04-21）
@@ -164,6 +171,7 @@
 - [ ] **對外內容**：技術文章／串文（零幻覺管線、雙軌 Gate 等）— 與產品節奏協調
 
 ### G-8 — 測試與技術前瞻
+<a id="g-8-testing-future"></a>
 
 - [ ] **Property-based**：`hypothesis` 擴充 [`schemas.py`](schemas.py)／邊界契約（與 `pytest -m boundary`、[`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md)）
 - [ ] **E2E**：Playwright 跑 Streamlit + PWA 關鍵路徑（與 [`data-verification-ui/`](data-verification-ui/)）
@@ -306,6 +314,7 @@
 ## OSS 開源生態整合計畫（OSS Integration Roadmap）
 
 基於「降本增效、解耦架構、走向自動化交易」原則，將頂級開源專案對接至 Q-Silicon 投研管線。**與上方 [演進藍圖](#演進藍圖--技術路線) 互補**：此節為**可勾選執行細項**；排程仍以檔首維護者意見與紅線為準。
+訂閱取代候選與威脅建模詳見 [`docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md`](docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md)（已對照 Phase 1–4）。
 
 ### Phase 1：基礎建設與降本增效（Infrastructure & Cost Reduction）
 
@@ -370,6 +379,13 @@
 
 > 每週搜尋 GitHub 熱門／指定 topic 之 repo；**適配理由、README 摘錄、低分說明**僅在當日研究稿與 JSON。**本節**只保留連結、摘要表與短勾選（避免 TODOS 被長標籤洗版）。詳稿：`docs/oss_candidates/YYYY-MM-DD-revision-plan-draft.md`。
 
+### 訂閱取代堆疊（手動研究，2026-04-22）
+
+**非**每週 topic 搜尋；與 [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap) 對齊。細節與**可複製機讀 JSON 附錄**（若倉庫內尚無獨立 `.json` 檔，請自研究稿附錄貼出另存）：
+
+- 研究稿：[`docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md`](docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md)
+- 機讀：[`2026-04-22-digest.json`](docs/oss_candidates/2026-04-22-digest.json)、[`2026-04-22-candidates.json`](docs/oss_candidates/2026-04-22-candidates.json)
+
 <!-- OSS_SCOUT_AUTO_BEGIN -->
 
 ### 2026-04-01
@@ -378,6 +394,8 @@
 
 - 研究稿：[`docs/oss_candidates/2026-04-01-revision-plan-draft.md`](docs/oss_candidates/2026-04-01-revision-plan-draft.md)
 - 機讀：[`2026-04-01-digest.json`](docs/oss_candidates/2026-04-01-digest.json)、[`2026-04-01-candidates.json`](docs/oss_candidates/2026-04-01-candidates.json)
+
+> 若上述 `2026-04-01-*.json` 尚未出現在 repo：執行 `python scripts/oss_weekly_pipeline.py`（需 `GITHUB_TOKEN`）或見 [`docs/oss_candidates/README.md`](docs/oss_candidates/README.md)。
 
 | Repo | 適配 | ★ |
 |:-----|:----:|--:|
@@ -421,6 +439,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-22**：OSS — 新增「訂閱取代堆疊」手動研究稿（[`2026-04-22-revision-plan-subscription-stack.md`](docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md)），連結見 [OSS Scout 週報（自動）](#oss-scout-週報自動) 上方手動小節；CHANGELOG **2026-04-22 Docs**。
 - **2026-04-21**：新增 [外部架構審閱 backlog（8 板塊）](#外部架構審閱-backlog8-板塊2026-04)（G-1～G-8 可勾選項，對齊波次 B／P0–P3、OSS、演進藍圖）；檔首導覽與**未勾選項速覽**增波次 **G**。
 - **2026-04-10**：新增 [本輪後續／未完（2026-04-10）](#本輪後續未完2026-04-10)；新增 [OSS 開源生態整合計畫](#oss-開源生態整合計畫oss-integration-roadmap)（Phase 1–4 可勾選細項）；檔首同步日期與錨點；**未勾選項速覽**增波次 **F**。
 - **2026-04-09**：**全文重寫**（精簡章節、檔首同步、**LangGraph 路徑** LG-1～3、**Phase 3** 標註部分落地、Pri 8 改為模板／欄位審計表述）；**已落地**補 **2026-04-09** 工具橋接。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-09 Docs**。

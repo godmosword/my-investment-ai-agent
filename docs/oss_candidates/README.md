@@ -7,6 +7,7 @@
 - `YYYY-MM-DD-candidates.json`：GitHub Search 結果（機讀）  
 - `YYYY-MM-DD-digest.json`：各 repo 之 README 摘錄 + metadata（機讀）  
 - `YYYY-MM-DD-revision-plan-draft.md`：研究稿（人讀；Jinja 模板 [`templates/oss_weekly_plan.md.j2`](../../templates/oss_weekly_plan.md.j2)）  
+- **手動／專題稿**（例：`YYYY-MM-DD-revision-plan-subscription-stack.md`）：可將研究稿**附錄**內之 JSON 另存為同日期 `candidates.json`／`digest.json`，與週報管線檔名慣例一致。  
 - **`TODOS.md`** 內 **「OSS Scout 週報（自動）」**：每週插入**研究稿／digest／candidates 連結**、**精簡摘要表**（Repo｜適配｜★）與**短勾選**（僅 ``repo`` 名；`fit_rationale` 等長欄位只在研究稿與 JSON）（**是否實作由維護者決定**）
 
 ## 一鍵管線（本機或 CI）

@@ -19,6 +19,11 @@
 ### Tests
 - [`test_report_render_filters.py`](test_report_render_filters.py)、[`test_graph_tools_extended.py`](test_graph_tools_extended.py)、[`test_graph_crew.py`](test_graph_crew.py)（`test_deep_research_deterministic_includes_prediction_probe`）。
 
+### Docs
+- [`docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md`](docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md)：訂閱取代十點堆疊手動研究稿（威脅建模、Phase 對照）。
+- [`docs/oss_candidates/2026-04-22-candidates.json`](docs/oss_candidates/2026-04-22-candidates.json)、[`docs/oss_candidates/2026-04-22-digest.json`](docs/oss_candidates/2026-04-22-digest.json)：手動研究稿對應機讀檔，供審閱與後續工具鏈對接。
+- [`TODOS.md`](TODOS.md)：同步狀態更新至 2026-04-22；補「訂閱取代手動研究」檔首導覽、OSS Integration 對照行、手動小節 JSON 連結；波次 G 增 G-1～G-8 子錨點；Pri 8 改為「備查」語意。
+
 ## 2026-04-21
 
 ### Changed

@@ -4,6 +4,7 @@ upload_secrets.sh
 *.json
 !package.json
 !assets_config.json
+!docs/oss_candidates/*.json
 !tests/fixtures/reports/**/expected_validation.json
 !tests/fixtures/mock_data/*.json
 *-credentials.json

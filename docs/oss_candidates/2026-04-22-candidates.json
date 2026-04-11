@@ -1,0 +1,107 @@
+{
+  "query": "curated:subscription-stack-oss-replacement (manual, not GitHub Search)",
+  "sort": "stars",
+  "per_page": 9,
+  "total_count": 9,
+  "items": [
+    {
+      "full_name": "tradingview/lightweight-charts",
+      "html_url": "https://github.com/tradingview/lightweight-charts",
+      "description": "Financial lightweight charts built with HTML5 canvas.",
+      "stargazers_count": 14000,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["charts", "trading", "canvas"]
+    },
+    {
+      "full_name": "mortada/fredapi",
+      "html_url": "https://github.com/mortada/fredapi",
+      "description": "Python API for FRED (Federal Reserve Economic Data).",
+      "stargazers_count": 800,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["fred", "macro", "python"]
+    },
+    {
+      "full_name": "evan-kolberg/prediction-market-backtesting",
+      "html_url": "https://github.com/evan-kolberg/prediction-market-backtesting",
+      "description": "NautilusTrader fork with Polymarket/Kalshi adapters (verify upstream).",
+      "stargazers_count": 500,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["backtesting", "nautilus", "polymarket"]
+    },
+    {
+      "full_name": "txbabaxyz/polyrec",
+      "html_url": "https://github.com/txbabaxyz/polyrec",
+      "description": "Terminal UI: feeds, orderbook, indicators, CSV logging (verify license/activity).",
+      "stargazers_count": 300,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["terminal", "polymarket", "monitoring"]
+    },
+    {
+      "full_name": "dylanpersonguy/Polymarket-Trading-Bot",
+      "html_url": "https://github.com/dylanpersonguy/Polymarket-Trading-Bot",
+      "description": "TypeScript Polymarket strategies (arbitrage, MM, etc.) — document-only spike default.",
+      "stargazers_count": 1200,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["polymarket", "typescript", "trading"]
+    },
+    {
+      "full_name": "ent0n29/polybot",
+      "html_url": "https://github.com/ent0n29/polybot",
+      "description": "Execution + market data infra; Kafka/ClickHouse/Grafana (architecture reference).",
+      "stargazers_count": 400,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["oms", "infrastructure"]
+    },
+    {
+      "full_name": "agent-next/polymarket-paper-trader",
+      "html_url": "https://github.com/agent-next/polymarket-paper-trader",
+      "description": "Paper trading with fee/slippage model for agents (verify API ToS).",
+      "stargazers_count": 200,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["paper-trading", "polymarket"]
+    },
+    {
+      "full_name": "rtk-ai/rtk",
+      "html_url": "https://github.com/rtk-ai/rtk",
+      "description": "Rust CLI proxy for AI tool token savings (dev/CI optional).",
+      "stargazers_count": 1500,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["proxy", "rust", "llm"]
+    },
+    {
+      "full_name": "block/goose",
+      "html_url": "https://github.com/block/goose",
+      "description": "Local agent loop; multiple LLM backends (developer workflow, not daily pipeline).",
+      "stargazers_count": 35000,
+      "forks_count": 0,
+      "updated_at": "2026-04-22T00:00:00Z",
+      "pushed_at": "2026-04-22T00:00:00Z",
+      "archived": false,
+      "topics": ["agent", "llm", "cli"]
+    }
+  ]
+}
