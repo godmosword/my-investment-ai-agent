@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-23
+
+### Docs
+- **[`TODOS.md`](TODOS.md)**：**改寫為導覽型** — 明確區分「已交付摘要」「下一批隊列」「長期索引」；舊版 G-1～G-8 全表與重複 Phase／OSS 細拆 checkbox **自本檔移除**（細項未宣告為已全部實作；完整舊表可自 git 歷史還原）。保留 **`OSS_SCOUT_AUTO_BEGIN`／`END`** 供 [`scripts/oss_weekly_pipeline.py`](scripts/oss_weekly_pipeline.py) 合併週報。
+
 ## 2026-04-22
 
 ### Added
