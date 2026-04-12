@@ -191,9 +191,22 @@ export function useExecutionIntentAllowedStatuses() {
 export function usePatchExecutionIntent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ signalId, status, note }) => {
+    mutationFn: async ({
+      signalId,
+      status,
+      note,
+      reference_entry_price,
+      reference_target_price,
+      reference_stop_price,
+    }) => {
       const enc = encodeURIComponent(signalId);
-      return apiPatchJson(`/api/execution-intents/${enc}`, { status, note: note ?? "" });
+      return apiPatchJson(`/api/execution-intents/${enc}`, {
+        status,
+        note: note ?? "",
+        reference_entry_price: reference_entry_price ?? null,
+        reference_target_price: reference_target_price ?? null,
+        reference_stop_price: reference_stop_price ?? null,
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["execution-intents"] });

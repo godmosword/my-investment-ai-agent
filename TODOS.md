@@ -35,6 +35,8 @@
 | Terminal 中段 M1（資料溯源 + 執行意圖 API） | [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)；snapshot **`data_provenance`**（[`symbol_snapshot_service.py`](symbol_snapshot_service.py)）；`GET`／`PATCH` [`api.py`](api.py) **`/api/execution-intents`**；[`execution_intents.py`](execution_intents.py) 去重列表、`update_execution_intent_status`；[`test_execution_intents_api.py`](test_execution_intents_api.py)（CHANGELOG **2026-04-12**） |
 | Terminal 中段 M2（PWA 輪詢 + 溯源 UI + 意圖 PATCH） | [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js) `livePoll`／`getTerminalRefetchIntervalMs`；[`ExecutionIntentsBlotter.jsx`](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)、[`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)、[`Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)；`VITE_TERMINAL_POLL_MS`（README／`DASHBOARD_CONTRACT`）；CHANGELOG **2026-04-12** `### PWA` |
 | Terminal 中段 M3（quote API + 卡片 last） | [`api.py`](api.py) `GET /api/symbols/{symbol}/quote`；[`symbol_snapshot_service.fetch_symbol_quote`](symbol_snapshot_service.py)；[`test_api_symbol_quote.py`](test_api_symbol_quote.py)；PWA [`useSymbolQuote`](data-verification-ui/src/hooks/useApi.js)、[`TerminalSymbolCard`](data-verification-ui/src/components/TerminalSymbolCard.jsx)；[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)；CHANGELOG **2026-04-12** `### API（Terminal M3）` |
+| Terminal 中段 M4（SSE war-room） | [`api.py`](api.py) `GET /api/stream/war-room`；[`war_room_stream.py`](war_room_stream.py)；PWA `VITE_SSE_ENABLED`／[`ExecutionIntentsBlotter.jsx`](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)；`ENV_TEMPLATE` `TERMINAL_SSE_*`／`API_STREAM_AUTH_KEY`；[`test_api_stream_war_room.py`](test_api_stream_war_room.py) |
+| Terminal 中段 M5（紙上 tick） | [`paper_execution.py`](paper_execution.py)、[`scripts/paper_execution_tick.py`](scripts/paper_execution_tick.py)、`POST /api/paper/execution-tick`；意圖 **`reference_*`**／**`PAPER_*`** 狀態；[`test_paper_execution.py`](test_paper_execution.py)；`ENV_TEMPLATE` `PAPER_TICK_*` |
 | 開源社群骨架 | [`LICENSE`](LICENSE)、[`CONTRIBUTING.md`](CONTRIBUTING.md)、[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
 | 訂閱取代堆疊 — **研究稿**（非已實作） | [`docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md`](docs/oss_candidates/2026-04-22-revision-plan-subscription-stack.md) |
 
@@ -57,8 +59,8 @@
 11. ~~**Bloomberg 對齊 Phase 2**~~ — **已交付（2026-04-10 CHANGELOG）**：Terminal v2 分組／模板、跨頁 Symbol Context（`SymbolFocusBar` + `TerminalSymbolCard` 設為全域關注）、Streamlit 與 `symbol_snapshot_service`／可選 HTTP 對齊 snapshot 形狀。
 12. ~~**Terminal 中段 M2**~~ — **已交付**：見「已交付摘要」列與 CHANGELOG **2026-04-12** `### PWA`；規格見 [`docs/TERMINAL_MID_TIER_ROADMAP.md` — M2](docs/TERMINAL_MID_TIER_ROADMAP.md#m2-terminal-pwa)。
 13. ~~**Terminal 中段 M3**~~ — **已交付**：見「已交付摘要」與 CHANGELOG **2026-04-12** `### API（Terminal M3）`；規格 [M3](docs/TERMINAL_MID_TIER_ROADMAP.md#m3-symbol-quote)。
-14. **Terminal 中段 M4** — SSE（優先）或 WebSocket + 可選 stream auth；見 [M4](docs/TERMINAL_MID_TIER_ROADMAP.md#m4-realtime-stream)。
-15. **Terminal 中段 M5** — 紙上 worker、狀態擴充、成交規則 MVP；見 [M5](docs/TERMINAL_MID_TIER_ROADMAP.md#m5-paper-execution)。
+14. ~~**Terminal 中段 M4**~~ — **已交付**：見「已交付摘要」與 [`docs/TERMINAL_MID_TIER_ROADMAP.md` M4](docs/TERMINAL_MID_TIER_ROADMAP.md#m4-realtime-stream)。
+15. ~~**Terminal 中段 M5**~~ — **已交付**：見「已交付摘要」與 [M5](docs/TERMINAL_MID_TIER_ROADMAP.md#m5-paper-execution)。
 
 ---
 
@@ -113,6 +115,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-12（七）**：**Terminal M4/M5** — SSE `GET /api/stream/war-room`、紙上 `paper_execution`／`POST /api/paper/execution-tick`／`scripts/paper_execution_tick.py`、意圖 `reference_*` 與 `PAPER_*` 狀態、PWA SSE／參考價欄；「已交付摘要」增列；隊列 **14–15** ~~刪線~~；CHANGELOG `### API（Terminal M4/M5）`；`ENV_TEMPLATE`／`DASHBOARD_CONTRACT`／roadmap §3d–3e。
 - **2026-04-12（六）**：**Terminal M3** — `GET /api/symbols/{symbol}/quote`、`fetch_symbol_quote`、`test_api_symbol_quote`、PWA `useSymbolQuote`／卡片頂欄；「已交付摘要」增列；隊列 **13** ~~刪線~~；CHANGELOG `### API（Terminal M3）`；roadmap §3c 標註已落地。
 - **2026-04-12（五）**：**Terminal M2 PWA** — 「已交付摘要」增列；隊列 **12** 改 ~~刪線~~；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** 增 `### PWA`；README／`DASHBOARD_CONTRACT`／roadmap §3b 同步。
 - **2026-04-12（四）**：[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md) 擴充 **M2–M5** 實作規格（DoD、檔案、API、測試、依賴圖、手動 checklist）；「下一批隊列」增 **M3–M5**、M2 補 roadmap 錨點；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** `### Docs` 合併敘述。

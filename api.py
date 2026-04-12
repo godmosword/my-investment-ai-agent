@@ -7,6 +7,7 @@ Usage:
     uvicorn api:app --reload --port 8000
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -14,17 +15,22 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from google.cloud import bigquery
 from pydantic import BaseModel, Field
 
 from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
 from execution_intents import (
     ALLOWED_INTENT_STATUSES,
+    CLIENT_PATCHABLE_STATUSES,
+    intent_store_mtime,
     latest_execution_intents,
     update_execution_intent_status,
 )
+from paper_execution import run_paper_execution_tick
+from war_room_stream import get_war_room_stream_version
 from symbol_snapshot_service import (
     build_symbol_snapshot,
     fetch_symbol_quote,
@@ -452,8 +458,11 @@ class SymbolQuote(BaseModel):
 class ExecutionIntentStatusBody(BaseModel):
     """Human / War Room workflow: advance intent lifecycle (no order placement)."""
 
-    status: str = Field(..., description="One of ALLOWED_INTENT_STATUSES (case-insensitive).")
+    status: str = Field(..., description="One of CLIENT_PATCHABLE_STATUSES (case-insensitive).")
     note: str = Field(default="", max_length=2000)
+    reference_entry_price: float | None = None
+    reference_target_price: float | None = None
+    reference_stop_price: float | None = None
 
 
 def _repo_root() -> Path:
@@ -516,6 +525,20 @@ def _latest_gate_failure_summary() -> dict[str, Any] | None:
     }
 
 
+def _sse_auth_ok(request: Request) -> bool:
+    key = (os.getenv("API_STREAM_AUTH_KEY") or "").strip()
+    if not key:
+        return True
+    return request.headers.get("X-QS-Stream-Key") == key or request.query_params.get("stream_key") == key
+
+
+def _paper_tick_auth_ok(request: Request) -> bool:
+    key = (os.getenv("PAPER_TICK_API_KEY") or "").strip()
+    if not key:
+        return True
+    return request.headers.get("X-Paper-Tick-Key") == key
+
+
 def _validate_symbol(symbol: str) -> str:
     try:
         return validate_symbol_for_snapshot(symbol)
@@ -533,7 +556,10 @@ def list_execution_intents(
 
 @app.get("/api/execution-intents/allowed-statuses")
 def execution_intent_allowed_statuses() -> dict[str, Any]:
-    return {"statuses": sorted(ALLOWED_INTENT_STATUSES)}
+    return {
+        "statuses": sorted(ALLOWED_INTENT_STATUSES),
+        "client_patchable": sorted(CLIENT_PATCHABLE_STATUSES),
+    }
 
 
 @app.patch("/api/execution-intents/{signal_id}")
@@ -542,7 +568,14 @@ def patch_execution_intent_status(
     body: ExecutionIntentStatusBody,
 ) -> dict[str, Any]:
     """Append-only status transition (review / paper handoff). Does **not** send orders."""
-    updated = update_execution_intent_status(signal_id, body.status, note=body.note)
+    updated = update_execution_intent_status(
+        signal_id,
+        body.status,
+        note=body.note,
+        reference_entry_price=body.reference_entry_price,
+        reference_target_price=body.reference_target_price,
+        reference_stop_price=body.reference_stop_price,
+    )
     if updated is None:
         raise HTTPException(
             status_code=404,
@@ -630,3 +663,55 @@ def get_war_room_latest() -> dict[str, Any]:
         execution_intents=latest_execution_intents(limit=20),
     )
     return payload.model_dump(mode="json")
+
+
+def _war_room_fingerprint() -> dict[str, Any]:
+    return {
+        "stream_version": get_war_room_stream_version(),
+        "intent_store_mtime": intent_store_mtime(),
+    }
+
+
+@app.get("/api/stream/war-room")
+async def stream_war_room(request: Request):
+    """SSE: push war-room payload when execution intents change (M4). Disabled unless ``TERMINAL_SSE_ENABLED=1``."""
+    if os.getenv("TERMINAL_SSE_ENABLED", "0").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="SSE disabled; set TERMINAL_SSE_ENABLED=1")
+    if not _sse_auth_ok(request):
+        raise HTTPException(status_code=403, detail="Invalid or missing stream auth")
+
+    interval = float(os.getenv("TERMINAL_SSE_POLL_SEC", "2") or "2")
+    interval = max(0.5, min(interval, 30.0))
+
+    async def event_gen():
+        last_fp: dict[str, Any] | None = None
+        while True:
+            fp = _war_room_fingerprint()
+            if fp != last_fp:
+                last_fp = fp
+                body = get_war_room_latest()
+                payload = json.dumps(body, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
+            yield ": keepalive\n\n"
+            await asyncio.sleep(interval)
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/paper/execution-tick")
+def post_paper_execution_tick(request: Request) -> dict[str, Any]:
+    """Run one paper simulation pass (M5). Disabled unless ``PAPER_TICK_HTTP_ENABLED=1``."""
+    if os.getenv("PAPER_TICK_HTTP_ENABLED", "0").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="paper tick HTTP disabled")
+    if not _paper_tick_auth_ok(request):
+        raise HTTPException(status_code=403, detail="Invalid or missing paper tick auth")
+    written = run_paper_execution_tick()
+    return {"ok": True, "written": len(written), "rows": written}

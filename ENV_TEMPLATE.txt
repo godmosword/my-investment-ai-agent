@@ -175,3 +175,9 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # WEB_PUSH_ENABLED=0   # 1=POST /api/push/subscribe 改為 200 noop（訂閱持久化仍待實作；預設 501）
 # SYMBOL_SNAPSHOT_HTTP_BASE=   # Streamlit dashboard：Symbol 快照唯讀區改打 HTTP（例 http://127.0.0.1:8000）；未設則 dashboard 以 BigQuery 直建與 GET /api/symbols/{ticker}/snapshot 相同形狀之 payload（symbol_snapshot_service.build_symbol_snapshot）
 # DASHBOARD_SYMBOL_FOCUS=BTC   # Streamlit「載入快照」輸入框預設代號（可選；見 dashboard.py）
+# EXECUTION_INTENT_STORE=.qsilicon/execution_intents.jsonl  # 執行意圖 JSONL（相對 repo 根）
+# TERMINAL_SSE_ENABLED=0       # 1=啟用 GET /api/stream/war-room（SSE；見 docs/TERMINAL_MID_TIER_ROADMAP.md M4）
+# API_STREAM_AUTH_KEY=         # 非空時 SSE 須 Header X-QS-Stream-Key 或 query stream_key
+# TERMINAL_SSE_POLL_SEC=2      # SSE 迴圈 sleep 秒數（0.5–30）
+# PAPER_TICK_HTTP_ENABLED=0    # 1=啟用 POST /api/paper/execution-tick（紙上模擬一輪；見 M5）
+# PAPER_TICK_API_KEY=          # 非空時上述 POST 須 Header X-Paper-Tick-Key

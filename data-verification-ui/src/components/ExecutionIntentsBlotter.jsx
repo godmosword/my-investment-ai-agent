@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useExecutionIntents,
   useExecutionIntentAllowedStatuses,
@@ -7,6 +8,8 @@ import {
 } from "../hooks/useApi";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
+const SSE_ENABLED = import.meta.env.VITE_SSE_ENABLED === "1";
+const SSE_KEY = import.meta.env.VITE_SSE_STREAM_KEY ?? "";
 
 function statusLabel(s) {
   const map = {
@@ -14,18 +17,56 @@ function statusLabel(s) {
     APPROVED_FOR_PAPER: "已核准紙上",
     REJECTED: "已駁回",
     SUPERSEDED: "已取代",
+    PAPER_SUBMITTED: "紙上已排程",
+    PAPER_FILLED: "紙上已成交",
+    PAPER_CLOSED: "紙上已平倉",
   };
   return map[s] ?? s;
 }
 
 export default function ExecutionIntentsBlotter() {
+  const qc = useQueryClient();
   const pollMs = getTerminalRefetchIntervalMs();
   const { data: rows = [], isLoading, error, isFetching } = useExecutionIntents(50, { livePoll: true });
   const { data: allowedPayload } = useExecutionIntentAllowedStatuses();
   const patch = usePatchExecutionIntent();
   const [notes, setNotes] = useState({});
+  /** 紙上模擬用參考價（僅在轉為「已核准紙上」時一併送出） */
+  const [refs, setRefs] = useState({});
 
-  const allowed = Array.isArray(allowedPayload?.statuses) ? allowedPayload.statuses : [];
+  const clientPatchable = Array.isArray(allowedPayload?.client_patchable)
+    ? allowedPayload.client_patchable
+    : ["PENDING_REVIEW", "APPROVED_FOR_PAPER", "REJECTED", "SUPERSEDED"];
+
+  useEffect(() => {
+    if (!SSE_ENABLED || !BASE) return undefined;
+    const q = SSE_KEY ? `?stream_key=${encodeURIComponent(SSE_KEY)}` : "";
+    const url = `${BASE}/api/stream/war-room${q}`;
+    let es;
+    try {
+      es = new EventSource(url);
+    } catch {
+      return undefined;
+    }
+    es.onmessage = () => {
+      qc.invalidateQueries({ queryKey: ["execution-intents"] });
+      qc.invalidateQueries({ queryKey: ["war-room", "latest"] });
+    };
+    es.onerror = () => {
+      /* 瀏覽器會自動重連；仍觸發一次 refetch 避免長時間空白 */
+      qc.invalidateQueries({ queryKey: ["execution-intents"] });
+    };
+    return () => {
+      es.close();
+    };
+  }, [qc]);
+
+  const setRefField = (signalId, field, value) => {
+    setRefs((prev) => ({
+      ...prev,
+      [signalId]: { ...(prev[signalId] || {}), [field]: value },
+    }));
+  };
 
   return (
     <div className="card terminal-blotter">
@@ -33,7 +74,15 @@ export default function ExecutionIntentsBlotter() {
         <div>
           <div className="card-title">執行意圖（紙上前置）</div>
           <div className="page-subtitle terminal-blotter-sub">
-            輪詢約每 <code>{Math.round(pollMs / 1000)}s</code> · 後端 <code>PATCH</code> 僅 append 狀態，<strong>不下單</strong>
+            輪詢約每 <code>{Math.round(pollMs / 1000)}s</code>
+            {SSE_ENABLED && BASE ? (
+              <span>
+                {" "}
+                · <code>SSE</code> 已啟用（<code>VITE_SSE_ENABLED=1</code>，後端需 <code>TERMINAL_SSE_ENABLED=1</code>）
+              </span>
+            ) : null}
+            {" "}
+            · 後端 <code>PATCH</code> 僅 append 狀態，<strong>不下單</strong>
             {!BASE ? (
               <span className="terminal-blotter-warn"> · 未設定 <code>VITE_API_URL</code> 時無法操作</span>
             ) : null}
@@ -62,6 +111,7 @@ export default function ExecutionIntentsBlotter() {
                 <th>方向</th>
                 <th>狀態</th>
                 <th>建立</th>
+                <th>參考價（紙上）</th>
                 <th>操作</th>
                 <th>備註</th>
               </tr>
@@ -83,9 +133,56 @@ export default function ExecutionIntentsBlotter() {
                   <td className="terminal-blotter-date">
                     {row.created_at ? new Date(row.created_at).toLocaleString("zh-TW") : "—"}
                   </td>
+                  <td className="terminal-blotter-refs">
+                    <div className="terminal-blotter-ref-grid">
+                      <label>
+                        entry
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="terminal-blotter-ref-input"
+                          placeholder="—"
+                          value={
+                            refs[row.signal_id]?.entry ??
+                            (row.reference_entry_price != null ? String(row.reference_entry_price) : "")
+                          }
+                          onChange={(e) => setRefField(row.signal_id, "entry", e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        target
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="terminal-blotter-ref-input"
+                          placeholder="—"
+                          value={
+                            refs[row.signal_id]?.target ??
+                            (row.reference_target_price != null ? String(row.reference_target_price) : "")
+                          }
+                          onChange={(e) => setRefField(row.signal_id, "target", e.target.value)}
+                        />
+                      </label>
+                      <label>
+                        stop
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="terminal-blotter-ref-input"
+                          placeholder="—"
+                          value={
+                            refs[row.signal_id]?.stop ??
+                            (row.reference_stop_price != null ? String(row.reference_stop_price) : "")
+                          }
+                          onChange={(e) => setRefField(row.signal_id, "stop", e.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <div className="terminal-blotter-ref-hint">核准紙上時一併送出，供紙上 tick 比對</div>
+                  </td>
                   <td>
                     <div className="terminal-blotter-actions">
-                      {allowed
+                      {clientPatchable
                         .filter((s) => s !== row.status)
                         .map((s) => (
                           <button
@@ -93,13 +190,26 @@ export default function ExecutionIntentsBlotter() {
                             type="button"
                             className="terminal-btn terminal-btn--small"
                             disabled={patch.isPending}
-                            onClick={() =>
+                            onClick={() => {
+                              const r = refs[row.signal_id] || {};
+                              const parseNum = (v) => {
+                                const t = (v ?? "").trim();
+                                if (!t) return null;
+                                const n = Number(t);
+                                return Number.isFinite(n) ? n : null;
+                              };
                               patch.mutate({
                                 signalId: row.signal_id,
                                 status: s,
                                 note: notes[row.signal_id] ?? "",
-                              })
-                            }
+                                reference_entry_price:
+                                  s === "APPROVED_FOR_PAPER" ? parseNum(r.entry) : undefined,
+                                reference_target_price:
+                                  s === "APPROVED_FOR_PAPER" ? parseNum(r.target) : undefined,
+                                reference_stop_price:
+                                  s === "APPROVED_FOR_PAPER" ? parseNum(r.stop) : undefined,
+                              });
+                            }}
                           >
                             → {statusLabel(s)}
                           </button>

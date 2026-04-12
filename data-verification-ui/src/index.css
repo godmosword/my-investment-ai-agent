@@ -969,6 +969,42 @@ html, body, #root {
   font-size: 10px;
 }
 
+.terminal-blotter-refs {
+  min-width: 140px;
+}
+
+.terminal-blotter-ref-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.terminal-blotter-ref-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.terminal-blotter-ref-input {
+  width: 100%;
+  max-width: 88px;
+  font-size: 10px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(18, 26, 42, 0.95);
+  color: var(--text);
+}
+
+.terminal-blotter-ref-hint {
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
 @keyframes chart-skeleton-pulse {
   from { opacity: 0.45; }
   to { opacity: 0.75; }

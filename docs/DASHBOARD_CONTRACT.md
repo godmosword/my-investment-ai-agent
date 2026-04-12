@@ -27,8 +27,10 @@
 | `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit`；回應含 **`data_provenance`**（OHLC／BQ 來源與 as_of） |
 | `GET /api/symbols/{symbol}/quote` | 輕量 **最新日線收盤** + 可選 **1D %**（僅 yfinance，無 BQ） | 失敗 **503**；伺服端快取約 **45s**；回應含 **`data_provenance.price`** |
 | `GET /api/execution-intents` | 執行意圖列表（每 `signal_id` 最新一列） | query：`limit` |
-| `GET /api/execution-intents/allowed-statuses` | 允許的意圖狀態集合 | |
-| `PATCH /api/execution-intents/{signal_id}` | 意圖狀態轉移（append-only；**不下單**） | JSON body：`status`、`note` |
+| `GET /api/execution-intents/allowed-statuses` | 意圖狀態集合 | 回傳 **`statuses`**（含紙上 `PAPER_*`）與 **`client_patchable`**（僅人審可 PATCH 子集） |
+| `PATCH /api/execution-intents/{signal_id}` | 意圖狀態轉移（append-only；**不下單**） | body：`status`、`note`、可選 **`reference_entry_price`／`reference_target_price`／`reference_stop_price`**（紙上模擬錨點） |
+| `GET /api/stream/war-room` | **SSE**：`data:` 為 `GET /api/war-room/latest` 同源 JSON | 預設 **404**；設 **`TERMINAL_SSE_ENABLED=1`** 啟用；可選 **`API_STREAM_AUTH_KEY`**（`X-QS-Stream-Key` 或 `?stream_key=`） |
+| `POST /api/paper/execution-tick` | 紙上模擬 **一輪**（`run_paper_execution_tick`） | 預設 **404**；設 **`PAPER_TICK_HTTP_ENABLED=1`**；可選 **`PAPER_TICK_API_KEY`**（`X-Paper-Tick-Key`）；CLI 見 `scripts/paper_execution_tick.py` |
 | `GET /api/reports` | 報告列表 | 分頁參數見實作 |
 | `GET /api/reports/{report_date}` | 單日報告內容 | |
 | `GET /api/trades` | 交易列表 | |
@@ -39,7 +41,8 @@
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
 Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。
 
-**PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/terminal`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。
+**PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/terminal`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。  
+可選 **`VITE_SSE_ENABLED=1`** + **`VITE_SSE_STREAM_KEY`**（與後端 `API_STREAM_AUTH_KEY` 對齊）以 **EventSource** 訂閱 `/api/stream/war-room` 並 invalidate React Query（後端須 `TERMINAL_SSE_ENABLED=1`）。
 
 ## 變更流程
 

@@ -58,6 +58,20 @@
 
 - 驗證：`python3 -m pytest test_api_symbol_quote.py`；`cd data-verification-ui && npm run build`。
 
+### API（Terminal M4 / M5）
+
+- **[`api.py`](api.py)**：`GET /api/stream/war-room`（SSE，`TERMINAL_SSE_ENABLED=1`；可選 `API_STREAM_AUTH_KEY`、`TERMINAL_SSE_POLL_SEC`）；`POST /api/paper/execution-tick`（`PAPER_TICK_HTTP_ENABLED=1`、可選 `PAPER_TICK_API_KEY`）。
+- **[`war_room_stream.py`](war_room_stream.py)**：`bump_war_room_stream_version`／`get_war_room_stream_version`（intent 寫入時 bump）。
+- **[`execution_intents.py`](execution_intents.py)**：`PAPER_*` 狀態、`CLIENT_PATCHABLE_STATUSES`、PATCH body **`reference_*`**、`append_execution_intent_row`、`intent_store_mtime`。
+- **[`paper_execution.py`](paper_execution.py)**、`[scripts/paper_execution_tick.py](scripts/paper_execution_tick.py)`：紙上模擬 tick（`fetch_symbol_quote` vs `reference_*`）。
+- **測試**：[test_api_stream_war_room.py](test_api_stream_war_room.py)、[test_war_room_stream.py](test_war_room_stream.py)、[test_paper_execution.py](test_paper_execution.py)；`test_execution_intents_api.py` 擴充。
+- **PWA**：[ExecutionIntentsBlotter.jsx](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)（`client_patchable` 按鈕、參考價、可選 `VITE_SSE_ENABLED`）；[useApi.js](data-verification-ui/src/hooks/useApi.js) PATCH body 擴充。
+- **Docs / env**：[ENV_TEMPLATE.txt](ENV_TEMPLATE.txt)、[docs/DASHBOARD_CONTRACT.md](docs/DASHBOARD_CONTRACT.md)、[docs/TERMINAL_MID_TIER_ROADMAP.md](docs/TERMINAL_MID_TIER_ROADMAP.md)、[README.md](README.md)、[TODOS.md](TODOS.md)。
+
+### Tests（M4/M5）
+
+- 驗證：`python3 -m pytest test_api_stream_war_room.py test_war_room_stream.py test_paper_execution.py test_execution_intents_api.py`；`cd data-verification-ui && npm run build`。
+
 ## 2026-04-10
 
 ### Pipeline

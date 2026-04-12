@@ -18,7 +18,21 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
+# All statuses that may appear in JSONL (worker + client).
 ALLOWED_INTENT_STATUSES = frozenset(
+    {
+        "PENDING_REVIEW",
+        "APPROVED_FOR_PAPER",
+        "REJECTED",
+        "SUPERSEDED",
+        "PAPER_SUBMITTED",
+        "PAPER_FILLED",
+        "PAPER_CLOSED",
+    }
+)
+
+# Client PATCH only — paper lifecycle rows are written by ``paper_execution`` worker.
+CLIENT_PATCHABLE_STATUSES = frozenset(
     {
         "PENDING_REVIEW",
         "APPROVED_FOR_PAPER",
@@ -43,11 +57,25 @@ class ExecutionIntent(BaseModel):
         description="UTC ISO when status last changed (append-only log).",
     )
     status_note: str = Field(default="", description="Optional human note on status transition.")
+    reference_entry_price: float | None = Field(default=None, description="Optional anchor for paper sim (M5).")
+    reference_target_price: float | None = Field(default=None)
+    reference_stop_price: float | None = Field(default=None)
+    paper_fill_price: float | None = Field(default=None, description="Simulated fill (M5 worker).")
+    paper_exit_price: float | None = Field(default=None, description="Simulated exit at stop/target (M5).")
 
 
 def _store_path() -> Path:
     raw = (os.getenv("EXECUTION_INTENT_STORE") or ".qsilicon/execution_intents.jsonl").strip()
     return Path(__file__).resolve().parent / raw
+
+
+def intent_store_mtime() -> float:
+    """mtime for SSE fingerprint (local JSONL)."""
+    p = _store_path()
+    try:
+        return float(p.stat().st_mtime)
+    except OSError:
+        return 0.0
 
 
 def _utc_now_iso() -> str:
@@ -95,6 +123,12 @@ def append_execution_intents(
         with open(path, "a", encoding="utf-8") as fh:
             for row in rows:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        try:
+            from war_room_stream import bump_war_room_stream_version
+
+            bump_war_room_stream_version()
+        except Exception:
+            pass
     except OSError as exc:
         logger.warning("execution intent append failed: %s", exc)
     return rows
@@ -140,6 +174,9 @@ def update_execution_intent_status(
     new_status: str,
     *,
     note: str = "",
+    reference_entry_price: float | None = None,
+    reference_target_price: float | None = None,
+    reference_stop_price: float | None = None,
 ) -> dict[str, Any] | None:
     """Append a status transition row for an existing intent. Does not place orders.
 
@@ -147,8 +184,8 @@ def update_execution_intent_status(
     """
     sid = signal_id.strip()
     status_u = new_status.strip().upper()
-    if status_u not in ALLOWED_INTENT_STATUSES:
-        logger.warning("execution intent status rejected: unknown status %s", new_status)
+    if status_u not in CLIENT_PATCHABLE_STATUSES:
+        logger.warning("execution intent status rejected: not client-patchable %s", new_status)
         return None
 
     path = _store_path()
@@ -175,6 +212,26 @@ def update_execution_intent_status(
     if prev_status == status_u:
         return prev
 
+    def _fprev(key: str, override: float | None) -> float | None:
+        if override is not None:
+            return override
+        v = prev.get(key)
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    def _fprev_only(key: str) -> float | None:
+        v = prev.get(key)
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
     now = _utc_now_iso()
     try:
         merged = ExecutionIntent(
@@ -189,6 +246,11 @@ def update_execution_intent_status(
             status=status_u,
             status_updated_at=now,
             status_note=(note or "").strip()[:2000],
+            reference_entry_price=_fprev("reference_entry_price", reference_entry_price),
+            reference_target_price=_fprev("reference_target_price", reference_target_price),
+            reference_stop_price=_fprev("reference_stop_price", reference_stop_price),
+            paper_fill_price=_fprev_only("paper_fill_price"),
+            paper_exit_price=_fprev_only("paper_exit_price"),
         ).model_dump(mode="json")
     except Exception as exc:  # pragma: no cover - pydantic guards bad legacy rows
         logger.warning("execution intent merge failed: %s", exc)
@@ -201,7 +263,37 @@ def update_execution_intent_status(
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(merged, ensure_ascii=False) + "\n")
+        try:
+            from war_room_stream import bump_war_room_stream_version
+
+            bump_war_room_stream_version()
+        except Exception:
+            pass
     except OSError as exc:
         logger.warning("execution intent status append failed: %s", exc)
         return None
     return merged
+
+
+def append_execution_intent_row(row: dict[str, Any]) -> bool:
+    """Validate and append one row (worker / paper); bumps SSE version."""
+    try:
+        validated = ExecutionIntent(**row).model_dump(mode="json")
+    except Exception as exc:
+        logger.warning("append_execution_intent_row validation failed: %s", exc)
+        return False
+    path = _store_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(validated, ensure_ascii=False) + "\n")
+        try:
+            from war_room_stream import bump_war_room_stream_version
+
+            bump_war_room_stream_version()
+        except Exception:
+            pass
+        return True
+    except OSError as exc:
+        logger.warning("append_execution_intent_row failed: %s", exc)
+        return False

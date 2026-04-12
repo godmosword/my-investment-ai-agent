@@ -14,6 +14,8 @@ def test_execution_intent_allowed_statuses():
     body = r.json()
     assert "APPROVED_FOR_PAPER" in body["statuses"]
     assert "PENDING_REVIEW" in body["statuses"]
+    assert "PAPER_FILLED" in body["statuses"]
+    assert "PAPER_FILLED" not in body["client_patchable"]
 
 
 def test_execution_intents_list_dedupes_by_signal_id(tmp_path, monkeypatch):
@@ -100,6 +102,41 @@ def test_patch_execution_intent_status(tmp_path, monkeypatch):
     assert last["status_updated_at"]
 
 
+def test_patch_execution_intent_with_reference_prices(tmp_path, monkeypatch):
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "crypto-sol-long-1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "CRYPTO",
+                "asset": "SOL",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "PENDING_REVIEW",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    client = TestClient(app)
+    r = client.patch(
+        "/api/execution-intents/crypto-sol-long-1",
+        json={
+            "status": "APPROVED_FOR_PAPER",
+            "note": "with refs",
+            "reference_entry_price": 150.0,
+            "reference_target_price": 180.0,
+            "reference_stop_price": 130.0,
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["reference_entry_price"] == 150.0
+    assert r.json()["reference_target_price"] == 180.0
+    assert r.json()["reference_stop_price"] == 130.0
+
+
 def test_patch_execution_intent_unknown_returns_404(tmp_path, monkeypatch):
     store = tmp_path / "empty.jsonl"
     store.write_text("", encoding="utf-8")
@@ -132,4 +169,27 @@ def test_patch_execution_intent_bad_status_returns_404(tmp_path, monkeypatch):
     monkeypatch.setattr("execution_intents._store_path", lambda: store)
     client = TestClient(app)
     r = client.patch("/api/execution-intents/x", json={"status": "FILLED"})
+    assert r.status_code == 404
+
+
+def test_patch_execution_intent_paper_status_not_allowed(tmp_path, monkeypatch):
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "p1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "CRYPTO",
+                "asset": "BTC",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "PENDING_REVIEW",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    client = TestClient(app)
+    r = client.patch("/api/execution-intents/p1", json={"status": "PAPER_FILLED"})
     assert r.status_code == 404

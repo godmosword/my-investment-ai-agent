@@ -103,6 +103,8 @@
 
 **目標**：War Room／關注 symbol 在 **後端事件**（新 intent 行、新 gate artifact、可選 pipeline hook）發生時，**秒級**推送至瀏覽器，減少輪詢空轉。
 
+**已落地**：[`api.py`](../api.py) `GET /api/stream/war-room`（`TERMINAL_SSE_ENABLED=1`）；[`war_room_stream.py`](../war_room_stream.py) 版本 bump（intent append／PATCH／worker 寫入時）；PWA [`ExecutionIntentsBlotter.jsx`](../data-verification-ui/src/components/ExecutionIntentsBlotter.jsx) 可選 `VITE_SSE_ENABLED=1`。Starlette `TestClient` 對長連線 SSE 易阻塞，**SSE 成功路徑**以本機 `curl -N`／瀏覽器驗證（pytest 僅測 404／403）。
+
 ### 方案 A（建議先）：**Server-Sent Events (SSE)**
 
 - `GET /api/stream/war-room`：`StreamingResponse`，`media_type="text/event-stream"`，週期推送 `war-room/latest` JSON 或 **ETag／mtime** 變更後才推全文。  
@@ -134,6 +136,8 @@
 ## 3e) M5 — 紙上執行層（仍不下真單）
 
 **目標**：把 `APPROVED_FOR_PAPER` 與 **模擬成交／模擬部位** 串成可審計閉環；與真 OMS 分界清楚。
+
+**已落地**：[`paper_execution.py`](../paper_execution.py) `run_paper_execution_tick`；[`scripts/paper_execution_tick.py`](../scripts/paper_execution_tick.py)；`POST /api/paper/execution-tick`（`PAPER_TICK_HTTP_ENABLED=1`）；意圖欄位 **`reference_*`**／**`PAPER_FILLED`／`PAPER_CLOSED`**；[`test_paper_execution.py`](../test_paper_execution.py)。
 
 ### 狀態擴充（需產品拍板）
 

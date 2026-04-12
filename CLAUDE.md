@@ -55,7 +55,9 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`bigquery_writer.py`](bigquery_writer.py) | Metrics, LLM run log, exclusion context, **`write_gate_failure_log`** |
 | [`tracker.py`](tracker.py) | Positions / previous recommendations |
 | [`scratchpad.py`](scratchpad.py) | JSONL trace, tool caps, editor/judge append |
-| [`api.py`](api.py) | FastAPI for PWA / war room data |
+| [`api.py`](api.py) | FastAPI for PWA / war room data（含可選 SSE `/api/stream/war-room`、紙上 `POST /api/paper/execution-tick`） |
+| [`war_room_stream.py`](war_room_stream.py) | SSE bump version（intent 寫入） |
+| [`paper_execution.py`](paper_execution.py) | 紙上模擬 tick（M5；無真下單） |
 | [`api_schema.py`](api_schema.py) | JSON response guards for tools |
 | [`dashboard.py`](dashboard.py) | Streamlit war room |
 | [`crew_output_parse.py`](crew_output_parse.py) | Crew `kickoff()` output → Pydantic |
