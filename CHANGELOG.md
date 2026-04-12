@@ -29,6 +29,7 @@
 ### Docs
 - **維護契約**：本檔檔首增訂 **CHANGELOG ↔ [`TODOS.md`](TODOS.md) 雙向對齊** 規則；[`AGENTS.md`](AGENTS.md) Handoff、[`CLAUDE.md`](CLAUDE.md) 導覽一句補強。
 - **[`TODOS.md`](TODOS.md)**：與 **2026-04-10** `### Pipeline` 對齊之「已交付摘要」兩列（日報組裝衛生、`crew`／FD 規則）及修訂紀錄／同步狀態 — 見該檔 **2026-04-12** 修訂條；**新增** [進度分析表（華爾街級日報 · 財報週期 · Bloomberg 對齊）](TODOS.md#progress-vs-wall-st-bloomberg)（維度 1–5 粗評、Phase 0 驗收錨點、建議內部 KPI）；檔首導覽補錨點連結；下一批隊列增 **Terminal M3–M5**，M2 鏈結至 roadmap 錨點。
+- **[`TODOS.md`](TODOS.md)**（進度表補登）：依 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4 做 **Phase 0 十五條內部勾選**，暫列 **12/15** 通過並註記例外項；「Terminal 式產品面」粗評回寫為 **3–4**／5（對齊 M1–M5 已交付敘述）。
 - **[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)**：擴充 **M2–M5** 可執行規劃 — 各階 **DoD**、建議修改檔案、API 形狀、測試與依賴圖（§3b–§3e、§6–§7）；環境變數表補 **`VITE_TERMINAL_POLL_MS`**、M4/M5 預留項。
 - **[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)**：`snapshot` 之 **`data_provenance`**；`execution-intents` 三路由契約表；PWA **`/terminal`** 輪詢與 **`VITE_TERMINAL_POLL_MS`**。
 - **[`README.md`](README.md)**：`/terminal`、`VITE_API_URL`、**`VITE_TERMINAL_POLL_MS`**（`/terminal` 輪詢）與 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 索引；「War Room PWA 與 API」小節補前後端連線說明。
