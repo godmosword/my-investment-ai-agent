@@ -3,6 +3,13 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)；改版時請同步更新該檔對應項目狀態。
 
+## 2026-04-10
+
+### Pipeline
+- [`report_render.py`](report_render.py)：組裝衛生——儀表板 BTC 現價 **>50k** 且三情境列同時含 **BTC／比特幣** 與 **突破** 時，將誤植 **`7.6k`→`76k`**；儀表板分區注入前 **剔除** label 等於 IB 區塊標題且 **value 空白** 之佔位列，並 **去重連續相同** `is_section_header`。
+- [`crew.py`](crew.py)：加密新聞 `investment_takeaway` 禁止無標題／摘要／工具依據之 **垃圾債／HY／spread** 等信用市場跳喻；**FinancialDatasets** 營收相關 MetricLine `label` 須含 **annual／quarterly／FY／年份／季報** 等期間字樣。
+- [`tools_legacy.py`](tools_legacy.py)：`financial_datasets_tool` 摘要尾註提醒營收 label 帶 **fiscal／口徑** 以利核對異常大數。
+
 ## 2026-04-23
 
 ### Docs

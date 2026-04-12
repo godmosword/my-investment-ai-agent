@@ -621,6 +621,50 @@ def _normalize_scenario_probability_notes(raw: str) -> str:
     return "\n".join(fixed)
 
 
+_SCENARIO_BTC_TYPO_K_RE = re.compile(r"7\.6\s*[KkＫ]")
+
+
+def _btc_dashboard_spot_anchor_usd(rows: list) -> float | None:
+    """Best-effort BTC spot (USD) from dashboard rows for assembly-time typo hygiene."""
+    best: float | None = None
+    for r in rows or []:
+        if getattr(r, "is_section_header", False):
+            continue
+        lab_u = (getattr(r, "label", None) or "").upper()
+        val = getattr(r, "value", None) or ""
+        blob = f"{getattr(r, 'label', '')} {val}"
+        if "BTC" not in lab_u and "比特幣" not in (getattr(r, "label", None) or ""):
+            continue
+        if any(k in lab_u for k in ("RSI", "MA", "MVRV", "NVT", "DOM", "FEAR", "GREED", "恐懼", "貪婪")):
+            continue
+        v = _parse_first_usd_number(val) or _parse_first_usd_number(blob)
+        if v is None or not (10_000 < v < 500_000):
+            continue
+        if best is None or v > best:
+            best = v
+    return best
+
+
+def _fix_scenario_btc_breakout_typo_k(notes: str, btc_anchor_usd: float | None) -> str:
+    """When BTC spot >50k, fix mistaken '7.6k' for ~76k in scenario lines mentioning BTC breakout."""
+    if not (notes or "").strip():
+        return notes
+    if btc_anchor_usd is None or btc_anchor_usd <= 50_000:
+        return notes
+    out: list[str] = []
+    for ln in (notes or "").replace("\r\n", "\n").split("\n"):
+        t = ln.strip()
+        if not t:
+            out.append("")
+            continue
+        up = t.upper()
+        if ("BTC" in up or "比特幣" in t) and "突破" in t and _SCENARIO_BTC_TYPO_K_RE.search(t):
+            out.append(_SCENARIO_BTC_TYPO_K_RE.sub("76k", t, count=1))
+        else:
+            out.append(t)
+    return "\n".join(out).rstrip()
+
+
 _CONTANGO_RE = re.compile(r"Contango|正價差|遠月\s*溢價", re.IGNORECASE)
 _BACKWARDATION_RE = re.compile(r"Backwardation|倒價差|遠月\s*折價", re.IGNORECASE)
 
@@ -1006,6 +1050,8 @@ def _postprocess_brief_data_hygiene(crypto: CryptoSection, ai: AISection) -> tup
         crypto = crypto.model_copy(update={"exec_summary": ex})
 
     scen = _normalize_scenario_probability_notes(crypto.scenario_probability_notes or "")
+    btc_anchor = _btc_dashboard_spot_anchor_usd(list(crypto.dashboard or []))
+    scen = _fix_scenario_btc_breakout_typo_k(scen, btc_anchor)
     if scen != (crypto.scenario_probability_notes or "").strip():
         crypto = crypto.model_copy(update={"scenario_probability_notes": scen})
 
@@ -1133,6 +1179,34 @@ _SECTION_TITLES: dict[str, str] = {
     "tech": "價格與技術結構",
     "other": "其他讀數",
 }
+_SECTION_TITLE_LABELS: frozenset[str] = frozenset(_SECTION_TITLES.values())
+
+
+def _strip_llm_dashboard_section_placeholder_rows(rows: list[MetricLine]) -> list[MetricLine]:
+    """Remove LLM echo rows whose label matches an IB section title but value is empty (not real headers)."""
+    out: list[MetricLine] = []
+    for row in rows or []:
+        lab = (row.label or "").strip()
+        val = (row.value or "").replace("\u00a0", " ").strip()
+        if lab in _SECTION_TITLE_LABELS and not getattr(row, "is_section_header", False) and not val:
+            continue
+        out.append(row)
+    return out
+
+
+def _dedupe_consecutive_section_headers(rows: list[MetricLine]) -> list[MetricLine]:
+    """Drop back-to-back identical section header rows (injection edge cases)."""
+    out: list[MetricLine] = []
+    for row in rows or []:
+        if (
+            out
+            and getattr(out[-1], "is_section_header", False)
+            and getattr(row, "is_section_header", False)
+            and (out[-1].label or "").strip() == (row.label or "").strip()
+        ):
+            continue
+        out.append(row)
+    return out
 
 
 def _dashboard_row_bucket(row: MetricLine) -> str:
@@ -1156,6 +1230,7 @@ def _dashboard_row_bucket(row: MetricLine) -> str:
 
 def _inject_dashboard_section_groups(rows: list[MetricLine]) -> list[MetricLine]:
     """Insert MetricLine section headers (is_section_header) for IB-style grouping."""
+    rows = _strip_llm_dashboard_section_placeholder_rows(rows)
     out: list[MetricLine] = []
     seen: set[str] = set()
     for row in rows:
@@ -1174,7 +1249,7 @@ def _inject_dashboard_section_groups(rows: list[MetricLine]) -> list[MetricLine]
                 )
             )
         out.append(row)
-    return out
+    return _dedupe_consecutive_section_headers(out)
 
 
 def _parse_risk_budget_cap_percent(summary: str) -> str | None:

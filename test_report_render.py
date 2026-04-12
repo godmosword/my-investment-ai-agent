@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from report_html_gates import _REPEAT_PICK_REASON_RE
-from report_render import assemble_daily_brief_report, render_telegram_daily_brief
+from report_render import assemble_daily_brief_report, instrument_sections_for_ib_layout, render_telegram_daily_brief
 from report_html_gates import validate_report
 from schemas import (
     validate_structured_report,
@@ -1097,6 +1097,136 @@ def test_assemble_strips_scenario_probability_leading_bullets():
     lines = [ln for ln in report.crypto.scenario_probability_notes.split("\n") if ln.strip()]
     assert len(lines) == 3
     assert not lines[0].lstrip().startswith("·")
+
+
+def test_assemble_fixes_scenario_btc_76k_typo_when_spot_above_50k():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[
+            MetricLine(label="BTC 現價", value="$73,000.62"),
+            MetricLine(label="ETH 現價", value="2000"),
+        ],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+        scenario_probability_notes=(
+            "· 樂觀：BTC 若突破 7.6k 阻力結構（機率 30%）\n"
+            "· 基準：y（機率 45%）\n"
+            "· 悲觀：z（機率 25%）"
+        ),
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    scen = report.crypto.scenario_probability_notes
+    assert "76k" in scen
+    assert "7.6k" not in scen.lower()
+
+
+def test_assemble_keeps_scenario_7_6k_when_btc_spot_not_above_50k():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[
+            MetricLine(label="BTC 現價", value="$42,000"),
+        ],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+        scenario_probability_notes=(
+            "· 樂觀：BTC 若突破 7.6k 阻力（機率 30%）\n"
+            "· 基準：y（機率 45%）\n"
+            "· 悲觀：z（機率 25%）"
+        ),
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="x", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert "7.6k" in report.crypto.scenario_probability_notes.lower()
+
+
+def test_instrument_sections_strip_placeholder_section_rows_and_dedup_headers():
+    crypto = CryptoSection(
+        report_title_date="2026-04-09",
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[
+            MetricLine(label="價格與技術結構", value="   ", is_section_header=False),
+            MetricLine(label="價格與技術結構", value=" ", is_section_header=True),
+            MetricLine(label="價格與技術結構", value=" ", is_section_header=True),
+            MetricLine(label="BTC 現價", value="$70,000"),
+        ],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="p" * 50,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="NVDA", value="1")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="p" * 50,
+        signal_conflict_summary="a｜b",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    cr, _ai2 = instrument_sections_for_ib_layout(crypto, ai)
+    assert not any(
+        (r.label or "").strip() == "價格與技術結構"
+        and not getattr(r, "is_section_header", False)
+        and not (r.value or "").strip()
+        for r in cr.dashboard
+    )
+    for i in range(len(cr.dashboard) - 1):
+        a, b = cr.dashboard[i], cr.dashboard[i + 1]
+        if getattr(a, "is_section_header", False) and getattr(b, "is_section_header", False):
+            assert (a.label or "").strip() != (b.label or "").strip()
 
 
 def test_assemble_syncs_invalidation_when_macro_contango_and_backwardation():

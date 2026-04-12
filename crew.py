@@ -416,7 +416,7 @@ _TOOL_TRUTH_RULE = dedent(f"""\
     - **嚴禁**在任何可見欄位貼上工具內部字樣 **`[DATA_MISSING:...]`**（會觸發 Gate「資料缺失欄位」）；請改寫為自然語句或以 value=`N/A` 表示，並簡述原因（≤30 字）。
     - CoinGlass／ETF／爆倉／OI：若工具為 `[DATA_MISSING:coinglass_*]` 或含 401／Upgrade plan，僅能表述為「第三方衍生品數據源未回傳或訂閱方案不含該端點」；嚴禁寫成「資料庫 API 連線異常」「內部 API 故障」等未經證實說法。
     - 若儀表板已出現 Binance 備援、資金費率或多空比等數值，不得稱「籌碼面全缺失」；應寫「CoinGlass 不可用，已採備援／近似指標觀察短線情緒」。
-    - **美股基本面（精簡）**：營收、淨利、現金流等敘述必須來自 `financial_datasets_tool` 回傳。儀表板 **僅要求 anchor（core）**：{_CREW_FD_CORE_BACKTICK} MetricLine，label 皆含 **`FinancialDatasets`** 與該代號，優先 **營收**、**營收同比%**（次選 **自由現金流**；缺欄則 value=`N/A` 並 ≤20 字原因）。**extended watchlist 其餘檔位**：每檔 **至多三行**（同上三指標擇優），避免儀表板過長；禁止整檔濃縮成單行卻在正文大段複述未列示之財務數字。
+    - **美股基本面（精簡）**：營收、淨利、現金流等敘述必須來自 `financial_datasets_tool` 回傳。儀表板 **僅要求 anchor（core）**：{_CREW_FD_CORE_BACKTICK} MetricLine，label 皆含 **`FinancialDatasets`** 與該代號，優先 **營收**、**營收同比%**（次選 **自由現金流**；缺欄則 value=`N/A` 並 ≤20 字原因）。**營收／同比／損益相關列**：`label` **必須**含期間口徑字樣之一（如 `annual`、`quarterly`、`FY`、西元四位年份、`fiscal`、或中文「季報／年報／半年」），避免單一 `$xxxB` 被誤讀為 TAM。**extended watchlist 其餘檔位**：每檔 **至多三行**（同上三指標擇優），避免儀表板過長；禁止整檔濃縮成單行卻在正文大段複述未列示之財務數字。
     - **AI 族群市場（可交易讀數）**：僅能複述 `ai_sector_market_tool` 回傳之 **{_CREW_YF_ENUM}** 各標的收盤與 1D／5D 報酬；每標的一行 MetricLine，**label 須含 ticker 與「yfinance」** 字樣；禁止發明股價或報酬。
     - AI 儀表板（HuggingFace／OpenRouter／RSS）：**敘事參考、非股價訊號**；禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；**至多兩行**；僅能複述 `ai_momentum_tool` 回傳中 **排序最前之一至二則** 模型行或 RSS 備援標題（勿列 Top5）；缺資料則單行 value=`N/A`（≤30 字原因）—不得捏造數字。
     - **預測市場**：`prediction_markets_tool` 提供 Polymarket 熱門二元市場之 **Yes 隱含機率與成交量級**；`prediction_market_highlight_lines` **建議留空**（管線組裝時自動注入）。若自填，須與工具回傳逐字一致；**禁止**臆造機率或平台。""")
@@ -428,6 +428,7 @@ _NEWS_FMT = dedent("""\
     - summary：1 句核心事實（≤40 字，禁止主觀評論）。
     - investment_takeaway：1~2 句（≤90 字）。**每一則**須含至少一個阿拉伯數字，且該數字須能對到**同一大段（加密或 AI）區塊①儀表板**已輸出之讀數（例：加密段寫「BTC 日線 RSI 38.6」時，儀表板須已有對應 RSI 讀數；可寫與儀表一致的小數）。**禁止**在儀表板未出現該列時寫入精確報價或比率（如 SOL 現價、BTC Dominance 百分比、未列標的之 OI）；缺欄則改寫質性句或「見上方儀表板」並改引用儀表既有指標。
     - **加密新聞（index 1–3）**：若引用 **BTC MA20／MA50 價位**，須與區塊① **`BTC MA20（日線）`／`BTC MA50（日線）`** 之 value 一致（管線可由 yfinance 注入；若該列 value 為 N/A 則不得寫精確 MA 價）。
+    - **信用市場跳喻（加密 1–3）**：`investment_takeaway` **禁止**以未出現在該則 **`title`／`summary`／任一相關工具回傳** 中的信用市場專詞作為主論（含 **垃圾債**、**HY**、高收益債、**利差（spread）** 等）；宏觀未提供該讀數時，改寫為區塊①已有之情緒／集中度或「高風險投機資金收斂」等質性句。
     - **〔新聞 1–3〕SOL／ETH／BNB 美元現價**：若 `investment_takeaway` 寫具體幣價，加密區塊① **須**有對應 `<code>` 指標列（label 點名該幣）；無列則勿寫價，改質性句（對齊 STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE）。
     - **AI 產業新聞（index 4–6）**：**三則須為 AI／雲端／半導體供應鏈或模型基建之獨立事件**；**禁止**以加密資產盤面、VIX 期限結構或純 BTC 技術面作為任一則之主標題或主摘要（跨市場傳導僅可於 `internal_reasoning` 一句帶過，**不得**作為 `investment_takeaway` 主數字錨點）。`investment_takeaway` 的**主數字錨點**必須來自 **AI 區塊①**（優先 **yfinance 族群** 之收盤或 1D／5D%；次選 FinancialDatasets 營收／同比%／FCF；再次 HuggingFace 下載／按讚）。**禁止**以 **BTC／ETH／SOL 現價、BTC RSI、VIX、DXY** 等精確數字作為主論據（該類讀數屬加密段或「宏觀連結」）；**SPY 若已列於 AI 區塊① yfinance 列**可作為主錨點之一。**禁止**以未出現在 AI 區塊①的 SPY 數字當主論據。
     - **validate_report「投資解讀量化」**：渲染為 `<i>投資解讀</i>：…`；**同一段落內**須有至少一個數字錨點（可為負數費率如 -0.0008%、多空比、Put/Call、金額）；僅「見儀表板」而無任何數字會觸發 Gate。

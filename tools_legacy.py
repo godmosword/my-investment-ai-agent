@@ -3328,7 +3328,7 @@ def _fd_summarize_ticker(sym: str, period: str) -> list[str]:
         )
     lines.append(
         f"  └ <i>儀表板：代號 <code>{sym}</code> 至少 <b>三行</b> MetricLine，label 皆含 <code>FinancialDatasets</code> 與 <code>{sym}</code>，"
-        f"建議分別對應營收、營收同比%、自由現金流（無則 N/A；勿捏造）</i>"
+        f"建議分別對應營收、營收同比%、自由現金流（無則 N/A；勿捏造）；營收相關 label 請帶上 fiscal_period／annual|quarterly 等口徑字樣，若金額與常識落差極大請註明 API 原文期間以利核對。</i>"
     )
     return lines
 
