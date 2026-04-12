@@ -45,6 +45,8 @@
 
 **目標**：讓操作者在 **不開後台** 的情況下，完成「看來源 → 看意圖 → 改狀態」，且畫面以可預期節奏刷新（中段「感覺即時」）。
 
+**已落地（repo）**：[`data-verification-ui/src/hooks/useApi.js`](../data-verification-ui/src/hooks/useApi.js)（`getTerminalRefetchIntervalMs`、`useSymbolSnapshot`/`useExecutionIntents`/`useWarRoomLatest` 之 `livePoll`、`usePatchExecutionIntent`）、[`TerminalSymbolCard.jsx`](../data-verification-ui/src/components/TerminalSymbolCard.jsx)（`data_provenance` 摺疊）、[`ExecutionIntentsBlotter.jsx`](../data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)、[`Terminal.jsx`](../data-verification-ui/src/pages/Terminal.jsx) 掛載意圖表。
+
 ### 驗收（DoD）
 
 1. **Symbol 卡**：若 API 回傳 `data_provenance`，以可摺疊區塊顯示 **OHLC／daily_metrics／recommendations** 的 `source`、`as_of`、`underlying_symbol`（若有）、`table_id`（若有）；mock 與實盤視覺上可辨（沿用既有 demo 提示 pattern 即可）。

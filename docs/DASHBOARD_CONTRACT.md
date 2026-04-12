@@ -38,6 +38,8 @@
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
 Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。
 
+**PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/terminal`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。
+
 ## 變更流程
 
 1. 修改 `dashboard.py` / `api.py` 時，同步更新本檔與（若對外）OpenAPI。  

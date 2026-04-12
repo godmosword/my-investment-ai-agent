@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import TerminalSymbolCard from "../components/TerminalSymbolCard";
+import ExecutionIntentsBlotter from "../components/ExecutionIntentsBlotter";
 import SymbolFocusBar from "../components/SymbolFocusBar";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 
@@ -202,6 +203,8 @@ export default function Terminal() {
       </div>
 
       <SymbolFocusBar compact />
+
+      <ExecutionIntentsBlotter />
 
       <div className="terminal-workspace-tabs" role="tablist" aria-label="工作區分組">
         {workspace.groups.map((g) => (

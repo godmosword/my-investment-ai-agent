@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSymbolSnapshot } from "../hooks/useApi";
 import SymbolCandleChart from "./SymbolCandleChart";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
@@ -7,6 +8,74 @@ function numberOrDash(v, digits = 2) {
   return Number(v).toFixed(digits);
 }
 
+function formatAsOf(v) {
+  if (v == null || v === "") return "N/A";
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString("zh-TW");
+}
+
+function DataProvenanceBlock({ provenance }) {
+  const [open, setOpen] = useState(false);
+  if (!provenance || typeof provenance !== "object") return null;
+  const ohlc = provenance.ohlc || {};
+  const dm = provenance.daily_metrics || {};
+  const rec = provenance.recommendations || {};
+  return (
+    <div className="terminal-provenance">
+      <button type="button" className="terminal-provenance-toggle" onClick={() => setOpen((o) => !o)}>
+        {open ? "▼" : "▶"} 資料溯源（來源 / as-of）
+      </button>
+      {open ? (
+        <div className="terminal-provenance-body">
+          <div className="terminal-provenance-row">
+            <strong>OHLC</strong>
+            <span>
+              {ohlc.source ?? "—"} · bar {formatAsOf(ohlc.as_of)}
+              {ohlc.underlying_symbol ? (
+                <>
+                  {" "}
+                  · yf: <code>{ohlc.underlying_symbol}</code>
+                </>
+              ) : null}
+              {ohlc.interval ? (
+                <>
+                  {" "}
+                  · <code>{ohlc.interval}</code>
+                </>
+              ) : null}
+            </span>
+          </div>
+          <div className="terminal-provenance-row">
+            <strong>日報指標</strong>
+            <span>
+              {dm.source ?? "—"} · {formatAsOf(dm.as_of)}
+              {dm.table_id ? (
+                <>
+                  {" "}
+                  · <code className="terminal-provenance-code">{dm.table_id}</code>
+                </>
+              ) : null}
+            </span>
+          </div>
+          <div className="terminal-provenance-row">
+            <strong>建議列</strong>
+            <span>
+              {rec.source ?? "—"} · {formatAsOf(rec.as_of)}
+              {rec.query_window_days != null ? <> · 視窗 {rec.query_window_days} 日</> : null}
+              {rec.table_id ? (
+                <>
+                  {" "}
+                  · <code className="terminal-provenance-code">{rec.table_id}</code>
+                </>
+              ) : null}
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function TerminalSymbolCard({
   symbol,
   onRemove,
@@ -14,7 +83,7 @@ export default function TerminalSymbolCard({
   onMoveDown,
   dragHandleProps,
 }) {
-  const { data, isLoading, error } = useSymbolSnapshot(symbol, 30, 12);
+  const { data, isLoading, error, isFetching } = useSymbolSnapshot(symbol, 30, 12, { livePoll: true });
   const { symbol: focusSymbol, setSymbol: setGlobalFocus } = useSymbolFocus();
   const isFocused = focusSymbol === symbol.toUpperCase();
 
@@ -58,10 +127,12 @@ export default function TerminalSymbolCard({
 
       {!isLoading && !error && data && (
         <>
-          <div className="page-subtitle" style={{ marginBottom: 8 }}>
+          <div className="page-subtitle terminal-card-asof" style={{ marginBottom: 8 }}>
             as-of: {data.as_of ? new Date(data.as_of).toLocaleString("zh-TW") : "N/A"} · source:{" "}
             {data.source}
+            {isFetching ? <span className="terminal-card-poll"> · 輪詢更新中</span> : null}
           </div>
+          <DataProvenanceBlock provenance={data.data_provenance} />
           <div className="metrics-grid">
             <div className="metric-card">
               <div className="metric-label">Risk / 5</div>
