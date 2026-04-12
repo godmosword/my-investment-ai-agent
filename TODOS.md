@@ -1,8 +1,35 @@
 # Q-Silicon — 工程與產品待辦（導覽）
 
-**變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)
+**變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)
 
 **同步狀態（2026-04-12）**：本檔於 **2026-04-23 改寫**；**2026-04-12** 於「已交付摘要」補登 [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)（日報組裝衛生、`crew`／FD 規則）。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
+
+---
+
+<a id="progress-vs-wall-st-bloomberg"></a>
+
+## 進度分析表（華爾街級日報 · 財報週期 · Bloomberg 對齊）
+
+**目的**：把「離終局還差多少」收斂成**可複查指標**（粗分 1–5，5＝接近本 repo 定義之終局形態，非字面複製 Terminal UI）。**對齊定義**見 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（工作流、資料可審計、多資產監控；不含 BBG 專有欄位／聊天網）。
+
+### 維度粗評（2026-04-12 盤點）
+
+| 維度 | 粗評 (1–5) | 說明（現況／缺口） |
+|------|------------|-------------------|
+| 日報敘事與機構區塊 | **3–4** | [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) + 可選 `STRICT_INSTITUTIONAL_PHASE_A/B/C`（[`report_html_gates.py`](report_html_gates.py)、[`schemas.py`](schemas.py)）；預設環境未必全開，敘事仍受 LLM 波動影響。 |
+| 「華爾街級」財報文字紀律 | **3–4** | [`crew.py`](crew.py) `_EARNINGS_ANALYSIS_WALL_STREET_RULE` 等；缺口在 sell-side 式「每檔每季完整模型表」尚未成主產物。 |
+| 週期性財報（系統化） | **2–3** | [`earnings_watchlist.py`](earnings_watchlist.py)、[`earnings_focus.py`](earnings_focus.py)、`EARNINGS_FOCUS_MODE`；主軸仍是**日報管線內**之財報章節 + 固定 watchlist，非全市場週期研究庫。 |
+| 資料可審計（無幻覺） | **4** | 客觀數字走工具／BQ；[`validate_report`](report_html_gates.py) 為可信度邊界（對齊 alignment 紅線）。 |
+| Terminal 式產品面（監控／深度頁／workspace） | **2–3** | Phase 2 若干項已交付（見「已交付摘要」列）；仍與「即時交叉篩選＋專有資料密度」有距離。 |
+| 即時與專有市場資料 | **1–2** | 公開／訂閱 API 組合；alignment 驗收亦約束**不**盲目新增未審核即時付費依賴。 |
+| 執行與交易基礎設施 | **1–2** | 見 [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) 演進藍圖、`execution_intents`／OMS 等多在路線圖。 |
+
+### 硬指標錨點
+
+- **Bloomberg 對齊 Phase 0**：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4 — **15 條驗收至少通過 12 條**方可宣稱 Phase 0；建議內部逐條勾選作為「Terminal 面差距」的**量化分母**。
+- **建議內部 KPI（可自訂盤點）**：(1) Phase 0 通過條數／15；(2) 生產是否固定開 `STRICT_INSTITUTIONAL_PHASE_A/B/C`；(3) 財報聚焦觸發率／工具命中率（log／BQ）；(4) 儀表板與敘事含 **as_of／來源** 覆蓋率（對齊 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)）；(5) QSREC→監控→告警／紙上交易閉環程度。
+
+**一句話**：**可驗證日報＋ Gate** 軸線偏中上；**類 Terminal 資料壟斷＋即時互動＋執行層** 軸線仍早中段，差距主要在資料深度、產品互動與執行閉環，而非「有無 LLM 寫報告」。
 
 ---
 
@@ -115,11 +142,12 @@
 
 ## 修訂紀錄
 
-- **2026-04-12（七）**：**Terminal M4/M5** — SSE `GET /api/stream/war-room`、紙上 `paper_execution`／`POST /api/paper/execution-tick`／`scripts/paper_execution_tick.py`、意圖 `reference_*` 與 `PAPER_*` 狀態、PWA SSE／參考價欄；「已交付摘要」增列；隊列 **14–15** ~~刪線~~；CHANGELOG `### API（Terminal M4/M5）`；`ENV_TEMPLATE`／`DASHBOARD_CONTRACT`／roadmap §3d–3e。
-- **2026-04-12（六）**：**Terminal M3** — `GET /api/symbols/{symbol}/quote`、`fetch_symbol_quote`、`test_api_symbol_quote`、PWA `useSymbolQuote`／卡片頂欄；「已交付摘要」增列；隊列 **13** ~~刪線~~；CHANGELOG `### API（Terminal M3）`；roadmap §3c 標註已落地。
-- **2026-04-12（五）**：**Terminal M2 PWA** — 「已交付摘要」增列；隊列 **12** 改 ~~刪線~~；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** 增 `### PWA`；README／`DASHBOARD_CONTRACT`／roadmap §3b 同步。
-- **2026-04-12（四）**：[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md) 擴充 **M2–M5** 實作規格（DoD、檔案、API、測試、依賴圖、手動 checklist）；「下一批隊列」增 **M3–M5**、M2 補 roadmap 錨點；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** `### Docs` 合併敘述。
+- **2026-04-12（二）**：新增 [進度分析表（華爾街級日報 · 財報週期 · Bloomberg 對齊）](#progress-vs-wall-st-bloomberg) — 維度粗評 1–5、Phase 0（15 條中 ≥12）錨點、建議內部 KPI；對齊 [`CHANGELOG.md`](CHANGELOG.md) 同日 `### Docs`。
 - **2026-04-12（三）**：**Terminal 中段 M1** — 「已交付摘要」增列；「下一批隊列」增 **M2**；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** `### Added` 補 `data_provenance`、`execution-intents` API、[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引增該檔。
+- **2026-04-12（四）**：[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md) 擴充 **M2–M5** 實作規格（DoD、檔案、API、測試、依賴圖、手動 checklist）；「下一批隊列」增 **M3–M5**、M2 補 roadmap 錨點；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** `### Docs` 合併敘述。
+- **2026-04-12（五）**：**Terminal M2 PWA** — 「已交付摘要」增列；隊列 **12** 改 ~~刪線~~；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** 增 `### PWA`；README／`DASHBOARD_CONTRACT`／roadmap §3b 同步。
+- **2026-04-12（六）**：**Terminal M3** — `GET /api/symbols/{symbol}/quote`、`fetch_symbol_quote`、`test_api_symbol_quote`、PWA `useSymbolQuote`／卡片頂欄；「已交付摘要」增列；隊列 **13** ~~刪線~~；CHANGELOG `### API（Terminal M3）`；roadmap §3c 標註已落地。
+- **2026-04-12（七）**：**Terminal M4/M5** — SSE `GET /api/stream/war-room`、紙上 `paper_execution`／`POST /api/paper/execution-tick`／`scripts/paper_execution_tick.py`、意圖 `reference_*` 與 `PAPER_*` 狀態、PWA SSE／參考價欄；「已交付摘要」增列；隊列 **14–15** ~~刪線~~；CHANGELOG `### API（Terminal M4/M5）`；`ENV_TEMPLATE`／`DASHBOARD_CONTRACT`／roadmap §3d–3e。
 - **2026-04-12**：「**已交付摘要**」補登兩列 — **日報組裝衛生**（`report_render`／`test_report_render`）與 **Crew／FD 規則**（`crew`、`tools_legacy`），對齊 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-10** `### Pipeline`；**同步狀態**日期更新。[`CHANGELOG.md`](CHANGELOG.md) 增 **2026-04-12** `### Docs` 並於檔首明訂 **CHANGELOG ↔ TODOS** 維護契約；[`AGENTS.md`](AGENTS.md)、[`CLAUDE.md`](CLAUDE.md) 交接／導覽一句補強。另完成 Bloomberg 對齊首批落地（alignment doc、symbol snapshot API、PWA Terminal workspace、lightweight-charts K 線事件標註）。**後續小步**：`README` 補 **`/terminal`／`VITE_API_URL`**；`App.jsx` **`lazy`+`Suspense`** 載入 Terminal（CHANGELOG **2026-04-12** `### Changed`）。
 - **2026-04-23**：**全文改寫** — 宣告舊版「巨型可勾選 backlog」**未**等同全部實作；改為導覽 + **下一批隊列** + 長期索引；移除 G-1～G-8 全表與重複 Phase／OSS 細拆 checkbox（詳見 git 歷史）；OSS 週報契約與 `OSS_SCOUT_AUTO_*` 規則保留。
 - **2026-04-22**：訂閱取代研究稿、CHANGELOG Docs — 見上「已交付摘要」連結。
