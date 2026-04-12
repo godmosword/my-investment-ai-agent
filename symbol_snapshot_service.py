@@ -184,6 +184,30 @@ def build_symbol_snapshot(
         )
     event_markers.sort(key=lambda m: str(m.get("time", "")))
 
+    ohlc_as_of = str(price_series[-1]["time"]) if price_series else ""
+    if not ohlc_as_of:
+        ohlc_as_of = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    data_provenance: dict[str, Any] = {
+        "ohlc": {
+            "source": "yfinance",
+            "as_of": ohlc_as_of,
+            "interval": "1d",
+            "underlying_symbol": to_yf_symbol(normalized_symbol),
+        },
+        "daily_metrics": {
+            "source": "bigquery",
+            "table_id": METRICS_TABLE,
+            "as_of": latest_metrics.get("timestamp"),
+        },
+        "recommendations": {
+            "source": "bigquery",
+            "table_id": RECOMMENDATIONS_TABLE,
+            "query_window_days": days,
+            "as_of": latest_metrics.get("timestamp"),
+        },
+    }
+
     return {
         "symbol": normalized_symbol,
         "as_of": latest_metrics.get("timestamp"),
@@ -194,4 +218,5 @@ def build_symbol_snapshot(
         "event_markers": event_markers,
         "recommendations": recommendations,
         "report_links": report_links,
+        "data_provenance": data_provenance,
     }

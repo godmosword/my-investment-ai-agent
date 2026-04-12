@@ -118,6 +118,11 @@ def test_symbol_snapshot_success(monkeypatch):
     assert payload["event_markers"][0]["time"] == "2026-04-10"
     assert payload["report_links"][0]["href"] == "/report/2026-04-11"
     assert payload["report_links"][0]["api_href"] == "/api/reports/2026-04-11"
+    prov = payload.get("data_provenance") or {}
+    assert prov["ohlc"]["source"] == "yfinance"
+    assert prov["ohlc"]["underlying_symbol"] == "BTC-USD"
+    assert prov["daily_metrics"]["source"] == "bigquery"
+    assert prov["recommendations"]["query_window_days"] == 30
 
 
 def test_symbol_snapshot_rejects_bad_symbol():

@@ -20,7 +20,11 @@ from google.cloud import bigquery
 from pydantic import BaseModel, Field
 
 from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
-from execution_intents import latest_execution_intents
+from execution_intents import (
+    ALLOWED_INTENT_STATUSES,
+    latest_execution_intents,
+    update_execution_intent_status,
+)
 from symbol_snapshot_service import build_symbol_snapshot, validate_symbol_for_snapshot
 
 logger = logging.getLogger(__name__)
@@ -41,7 +45,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _CORS_ORIGINS],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -424,6 +428,14 @@ class SymbolSnapshot(BaseModel):
     event_markers: list[dict[str, Any]]
     recommendations: list[dict[str, Any]]
     report_links: list[dict[str, str]]
+    data_provenance: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutionIntentStatusBody(BaseModel):
+    """Human / War Room workflow: advance intent lifecycle (no order placement)."""
+
+    status: str = Field(..., description="One of ALLOWED_INTENT_STATUSES (case-insensitive).")
+    note: str = Field(default="", max_length=2000)
 
 
 def _repo_root() -> Path:
@@ -491,6 +503,34 @@ def _validate_symbol(symbol: str) -> str:
         return validate_symbol_for_snapshot(symbol)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/execution-intents")
+def list_execution_intents(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[dict[str, Any]]:
+    """Latest execution intent per ``signal_id`` (append-only JSONL collapsed for Terminal blotter)."""
+    return latest_execution_intents(limit=limit, dedupe=True)
+
+
+@app.get("/api/execution-intents/allowed-statuses")
+def execution_intent_allowed_statuses() -> dict[str, Any]:
+    return {"statuses": sorted(ALLOWED_INTENT_STATUSES)}
+
+
+@app.patch("/api/execution-intents/{signal_id}")
+def patch_execution_intent_status(
+    signal_id: str,
+    body: ExecutionIntentStatusBody,
+) -> dict[str, Any]:
+    """Append-only status transition (review / paper handoff). Does **not** send orders."""
+    updated = update_execution_intent_status(signal_id, body.status, note=body.note)
+    if updated is None:
+        raise HTTPException(
+            status_code=404,
+            detail="signal_id not found, invalid status, or malformed prior row",
+        )
+    return updated
 
 
 @app.get("/api/symbols/{symbol}/snapshot", response_model=SymbolSnapshot)

@@ -9,9 +9,12 @@
 - **Bloomberg 對齊文件**：新增 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（能力映射、紅線、15 條驗收清單、分階切片），並回鏈 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) / [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) / [`TODOS.md`](TODOS.md)。
 - **Symbol Snapshot API**：[`api.py`](api.py) 新增 `GET /api/symbols/{symbol}/snapshot`（`latest_metrics`、`history`、`price_series`、`event_markers`、`report_links`）。
 - **PWA Terminal Workspace**：新增 [`data-verification-ui/src/pages/Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)、[`data-verification-ui/src/components/TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)、[`data-verification-ui/src/components/SymbolCandleChart.jsx`](data-verification-ui/src/components/SymbolCandleChart.jsx)；支援 watchlist 本地持久化、拖曳重排、symbol 深度卡。
+- **Terminal 中段（M1）**：Symbol 快照回應新增 **`data_provenance`**（[`symbol_snapshot_service.py`](symbol_snapshot_service.py) — OHLC／`daily_metrics`／`recommendations` 之來源、as_of、BQ 表 id）；[`api.py`](api.py) 新增 `GET /api/execution-intents`、`GET /api/execution-intents/allowed-statuses`、`PATCH /api/execution-intents/{signal_id}`（append-only 狀態轉移，**不下單**）；[`execution_intents.py`](execution_intents.py) 支援去重列表與 `status_updated_at`／`status_note`。
+- **文件**：[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)（中段定義、切片 M1–M5、驗收語意）。
 
 ### Changed
 - [`api.py`](api.py)：`report_links.href` 改為前端報告路由 `/report/{date}`，並保留 `api_href` 指向 `/api/reports/{date}`；`_fetch_symbol_ohlc` 新增短 TTL 快取降低 yfinance 重複查詢。
+- [`api.py`](api.py)：CORS `allow_methods` 含 **`PATCH`**（意圖狀態 API）。
 - [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)：新增 `useSymbolSnapshot`。
 - [`data-verification-ui/src/App.jsx`](data-verification-ui/src/App.jsx)、[`data-verification-ui/src/components/BottomNav.jsx`](data-verification-ui/src/components/BottomNav.jsx)：新增 `/terminal` 路由與導覽入口。
 - [`data-verification-ui/package.json`](data-verification-ui/package.json)：新增 `lightweight-charts` 依賴。
@@ -19,12 +22,14 @@
 
 ### Tests
 - 新增 [`test_api_symbols_snapshot.py`](test_api_symbols_snapshot.py)（成功、symbol 格式錯誤、BigQuery 失敗）。
-- 驗證：`python3 -m pytest test_api_symbols_snapshot.py test_api_push.py`（6 passed）。
+- 新增 [`test_execution_intents_api.py`](test_execution_intents_api.py)（allowed-statuses、列表去重、`PATCH` 成功／404）。
+- 驗證：`python3 -m pytest test_api_symbols_snapshot.py test_api_push.py test_execution_intents_api.py`。
 - 驗證：`cd data-verification-ui && npm run build`（build success）。
 
 ### Docs
 - **維護契約**：本檔檔首增訂 **CHANGELOG ↔ [`TODOS.md`](TODOS.md) 雙向對齊** 規則；[`AGENTS.md`](AGENTS.md) Handoff、[`CLAUDE.md`](CLAUDE.md) 導覽一句補強。
 - **[`TODOS.md`](TODOS.md)**：與 **2026-04-10** `### Pipeline` 對齊之「已交付摘要」兩列（日報組裝衛生、`crew`／FD 規則）及修訂紀錄／同步狀態 — 見該檔 **2026-04-12** 修訂條。
+- **[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)**：`snapshot` 之 **`data_provenance`**；`execution-intents` 三路由契約表。
 - **[`README.md`](README.md)**：`/terminal`、`VITE_API_URL` 與 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 索引；「War Room PWA 與 API」小節補前後端連線說明。
 
 ## 2026-04-10

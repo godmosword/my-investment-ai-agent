@@ -24,7 +24,10 @@
 |------|------|------|
 | `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema |
 | `GET /api/metrics/history` | 歷史指標 | query：`days` |
-| `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit` |
+| `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit`；回應含 **`data_provenance`**（OHLC／BQ 來源與 as_of） |
+| `GET /api/execution-intents` | 執行意圖列表（每 `signal_id` 最新一列） | query：`limit` |
+| `GET /api/execution-intents/allowed-statuses` | 允許的意圖狀態集合 | |
+| `PATCH /api/execution-intents/{signal_id}` | 意圖狀態轉移（append-only；**不下單**） | JSON body：`status`、`note` |
 | `GET /api/reports` | 報告列表 | 分頁參數見實作 |
 | `GET /api/reports/{report_date}` | 單日報告內容 | |
 | `GET /api/trades` | 交易列表 | |

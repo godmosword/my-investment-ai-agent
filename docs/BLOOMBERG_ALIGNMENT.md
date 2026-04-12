@@ -5,6 +5,7 @@
 
 關聯文件：
 - 儀表板與 API 契約：[docs/DASHBOARD_CONTRACT.md](docs/DASHBOARD_CONTRACT.md)
+- Terminal「中段」執行切片：[docs/TERMINAL_MID_TIER_ROADMAP.md](TERMINAL_MID_TIER_ROADMAP.md)
 - 產品與技術路線：[docs/ROADMAP_VISION.md](docs/ROADMAP_VISION.md)
 - 工程待辦總表：[TODOS.md](TODOS.md)
 
