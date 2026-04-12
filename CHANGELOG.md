@@ -25,6 +25,7 @@
 ### Docs
 - **維護契約**：本檔檔首增訂 **CHANGELOG ↔ [`TODOS.md`](TODOS.md) 雙向對齊** 規則；[`AGENTS.md`](AGENTS.md) Handoff、[`CLAUDE.md`](CLAUDE.md) 導覽一句補強。
 - **[`TODOS.md`](TODOS.md)**：與 **2026-04-10** `### Pipeline` 對齊之「已交付摘要」兩列（日報組裝衛生、`crew`／FD 規則）及修訂紀錄／同步狀態 — 見該檔 **2026-04-12** 修訂條。
+- **[`TODOS.md`](TODOS.md)**：新增 [進度分析表](TODOS.md#progress-vs-wall-st-bloomberg)（華爾街級日報、財報週期、Bloomberg 對齊 — 維度 1–5 粗評、Phase 0 驗收錨點、建議內部 KPI）；檔首導覽補錨點連結。
 - **[`README.md`](README.md)**：`/terminal`、`VITE_API_URL` 與 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 索引；「War Room PWA 與 API」小節補前後端連線說明。
 
 ## 2026-04-10
