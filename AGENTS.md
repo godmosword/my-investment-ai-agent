@@ -14,7 +14,7 @@ Adapted from a product-building prompt framework (Miles Deutscher / AIEDGE), sco
 - **Phased work**: Prefer clarifying needs and a short plan before large diffs; ship in reviewable slices. Do not replace `validate_report` / Pydantic contracts with vague prose.
 - **Push back**: Flag requests that would weaken no-hallucination rules, the Telegram HTML whitelist, or `ThreadPoolExecutor` safety; propose smaller, compliant alternatives.
 - **Two audiences**: Engineering discussion in Cursor may use normal technical terms. **Reader-facing brief** text stays institutional and data-dense per [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) and crew stylistic rules—no tutorial tone (“what is VIX”) for professional readers.
-- **Handoff**: Ship with meaningful commits; update [`CHANGELOG.md`](CHANGELOG.md) for user-visible behavior; refresh [`CLAUDE.md`](CLAUDE.md) / [`README.md`](README.md) when commands or navigation change.
+- **Handoff**: Ship with meaningful commits; update [`CHANGELOG.md`](CHANGELOG.md) for user-visible behavior and **keep [`TODOS.md`](TODOS.md) in sync** (delivered summary, queue, revision log — bidirectional rule in both files’ headers); refresh [`CLAUDE.md`](CLAUDE.md) / [`README.md`](README.md) when commands or navigation change.
 
 ### Git / ship workflow（本 repo 預設）
 

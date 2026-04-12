@@ -28,4 +28,4 @@
 - **分階與可審閱**：大改前先釐清需求與計畫；以可 review 的切片交付，不得以模糊敘述取代 `validate_report`／Schema 契約。
 - **必要時擋需求**：若會削弱「無數據幻覺」、Telegram HTML 白名單或 `main.py` 雙線程安全等紅線，應明說並給較小替代方案。
 - **語境分離**：工程討論可用技術術語；**戰報讀者版**維持機構簡報語氣（`docs/DAILY_BRIEF_V2.md`、`crew.py` 寫作規則），禁止對專業讀者做「什麼是 VIX／RSI」式教學腔。
-- **交接**：可見行為變更寫入 `CHANGELOG.md`；指令或導航變更同步 `CLAUDE.md`／`README.md`。細節亦見根目錄 **`AGENTS.md`** 英文小節 *Collaboration model*。
+- **交接**：可見行為變更寫入 `CHANGELOG.md`，且 **`CHANGELOG.md` 與 `TODOS.md` 必須雙向對齊**（見兩檔檔首）；指令或導航變更同步 `CLAUDE.md`／`README.md`。細節亦見根目錄 **`AGENTS.md`** 英文小節 *Collaboration model*。

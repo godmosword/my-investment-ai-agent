@@ -17,7 +17,7 @@
 
 ## 已交付摘要（備查，非 exhaustive）
 
-以下為 **已進 main 管線／產品** 之摘要；**逐日條目**以 CHANGELOG 為準。
+以下為 **已進 main 管線／產品** 之摘要；**逐日條目**以 CHANGELOG 為準。**維護契約**：與 [`CHANGELOG.md`](CHANGELOG.md) **雙向對齊** — 改版寫入 CHANGELOG 時同步更新本檔；本檔補登「已交付」須對應 CHANGELOG 既有或同日條目（見 CHANGELOG 檔首說明）。
 
 | 主題 | 代表檔案／行為 |
 |------|----------------|
@@ -104,7 +104,7 @@
 
 ## 修訂紀錄
 
-- **2026-04-12**：「**已交付摘要**」補登兩列 — **日報組裝衛生**（`report_render`／`test_report_render`）與 **Crew／FD 規則**（`crew`、`tools_legacy`），對齊 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-10** `### Pipeline`；**同步狀態**日期更新。
+- **2026-04-12**：「**已交付摘要**」補登兩列 — **日報組裝衛生**（`report_render`／`test_report_render`）與 **Crew／FD 規則**（`crew`、`tools_legacy`），對齊 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-10** `### Pipeline`；**同步狀態**日期更新。[`CHANGELOG.md`](CHANGELOG.md) 增 **2026-04-12** `### Docs` 並於檔首明訂 **CHANGELOG ↔ TODOS** 維護契約；[`AGENTS.md`](AGENTS.md)、[`CLAUDE.md`](CLAUDE.md) 交接／導覽一句補強。
 - **2026-04-23**：**全文改寫** — 宣告舊版「巨型可勾選 backlog」**未**等同全部實作；改為導覽 + **下一批隊列** + 長期索引；移除 G-1～G-8 全表與重複 Phase／OSS 細拆 checkbox（詳見 git 歷史）；OSS 週報契約與 `OSS_SCOUT_AUTO_*` 規則保留。
 - **2026-04-22**：訂閱取代研究稿、CHANGELOG Docs — 見上「已交付摘要」連結。
 - **2026-04-21 及更早**：見 git 歷史本檔與 [`CHANGELOG.md`](CHANGELOG.md)。
