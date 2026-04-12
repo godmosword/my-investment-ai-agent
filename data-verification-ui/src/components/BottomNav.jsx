@@ -4,6 +4,7 @@ const TABS = [
   { to: "/",         icon: "📊", label: "今日" },
   { to: "/charts",   icon: "📈", label: "圖表" },
   { to: "/trades",   icon: "💼", label: "交易" },
+  { to: "/terminal", icon: "🖥️", label: "終端" },
   { to: "/archive",  icon: "🗄",  label: "存檔" },
 ];
 

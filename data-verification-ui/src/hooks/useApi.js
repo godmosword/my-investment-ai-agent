@@ -95,3 +95,17 @@ export function useWarRoomLatest() {
     retry: 1,
   });
 }
+
+export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12) {
+  const normalized = (symbol ?? "").trim().toUpperCase();
+  return useQuery({
+    queryKey: ["symbol", "snapshot", normalized, days, recommendationLimit],
+    queryFn: () =>
+      apiFetch(
+        `/api/symbols/${encodeURIComponent(normalized)}/snapshot?days=${days}&recommendation_limit=${recommendationLimit}`,
+      ),
+    enabled: !!normalized,
+    staleTime: 3 * 60 * 1000,
+    retry: 1,
+  });
+}

@@ -5,6 +5,22 @@
 
 ## 2026-04-12
 
+### Added
+- **Bloomberg 對齊文件**：新增 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（能力映射、紅線、15 條驗收清單、分階切片），並回鏈 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) / [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) / [`TODOS.md`](TODOS.md)。
+- **Symbol Snapshot API**：[`api.py`](api.py) 新增 `GET /api/symbols/{symbol}/snapshot`（`latest_metrics`、`history`、`price_series`、`event_markers`、`report_links`）。
+- **PWA Terminal Workspace**：新增 [`data-verification-ui/src/pages/Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)、[`data-verification-ui/src/components/TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)、[`data-verification-ui/src/components/SymbolCandleChart.jsx`](data-verification-ui/src/components/SymbolCandleChart.jsx)；支援 watchlist 本地持久化、拖曳重排、symbol 深度卡。
+
+### Changed
+- [`api.py`](api.py)：`report_links.href` 改為前端報告路由 `/report/{date}`，並保留 `api_href` 指向 `/api/reports/{date}`；`_fetch_symbol_ohlc` 新增短 TTL 快取降低 yfinance 重複查詢。
+- [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)：新增 `useSymbolSnapshot`。
+- [`data-verification-ui/src/App.jsx`](data-verification-ui/src/App.jsx)、[`data-verification-ui/src/components/BottomNav.jsx`](data-verification-ui/src/components/BottomNav.jsx)：新增 `/terminal` 路由與導覽入口。
+- [`data-verification-ui/package.json`](data-verification-ui/package.json)：新增 `lightweight-charts` 依賴。
+
+### Tests
+- 新增 [`test_api_symbols_snapshot.py`](test_api_symbols_snapshot.py)（成功、symbol 格式錯誤、BigQuery 失敗）。
+- 驗證：`python3 -m pytest test_api_symbols_snapshot.py test_api_push.py`（6 passed）。
+- 驗證：`cd data-verification-ui && npm run build`（build success）。
+
 ### Docs
 - **維護契約**：本檔檔首增訂 **CHANGELOG ↔ [`TODOS.md`](TODOS.md) 雙向對齊** 規則；[`AGENTS.md`](AGENTS.md) Handoff、[`CLAUDE.md`](CLAUDE.md) 導覽一句補強。
 - **[`TODOS.md`](TODOS.md)**：與 **2026-04-10** `### Pipeline` 對齊之「已交付摘要」兩列（日報組裝衛生、`crew`／FD 規則）及修訂紀錄／同步狀態 — 見該檔 **2026-04-12** 修訂條。

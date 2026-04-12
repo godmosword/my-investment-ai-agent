@@ -6,6 +6,7 @@ import Charts  from "./pages/Charts";
 import Trades  from "./pages/Trades";
 import Archive from "./pages/Archive";
 import Report  from "./pages/Report";
+import Terminal from "./pages/Terminal";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +24,7 @@ export default function App() {
               <Route path="/"              element={<Today />} />
               <Route path="/charts"        element={<Charts />} />
               <Route path="/trades"        element={<Trades />} />
+              <Route path="/terminal"      element={<Terminal />} />
               <Route path="/archive"       element={<Archive />} />
               <Route path="/report/:date"  element={<Report />} />
             </Routes>

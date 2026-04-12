@@ -16,7 +16,7 @@
 
 | 階段 | 內容 | Repo 對應 |
 |------|------|-----------|
-| 1A | 儀表板契約：標註資料來源／更新頻率／缺資料行為 | [`dashboard.py`](../dashboard.py) 鏈上與衍生品區塊、KPI；[`data-verification-ui`](../data-verification-ui/) 與 [`api.py`](../api.py) 對齊 |
+| 1A | 儀表板契約：標註資料來源／更新頻率／缺資料行為 | [`dashboard.py`](../dashboard.py) 鏈上與衍生品區塊、KPI；[`data-verification-ui`](../data-verification-ui/) 與 [`api.py`](../api.py) 對齊；Bloomberg 對齊驗收見 [`docs/BLOOMBERG_ALIGNMENT.md`](BLOOMBERG_ALIGNMENT.md) |
 | 1B | 使用者路徑收斂、付費假設驗證、技術選型 | [`docs/COMMERCE_PLAYBOOK.md`](COMMERCE_PLAYBOOK.md) |
 
 **與 TODOS 對照**：Critical env、新聞新鮮度 rollout、Streamlit／PWA 一致性能降低誤判與客訴。

@@ -108,6 +108,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`research/LAST30DAYS_SKILL.md`](docs/research/LAST30DAYS_SKILL.md) | 可選 [last30days-skill](https://github.com/mvanhorn/last30days-skill)：安裝、pilot、與日報管線信任邊界（預設 A+B，不進 `main.py`） |
 | [`ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) | Product directions |
 | [`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | Streamlit / API / PWA KPI contract |
+| [`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) | Terminal-style capability map and acceptance checklist |
 | [`DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) | Production deploy + GitHub Environment reviewers |
 | [`AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md) + [`autoresearch.plan.md`](docs/autoresearch.plan.md) | Autoresearch loop spec |
 | [`REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md) | Compare mode |

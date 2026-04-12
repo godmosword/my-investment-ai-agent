@@ -536,6 +536,125 @@ html, body, #root {
   animation: chart-skeleton-pulse 1.4s ease-in-out infinite alternate;
 }
 
+.terminal-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.terminal-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(18, 26, 42, 0.95);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.terminal-workspace-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.terminal-card {
+  margin-bottom: 0;
+}
+
+.terminal-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.terminal-card-title-wrap {
+  min-width: 0;
+}
+
+.terminal-symbol {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.terminal-card-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.terminal-btn {
+  border: 1px solid var(--border);
+  background: rgba(18, 26, 42, 0.95);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.terminal-btn:hover {
+  border-color: var(--accent);
+}
+
+.terminal-btn-danger {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.terminal-drag-handle {
+  color: var(--muted);
+  font-size: 14px;
+  user-select: none;
+  cursor: grab;
+  line-height: 1;
+}
+
+.terminal-chart-wrap {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.terminal-chart-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px 0 12px;
+}
+
+.terminal-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.terminal-event-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(18, 26, 42, 0.85);
+}
+
+.terminal-report-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.terminal-report-links a {
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
 @keyframes chart-skeleton-pulse {
   from { opacity: 0.45; }
   to { opacity: 0.75; }

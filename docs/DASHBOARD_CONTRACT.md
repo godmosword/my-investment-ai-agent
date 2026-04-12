@@ -1,6 +1,7 @@
 # 儀表板與 API 契約（BL-12）
 
-本檔描述 **Streamlit 戰情室**（[`dashboard.py`](../dashboard.py)）、**FastAPI**（[`api.py`](../api.py)）與 PWA（[`data-verification-ui/`](../data-verification-ui/)）對齊時應遵守的資料語意。欄位名以實作為準；缺憑證時行為為 **優雅降級（N/A／錯誤提示）**。
+本檔描述 **Streamlit 戰情室**（[`dashboard.py`](../dashboard.py)）、**FastAPI**（[`api.py`](../api.py)）與 PWA（[`data-verification-ui/`](../data-verification-ui/)）對齊時應遵守的資料語意。欄位名以實作為準；缺憑證時行為為 **優雅降級（N/A／錯誤提示）**。  
+「Bloomberg Terminal 對齊」能力映射與驗收清單見 [`docs/BLOOMBERG_ALIGNMENT.md`](BLOOMBERG_ALIGNMENT.md)。
 
 ## Streamlit 區塊 ↔ 資料來源
 
@@ -22,6 +23,7 @@
 |------|------|------|
 | `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema |
 | `GET /api/metrics/history` | 歷史指標 | query：`days` |
+| `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit` |
 | `GET /api/reports` | 報告列表 | 分頁參數見實作 |
 | `GET /api/reports/{report_date}` | 單日報告內容 | |
 | `GET /api/trades` | 交易列表 | |
@@ -29,7 +31,8 @@
 | `GET /healthz` | 存活探測 | |
 | `POST /api/push/subscribe` | Web Push 訂閱（**預留**） | 預設 **501**；`WEB_PUSH_ENABLED=1` 時 noop 接受，持久化待實作 |
 
-PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。
+PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
+Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。
 
 ## 變更流程
 
