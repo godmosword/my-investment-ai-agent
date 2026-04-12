@@ -34,6 +34,11 @@
 - [`crew.py`](crew.py)：加密新聞 `investment_takeaway` 禁止無標題／摘要／工具依據之 **垃圾債／HY／spread** 等信用市場跳喻；**FinancialDatasets** 營收相關 MetricLine `label` 須含 **annual／quarterly／FY／年份／季報** 等期間字樣。
 - [`tools_legacy.py`](tools_legacy.py)：`financial_datasets_tool` 摘要尾註提醒營收 label 帶 **fiscal／口徑** 以利核對異常大數。
 
+### Bloomberg 對齊 Phase 2（Workspace v2／跨頁 Symbol／Streamlit 快照）
+- **PWA**：[`SymbolFocusContext.jsx`](data-verification-ui/src/context/SymbolFocusContext.jsx)、[`SymbolFocusBar.jsx`](data-verification-ui/src/components/SymbolFocusBar.jsx)；[`App.jsx`](data-verification-ui/src/App.jsx) 以 `SymbolFocusProvider` 包覆路由；Today／Charts／Trades／Archive／Report／Terminal 掛載關注條（`localStorage` `qs_symbol_focus_v1`）。
+- **Terminal 工作區 v2**：[`Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx) 多分組（`qs_terminal_workspace_v2`）、自 v1 遷移、一鍵模板（Crypto／大盤／AI 鏈）、[`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)「設為全域關注」。
+- **後端／儀表板**：[`symbol_snapshot_service.py`](symbol_snapshot_service.py) 集中 snapshot 組裝；[`api.py`](api.py) 改呼叫該模組；[`dashboard.py`](dashboard.py) 唯讀 Symbol 快照區（`SYMBOL_SNAPSHOT_HTTP_BASE` 可改打 API，否則 BQ 直建同形 payload）；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 `SYMBOL_SNAPSHOT_HTTP_BASE`／`DASHBOARD_SYMBOL_FOCUS`。
+
 ## 2026-04-23
 
 ### Docs

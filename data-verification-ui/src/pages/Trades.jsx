@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTrades, useTradesPerformance } from "../hooks/useApi";
 import TradeCard from "../components/TradeCard";
+import SymbolFocusBar from "../components/SymbolFocusBar";
 
 const STATUS_TABS = [
   { key: null,         label: "全部" },
@@ -62,6 +63,8 @@ export default function Trades() {
       <div className="page-header">
         <div className="page-title">交易建議</div>
       </div>
+
+      <SymbolFocusBar compact />
 
       <PerfStats days={days} />
 

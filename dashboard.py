@@ -1,7 +1,11 @@
+import json
 import logging
+import os
 import streamlit as st
 import pandas as pd
 from google.cloud import bigquery
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, datetime, timedelta, timezone
@@ -269,6 +273,50 @@ with st.sidebar:
 
 
 # ── 讀取每日指標（動態 KPI 來源）─────────────────────────────────────
+@st.cache_data(ttl=120)
+def _dashboard_symbol_snapshot_payload(
+    symbol: str, days: int, recommendation_limit: int
+) -> dict[str, object]:
+    """Same JSON shape as ``GET /api/symbols/{symbol}/snapshot`` (BQ + yfinance).
+
+    If ``SYMBOL_SNAPSHOT_HTTP_BASE`` is set (e.g. ``http://127.0.0.1:8000``), calls the
+    FastAPI process over HTTP so Streamlit can split from the API container. Otherwise
+    uses ``symbol_snapshot_service.build_symbol_snapshot`` with this process's BQ client.
+    """
+    from symbol_snapshot_service import (  # noqa: PLC0415
+        build_symbol_snapshot,
+        validate_symbol_for_snapshot,
+    )
+
+    sym = validate_symbol_for_snapshot(symbol.strip())
+    base = (os.getenv("SYMBOL_SNAPSHOT_HTTP_BASE") or "").strip().rstrip("/")
+    if base:
+        from urllib import parse  # noqa: PLC0415
+
+        q = parse.urlencode(
+            {"days": int(days), "recommendation_limit": int(recommendation_limit)}
+        )
+        url = f"{base}/api/symbols/{parse.quote(sym, safe='')}/snapshot?{q}"
+        try:
+            req = Request(url, headers={"Accept": "application/json"})
+            with urlopen(req, timeout=90) as resp:
+                return json.loads(resp.read().decode())
+        except (HTTPError, URLError, ValueError, OSError, json.JSONDecodeError) as exc:
+            return {"_error": f"HTTP snapshot failed: {exc}"}
+
+    try:
+        client = _get_bq_client()
+        return build_symbol_snapshot(
+            client,
+            sym,
+            days=int(days),
+            recommendation_limit=int(recommendation_limit),
+        )
+    except Exception as exc:  # pragma: no cover - network / BQ env dependent
+        logger.warning("dashboard symbol snapshot (direct BQ) failed: %s", exc)
+        return {"_error": str(exc)}
+
+
 @st.cache_data(ttl=300)
 def load_daily_metrics() -> dict:
     """從 BigQuery daily_metrics 取最新兩筆紀錄，回傳 dict（含日環比 delta）。"""
@@ -412,6 +460,46 @@ with col4:
 # 最後更新時間
 if metrics.get("timestamp"):
     st.caption(f"數據更新時間：{metrics['timestamp']}")
+
+# ════════════════════════════════════════════════════════════════════
+# Symbol 快照（與 PWA /terminal + FastAPI 契約對齊）
+# ════════════════════════════════════════════════════════════════════
+with st.expander("📊 Symbol 快照（Terminal API 對齊 · 唯讀）", expanded=False):
+    st.caption(
+        "與 FastAPI ``GET /api/symbols/{symbol}/snapshot``（`api.py` + `symbol_snapshot_service.py`）同一 JSON 形狀。"
+        "預設走 **本程序 BigQuery**；若設 **`SYMBOL_SNAPSHOT_HTTP_BASE`** 則改打已啟動的 API 服務。"
+    )
+    _def_sym = (os.getenv("DASHBOARD_SYMBOL_FOCUS") or "BTC").strip().upper()
+    _c1, _c2 = st.columns([1, 1])
+    with _c1:
+        _snap_sym = st.text_input("代號", value=_def_sym, key="qs_dash_snap_symbol")
+    with _c2:
+        _snap_days = st.number_input("歷史天數", min_value=7, max_value=180, value=30, step=1, key="qs_dash_snap_days")
+    if st.button("載入快照", key="qs_dash_snap_load"):
+        _pl = _dashboard_symbol_snapshot_payload(_snap_sym, int(_snap_days), 12)
+        st.session_state["_qs_last_symbol_snapshot"] = _pl
+    if "_qs_last_symbol_snapshot" in st.session_state:
+        _pl = st.session_state["_qs_last_symbol_snapshot"]
+        if isinstance(_pl, dict) and _pl.get("_error"):
+            st.warning(str(_pl["_error"]))
+        elif isinstance(_pl, dict):
+            st.success(
+                f"**{_pl.get('symbol', '?')}** · as_of `{_pl.get('as_of')}` · "
+                f"recommendations **{len(_pl.get('recommendations') or [])}** · "
+                f"report_links **{len(_pl.get('report_links') or [])}**"
+            )
+            _lm = _pl.get("latest_metrics") or {}
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric("Risk /5", f"{_lm.get('avg_risk_score', '—')}")
+            with m2:
+                st.metric("MVRV Z", f"{_lm.get('mvrv_z_score', '—')}")
+            with m3:
+                st.metric("Sentiment", f"{_lm.get('sentiment_score', '—')}")
+            with m4:
+                st.metric("DXY", f"{_lm.get('dxy', '—')}")
+            with st.expander("完整 JSON（除錯）", expanded=False):
+                st.json(_pl)
 
 # ════════════════════════════════════════════════════════════════════
 # 鏈上情緒與衍生品（日報 / BQ 同源 + 工具層資金費率）

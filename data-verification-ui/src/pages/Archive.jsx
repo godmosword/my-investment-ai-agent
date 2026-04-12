@@ -1,16 +1,39 @@
 import { Link } from "react-router-dom";
 import { useReports } from "../hooks/useApi";
 import { regimeInfo } from "../utils/regime";
+import SymbolFocusBar from "../components/SymbolFocusBar";
 
 export default function Archive() {
   const { data: reports, isLoading, error } = useReports(60);
 
-  if (isLoading) return <div className="loading">載入歷史報告…</div>;
-  if (error)     return <div className="error-msg">載入失敗：{error.message}</div>;
-  if (!reports?.length) return <div className="loading">尚無歷史報告</div>;
+  if (isLoading) {
+    return (
+      <>
+        <SymbolFocusBar compact />
+        <div className="loading">載入歷史報告…</div>
+      </>
+    );
+  }
+  if (error) {
+    return (
+      <>
+        <SymbolFocusBar compact />
+        <div className="error-msg">載入失敗：{error.message}</div>
+      </>
+    );
+  }
+  if (!reports?.length) {
+    return (
+      <>
+        <SymbolFocusBar compact />
+        <div className="loading">尚無歷史報告</div>
+      </>
+    );
+  }
 
   return (
     <>
+      <SymbolFocusBar compact />
       <div className="page-header">
         <div className="page-title">報告存檔</div>
         <div className="page-subtitle">共 {reports.length} 份日報</div>

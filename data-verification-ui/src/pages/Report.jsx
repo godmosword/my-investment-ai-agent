@@ -2,17 +2,40 @@ import { useParams, Link } from "react-router-dom";
 import { useReport } from "../hooks/useApi";
 import MetricCard from "../components/MetricCard";
 import TradeCard from "../components/TradeCard";
+import SymbolFocusBar from "../components/SymbolFocusBar";
 
 export default function Report() {
   const { date } = useParams();
   const { data: report, isLoading, error } = useReport(date);
 
-  if (isLoading) return <div className="loading">載入中…</div>;
-  if (error)     return <div className="error-msg">載入失敗：{error.message}</div>;
-  if (!report)   return <div className="loading">查無此報告</div>;
+  if (isLoading) {
+    return (
+      <>
+        <SymbolFocusBar compact />
+        <div className="loading">載入中…</div>
+      </>
+    );
+  }
+  if (error) {
+    return (
+      <>
+        <SymbolFocusBar compact />
+        <div className="error-msg">載入失敗：{error.message}</div>
+      </>
+    );
+  }
+  if (!report) {
+    return (
+      <>
+        <SymbolFocusBar compact />
+        <div className="loading">查無此報告</div>
+      </>
+    );
+  }
 
   return (
     <>
+      <SymbolFocusBar compact />
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <Link to="/archive" style={{ color: "var(--muted)", textDecoration: "none", fontSize: 14 }}>

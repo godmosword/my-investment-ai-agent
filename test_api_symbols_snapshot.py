@@ -101,7 +101,7 @@ class _FakeBQClient:
 def test_symbol_snapshot_success(monkeypatch):
     monkeypatch.setattr("api._get_bq_client", lambda: _FakeBQClient())
     monkeypatch.setattr(
-        "api._fetch_symbol_ohlc",
+        "symbol_snapshot_service.fetch_symbol_ohlc",
         lambda _symbol, days: [
             {"time": "2026-04-10", "open": 74000.0, "high": 76500.0, "low": 73000.0, "close": 75800.0}
         ],

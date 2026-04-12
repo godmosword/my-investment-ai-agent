@@ -12,6 +12,7 @@ import {
   MOCK_WIN_LOSS_PIE,
   useMockCharts,
 } from "../utils/mockPerformance";
+import SymbolFocusBar from "../components/SymbolFocusBar";
 
 const PERIODS = [
   { label: "30d", days: 30 },
@@ -114,6 +115,8 @@ export default function Charts() {
         <div className="page-title">指標圖表</div>
         <div className="page-subtitle">Glassbox · 累計 PnL 與勝率分布</div>
       </div>
+
+      <SymbolFocusBar compact />
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         {PERIODS.map(({ label, days: d }) => (

@@ -31,10 +31,10 @@
 
 | Terminal 能力 | 現況 | 下一步 |
 |---|---|---|
-| 多監控清單（Launchpad） | War Room + 多頁面 | 儲存式工作區（可重排卡片、記住配置） |
-| Symbol 深度頁 | 部分資料分散在 Today/Charts/Archive | 新增 `/api/symbols/{ticker}/snapshot` + 單頁視圖 |
+| 多監控清單（Launchpad） | War Room + 多頁面 | **Phase 2**：Terminal v2 多分組 + 模板（`qs_terminal_workspace_v2`）、v1 遷移 |
+| Symbol 深度頁 | `/api/symbols/{ticker}/snapshot` + Terminal 卡 | **Phase 2**：跨頁 `SymbolFocusBar`（`qs_symbol_focus_v1`）與卡片「設為全域關注」 |
 | 事件與價格關聯 | 報告有結構化建議、圖表有時序 | OHLC 上疊加 QSREC/事件標記 |
-| 投組/風險 | trades/performance + open positions | 增加 watchlist、symbol focus、狀態面板 |
+| 投組/風險 | trades/performance + open positions | watchlist／symbol focus 已接；狀態面板持續迭代 |
 
 ---
 
@@ -65,6 +65,7 @@
 1. **Slice A**：Symbol Snapshot API + 測試 + 契約欄位。  
 2. **Slice B**：PWA Symbol 深度頁（快照、趨勢、報告連結）。  
 3. **Slice C**：Workspace（可儲存、可重排）串接 Symbol 卡。  
-4. **Slice D**：OHLC + QSREC/事件標記。
+4. **Slice D**：OHLC + QSREC/事件標記。  
+5. **Phase 2**：Workspace 分組／模板、跨頁 Symbol Context、Streamlit 與 API 共用 snapshot 組裝（`symbol_snapshot_service` + 可選 `SYMBOL_SNAPSHOT_HTTP_BASE`）。
 
 每個 slice 落地後都需同步更新 [CHANGELOG.md](CHANGELOG.md) 與 [TODOS.md](TODOS.md)。

@@ -11,6 +11,7 @@ import {
   MOCK_OPEN_POSITIONS,
   mockReportForDate,
 } from "../utils/mockToday";
+import SymbolFocusBar from "../components/SymbolFocusBar";
 
 export default function Today() {
   const [warRoomIntentFilter, setWarRoomIntentFilter] = useState("all");
@@ -77,6 +78,8 @@ export default function Today() {
         <div className="page-title">今日戰情室</div>
         {ts && <div className="page-subtitle">更新：{ts}</div>}
       </div>
+
+      <SymbolFocusBar compact />
 
       <div className="section-header subtle">War Room（Gate / Scratchpad / Intent）</div>
       <WarRoomCard

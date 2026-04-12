@@ -15,6 +15,7 @@
 | QSREC 頻率 | `load_qsrec_asset_frequency` → `RECOMMENDATIONS_TABLE` | 同上 | 無資料時提示 |
 | 鏈上巨鯨流向 | `load_whale_data()` → BQ | 同上 | 空表 |
 | 公司戰情（試點） | `load_company_war_room_snapshot`（本機 JSON） | 檔案 mtime | 區塊說明無檔案 |
+| Symbol 快照（唯讀 expander） | `build_symbol_snapshot` 或 `SYMBOL_SNAPSHOT_HTTP_BASE` + `/api/symbols/…/snapshot` | `st.cache_data` TTL 120s | 無 BQ／API 時錯誤提示 |
 | 核心 Agent 戰略點評 | BQ 報告欄位 | 同上 | 提示 |
 
 ## FastAPI（對 PWA / 外部客戶端）
@@ -32,7 +33,7 @@
 | `POST /api/push/subscribe` | Web Push 訂閱（**預留**） | 預設 **501**；`WEB_PUSH_ENABLED=1` 時 noop 接受，持久化待實作 |
 
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
-Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。
+Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。
 
 ## 變更流程
 

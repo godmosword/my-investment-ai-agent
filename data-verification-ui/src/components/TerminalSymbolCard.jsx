@@ -1,5 +1,6 @@
 import { useSymbolSnapshot } from "../hooks/useApi";
 import SymbolCandleChart from "./SymbolCandleChart";
+import { useSymbolFocus } from "../context/SymbolFocusContext";
 
 function numberOrDash(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return "N/A";
@@ -14,6 +15,8 @@ export default function TerminalSymbolCard({
   dragHandleProps,
 }) {
   const { data, isLoading, error } = useSymbolSnapshot(symbol, 30, 12);
+  const { symbol: focusSymbol, setSymbol: setGlobalFocus } = useSymbolFocus();
+  const isFocused = focusSymbol === symbol.toUpperCase();
 
   return (
     <div className="card terminal-card">
@@ -28,6 +31,14 @@ export default function TerminalSymbolCard({
           </button>
           <button type="button" className="terminal-btn" onClick={onMoveDown}>
             ↓
+          </button>
+          <button
+            type="button"
+            className="terminal-btn"
+            onClick={() => setGlobalFocus(symbol)}
+            title="寫入跨頁關注代號（localStorage）"
+          >
+            {isFocused ? "✓ 全域關注" : "設為全域關注"}
           </button>
           <button type="button" className="terminal-btn terminal-btn-danger" onClick={onRemove}>
             移除

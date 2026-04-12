@@ -536,11 +536,62 @@ html, body, #root {
   animation: chart-skeleton-pulse 1.4s ease-in-out infinite alternate;
 }
 
+.symbol-focus-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(18, 26, 42, 0.75);
+  font-size: 12px;
+}
+
+.symbol-focus-bar--compact {
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.symbol-focus-bar__label {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.symbol-focus-bar__input {
+  width: 72px;
+  max-width: 28vw;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(12, 18, 34, 0.9);
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.symbol-focus-bar__active,
+.symbol-focus-bar__hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.symbol-focus-bar__link {
+  margin-left: auto;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 11px;
+}
+
 .terminal-toolbar {
   display: flex;
   gap: 8px;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.terminal-toolbar--wrap {
+  flex-wrap: wrap;
 }
 
 .terminal-input {
@@ -552,6 +603,67 @@ html, body, #root {
   color: var(--text);
   padding: 8px 10px;
   font-size: 12px;
+}
+
+.terminal-input--narrow {
+  flex: 0 1 140px;
+  min-width: 100px;
+}
+
+.terminal-workspace-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.terminal-workspace-tab {
+  border: 1px solid var(--border);
+  background: rgba(18, 26, 42, 0.85);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terminal-workspace-tab--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.terminal-workspace-tab__count {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.terminal-template-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+}
+
+.terminal-template-label {
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.terminal-template-actions {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.terminal-btn--small {
+  padding: 4px 6px;
+  font-size: 10px;
 }
 
 .terminal-workspace-grid {
@@ -584,8 +696,10 @@ html, body, #root {
 
 .terminal-card-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .terminal-btn {
