@@ -15,6 +15,7 @@
 - [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)：新增 `useSymbolSnapshot`。
 - [`data-verification-ui/src/App.jsx`](data-verification-ui/src/App.jsx)、[`data-verification-ui/src/components/BottomNav.jsx`](data-verification-ui/src/components/BottomNav.jsx)：新增 `/terminal` 路由與導覽入口。
 - [`data-verification-ui/package.json`](data-verification-ui/package.json)：新增 `lightweight-charts` 依賴。
+- [`data-verification-ui/src/App.jsx`](data-verification-ui/src/App.jsx)：`/terminal` 改 **`React.lazy` + `Suspense`**，將 Terminal 頁與 `lightweight-charts` 拆成**獨立 async chunk**（首屏 bundle 減重）。
 
 ### Tests
 - 新增 [`test_api_symbols_snapshot.py`](test_api_symbols_snapshot.py)（成功、symbol 格式錯誤、BigQuery 失敗）。
@@ -24,6 +25,7 @@
 ### Docs
 - **維護契約**：本檔檔首增訂 **CHANGELOG ↔ [`TODOS.md`](TODOS.md) 雙向對齊** 規則；[`AGENTS.md`](AGENTS.md) Handoff、[`CLAUDE.md`](CLAUDE.md) 導覽一句補強。
 - **[`TODOS.md`](TODOS.md)**：與 **2026-04-10** `### Pipeline` 對齊之「已交付摘要」兩列（日報組裝衛生、`crew`／FD 規則）及修訂紀錄／同步狀態 — 見該檔 **2026-04-12** 修訂條。
+- **[`README.md`](README.md)**：`/terminal`、`VITE_API_URL` 與 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 索引；「War Room PWA 與 API」小節補前後端連線說明。
 
 ## 2026-04-10
 

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BottomNav from "./components/BottomNav";
@@ -6,7 +7,8 @@ import Charts  from "./pages/Charts";
 import Trades  from "./pages/Trades";
 import Archive from "./pages/Archive";
 import Report  from "./pages/Report";
-import Terminal from "./pages/Terminal";
+
+const Terminal = lazy(() => import("./pages/Terminal"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,7 +26,14 @@ export default function App() {
               <Route path="/"              element={<Today />} />
               <Route path="/charts"        element={<Charts />} />
               <Route path="/trades"        element={<Trades />} />
-              <Route path="/terminal"      element={<Terminal />} />
+              <Route
+                path="/terminal"
+                element={
+                  <Suspense fallback={<div className="loading">載入終端…</div>}>
+                    <Terminal />
+                  </Suspense>
+                }
+              />
               <Route path="/archive"       element={<Archive />} />
               <Route path="/report/:date"  element={<Report />} />
             </Routes>
