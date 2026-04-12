@@ -53,7 +53,10 @@
 9. **PWA War Room 二期** — 錯誤態 UX、視覺拋光（首期已交付）。
 10. **PWA Web Push** — Service Worker／持久訂閱（[`Direction 1A`](#維護者意見執行順序不變) 對齊）；不阻塞日報主線。
 11. ~~**Bloomberg 對齊 Phase 2**~~ — **已交付（2026-04-10 CHANGELOG）**：Terminal v2 分組／模板、跨頁 Symbol Context（`SymbolFocusBar` + `TerminalSymbolCard` 設為全域關注）、Streamlit 與 `symbol_snapshot_service`／可選 HTTP 對齊 snapshot 形狀。
-12. **Terminal 中段 M2** — PWA：顯示 `data_provenance`、意圖狀態按鈕（`PATCH /api/execution-intents/{id}`）、`TERMINAL_POLL_MS` 輪詢（見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)）。
+12. **Terminal 中段 M2** — PWA：顯示 `data_provenance`、意圖狀態按鈕（`PATCH /api/execution-intents/{id}`）、`VITE_TERMINAL_POLL_MS` 輪詢；**實作規格**見 [`docs/TERMINAL_MID_TIER_ROADMAP.md` — M2](docs/TERMINAL_MID_TIER_ROADMAP.md#m2-terminal-pwa)。
+13. **Terminal 中段 M3** — `GET /api/symbols/{symbol}/quote` + pytest + PWA last 價；見 [M3](docs/TERMINAL_MID_TIER_ROADMAP.md#m3-symbol-quote)。
+14. **Terminal 中段 M4** — SSE（優先）或 WebSocket + 可選 stream auth；見 [M4](docs/TERMINAL_MID_TIER_ROADMAP.md#m4-realtime-stream)。
+15. **Terminal 中段 M5** — 紙上 worker、狀態擴充、成交規則 MVP；見 [M5](docs/TERMINAL_MID_TIER_ROADMAP.md#m5-paper-execution)。
 
 ---
 
@@ -108,6 +111,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-12（四）**：[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md) 擴充 **M2–M5** 實作規格（DoD、檔案、API、測試、依賴圖、手動 checklist）；「下一批隊列」增 **M3–M5**、M2 補 roadmap 錨點；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** `### Docs` 合併敘述。
 - **2026-04-12（三）**：**Terminal 中段 M1** — 「已交付摘要」增列；「下一批隊列」增 **M2**；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** `### Added` 補 `data_provenance`、`execution-intents` API、[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引增該檔。
 - **2026-04-12**：「**已交付摘要**」補登兩列 — **日報組裝衛生**（`report_render`／`test_report_render`）與 **Crew／FD 規則**（`crew`、`tools_legacy`），對齊 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-10** `### Pipeline`；**同步狀態**日期更新。[`CHANGELOG.md`](CHANGELOG.md) 增 **2026-04-12** `### Docs` 並於檔首明訂 **CHANGELOG ↔ TODOS** 維護契約；[`AGENTS.md`](AGENTS.md)、[`CLAUDE.md`](CLAUDE.md) 交接／導覽一句補強。另完成 Bloomberg 對齊首批落地（alignment doc、symbol snapshot API、PWA Terminal workspace、lightweight-charts K 線事件標註）。**後續小步**：`README` 補 **`/terminal`／`VITE_API_URL`**；`App.jsx` **`lazy`+`Suspense`** 載入 Terminal（CHANGELOG **2026-04-12** `### Changed`）。
 - **2026-04-23**：**全文改寫** — 宣告舊版「巨型可勾選 backlog」**未**等同全部實作；改為導覽 + **下一批隊列** + 長期索引；移除 G-1～G-8 全表與重複 Phase／OSS 細拆 checkbox（詳見 git 歷史）；OSS 週報契約與 `OSS_SCOUT_AUTO_*` 規則保留。
