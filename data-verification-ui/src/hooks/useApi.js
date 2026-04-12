@@ -133,6 +133,23 @@ export function useWarRoomLatest(options = {}) {
  * @param {number} [recommendationLimit]
  * @param {{ livePoll?: boolean }} [options] — `livePoll: true` 時依 `VITE_TERMINAL_POLL_MS`（預設 45s）輪詢 snapshot（Terminal 頁）
  */
+/**
+ * Lightweight last / 1d change (M3); no BQ. Use with `livePoll: true` on Terminal cards.
+ */
+export function useSymbolQuote(symbol, options = {}) {
+  const livePoll = Boolean(options.livePoll);
+  const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
+  const normalized = (symbol ?? "").trim().toUpperCase();
+  return useQuery({
+    queryKey: ["symbol", "quote", normalized, livePoll ? "live" : "static"],
+    queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/quote`),
+    enabled: !!normalized,
+    staleTime: livePoll ? Math.min(interval || 45_000, 60_000) : 60 * 1000,
+    refetchInterval: interval,
+    retry: 1,
+  });
+}
+
 export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, options = {}) {
   const livePoll = Boolean(options.livePoll);
   const interval = livePoll ? getTerminalRefetchIntervalMs() : false;

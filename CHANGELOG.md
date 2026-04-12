@@ -23,7 +23,7 @@
 ### Tests
 - 新增 [`test_api_symbols_snapshot.py`](test_api_symbols_snapshot.py)（成功、symbol 格式錯誤、BigQuery 失敗）。
 - 新增 [`test_execution_intents_api.py`](test_execution_intents_api.py)（allowed-statuses、列表去重、`PATCH` 成功／404）。
-- 驗證：`python3 -m pytest test_api_symbols_snapshot.py test_api_push.py test_execution_intents_api.py`。
+- 驗證：`python3 -m pytest test_api_symbols_snapshot.py test_api_push.py test_execution_intents_api.py test_api_symbol_quote.py`。
 - 驗證：`cd data-verification-ui && npm run build`（build success）。
 
 ### Docs
@@ -45,6 +45,18 @@
 ### Tests
 
 - 驗證：`cd data-verification-ui && npm run build`。
+
+### API（Terminal M3）
+
+- **[`api.py`](api.py)**：`GET /api/symbols/{symbol}/quote` — yfinance **日線最後收盤**、可選 **1D %**、`data_provenance.price`；無報價時 **503**。
+- **[`symbol_snapshot_service.py`](symbol_snapshot_service.py)**：`fetch_symbol_quote`（**45s** in-process TTL 快取、每 symbol 上限）。
+- **[`test_api_symbol_quote.py`](test_api_symbol_quote.py)**：成功（mock）、503、400。
+- **PWA**：[`useSymbolQuote`](data-verification-ui/src/hooks/useApi.js)；[`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx) 頂欄最新收盤；[`index.css`](data-verification-ui/src/index.css) 樣式。
+- **Docs**：[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md) §3c、[`README.md`](README.md) War Room 小節。
+
+### Tests（M3）
+
+- 驗證：`python3 -m pytest test_api_symbol_quote.py`；`cd data-verification-ui && npm run build`。
 
 ## 2026-04-10
 

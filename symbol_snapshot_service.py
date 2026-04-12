@@ -21,6 +21,20 @@ _ohlc_cache: dict[tuple[str, int], tuple[datetime, list[dict[str, Any]]]] = {}
 _OHLC_CACHE_TTL = timedelta(minutes=3)
 _OHLC_CACHE_MAX_KEYS = 128
 
+# Lightweight last / 1d change for Terminal KPI strip (no BigQuery).
+_quote_cache: dict[str, tuple[datetime, dict[str, Any]]] = {}
+_QUOTE_CACHE_TTL = timedelta(seconds=45)
+_QUOTE_CACHE_MAX_KEYS = 256
+
+
+def _quote_cache_put(sym: str, payload: dict[str, Any]) -> None:
+    now = datetime.now(timezone.utc)
+    store = {k: v for k, v in payload.items() if k != "cached"}
+    _quote_cache[sym] = (now, store)
+    if len(_quote_cache) > _QUOTE_CACHE_MAX_KEYS:
+        oldest = min(_quote_cache.items(), key=lambda x: x[1][0])[0]
+        _quote_cache.pop(oldest, None)
+
 
 def rows_to_dicts(rows) -> list[dict[str, Any]]:
     """Convert BigQuery RowIterator rows to JSON-serialisable dicts."""
@@ -94,6 +108,86 @@ def fetch_symbol_ohlc(symbol: str, days: int) -> list[dict[str, Any]]:
         oldest_key = min(_ohlc_cache.items(), key=lambda item: item[1][0])[0]
         _ohlc_cache.pop(oldest_key, None)
     return rows
+
+
+def fetch_symbol_quote(normalized_symbol: str) -> dict[str, Any]:
+    """Latest daily close + optional 1d % change via yfinance; short TTL cache (M3 Terminal).
+
+    Does not query BigQuery. On failure returns a dict with ``last`` null and ``error`` set
+    (caller maps to HTTP 503).
+    """
+    now = datetime.now(timezone.utc)
+    sym = normalized_symbol.strip().upper()
+    cached = _quote_cache.get(sym)
+    if cached and now - cached[0] <= _QUOTE_CACHE_TTL:
+        return {**cached[1], "cached": True}
+
+    try:
+        import yfinance as yf
+    except Exception as exc:  # pragma: no cover
+        logger.warning("yfinance unavailable for symbol quote: %s", exc)
+        return {
+            "symbol": sym,
+            "as_of": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "source": "yfinance",
+            "underlying_symbol": to_yf_symbol(sym),
+            "last": None,
+            "currency": None,
+            "change_pct_1d": None,
+            "error": "yfinance_unavailable",
+            "cached": False,
+        }
+
+    yf_symbol = to_yf_symbol(sym)
+    out: dict[str, Any] = {
+        "symbol": sym,
+        "as_of": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source": "yfinance",
+        "underlying_symbol": yf_symbol,
+        "last": None,
+        "currency": None,
+        "change_pct_1d": None,
+        "error": None,
+        "cached": False,
+    }
+
+    try:
+        hist = yf.Ticker(yf_symbol).history(period="10d", interval="1d")
+    except Exception as exc:
+        logger.warning("Could not fetch quote history for %s: %s", yf_symbol, exc)
+        out["error"] = "yfinance_history_failed"
+        return out
+
+    if hist is None or hist.empty:
+        out["error"] = "no_price_data"
+        return out
+
+    try:
+        last_row = hist.iloc[-1]
+        last_idx = hist.index[-1]
+        ts = last_idx.to_pydatetime()
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        out["as_of"] = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+        out["last"] = float(last_row["Close"])
+        if len(hist) >= 2:
+            prev_close = float(hist.iloc[-2]["Close"])
+            if prev_close:
+                out["change_pct_1d"] = round((float(last_row["Close"]) - prev_close) / prev_close * 100.0, 4)
+    except Exception as exc:
+        logger.warning("Could not parse quote row for %s: %s", yf_symbol, exc)
+        out["error"] = "parse_failed"
+        return out
+
+    try:
+        cur = yf.Ticker(yf_symbol).fast_info.get("currency")
+        if cur:
+            out["currency"] = str(cur)
+    except Exception:
+        pass
+
+    _quote_cache_put(sym, out)
+    return {**{k: v for k, v in out.items() if k != "cached"}, "cached": False}
 
 
 def build_symbol_snapshot(

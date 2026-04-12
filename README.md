@@ -268,7 +268,7 @@ BQ／排除 context → 雙軌研究 → assemble／render →（可選 editor�
 Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。  
 本機後端：`uvicorn api:app --reload --port 8000`（需 GCP 讀 BQ）。細節見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。
 
-- **路由**：底部導覽「終端」→ **`/terminal`**（watchlist 存 `localStorage`、代號卡呼叫 `GET /api/symbols/{symbol}/snapshot`）。
+- **路由**：底部導覽「終端」→ **`/terminal`**（watchlist 存 `localStorage`；代號卡呼叫 `GET /api/symbols/{symbol}/snapshot` 與輕量 **`GET /api/symbols/{symbol}/quote`**（最新日線收盤／1D%，僅 yfinance））。
 - **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（適合 PWA 與 API 同網域反代）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。
 - **`VITE_TERMINAL_POLL_MS`**（可選）：**`/terminal`** 內 snapshot／意圖列表／War Room 輪詢間隔（毫秒），預設 **45000**；本機除錯可設 `15000`。見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)。
 - **產品對齊說明**：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（能力映射與驗收；非外觀複製 Terminal）。

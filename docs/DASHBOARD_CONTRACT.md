@@ -25,6 +25,7 @@
 | `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema |
 | `GET /api/metrics/history` | 歷史指標 | query：`days` |
 | `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit`；回應含 **`data_provenance`**（OHLC／BQ 來源與 as_of） |
+| `GET /api/symbols/{symbol}/quote` | 輕量 **最新日線收盤** + 可選 **1D %**（僅 yfinance，無 BQ） | 失敗 **503**；伺服端快取約 **45s**；回應含 **`data_provenance.price`** |
 | `GET /api/execution-intents` | 執行意圖列表（每 `signal_id` 最新一列） | query：`limit` |
 | `GET /api/execution-intents/allowed-statuses` | 允許的意圖狀態集合 | |
 | `PATCH /api/execution-intents/{signal_id}` | 意圖狀態轉移（append-only；**不下單**） | JSON body：`status`、`note` |

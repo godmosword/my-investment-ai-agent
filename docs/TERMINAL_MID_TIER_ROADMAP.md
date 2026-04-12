@@ -75,6 +75,8 @@
 
 **目標**：降低 **整包 snapshot** 呼叫頻率；圖表仍用日線 OHLC，**頂欄 last** 用更小 payload 輪詢。
 
+**已落地**：[`symbol_snapshot_service.fetch_symbol_quote`](../symbol_snapshot_service.py)（45s TTL 快取）；[`api.py`](../api.py) `GET /api/symbols/{symbol}/quote`；[`test_api_symbol_quote.py`](../test_api_symbol_quote.py)；PWA [`useSymbolQuote`](../data-verification-ui/src/hooks/useApi.js) + [`TerminalSymbolCard`](../data-verification-ui/src/components/TerminalSymbolCard.jsx) 頂欄 **最新收盤（日線）**。
+
 ### API 設計
 
 - `GET /api/symbols/{symbol}/quote`  

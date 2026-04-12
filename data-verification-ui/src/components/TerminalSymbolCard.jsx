@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSymbolSnapshot } from "../hooks/useApi";
+import { useSymbolQuote, useSymbolSnapshot } from "../hooks/useApi";
 import SymbolCandleChart from "./SymbolCandleChart";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 
@@ -84,6 +84,12 @@ export default function TerminalSymbolCard({
   dragHandleProps,
 }) {
   const { data, isLoading, error, isFetching } = useSymbolSnapshot(symbol, 30, 12, { livePoll: true });
+  const {
+    data: quote,
+    isLoading: quoteLoading,
+    error: quoteError,
+    isFetching: quoteFetching,
+  } = useSymbolQuote(symbol, { livePoll: true });
   const { symbol: focusSymbol, setSymbol: setGlobalFocus } = useSymbolFocus();
   const isFocused = focusSymbol === symbol.toUpperCase();
 
@@ -131,6 +137,41 @@ export default function TerminalSymbolCard({
             as-of: {data.as_of ? new Date(data.as_of).toLocaleString("zh-TW") : "N/A"} · source:{" "}
             {data.source}
             {isFetching ? <span className="terminal-card-poll"> · 輪詢更新中</span> : null}
+          </div>
+
+          <div className="terminal-quote-strip">
+            {quoteLoading && !quote ? (
+              <span className="terminal-quote-muted">最新價載入中…</span>
+            ) : quoteError ? (
+              <span className="terminal-quote-muted" title={quoteError.message}>
+                最新價：無法取得（<code>/api/symbols/{symbol}/quote</code>）
+              </span>
+            ) : quote && quote.last != null ? (
+              <>
+                <span className="terminal-quote-label">最新收盤（日線）</span>
+                <span className="terminal-quote-last">
+                  {quote.last != null ? Number(quote.last).toLocaleString("en-US", { maximumFractionDigits: 6 }) : "—"}
+                  {quote.currency ? ` ${quote.currency}` : ""}
+                </span>
+                {quote.change_pct_1d != null ? (
+                  <span
+                    className={
+                      Number(quote.change_pct_1d) >= 0 ? "terminal-quote-chg-up" : "terminal-quote-chg-down"
+                    }
+                  >
+                    {Number(quote.change_pct_1d) >= 0 ? "+" : ""}
+                    {Number(quote.change_pct_1d).toFixed(2)}%（1D）
+                  </span>
+                ) : null}
+                <span className="terminal-quote-asof">
+                  bar {quote.as_of ? new Date(quote.as_of).toLocaleDateString("zh-TW") : "—"}
+                  {quote.cached ? " · 快取" : ""}
+                  {quoteFetching ? " · 更新中" : ""}
+                </span>
+              </>
+            ) : (
+              <span className="terminal-quote-muted">最新價：無資料</span>
+            )}
           </div>
           <DataProvenanceBlock provenance={data.data_provenance} />
           <div className="metrics-grid">

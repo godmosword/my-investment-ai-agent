@@ -25,7 +25,11 @@ from execution_intents import (
     latest_execution_intents,
     update_execution_intent_status,
 )
-from symbol_snapshot_service import build_symbol_snapshot, validate_symbol_for_snapshot
+from symbol_snapshot_service import (
+    build_symbol_snapshot,
+    fetch_symbol_quote,
+    validate_symbol_for_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -431,6 +435,20 @@ class SymbolSnapshot(BaseModel):
     data_provenance: dict[str, Any] = Field(default_factory=dict)
 
 
+class SymbolQuote(BaseModel):
+    """Lightweight last close + 1d % change (yfinance only; M3 Terminal KPI strip)."""
+
+    symbol: str
+    as_of: str
+    source: str = "yfinance"
+    underlying_symbol: str
+    last: float | None = None
+    currency: str | None = None
+    change_pct_1d: float | None = None
+    cached: bool = False
+    data_provenance: dict[str, Any] = Field(default_factory=dict)
+
+
 class ExecutionIntentStatusBody(BaseModel):
     """Human / War Room workflow: advance intent lifecycle (no order placement)."""
 
@@ -531,6 +549,37 @@ def patch_execution_intent_status(
             detail="signal_id not found, invalid status, or malformed prior row",
         )
     return updated
+
+
+@app.get("/api/symbols/{symbol}/quote", response_model=SymbolQuote)
+def get_symbol_quote(symbol: str) -> dict[str, Any]:
+    """Terminal-style last price strip; no BigQuery. Cached ~45s server-side."""
+    normalized_symbol = _validate_symbol(symbol)
+    raw = fetch_symbol_quote(normalized_symbol)
+    if raw.get("error") or raw.get("last") is None:
+        raise HTTPException(
+            status_code=503,
+            detail=str(raw.get("error") or "quote_unavailable"),
+        )
+    provenance = {
+        "price": {
+            "source": "yfinance",
+            "as_of": raw.get("as_of"),
+            "interval": "1d",
+            "underlying_symbol": raw.get("underlying_symbol"),
+        }
+    }
+    return {
+        "symbol": raw["symbol"],
+        "as_of": str(raw.get("as_of") or ""),
+        "source": "yfinance",
+        "underlying_symbol": str(raw.get("underlying_symbol") or ""),
+        "last": raw.get("last"),
+        "currency": raw.get("currency"),
+        "change_pct_1d": raw.get("change_pct_1d"),
+        "cached": bool(raw.get("cached")),
+        "data_provenance": provenance,
+    }
 
 
 @app.get("/api/symbols/{symbol}/snapshot", response_model=SymbolSnapshot)
