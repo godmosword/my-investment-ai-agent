@@ -23,6 +23,13 @@ RECOMMENDATIONS_TABLE = f"{PROJECT_ID}.market_data.trade_recommendations"
 PAPER_TRADE_TABLE = RECOMMENDATIONS_TABLE
 LLM_RUN_LOG_TABLE = f"{PROJECT_ID}.market_data.llm_run_log"
 GATE_FAILURE_LOG_TABLE = f"{PROJECT_ID}.market_data.gate_failure_log"
+# Web Push 持久化（T4a）：可選 BQ 表；見 docs/PWA_WEB_PUSH.md 與 `docs/SQL/web_push_subscriptions.sql`
+WEB_PUSH_SUBSCRIPTIONS_TABLE = os.getenv(
+    "WEB_PUSH_SUBSCRIPTIONS_TABLE",
+    f"{PROJECT_ID}.market_data.web_push_subscriptions",
+).strip()
+# 實盤 BQ vs yfinance 觀測寫入（可選）；見 `scripts/symbol_price_probe.py`
+PRICE_PROBE_LOG_TABLE = os.getenv("PRICE_PROBE_LOG_TABLE", "").strip()
 
 # LiteLLM 模型字串（crew fallback 鏈與 _API_KEY_MAP 依此比對）
 MODEL_GROK = _env_model("MODEL_GROK", default="xai/grok-4-1-fast-reasoning")

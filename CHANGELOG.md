@@ -3,6 +3,18 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-15
+
+### Added
+- **實盤 BQ vs yfinance 觀測 CLI**：[`scripts/symbol_price_probe.py`](scripts/symbol_price_probe.py)（stdout JSON：`build_symbol_snapshot`、`price_alignment`、可選 **`PRICE_PROBE_WRITE_BQ`**）；建表 DDL [`docs/SQL/price_probe_log.sql`](docs/SQL/price_probe_log.sql)；`config.PRICE_PROBE_LOG_TABLE` 預設留空由 env 覆寫。
+- **Web Push T4a（Redis、VAPID、pywebpush、BQ）**：[`web_push_store.py`](web_push_store.py) — `WEB_PUSH_REDIS_URL`（HASH 存完整 subscription、**Redis INCR** 分散式 rate limit）、可選 **`WEB_PUSH_BQ_PERSIST`**／**`WEB_PUSH_BQ_AUDIT`**；[`api.py`](api.py) `POST /api/push/test-send`（**`X-Web-Push-Admin-Key`**）；[`scripts/vapid_generate.py`](scripts/vapid_generate.py)；DDL [`docs/SQL/web_push_subscriptions.sql`](docs/SQL/web_push_subscriptions.sql)；[`test_web_push_redis.py`](test_web_push_redis.py)（fakeredis）；依賴 **`redis`／`pywebpush`／`py-vapid`**（[`requirements.txt`](requirements.txt)）、CI **`fakeredis`+`redis`**（[`requirements-ci.txt`](requirements-ci.txt)）。
+
+### Changed
+- [`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)、[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b：對齊 T4a／price probe。
+
+### Tests
+- [`test_web_push_redis.py`](test_web_push_redis.py)
+
 ## 2026-04-14
 
 ### Added

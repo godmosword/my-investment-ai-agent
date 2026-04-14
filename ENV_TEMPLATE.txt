@@ -183,17 +183,31 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # ---------- PWA / API（選填）----------
 # API_HTTP_REQUEST_LOG=0    # 1=true=yes：FastAPI 對 /api/* 記錄 status 與 elapsed_ms（T1b 觀測；預設關）
 # PRICE_ALIGNMENT_E2E_OVERRIDES=   # 可選 JSON：{"NVDA":{"ohlc_last_close":100,"quote_last":110}} — 僅供 E2E／staging 強制 snapshot price_alignment（勿用於生產）
-# WEB_PUSH_ENABLED=0   # 1=POST /api/push/subscribe 改為 200 noop（訂閱持久化仍待實作；預設 501）
+# WEB_PUSH_ENABLED=0   # 1=POST /api/push/subscribe 允許（見 docs/PWA_WEB_PUSH.md）
 # SYMBOL_SNAPSHOT_HTTP_BASE=   # Streamlit dashboard：Symbol 快照唯讀區改打 HTTP（例 http://127.0.0.1:8000）；未設則 dashboard 以 BigQuery 直建與 GET /api/symbols/{ticker}/snapshot 相同形狀之 payload（symbol_snapshot_service.build_symbol_snapshot）
 # DASHBOARD_SYMBOL_FOCUS=BTC   # Streamlit「載入快照」輸入框預設代號（可選；見 dashboard.py）
 # EXECUTION_INTENT_STORE=.qsilicon/execution_intents.jsonl  # 執行意圖 JSONL（相對 repo 根）
 # ---------- PWA Web Push（分階；見 docs/PWA_WEB_PUSH.md）----------
-# WEB_PUSH_ENABLED=0           # 1=允許 POST /api/push/subscribe（預設 log-only，stored=false）
-# WEB_PUSH_STORE=0             # 1=程序內暫存訂閱摘要（重啟即失；非生產持久化）
-# WEB_PUSH_STORE_MAX_SUBSCRIPTIONS=512   # 程序內 store 上限（去重後以 endpoint fingerprint 計）
-# WEB_PUSH_SUBSCRIBE_RATE_PER_MIN=30     # 同一 client IP 每分鐘允許之 POST 次數（0=關閉）；僅 WEB_PUSH_STORE=1 時強制
+# WEB_PUSH_ENABLED=0           # 1=允許 POST /api/push/subscribe（無 Redis 且無 WEB_PUSH_STORE=1 時為 log-only）
+# WEB_PUSH_REDIS_URL=          # 例 redis://:pass@host:6379/0 — 訂閱與分散式 rate limit（優先於程序內 store）
+# WEB_PUSH_REDIS_SUMMARY_ONLY=0  # 1=Redis 僅存摘要（無法 pywebpush；預設 0=存完整 subscription JSON）
+# WEB_PUSH_STORE=0             # 1=程序內暫存（無 REDIS_URL 時）；WEB_PUSH_STORE_FULL_SUBSCRIPTION=1 存完整 JSON 才可發送
+# WEB_PUSH_STORE_MAX_SUBSCRIPTIONS=512   # 程序內 store 上限
+# WEB_PUSH_SUBSCRIBE_RATE_PER_MIN=30     # client IP 每分鐘 POST 上限（0=關）；有 Redis 時走 Redis INCR
+# WEB_PUSH_BQ_PERSIST=0        # 1=每次成功訂閱寫入 BQ（須先建表 docs/SQL/web_push_subscriptions.sql）
+# WEB_PUSH_BQ_AUDIT=0         # 1=每次 POST（含 rate_limit）寫入 audit 表
+# WEB_PUSH_SUBSCRIPTIONS_TABLE=   # 覆寫預設 {PROJECT}.market_data.web_push_subscriptions（見 config.WEB_PUSH_SUBSCRIPTIONS_TABLE）
+# WEB_PUSH_AUDIT_TABLE=         # 覆寫 audit 表 id（預設 …web_push_subscribe_audit）
+# WEB_PUSH_ADMIN_KEY=          # 非空時啟用 POST /api/push/test-send（Header: X-Web-Push-Admin-Key）
+# WEB_PUSH_VAPID_PRIVATE_KEY=  # PEM（python scripts/vapid_generate.py）
+# WEB_PUSH_VAPID_MAILTO=mailto:ops@example.com  # pywebpush vapid sub
+# WEB_PUSH_SEND_MAX=50        # test-send 最多發送筆數
 # （PWA）VITE_WEB_PUSH_REGISTER=0   # 1=SW 就緒後嘗試 subscribe（須 VITE_WEB_PUSH_VAPID_PUBLIC_KEY）
 # （PWA）VITE_WEB_PUSH_VAPID_PUBLIC_KEY=   # URL-safe base64 VAPID public key
+# ---------- 實盤價格觀測（BQ vs yfinance；見 scripts/symbol_price_probe.py）----------
+# PRICE_PROBE_WRITE_BQ=0      # 1=寫入 PRICE_PROBE_LOG_TABLE
+# PRICE_PROBE_LOG_TABLE=      # 例 project.dataset.price_alignment_probe_log（須先建表 docs/SQL/price_probe_log.sql）
+# PRICE_PROBE_BQ_METRIC=      # 可選：echo latest_metrics 某欄位名（float），與 yfinance 並列於 stdout JSON
 # （PWA）VITE_TERMINAL_POLL_MS=45000   # Terminal 輪詢間隔（毫秒；見 docs/DASHBOARD_CONTRACT.md）
 # （PWA）VITE_TERMINAL_QUERY_COALESCE=1   # 1=多卡同頁時 snapshot/quote/intents 輪詢時間錯開，減少 burst（設 0 關閉）
 

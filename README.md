@@ -278,6 +278,8 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 - **`VITE_TERMINAL_POLL_MS`**（可選）：**`/terminal`** 內 snapshot／意圖列表／War Room 輪詢間隔（毫秒），預設 **45000**；本機除錯可設 `15000`。見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)。
 - **SSE（可選）**：後端 `TERMINAL_SSE_ENABLED=1` 時提供 `GET /api/stream/war-room`；前端 **`VITE_SSE_ENABLED=1`**，若設 `API_STREAM_AUTH_KEY` 則同步 **`VITE_SSE_STREAM_KEY`**。紙上一輪：`python scripts/paper_execution_tick.py` 或 `PAPER_TICK_HTTP_ENABLED=1` 時 `POST /api/paper/execution-tick`（可選 `PAPER_TICK_API_KEY`）。
 - **產品對齊說明**：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（能力映射與驗收；非外觀複製 Terminal）。
+- **實盤價格觀測（BQ vs yfinance）**：`python scripts/symbol_price_probe.py BTC`（stdout JSON）；可選 `PRICE_PROBE_WRITE_BQ=1` + `PRICE_PROBE_LOG_TABLE=…` 寫入 BQ（建表 [`docs/SQL/price_probe_log.sql`](docs/SQL/price_probe_log.sql)）。
+- **Web Push（T4a）**：[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) — `WEB_PUSH_REDIS_URL`、`WEB_PUSH_VAPID_*`、`POST /api/push/test-send`（`WEB_PUSH_ADMIN_KEY`）；產鑰 `python scripts/vapid_generate.py`。
 
 ---
 
