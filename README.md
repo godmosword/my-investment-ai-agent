@@ -16,7 +16,7 @@
 | 環境變數 | [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) → 複製為 `.env` |
 | 日報版面 | [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) |
 
-**本 README 對齊 repo 現況（2026-04-09）。** 細節與紅線亦見 [`.cursorrules`](.cursorrules)。
+**本 README 對齊 repo 現況（持續更新；重大變更見 [`CHANGELOG.md`](CHANGELOG.md)）。** 細節與紅線亦見 [`.cursorrules`](.cursorrules)。
 
 ---
 
@@ -60,6 +60,16 @@ python main.py
 | 乾跑 | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` |
 | 除錯 | `LOG_LEVEL=DEBUG CREW_VERBOSE=1 python main.py` |
 | 雙軌比對 | `REPORT_COMPARE_MODE=1 python main.py` → [`docs/REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md) |
+
+### 日報品質代理（可選）
+
+在 **`.env`**（由 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 複製）手動加入：
+
+- **`REPORT_QUALITY_AGENT=1`** — `validate_report` 通過後跑 [`report_quality_agent.py`](report_quality_agent.py)（不取代 Gate）。
+- **`OPENAI_API_KEY`** — 已為管線必填；品質代理的 LLM rubric 與 **`REPORT_LLM_JUDGE_MODEL`** 相同，程式預設 **`openai/gpt-4o-mini`**（若要明確寫死可設 `REPORT_LLM_JUDGE_MODEL=openai/gpt-4o-mini`）。
+- 其餘門檻／`git push` 行為見 `ENV_TEMPLATE.txt` 註解（**勿**隨意開 `REPORT_QUALITY_AGENT_GIT_PUSH`）。
+
+載入 `.env` 後執行：`set -a && source .env && set +a && python main.py`。詳見 [`TODOS.md`](TODOS.md) 與 CHANGELOG。
 
 **Python**：Dockerfile 為 3.11-slim；本機 3.12 通常可。專案為根目錄扁平腳本，**無** `pyproject.toml`。
 

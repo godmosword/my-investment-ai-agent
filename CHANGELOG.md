@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-16
+
+### Docs
+- [`README.md`](README.md)：新增 **日報品質代理（可選）** 小節 — `.env` 設 `REPORT_QUALITY_AGENT=1`、`REPORT_LLM_JUDGE_MODEL` 預設 **gpt-4o-mini**、載入方式與勿亂開 `GIT_PUSH` 提醒；README 日期敘述改為指向 CHANGELOG。
+
 ## 2026-04-15
 
 ### Added
