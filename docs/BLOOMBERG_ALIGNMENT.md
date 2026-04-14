@@ -8,6 +8,7 @@
 - Terminal「中段」執行切片：[docs/TERMINAL_MID_TIER_ROADMAP.md](TERMINAL_MID_TIER_ROADMAP.md)
 - 產品與技術路線：[docs/ROADMAP_VISION.md](docs/ROADMAP_VISION.md)
 - 工程待辦總表：[TODOS.md](TODOS.md)
+- ADR 索引：[docs/ADR_INDEX.md](ADR_INDEX.md)
 
 ---
 
@@ -58,6 +59,11 @@
 13. 變更同步更新 CHANGELOG + TODOS（雙向對齊）。
 14. 不新增會破壞 Telegram HTML 白名單的輸出流程。
 15. 不引入未審核的即時付費資料依賴。
+
+### 4b) 條目 6／14 的 repo 內自動化錨點（2026-04-14）
+
+- **條目 6（跨頁 ticker 數值一致）**：pytest [`test_terminal_numeric_consistency.py`](../test_terminal_numeric_consistency.py)（`fetch_symbol_quote` 之 `last`／`change_pct_1d` 與 `fetch_symbol_ohlc` 最後一筆 close 於同源 yfinance 時一致）。
+- **條目 14（Terminal 變更回歸紀錄）**：CI 步驟「Terminal contract」執行 [`scripts/ci_terminal_contract_check.sh`](../scripts/ci_terminal_contract_check.sh)（`pytest test_terminal_numeric_consistency` + PWA `npm run build`）。
 
 ---
 

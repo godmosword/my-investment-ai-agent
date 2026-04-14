@@ -84,6 +84,16 @@ class TestScratchpad(unittest.TestCase):
             self.assertTrue(any(x.get("type") == "judge_result" for x in lines))
             scratchpad.finalize_run("ok")
 
+    def test_append_graph_deep_research_metrics(self):
+        with mock.patch.dict(os.environ, {"SCRATCHPAD_DIR": str(self._path / "spdr"), "SCRATCHPAD_ENABLED": "1"}):
+            scratchpad.begin_run({})
+            p = scratchpad.current_scratchpad_path()
+            assert p is not None
+            scratchpad.append_graph_deep_research_metrics({"rounds_used": 2, "elapsed_ms": 12.3})
+            lines = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines()]
+            self.assertTrue(any(x.get("type") == "graph_deep_research_metrics" for x in lines))
+            scratchpad.finalize_run("ok")
+
     def test_append_editor_result(self):
         with mock.patch.dict(os.environ, {"SCRATCHPAD_DIR": str(self._path / "spe"), "SCRATCHPAD_ENABLED": "1"}):
             scratchpad.begin_run({})

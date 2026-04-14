@@ -8,6 +8,7 @@ export default function WarRoomCard({
   error,
   intentStatusFilter = "all",
   onIntentStatusChange,
+  onWarRoomRetry,
 }) {
   if (loading) {
     return <div className="loading">載入 War Room 快照中…</div>;
@@ -16,6 +17,27 @@ export default function WarRoomCard({
     return (
       <div className="error-msg" style={{ marginBottom: 12 }}>
         無法載入 War Room 快照（<code>/api/war-room/latest</code>）：{error.message}
+        {onWarRoomRetry && (
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="war-room-retry"
+              disabled={loading}
+              onClick={() => onWarRoomRetry()}
+              style={{
+                fontSize: 12,
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--border)",
+                background: "var(--panel)",
+                color: "var(--text)",
+                cursor: loading ? "not-allowed" : "pointer",
+              }}
+            >
+              重試載入
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -32,7 +54,38 @@ export default function WarRoomCard({
 
   return (
     <div className="card" style={{ marginBottom: 14 }}>
-      <div className="card-title">最新健康狀態</div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div className="card-title" style={{ marginBottom: 0 }}>
+          最新健康狀態
+        </div>
+        {onWarRoomRetry && (
+          <button
+            type="button"
+            className="war-room-retry"
+            disabled={loading}
+            onClick={() => onWarRoomRetry()}
+            style={{
+              fontSize: 11,
+              padding: "4px 10px",
+              borderRadius: 6,
+              border: "1px solid var(--border)",
+              background: "var(--panel)",
+              color: "var(--muted)",
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            重新整理
+          </button>
+        )}
+      </div>
       <div style={{ fontSize: 12, lineHeight: 1.6, color: "var(--muted)" }}>
         <div>
           Gate failure：

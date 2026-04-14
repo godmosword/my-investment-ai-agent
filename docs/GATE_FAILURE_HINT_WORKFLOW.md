@@ -6,6 +6,7 @@
 
 - **CLI 摘要（Markdown）**：[`scripts/gate_failure_hint_digest.py`](../scripts/gate_failure_hint_digest.py) — 印出近 N 日高頻 `issues_preview`，供貼內部文件；**不**改 repo。
 - **內部儀表指引**：[`docs/GATE_INTERNAL_DASHBOARD.md`](GATE_INTERNAL_DASHBOARD.md)（Looker／Sheet／BQ 主控台）。
+- **CI 錨點（Terminal 契約）**：[`scripts/ci_terminal_contract_check.sh`](../scripts/ci_terminal_contract_check.sh) — 與 PWA build 一併跑，作為「變更可回溯」的輕量回歸（見 [`docs/BLOOMBERG_ALIGNMENT.md`](BLOOMBERG_ALIGNMENT.md) §4b）。
 
 ## 步驟
 

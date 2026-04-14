@@ -748,6 +748,28 @@ def _run_pipeline_once(
         return "", e, None
 
 
+def _pipeline_config_snapshot_for_scratchpad() -> dict:
+    """非機密啟動組態摘要（供 scratchpad init／LG-1 觀測）；失敗時降級為空欄位。"""
+    snap: dict = {
+        "PIPELINE_STRICT_ENV": (os.getenv("PIPELINE_STRICT_ENV") or "").strip()[:16],
+        "STRICT_PICK_ROTATION": (os.getenv("STRICT_PICK_ROTATION") or "").strip()[:16],
+        "ADAPTIVE_GATE_THRESHOLDS": (os.getenv("ADAPTIVE_GATE_THRESHOLDS") or "").strip()[:16],
+        "ADAPTIVE_GATE_BQ_READ": (os.getenv("ADAPTIVE_GATE_BQ_READ") or "").strip()[:16],
+        "GRAPH_DEEP_RESEARCH_TOOL_LLM": (os.getenv("GRAPH_DEEP_RESEARCH_TOOL_LLM") or "").strip()[:16],
+        "GRAPH_ENABLE_TOOL_CALLS": (os.getenv("GRAPH_ENABLE_TOOL_CALLS") or "").strip()[:16],
+        "USE_LANGGRAPH_ENGINE": (os.getenv("USE_LANGGRAPH_ENGINE") or "").strip()[:16],
+    }
+    try:
+        from adaptive_gate_thresholds import effective_pick_rotation_override_min_gap
+
+        snap["effective_pick_rotation_override_min_gap"] = float(
+            effective_pick_rotation_override_min_gap()
+        )
+    except Exception:
+        snap["effective_pick_rotation_override_min_gap"] = None
+    return snap
+
+
 def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, dict | None]:
     """
     帶 503 退避與驗證重試的產報流程。回傳 (final_report, report_valid)。
@@ -760,6 +782,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             "skip_telegram": SKIP_TELEGRAM,
             "skip_bigquery": SKIP_BIGQUERY,
             "strict_consistency_gate": STRICT_CONSISTENCY_GATE,
+            "pipeline_config": _pipeline_config_snapshot_for_scratchpad(),
         }
     )
     final_report = ""
@@ -1080,6 +1103,11 @@ def _validate_env_types() -> None:
         "NEWS_FRESHNESS_WINDOW_HOURS": "48",
         "CREW_FUTURE_TIMEOUT_SEC": "2400",
         "PIPELINE_HARD_DEADLINE_SEC": "13200",
+        "ADAPTIVE_GATE_BQ_LOOKBACK_DAYS": "14",
+        "ADAPTIVE_BQ_MIN_FAILURE_ROWS": "5",
+        "ADAPTIVE_ROTATION_PREVIEW_FRACTION": "0.35",
+        "ADAPTIVE_GATE_GAP_BUMP": "2",
+        "ADAPTIVE_GATE_GAP_CEILING": "24",
     }
     for var, default in numeric_vars.items():
         raw = os.getenv(var)

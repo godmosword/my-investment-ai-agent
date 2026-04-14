@@ -267,6 +267,11 @@ def append_quality_agent_result(payload: dict[str, Any]) -> None:
     _write_event("quality_agent_result", {"payload": _redact_obj(payload)})
 
 
+def append_graph_deep_research_metrics(payload: dict[str, Any]) -> None:
+    """LangGraph deep_research_node（GRAPH_DEEP_RESEARCH_TOOL_LLM=1）輕量觀測。"""
+    _write_event("graph_deep_research_metrics", {"payload": _redact_obj(payload)})
+
+
 def append_editor_result(payload: dict[str, Any]) -> None:
     """日報潤稿 Agent 結果（meta only，不寫全文）。"""
     _write_event("editor_result", {"payload": _redact_obj(payload)})
