@@ -146,7 +146,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # REPORT_LLM_JUDGE_MIN_SCORE=70
 # REPORT_LLM_JUDGE_BLOCKING=0  # 1=評分未過則視同結構驗證失敗並重試
 # ---------- 日報品質代理（validate 乾淨通過或 warn-pass 交付後；不阻擋發報）----------
-# REPORT_QUALITY_AGENT=0              # 1=啟用：LLM rubric（同 llm_quality_judge）+ 可選 domain 加權複合分
+# REPORT_QUALITY_AGENT=0              # 1=啟用：LLM rubric = report_judge.llm_quality_judge；模型同 **REPORT_LLM_JUDGE_MODEL**（未設時程式預設 **openai/gpt-4o-mini**，與上節一致；固定用 gpt-4o-mini 可不覆寫）
 # REPORT_QUALITY_AGENT_COMPOSITE_MIN=72   # 複合分低於此則寫入 TODOS.md 機器區塊（改善項）
 # REPORT_QUALITY_AGENT_SOURCE=dual    # dual | llm | domain（dual=LLM+domain 平均；缺 OPENAI_API_KEY 時自動退為 domain）
 # REPORT_QUALITY_AGENT_DOMAIN=0       # 1=複合分納入 report_judge.domain_quality_check
