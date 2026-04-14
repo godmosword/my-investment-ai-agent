@@ -2,7 +2,7 @@
 
 **Claude Code** discovers this file at the repo root as project context; **Cursor** loads `.cursor/rules/claude-md-bootstrap.mdc` + `.cursorrules` §0 so agents are nudged to read this file before substantive work.
 
-Concise orientation for coding agents. **Authoritative product/README detail** → [`README.md`](README.md)（含紅線、情境式快速開始、**雙軌研究引擎**圖：預設並行 `CryptoResearchCrew`／`AIResearchCrew` 與可選 **`USE_LANGGRAPH_ENGINE=1`** 的 [`graph/`](graph/) LangGraph 路徑，以及環境變數／CI／PWA 索引）。**Backlog & shipped features** → [`TODOS.md`](TODOS.md). **Human changelog** → [`CHANGELOG.md`](CHANGELOG.md)（**須與 TODOS 雙向對齊**，見兩檔檔首）。 **Cursor-specific** → [`AGENTS.md`](AGENTS.md) (includes **Collaboration model / Technical Co-Founder** alignment for agent–human roles).
+Concise orientation for coding agents. **Authoritative product/README detail** → [`README.md`](README.md)（含紅線、情境式快速開始、**雙軌研究引擎**圖：預設並行 `CryptoResearchCrew`／`AIResearchCrew` 與可選 **`USE_LANGGRAPH_ENGINE=1`** 的 [`graph/`](graph/) LangGraph 路徑，以及環境變數／CI／PWA 索引）。**Backlog & shipped features** → [`TODOS.md`](TODOS.md)（**每次 `git pull` 或第一次讀 repo**：先看 [§ git pull／讀 codebase 提醒](TODOS.md#pull-or-read-codebase-reminder) — Web Push／price probe **雲端營運待辦**）。**Human changelog** → [`CHANGELOG.md`](CHANGELOG.md)（**須與 TODOS 雙向對齊**，見兩檔檔首）。 **Cursor-specific** → [`AGENTS.md`](AGENTS.md) (includes **Collaboration model / Technical Co-Founder** alignment for agent–human roles).
 
 ---
 

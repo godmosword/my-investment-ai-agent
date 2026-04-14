@@ -12,6 +12,9 @@
 ### Changed
 - [`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)、[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b：對齊 T4a／price probe。
 
+### Docs
+- [`TODOS.md`](TODOS.md)：新增 **git pull／讀 codebase 提醒**（錨點 `#pull-or-read-codebase-reminder`）與隊列 **18–21**（BQ DDL、Redis、VAPID、staging `test-send`）；[`CLAUDE.md`](CLAUDE.md) 導覽連結至該錨點。
+
 ### Tests
 - [`test_web_push_redis.py`](test_web_push_redis.py)
 

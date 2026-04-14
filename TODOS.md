@@ -1,8 +1,23 @@
 # Q-Silicon — 工程與產品待辦（導覽）
 
-**變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)
+**變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) · [**git pull／讀 codebase 時先看**](#pull-or-read-codebase-reminder)
 
 **同步狀態（2026-04-12）**：本檔於 **2026-04-23 改寫**；**2026-04-15** **T4a 完整元件**（Redis、`pywebpush`、`POST /api/push/test-send`、可選 BQ persist／audit、[`scripts/vapid_generate.py`](scripts/vapid_generate.py)）與 **實盤觀測 CLI** [`scripts/symbol_price_probe.py`](scripts/symbol_price_probe.py) — 見 CHANGELOG **2026-04-15**；**2026-04-14（八）** 下一輪：**NVDA mock 跨路由 E2E**、`price_alignment` **來源欄位**與 **`PRICE_ALIGNMENT_E2E_OVERRIDES`**、**Web Push store 去重／IP rate limit**、**gate_issue_hints 單字邊界**（見 CHANGELOG **2026-04-14**）；**2026-04-14（七）** 依建議順序落地 **Terminal 主線 T1–T3** 首批實作並穿插 **T4b（通知語意草案）**／**T5a／T5b**（見 CHANGELOG **2026-04-14** 與下節 T1–T5 錨點）；**2026-04-14（六）** 精煉 T1–T5 **建議執行順序**（主線／並線／交錯表）；**2026-04-14（五）** 新增 [**Terminal／戰情室後中段路線（T1–T5）**](#terminal-post-mid-tier-t1-t5)（每切片對應檔案）；**2026-04-14（四）** Playwright E2E；**2026-04-14（三）** 可加強項；**2026-04-14（二）** Phase A–E；**2026-04-14** 日報品質代理；**2026-04-12** [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
+
+---
+
+<a id="pull-or-read-codebase-reminder"></a>
+
+## git pull／讀 codebase 時請先看（營運待辦）
+
+> **觸發**：每次 **`git pull`** 自 remote 更新後、或 **第一次讀本 repo／切大任務** 載入 `TODOS.md`／`CLAUDE.md` 時，請掃一眼本節與下方隊列 **18–21**（T4a／price probe **環境與基礎設施** 尚未在雲端自動完成）。
+
+| # | 動作 | 說明 |
+|---|------|------|
+| 1 | **BigQuery 建表** | 在 GCP 執行 DDL：[`docs/SQL/web_push_subscriptions.sql`](docs/SQL/web_push_subscriptions.sql)、[`docs/SQL/price_probe_log.sql`](docs/SQL/price_probe_log.sql)；並在執行環境設定 **`WEB_PUSH_SUBSCRIPTIONS_TABLE`**（若與預設 `{PROJECT}.market_data.web_push_subscriptions` 不同）、**`PRICE_PROBE_LOG_TABLE`**（寫入觀測時必填）。見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。 |
+| 2 | **Redis** | 部署 Redis，設定 **`WEB_PUSH_REDIS_URL`**（訂閱儲存 + 分散式 rate limit）。 |
+| 3 | **VAPID** | 執行 **`python3 scripts/vapid_generate.py`**：**public** → PWA `VITE_WEB_PUSH_VAPID_PUBLIC_KEY`；**private（PEM）** → 僅後端 `WEB_PUSH_VAPID_PRIVATE_KEY`（勿進前端 repo）。 |
+| 4 | **staging 驗證 test-send** | `POST /api/push/test-send` 會打真 **Push Service**；設 **`WEB_PUSH_ADMIN_KEY`**，Header **`X-Web-Push-Admin-Key`**，**小流量** 驗證後再開 production。見 [`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)。 |
 
 ---
 
@@ -84,6 +99,8 @@
 
 依維護者順序與工程可切性排列；**完成後**把對應句寫進 CHANGELOG，並在本節刪行或改「✓」。
 
+**提醒**：**`git pull` 後或讀 codebase 前**請看 [§ git pull／讀 codebase 時請先看](#pull-or-read-codebase-reminder) 與隊列 **18–21**（雲端尚未自動完成的 T4a／觀測表與金鑰）。
+
 1. ~~**P0 Critical env 定稿**~~ — **已交付（2026-04-14）**：[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) 修訂；[`main.py`](main.py) `_validate_env_types` 納入 `ADAPTIVE_*` 數值校驗；scratchpad `pipeline_config`。
 2. ~~**橫切閾值實驗**~~ — **已交付（2026-04-14）**：[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md) 補 scratchpad 實驗紀錄欄位。
 3. ~~**P3 Gate 失敗 → 人審提示**~~ — **已交付（2026-04-14）**：[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 補 CI 錨點（digest 腳本／BQ 流程既有）。
@@ -101,6 +118,10 @@
 15. ~~**Terminal 中段 M3**~~ — **已交付**：見「已交付摘要」與 CHANGELOG **2026-04-12** `### API（Terminal M3）`；規格 [M3](docs/TERMINAL_MID_TIER_ROADMAP.md#m3-symbol-quote)。
 16. ~~**Terminal 中段 M4**~~ — **已交付**：見「已交付摘要」與 [`docs/TERMINAL_MID_TIER_ROADMAP.md` M4](docs/TERMINAL_MID_TIER_ROADMAP.md#m4-realtime-stream)。
 17. ~~**Terminal 中段 M5**~~ — **已交付**：見「已交付摘要」與 [M5](docs/TERMINAL_MID_TIER_ROADMAP.md#m5-paper-execution)。
+18. **營運：BigQuery DDL（Web Push + price probe）** — 在專案 BQ 執行 [`docs/SQL/web_push_subscriptions.sql`](docs/SQL/web_push_subscriptions.sql) 與 [`docs/SQL/price_probe_log.sql`](docs/SQL/price_probe_log.sql)；設定 **`WEB_PUSH_SUBSCRIPTIONS_TABLE`**／**`WEB_PUSH_AUDIT_TABLE`**（可選）／**`PRICE_PROBE_LOG_TABLE`**（寫入觀測時）。完成後可勾掉並註記日期。
+19. **營運：Redis + `WEB_PUSH_REDIS_URL`** — 接上後端可連之 Redis；與 **18** 一併驗證 `POST /api/push/subscribe` 回 `backend: redis`。
+20. **營運：VAPID 金鑰** — `python3 scripts/vapid_generate.py`；public → PWA env、private → 後端 only；勿提交私鑰。
+21. **營運：staging 小流量 `test-send`** — `WEB_PUSH_ADMIN_KEY` + `POST /api/push/test-send`；確認瀏覽器能收再放量。
 
 ---
 
@@ -213,6 +234,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-15（二）**：新增 [git pull／讀 codebase 提醒](#pull-or-read-codebase-reminder) 與隊列 **18–21**（BQ DDL、Redis、VAPID、staging test-send）；[`CHANGELOG.md`](CHANGELOG.md) `### Docs`；[`CLAUDE.md`](CLAUDE.md) 導覽一句。
 - **2026-04-15**：**T4a** — Redis、`pywebpush`、`POST /api/push/test-send`、可選 BQ persist／audit、[`scripts/vapid_generate.py`](scripts/vapid_generate.py)；**實盤觀測** — [`scripts/symbol_price_probe.py`](scripts/symbol_price_probe.py) + [`docs/SQL/price_probe_log.sql`](docs/SQL/price_probe_log.sql)；隊列 **11** ~~刪線~~；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-15**。
 - **2026-04-14（八）**：**NVDA** mock 跨路由 Playwright；`price_alignment` 來源欄位 + `PRICE_ALIGNMENT_E2E_OVERRIDES`；Web Push **store 去重／IP rate limit**；`gate_issue_hints` **單字邊界**避免誤匹配。
 - **2026-04-14（七）**：依建議順序 — **T1–T3** 主線首批落地（錯誤態／觀測 log／E2E 擴面）、**T2** 契約補 §4c、**T5a／T5b** 穿插（`report_links` 內部路由 + `gate_issue_hints`）；同步 CHANGELOG／`DASHBOARD_CONTRACT`／`ENV_TEMPLATE`／`PWA_WEB_PUSH`（T4b 草案）。
