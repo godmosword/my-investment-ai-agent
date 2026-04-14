@@ -3,6 +3,14 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-14
+
+### Added
+- **日報品質代理（可選）**：[`report_quality_agent.py`](report_quality_agent.py) — `REPORT_QUALITY_AGENT=1` 時在 `validate_report` 乾淨通過或 warn-pass 交付後，以 LLM rubric（沿用 `llm_quality_judge`）與可選 `domain_quality_check` 計算複合分；低於 `REPORT_QUALITY_AGENT_COMPOSITE_MIN` 時將改善項寫入 [`TODOS.md`](TODOS.md) 內 `REPORT_QUALITY_AGENT_TODOS_*` 機器區塊；[`scratchpad.py`](scratchpad.py) 新增 `quality_agent_result` 事件；[`main.py`](main.py) 在三處成功交付路徑掛勾。可選 `REPORT_QUALITY_AGENT_GIT_PUSH` + `REPORT_QUALITY_AGENT_GIT_ALLOW` 於寫入後 `git commit`／`push`（預設關閉）。環境變數見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
+
+### Tests
+- 新增 [`test_report_quality_agent.py`](test_report_quality_agent.py)（複合分、TODOS 區塊、整體流程 mock）。
+
 ## 2026-04-12
 
 ### Added

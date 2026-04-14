@@ -145,6 +145,15 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # REPORT_LLM_JUDGE_MODEL=openai/gpt-4o-mini
 # REPORT_LLM_JUDGE_MIN_SCORE=70
 # REPORT_LLM_JUDGE_BLOCKING=0  # 1=評分未過則視同結構驗證失敗並重試
+# ---------- 日報品質代理（validate 乾淨通過或 warn-pass 交付後；不阻擋發報）----------
+# REPORT_QUALITY_AGENT=0              # 1=啟用：LLM rubric（同 llm_quality_judge）+ 可選 domain 加權複合分
+# REPORT_QUALITY_AGENT_COMPOSITE_MIN=72   # 複合分低於此則寫入 TODOS.md 機器區塊（改善項）
+# REPORT_QUALITY_AGENT_SOURCE=dual    # dual | llm | domain（dual=LLM+domain 平均；缺 OPENAI_API_KEY 時自動退為 domain）
+# REPORT_QUALITY_AGENT_DOMAIN=0       # 1=複合分納入 report_judge.domain_quality_check
+# REPORT_QUALITY_AGENT_TODOS_PATH=    # 預設專案根 TODOS.md
+# REPORT_QUALITY_AGENT_TODOS_MAX_LINES=40  # 機器區塊內最多保留幾條 bullet（自頂裁切）
+# REPORT_QUALITY_AGENT_GIT_PUSH=0     # 1=寫入 TODOS 後 git commit + push（須 CI/權限；預設關）
+# REPORT_QUALITY_AGENT_GIT_ALLOW=0    # 與 GIT_PUSH 同開才執行（雙重保險，避免誤推）
 # GATE_FAILURE_ARTIFACTS=1   # validate 失敗時寫入 .qsilicon/last_gate_failure/（draft_report.txt、issues.txt、validation_summary.json）
 # GATE_FAILURE_ARTIFACT_DIR=   # 自訂目錄（預設專案根下 .qsilicon/last_gate_failure）
 # GATE_FAILURE_BQ_LOG=1      # 1=管線每次 validate 含 issues 時寫入 BigQuery `market_data.gate_failure_log`（結構化分類，不自動改 prompt）；SKIP_BIGQUERY=1 時仍略過

@@ -43,6 +43,10 @@ from report_judge import (
     llm_quality_judge,
     domain_quality_check,
 )
+from report_quality_agent import (
+    maybe_run_report_quality_agent_after_success,
+    quality_agent_summary_for_scratchpad,
+)
 from report_html_gates import (
     validate_report,
     _crypto_report_prefix,  # noqa: F401
@@ -876,7 +880,19 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             # Clean pass: no issues at all.
             if report_valid:
                 logger.info("Report generation successful (clean pass).")
-                scratchpad.finalize_run("success", {"finalAttempt": attempt + 1, "valid": True})
+                _qa = maybe_run_report_quality_agent_after_success(
+                    final_report, gate_passed=True, validation_result=result
+                )
+                if _qa:
+                    scratchpad.append_quality_agent_result(_qa)
+                scratchpad.finalize_run(
+                    "success",
+                    {
+                        "finalAttempt": attempt + 1,
+                        "valid": True,
+                        "quality_agent": quality_agent_summary_for_scratchpad(_qa),
+                    },
+                )
                 return final_report, True, result
 
             # Warn pass: no blocking issues and warnings within threshold.
@@ -887,9 +903,19 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     warn_count, GATE_WARN_THRESHOLD,
                 )
                 final_report = _inject_gate_warning_banner(final_report, warnings)
+                _qa = maybe_run_report_quality_agent_after_success(
+                    final_report, gate_passed=True, validation_result=result
+                )
+                if _qa:
+                    scratchpad.append_quality_agent_result(_qa)
                 scratchpad.finalize_run(
                     "success_warn_pass",
-                    {"finalAttempt": attempt + 1, "warnings": warn_count, "threshold": GATE_WARN_THRESHOLD},
+                    {
+                        "finalAttempt": attempt + 1,
+                        "warnings": warn_count,
+                        "threshold": GATE_WARN_THRESHOLD,
+                        "quality_agent": quality_agent_summary_for_scratchpad(_qa),
+                    },
                 )
                 return final_report, True, result
 
@@ -915,9 +941,18 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     len(warnings_final),
                 )
                 final_report = _inject_gate_warning_banner(final_report, warnings_final)
+                _qa = maybe_run_report_quality_agent_after_success(
+                    final_report, gate_passed=True, validation_result=last_validation
+                )
+                if _qa:
+                    scratchpad.append_quality_agent_result(_qa)
                 scratchpad.finalize_run(
                     "success_warn_pass_exhausted",
-                    {"warnings": len(warnings_final), "threshold": GATE_WARN_THRESHOLD},
+                    {
+                        "warnings": len(warnings_final),
+                        "threshold": GATE_WARN_THRESHOLD,
+                        "quality_agent": quality_agent_summary_for_scratchpad(_qa),
+                    },
                 )
                 return final_report, True, last_validation
             else:
