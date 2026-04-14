@@ -149,7 +149,7 @@ export default function TerminalSymbolCard({
             ) : quote && quote.last != null ? (
               <>
                 <span className="terminal-quote-label">最新收盤（日線）</span>
-                <span className="terminal-quote-last">
+                <span className="terminal-quote-last" data-testid={`terminal-quote-last-${symbol}`}>
                   {quote.last != null ? Number(quote.last).toLocaleString("en-US", { maximumFractionDigits: 6 }) : "—"}
                   {quote.currency ? ` ${quote.currency}` : ""}
                 </span>

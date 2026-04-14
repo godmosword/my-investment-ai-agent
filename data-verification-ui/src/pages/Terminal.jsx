@@ -9,6 +9,16 @@ const STORAGE_V2 = "qs_terminal_workspace_v2";
 
 const DEFAULT_SYMBOLS = ["BTC", "SPY"];
 
+/** E2E 建置（VITE_E2E=1）：固定單卡 BTC，不依賴 localStorage 競態。 */
+function e2eDefaultWorkspace() {
+  const gid = "g_e2e_seed";
+  return {
+    version: 2,
+    groups: [{ id: gid, name: "E2E", symbols: ["BTC"] }],
+    activeGroupId: gid,
+  };
+}
+
 const WORKSPACE_TEMPLATES = [
   { id: "crypto_core", label: "Crypto 核心", symbols: ["BTC", "ETH", "SOL"] },
   { id: "us_broad", label: "美股大盤", symbols: ["SPY", "QQQ", "IWM"] },
@@ -57,12 +67,25 @@ function migrateV1ToV2(rawV1) {
 
 export default function Terminal() {
   const { symbol: globalSymbol } = useSymbolFocus();
-  const [workspace, setWorkspace] = useState(() => defaultWorkspace());
+  const [workspace, setWorkspace] = useState(() =>
+    import.meta.env.VITE_E2E === "1" ? e2eDefaultWorkspace() : defaultWorkspace(),
+  );
   const [input, setInput] = useState("");
   const [dragIndex, setDragIndex] = useState(null);
   const [newGroupName, setNewGroupName] = useState("");
 
   useEffect(() => {
+    if (import.meta.env.VITE_E2E === "1") {
+      try {
+        const p = new URLSearchParams(window.location.search);
+        if (p.get("e2e_btc") === "1") {
+          setWorkspace(e2eDefaultWorkspace());
+        }
+      } catch {
+        // ignore
+      }
+      return;
+    }
     try {
       const raw2 = localStorage.getItem(STORAGE_V2);
       if (raw2) {
@@ -95,6 +118,9 @@ export default function Terminal() {
   }, []);
 
   useEffect(() => {
+    if (import.meta.env.VITE_E2E === "1") {
+      return;
+    }
     try {
       localStorage.setItem(STORAGE_V2, JSON.stringify(workspace));
     } catch {
@@ -289,7 +315,11 @@ export default function Terminal() {
         </button>
       </div>
 
-      <div className="terminal-workspace-grid">
+      <div
+        className="terminal-workspace-grid"
+        data-testid="terminal-workspace-grid"
+        data-active-symbols={symbols.join(",")}
+      >
         {symbols.map((symbol, index) => (
           <div
             key={`${workspace.activeGroupId}-${symbol}`}

@@ -1,0 +1,38 @@
+name: PWA — Playwright E2E
+
+# PR 若僅改 PWA 會略過根目錄 ci.yml；此 workflow 專責 data-verification-ui（含 Bloomberg §6 跨頁價格 E2E）。
+on:
+  pull_request:
+    paths:
+      - "data-verification-ui/**"
+      - ".github/workflows/pwa-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "data-verification-ui/**"
+      - ".github/workflows/pwa-e2e.yml"
+  workflow_dispatch:
+
+jobs:
+  playwright:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: data-verification-ui
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: data-verification-ui/package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Playwright E2E (mock API + preview)
+        run: npm run test:e2e
+        env:
+          CI: true

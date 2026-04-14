@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { createChart, createSeriesMarkers } from "lightweight-charts";
+import { CandlestickSeries, createChart, createSeriesMarkers } from "lightweight-charts";
 
 function toMarker(item) {
   return {
@@ -32,7 +32,7 @@ export default function SymbolCandleChart({ symbol, priceSeries = [], eventMarke
       timeScale: { borderColor: "rgba(120, 160, 200, 0.18)" },
       crosshair: { mode: 1 },
     });
-    const series = chart.addCandlestickSeries({
+    const series = chart.addSeries(CandlestickSeries, {
       upColor: "#34d399",
       downColor: "#f87171",
       borderVisible: false,
