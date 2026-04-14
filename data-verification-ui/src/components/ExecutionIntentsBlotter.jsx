@@ -27,7 +27,21 @@ function statusLabel(s) {
 export default function ExecutionIntentsBlotter() {
   const qc = useQueryClient();
   const pollMs = getTerminalRefetchIntervalMs();
-  const { data: rows = [], isLoading, error, isFetching } = useExecutionIntents(50, { livePoll: true });
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("updated_desc");
+  const {
+    data: rows = [],
+    isLoading,
+    error,
+    isFetching,
+    refetch,
+  } = useExecutionIntents(50, {
+    livePoll: true,
+    statusFilter,
+    categoryFilter,
+    sortBy,
+  });
   const { data: allowedPayload } = useExecutionIntentAllowedStatuses();
   const patch = usePatchExecutionIntent();
   const [notes, setNotes] = useState({});
@@ -95,8 +109,62 @@ export default function ExecutionIntentsBlotter() {
       {error && (
         <div className="error-msg">
           無法載入 <code>/api/execution-intents</code>：{error.message}
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="terminal-btn terminal-btn--small"
+              disabled={isFetching}
+              onClick={() => refetch()}
+            >
+              {isFetching ? "重試中…" : "重試載入"}
+            </button>
+          </div>
         </div>
       )}
+
+      {!isLoading && !error ? (
+        <div className="terminal-blotter-filters" style={{ marginBottom: 12, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <label className="page-subtitle" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            狀態
+            <select
+              className="terminal-input terminal-input--narrow"
+              style={{ minWidth: 140 }}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">全部</option>
+              <option value="PENDING">待審（PENDING…）</option>
+              <option value="APPROVED">已核准紙上</option>
+              <option value="REJECTED">已駁回</option>
+              <option value="PAPER">紙上生命週期</option>
+            </select>
+          </label>
+          <label className="page-subtitle" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            類別
+            <select
+              className="terminal-input terminal-input--narrow"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="all">全部</option>
+              <option value="CRYPTO">CRYPTO</option>
+              <option value="AI">AI</option>
+            </select>
+          </label>
+          <label className="page-subtitle" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            排序
+            <select
+              className="terminal-input terminal-input--narrow"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="updated_desc">最近更新</option>
+              <option value="created_desc">建立時間</option>
+              <option value="asset_asc">代號 A→Z</option>
+            </select>
+          </label>
+        </div>
+      ) : null}
 
       {!isLoading && !error && rows.length === 0 ? (
         <div className="page-subtitle">目前無執行意圖（或 JSONL 為空）。管線寫入後將顯示於此。</div>
@@ -122,6 +190,12 @@ export default function ExecutionIntentsBlotter() {
                   <td>
                     <strong>{row.asset}</strong>
                     <div className="terminal-blotter-id">{row.signal_id}</div>
+                    {Array.isArray(row.gate_issue_hints) && row.gate_issue_hints.length > 0 ? (
+                      <div className="terminal-blotter-note-read" style={{ marginTop: 4, fontSize: 11 }}>
+                        Gate 關聯：{row.gate_issue_hints[0]}
+                        {row.gate_issue_hints.length > 1 ? `（+${row.gate_issue_hints.length - 1}）` : ""}
+                      </div>
+                    ) : null}
                   </td>
                   <td>{row.direction}</td>
                   <td>

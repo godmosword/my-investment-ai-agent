@@ -2,7 +2,7 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)
 
-**同步狀態（2026-04-12）**：本檔於 **2026-04-23 改寫**；**2026-04-14（六）** 精煉 T1–T5 **建議執行順序**（主線／並線／交錯表）；**2026-04-14（五）** 新增 [**Terminal／戰情室後中段路線（T1–T5）**](#terminal-post-mid-tier-t1-t5)（每切片對應檔案）；**2026-04-14（四）** Playwright E2E；**2026-04-14（三）** 可加強項；**2026-04-14（二）** Phase A–E；**2026-04-14** 日報品質代理；**2026-04-12** [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
+**同步狀態（2026-04-12）**：本檔於 **2026-04-23 改寫**；**2026-04-14（七）** 依建議順序落地 **Terminal 主線 T1–T3** 首批實作並穿插 **T4b（通知語意草案）**／**T5a／T5b**（見 CHANGELOG **2026-04-14** 與下節 T1–T5 錨點）；**2026-04-14（六）** 精煉 T1–T5 **建議執行順序**（主線／並線／交錯表）；**2026-04-14（五）** 新增 [**Terminal／戰情室後中段路線（T1–T5）**](#terminal-post-mid-tier-t1-t5)（每切片對應檔案）；**2026-04-14（四）** Playwright E2E；**2026-04-14（三）** 可加強項；**2026-04-14（二）** Phase A–E；**2026-04-14** 日報品質代理；**2026-04-12** [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
 
 ---
 
@@ -57,7 +57,8 @@
 | 日報品質代理（複合分／TODOS 後續） | [`report_quality_agent.py`](report_quality_agent.py)、[`main.py`](main.py)（成功交付後掛勾）、`REPORT_QUALITY_AGENT*`（[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）；scratchpad `quality_agent_result` |
 | Phase A–E 觀測與 Terminal 契約 | [`main.py`](main.py) scratchpad `init.meta.pipeline_config`；[`graph/graph_nodes.py`](graph/graph_nodes.py) `graph_deep_research_metrics`（含 `finish_kind` 等）；[`scripts/ci_terminal_contract_check.sh`](scripts/ci_terminal_contract_check.sh)、[`.github/workflows/ci.yml`](.github/workflows/ci.yml)（含 **npm cache**）；[`test_terminal_numeric_consistency.py`](test_terminal_numeric_consistency.py)、[`test_symbol_snapshot_alignment.py`](test_symbol_snapshot_alignment.py)、[`test_graph_deep_research_metrics.py`](test_graph_deep_research_metrics.py)、[`test_schemas_cap_internal_field.py`](test_schemas_cap_internal_field.py)；PWA [`WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx)；[`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)、[`README.md`](README.md) badges |
 | Snapshot 價格對齊／Web Push 分階 | [`symbol_snapshot_service.py`](symbol_snapshot_service.py) `price_alignment`；[`api.py`](api.py) `SymbolSnapshot`；[`web_push_store.py`](web_push_store.py)、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)、[`data-verification-ui/src/pushClient.js`](data-verification-ui/src/pushClient.js) |
-| Playwright E2E（Bloomberg §6 UI） | [`data-verification-ui/e2e/`](data-verification-ui/e2e/)、[`data-verification-ui/playwright.config.js`](data-verification-ui/playwright.config.js)、[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml)；[`TodayBtcSnapshotStrip.jsx`](data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx) |
+| Playwright E2E（Bloomberg §6 UI） | [`data-verification-ui/e2e/`](data-verification-ui/e2e/)（`cross-page-btc-price`、`terminal-spy-mismatch`）、[`data-verification-ui/playwright.config.js`](data-verification-ui/playwright.config.js)、[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml)；[`TodayBtcSnapshotStrip.jsx`](data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx) |
+| Terminal 後中段 **T1–T3**／**T5** 首次切片（2026-04-14） | [`execution_intents.py`](execution_intents.py)（`status`／`category`／`sort_by`）；[`api.py`](api.py)（`API_HTTP_REQUEST_LOG`、`gate_issue_hints` 富化、`GET /api/execution-intents` query）；[`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)（輪詢 coalesce、5xx backoff）；PWA [`Today.jsx`](data-verification-ui/src/pages/Today.jsx)、[`PositionHealthStrip.jsx`](data-verification-ui/src/components/PositionHealthStrip.jsx)、[`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)、[`ExecutionIntentsBlotter.jsx`](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)、[`Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4c、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)（T4b 草案）；[`test_execution_intents_api.py`](test_execution_intents_api.py) |
 | 日報組裝衛生（三情境、儀表板分區） | [`report_render.py`](report_render.py)：BTC 現價 **>50k** 且情境列含 **突破** 時 **`7.6k`→`76k`**；**`instrument_sections`** 前剔除與 IB 區塊標題同名之**空白佔位列**、**連續重複** `is_section_header`；[`test_report_render.py`](test_report_render.py)（CHANGELOG **2026-04-10**） |
 | Crew 新聞／工具敘述邊界 | [`crew.py`](crew.py)：加密 **1–3** `investment_takeaway` 禁止無據 **垃圾債／HY／spread** 跳喻；**FinancialDatasets** 營收相關 MetricLine **`label` 須含期間口徑**（annual／quarterly／FY／年份等）；[`tools_legacy.py`](tools_legacy.py) `_fd_summarize_ticker` 尾註提醒 **fiscal／口徑**（CHANGELOG **2026-04-10**） |
 | 模板 `$` 與交易卡顯示 | `strip_usd` 濾鏡、`ExecutableTradeLeg` 欄位正規化（CHANGELOG **2026-04-22**） |
@@ -91,7 +92,7 @@
 9. ~~**PWA War Room 二期**~~ — **已交付（最小切片，2026-04-14）**：[`WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx) 錯誤態重試／成功態重新整理；視覺拋光仍可在後續波次加強。
 10. ~~**PWA Web Push（分階 1）**~~ — **已交付（2026-04-14）**：[`web_push_store.py`](web_push_store.py)、`WEB_PUSH_ENABLED`／`WEB_PUSH_STORE`、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)、PWA [`pushClient.js`](data-verification-ui/src/pushClient.js)（`VITE_WEB_PUSH_*`）。**未完成（分階 2）**見隊列 **11**。
 11. **PWA Web Push（分階 2 — 生產級）** — VAPID、訂閱儲存（Redis／BQ）、發送管線與合規審核（[`Direction 1A`](#維護者意見執行順序不變)）；不阻塞日報主線。
-12. ~~**Terminal E2E（Playwright）**~~ — **已交付（2026-04-14）**：[`data-verification-ui/e2e/cross-page-btc-price.spec.js`](data-verification-ui/e2e/cross-page-btc-price.spec.js)、[`e2e/mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs)、[`e2e/run-ci.sh`](data-verification-ui/e2e/run-ci.sh)、[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml)；`SymbolCandleChart` 修正 **lightweight-charts v5** `addSeries(CandlestickSeries)`（避免 Terminal 卡白屏）。
+12. ~~**Terminal E2E（Playwright）**~~ — **已交付（2026-04-14）**：[`data-verification-ui/e2e/cross-page-btc-price.spec.js`](data-verification-ui/e2e/cross-page-btc-price.spec.js)、[`e2e/terminal-spy-mismatch.spec.js`](data-verification-ui/e2e/terminal-spy-mismatch.spec.js)（`price_alignment` 分支 + gate hint + 內部 `report` 連結）、[`e2e/mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs)、[`e2e/run-ci.sh`](data-verification-ui/e2e/run-ci.sh)、[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml)；`SymbolCandleChart` 修正 **lightweight-charts v5** `addSeries(CandlestickSeries)`（避免 Terminal 卡白屏）。
 13. ~~**Bloomberg 對齊 Phase 2**~~ — **已交付（2026-04-10 CHANGELOG）**：Terminal v2 分組／模板、跨頁 Symbol Context（`SymbolFocusBar` + `TerminalSymbolCard` 設為全域關注）、Streamlit 與 `symbol_snapshot_service`／可選 HTTP 對齊 snapshot 形狀。
 14. ~~**Terminal 中段 M2**~~ — **已交付**：見「已交付摘要」列與 CHANGELOG **2026-04-12** `### PWA`；規格見 [`docs/TERMINAL_MID_TIER_ROADMAP.md` — M2](docs/TERMINAL_MID_TIER_ROADMAP.md#m2-terminal-pwa)。
 15. ~~**Terminal 中段 M3**~~ — **已交付**：見「已交付摘要」與 CHANGELOG **2026-04-12** `### API（Terminal M3）`；規格 [M3](docs/TERMINAL_MID_TIER_ROADMAP.md#m3-symbol-quote)。
@@ -154,6 +155,8 @@
 
 **一句話**：先 **穩 UI／觀測（T1）**，再 **定口徑與測試（T2）**，再做 **互動與效能（T3）**；**推送（T4）** 規格早開、實作晚合；**日報閉環（T5）** 對齊契約後交錯落地。
 
+> **2026-04-14 進度備註（非 exhaustive）**：T1a／T1b／T1c、T2a／T2b／T2c、T3a／T3b／T3c 已有**可 review 初版**（見上「已交付摘要」列與 CHANGELOG）；T4a／T4b **實作**仍待合規拍板（T4b 目前為 `docs/PWA_WEB_PUSH.md` 草案）；跨來源 BQ vs yfinance **實盤** E2E 仍屬 Bloomberg 條目 6 缺口。
+
 ---
 
 ## 長期與需拍板（索引，不在此逐條實作）
@@ -207,6 +210,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-14（七）**：依建議順序 — **T1–T3** 主線首批落地（錯誤態／觀測 log／E2E 擴面）、**T2** 契約補 §4c、**T5a／T5b** 穿插（`report_links` 內部路由 + `gate_issue_hints`）；同步 CHANGELOG／`DASHBOARD_CONTRACT`／`ENV_TEMPLATE`／`PWA_WEB_PUSH`（T4b 草案）。
 - **2026-04-14（六）**：T1–T5 區塊 — **建議執行順序**改為「主線／並線／交錯」表格與一句話總結（避免單句括號難讀）。
 - **2026-04-14（五）**：新增 [Terminal／戰情室後中段路線（T1–T5）](#terminal-post-mid-tier-t1-t5) — 每切片對應主要檔案與建議執行順序；[`CHANGELOG.md`](CHANGELOG.md) `### Docs` 同步。
 - **2026-04-14（四）**：**Playwright E2E** — 「下一批隊列」**12** ~~刪線~~；`SymbolCandleChart` lightweight-charts **v5**；`pwa-e2e` workflow；[`CHANGELOG.md`](CHANGELOG.md)／[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b 補 UI 層。

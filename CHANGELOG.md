@@ -10,6 +10,7 @@
 - **Symbol snapshot 價格對齊探測**：[`symbol_snapshot_service.py`](symbol_snapshot_service.py) 回應含 `price_alignment` 與 `data_provenance.price_alignment`（OHLC 尾端 vs `fetch_symbol_quote`）；[`api.py`](api.py) `SymbolSnapshot` 增欄位。
 - **Web Push 分階**：[`web_push_store.py`](web_push_store.py)；`WEB_PUSH_ENABLED=1` 時 `POST /api/push/subscribe` 可 log-only 或 `WEB_PUSH_STORE=1` 程序內暫存；[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)；PWA [`pushClient.js`](data-verification-ui/src/pushClient.js) + [`main.jsx`](data-verification-ui/src/main.jsx) 可選註冊（`VITE_WEB_PUSH_*`）。
 - **PWA Playwright E2E（Bloomberg §6 UI）**：[`data-verification-ui/e2e/mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs)、[`e2e/run-ci.sh`](data-verification-ui/e2e/run-ci.sh)、[`playwright.config.js`](data-verification-ui/playwright.config.js)、[`e2e/cross-page-btc-price.spec.js`](data-verification-ui/e2e/cross-page-btc-price.spec.js)；[`TodayBtcSnapshotStrip.jsx`](data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx)（今日頁非 demo 時顯示與 Terminal 同源 BTC 價）；[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml)。
+- **Terminal 後中段（T1–T3／T5 穿插）**：[`execution_intents.py`](execution_intents.py) `latest_execution_intents` 支援 **`status`／`category`／`sort_by`**；[`api.py`](api.py) `GET /api/execution-intents` 對應 query、`gate_issue_hints` 唯讀富化（本機 gate artifact）、**`API_HTTP_REQUEST_LOG`** 可選 `/api/*` 延遲日誌；PWA [`useApi.js`](data-verification-ui/src/hooks/useApi.js) 輪詢 **微錯開**（`VITE_TERMINAL_QUERY_COALESCE`）、Terminal 相關 query **5xx exponential backoff**；[`Today.jsx`](data-verification-ui/src/pages/Today.jsx)／[`PositionHealthStrip.jsx`](data-verification-ui/src/components/PositionHealthStrip.jsx)／[`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)／[`ExecutionIntentsBlotter.jsx`](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)／[`Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)（錯誤重試、`price_alignment` 警告、意圖篩選排序、工作區 JSON 匯入／匯出、**Alt+Shift+E／I**、`report_links` **`Link`** +「今日戰情室」）；Playwright [`e2e/terminal-spy-mismatch.spec.js`](data-verification-ui/e2e/terminal-spy-mismatch.spec.js)；mock API 支援 **SPY** 未對齊分支。
 
 ### Changed
 - [`main.py`](main.py)：`scratchpad.begin_run` 的 `init.meta` 附帶 `pipeline_config`（`PIPELINE_STRICT_ENV`、`ADAPTIVE_GATE_*`、`GRAPH_DEEP_RESEARCH_TOOL_LLM`、`WEB_PUSH_*`、`effective_pick_rotation_override_min_gap` 等非機密快照）；`_validate_env_types` 納入自適應門檻相關數值 env 校驗。
@@ -19,12 +20,12 @@
 - [`api.py`](api.py)：`POST /api/push/subscribe` 分階行為（見上）；`WEB_PUSH_ENABLED=1` 時回 `stored`／`endpoint_fp` 等 meta。
 - [`data-verification-ui/src/components/SymbolCandleChart.jsx`](data-verification-ui/src/components/SymbolCandleChart.jsx)：**lightweight-charts v5** 改用 `chart.addSeries(CandlestickSeries, …)`（修復 Terminal K 線白屏）。
 - [`data-verification-ui/vite.config.js`](data-verification-ui/vite.config.js)：`VITE_E2E=1` 建置時略過 **VitePWA**（避免 Service Worker 干擾 Playwright）。
-- [`data-verification-ui/src/pages/Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)：`VITE_E2E=1` 時跳過 workspace 之 localStorage 還原／寫入；`?e2e_btc=1` 可強制 seed 單卡 BTC；工作區 grid 增 `data-testid`／`data-active-symbols`。
+- [`data-verification-ui/src/pages/Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)：`VITE_E2E=1` 時跳過 workspace 之 localStorage 還原／寫入；`?e2e_btc=1` 僅 BTC；`?e2e_symbols=BTC,SPY` 覆寫 E2E seed；工作區 grid 增 `data-testid`／`data-active-symbols`。
 - [`data-verification-ui/src/components/TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)：`terminal-quote-last-{SYMBOL}` **data-testid**。
 
 ### Docs
 - [`TODOS.md`](TODOS.md)：新增 **Terminal／戰情室後中段路線（T1–T5）** — 每切片對應主要檔案與建議執行順序（持續 improve 規劃）；後續補 **主線／並線／交錯** 執行順序表。
-- 新增 [`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b 補條目 6／14 之 pytest／CI／**Playwright** 錨點與 **snapshot price_alignment**；[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md)、[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)、[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 對齊 scratchpad／CI 觀測；[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 同步 Web Push／snapshot 欄位。
+- 新增 [`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)（含 **T4b** 通知語意草案）；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b 補條目 6／14 之 pytest／CI／**Playwright** 錨點與 **snapshot price_alignment**；**§4c** 補 snapshot vs quote 口徑表；[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md)、[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)、[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 對齊 scratchpad／CI 觀測；[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 同步 Web Push／snapshot 欄位、`execution-intents` query、`API_HTTP_REQUEST_LOG`、`VITE_TERMINAL_QUERY_COALESCE`。
 - [`README.md`](README.md)：MIT／Python／CI **badges**（shields.io 靜態連結至 `.github/workflows/ci.yml`）、LICENSE 對齊一句、CI 小節註記 **npm cache**、PWA **`npm run test:e2e`**；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引增 ADR 索引與 PWA Web Push。
 
 ### Tests
@@ -35,6 +36,7 @@
 - 新增 [`test_symbol_snapshot_alignment.py`](test_symbol_snapshot_alignment.py)（snapshot `price_alignment` 與 `_align_snapshot_price`）。
 - 更新 [`test_api_symbols_snapshot.py`](test_api_symbols_snapshot.py)、[`test_api_push.py`](test_api_push.py)（Web Push 分階契約）。
 - Playwright：[`data-verification-ui/e2e/cross-page-btc-price.spec.js`](data-verification-ui/e2e/cross-page-btc-price.spec.js)（`npm run test:e2e`，Chromium）。
+- 更新 [`test_execution_intents_api.py`](test_execution_intents_api.py)（`sort_by` 400、`status`／`category` 篩選、`gate_issue_hints`、war-room 富化）。
 
 ## 2026-04-12
 

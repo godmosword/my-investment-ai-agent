@@ -11,6 +11,19 @@ export function getTerminalRefetchIntervalMs() {
   return Math.min(300_000, Math.max(5_000, Math.floor(n)));
 }
 
+/** 同頁多卡共用 snapshot 時，避免每卡獨立 refetchInterval（T3c）。 */
+export function getTerminalQueryCoalesce() {
+  const raw = import.meta.env.VITE_TERMINAL_QUERY_COALESCE;
+  if (raw === "" || raw === undefined || raw === null) return true;
+  return String(raw).trim() !== "0";
+}
+
+/** 同 ticker 多 hook 實例共用 staleTime（與輪詢間隔對齊，減少重複請求）。 */
+export function getTerminalSharedStaleTimeMs() {
+  const interval = getTerminalRefetchIntervalMs();
+  return Math.min(interval, 120_000);
+}
+
 async function apiFetch(path) {
   let res;
   try {
@@ -118,12 +131,19 @@ export function useOpenPositions(days = 90) {
 export function useWarRoomLatest(options = {}) {
   const livePoll = Boolean(options.livePoll);
   const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
+  const coalesce = getTerminalQueryCoalesce();
+  const refetchInterval = coalesce && livePoll ? interval * 1.05 : interval;
   return useQuery({
     queryKey: ["war-room", "latest", livePoll ? "live" : "static"],
     queryFn: () => apiFetch("/api/war-room/latest"),
-    staleTime: livePoll ? Math.min(interval, 60_000) : 60 * 1000,
-    refetchInterval: interval,
-    retry: 1,
+    staleTime: livePoll ? Math.min(interval || 45_000, 60_000) : 60 * 1000,
+    refetchInterval,
+    retry: (failureCount, err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/^5\d\d:/.test(msg)) return failureCount < 2;
+      return failureCount < 1;
+    },
+    retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
   });
 }
 
@@ -139,21 +159,32 @@ export function useWarRoomLatest(options = {}) {
 export function useSymbolQuote(symbol, options = {}) {
   const livePoll = Boolean(options.livePoll);
   const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
+  const coalesce = getTerminalQueryCoalesce();
+  const refetchInterval = coalesce && livePoll ? interval * 1.1 : interval;
   const normalized = (symbol ?? "").trim().toUpperCase();
+  const sharedStale = getTerminalSharedStaleTimeMs();
   return useQuery({
     queryKey: ["symbol", "quote", normalized, livePoll ? "live" : "static"],
     queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/quote`),
     enabled: !!normalized,
-    staleTime: livePoll ? Math.min(interval || 45_000, 60_000) : 60 * 1000,
-    refetchInterval: interval,
-    retry: 1,
+    staleTime: livePoll ? sharedStale : 60 * 1000,
+    refetchInterval,
+    retry: (failureCount, err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/^5\d\d:/.test(msg)) return failureCount < 2;
+      return failureCount < 1;
+    },
+    retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
   });
 }
 
 export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, options = {}) {
   const livePoll = Boolean(options.livePoll);
   const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
+  const coalesce = getTerminalQueryCoalesce();
+  const refetchInterval = coalesce && livePoll ? interval * 1.15 : interval;
   const normalized = (symbol ?? "").trim().toUpperCase();
+  const sharedStale = getTerminalSharedStaleTimeMs();
   return useQuery({
     queryKey: ["symbol", "snapshot", normalized, days, recommendationLimit, livePoll ? "live" : "static"],
     queryFn: () =>
@@ -161,21 +192,39 @@ export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, o
         `/api/symbols/${encodeURIComponent(normalized)}/snapshot?days=${days}&recommendation_limit=${recommendationLimit}`,
       ),
     enabled: !!normalized,
-    staleTime: livePoll ? Math.min(interval, 120_000) : 3 * 60 * 1000,
-    refetchInterval: interval,
-    retry: 1,
+    staleTime: livePoll ? sharedStale : 3 * 60 * 1000,
+    refetchInterval,
+    retry: (failureCount, err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/^5\d\d:/.test(msg)) return failureCount < 2;
+      return failureCount < 1;
+    },
+    retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
   });
 }
 
 export function useExecutionIntents(limit = 50, options = {}) {
   const livePoll = Boolean(options.livePoll);
   const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
+  const coalesce = getTerminalQueryCoalesce();
+  const refetchInterval = coalesce && livePoll ? interval * 1.08 : interval;
+  const status = options.statusFilter && options.statusFilter !== "all" ? String(options.statusFilter) : "";
+  const category = options.categoryFilter && options.categoryFilter !== "all" ? String(options.categoryFilter) : "";
+  const sortBy = options.sortBy || "updated_desc";
+  const params = new URLSearchParams({ limit: String(limit), sort_by: sortBy });
+  if (status) params.set("status", status);
+  if (category) params.set("category", category);
   return useQuery({
-    queryKey: ["execution-intents", limit, livePoll ? "live" : "static"],
-    queryFn: () => apiFetch(`/api/execution-intents?limit=${limit}`),
-    staleTime: livePoll ? Math.min(interval, 60_000) : 2 * 60 * 1000,
-    refetchInterval: interval,
-    retry: 1,
+    queryKey: ["execution-intents", limit, sortBy, status || "all", category || "all", livePoll ? "live" : "static"],
+    queryFn: () => apiFetch(`/api/execution-intents?${params}`),
+    staleTime: livePoll ? Math.min(interval || 45_000, 60_000) : 2 * 60 * 1000,
+    refetchInterval,
+    retry: (failureCount, err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/^5\d\d:/.test(msg)) return failureCount < 2;
+      return failureCount < 1;
+    },
+    retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
   });
 }
 
