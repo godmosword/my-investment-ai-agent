@@ -36,7 +36,8 @@
 | `GET /api/trades` | 交易列表 | |
 | `GET /api/trades/performance` | 績效彙總 | |
 | `GET /healthz` | 存活探測 | |
-| `POST /api/push/subscribe` | Web Push 訂閱（**分階**） | 預設 **501**；`WEB_PUSH_ENABLED=1` 時 **log-only**（`stored:false`）；`WEB_PUSH_STORE=1` 時程序內暫存（非持久化），同一 **endpoint** 以 fingerprint **去重**（`deduped`），可選 **`WEB_PUSH_SUBSCRIBE_RATE_PER_MIN`**／**`WEB_PUSH_STORE_MAX_SUBSCRIPTIONS`**。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
+| `POST /api/push/subscribe` | Web Push 訂閱 | 預設 **501**；`WEB_PUSH_ENABLED=1` 時：可設 **`WEB_PUSH_REDIS_URL`**（分散式儲存 + **Redis** rate limit）、或 **`WEB_PUSH_STORE=1`**（程序內）；可選 **`WEB_PUSH_BQ_PERSIST`**／**`WEB_PUSH_BQ_AUDIT`**。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
+| `POST /api/push/test-send` | 管理端 **測試推送**（`pywebpush`） | 預設 **404**；須 **`WEB_PUSH_ADMIN_KEY`** + Header **`X-Web-Push-Admin-Key`** + **`WEB_PUSH_VAPID_PRIVATE_KEY`** + 已存完整訂閱 |
 
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
 Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。

@@ -1,45 +1,60 @@
-# PWA Web Push（分階實作）
+# PWA Web Push（T4a 生產級元件 + 分階營運）
 
 對齊 [`TODOS.md`](../TODOS.md) 隊列 **PWA Web Push** 與 Direction **1A**。
 
-## 現況（API）
+## 依賴
+
+- **`redis`** + **`WEB_PUSH_REDIS_URL`**：分散式訂閱儲存與 **Redis INCR** rate limit。
+- **`pywebpush`** + **`WEB_PUSH_VAPID_PRIVATE_KEY`**（PEM）：後端發送。
+- **`py-vapid`**：本機產鑰（[`scripts/vapid_generate.py`](../scripts/vapid_generate.py)）。
+
+## API 行為
 
 | 變數 | 行為 |
 |------|------|
 | `WEB_PUSH_ENABLED=0`（預設） | `POST /api/push/subscribe` → **501** |
-| `WEB_PUSH_ENABLED=1` | 驗證 JSON body；**log-only**（`stored: false`） |
-| `WEB_PUSH_ENABLED=1` 且 `WEB_PUSH_STORE=1` | 將訂閱摘要寫入 **程序內** `dict`（以 endpoint **SHA256 fingerprint** 去重；重啟即失；**非**生產持久化） |
-| （同上）+ `WEB_PUSH_STORE_MAX_SUBSCRIPTIONS` | 可選上限（預設 **512**）；超過時丟最舊列 |
-| （同上）+ `WEB_PUSH_SUBSCRIBE_RATE_PER_MIN` | 可選每 **client IP** 每分鐘 POST 上限（預設 **30**；**0** 關閉）；觸發時回 `stored:false`、`rate_limited:true` |
+| `WEB_PUSH_ENABLED=1` | 驗證 JSON；若**未**設 Redis 且**未**設 `WEB_PUSH_STORE=1` → **log-only**（`stored: false`） |
+| `WEB_PUSH_REDIS_URL` | **優先**：訂閱寫入 Redis `HASH` `webpush:subscriptions`（field = endpoint **fingerprint**）；預設存 **完整** `endpoint`+`keys` JSON（供 `pywebpush`）。`WEB_PUSH_REDIS_SUMMARY_ONLY=1` 改為僅摘要（**無法**發送）。 |
+| `WEB_PUSH_STORE=1`（無 Redis） | 程序內 dict；`WEB_PUSH_STORE_FULL_SUBSCRIPTION=1` 存完整 JSON 才可 `pywebpush` |
+| `WEB_PUSH_SUBSCRIBE_RATE_PER_MIN` | 有 Redis 時用 **Redis 滾動視窗**；否則程序內 IP 計數。`0` 關閉。觸發時 `rate_limited: true` |
+| `WEB_PUSH_BQ_PERSIST=1` | 每次訂閱（成功儲存後）**append** 一筆至 `WEB_PUSH_SUBSCRIPTIONS_TABLE`（須先建表，見 [`docs/SQL/web_push_subscriptions.sql`](SQL/web_push_subscriptions.sql)） |
+| `WEB_PUSH_BQ_AUDIT=1` | append 至 `WEB_PUSH_AUDIT_TABLE`（預設 `…web_push_subscribe_audit`） |
+| `WEB_PUSH_ADMIN_KEY` | 非空時啟用 `POST /api/push/test-send`（Header **`X-Web-Push-Admin-Key`**） |
+| `WEB_PUSH_VAPID_PRIVATE_KEY` | PEM；與 `WEB_PUSH_VAPID_MAILTO`（`sub` claim，預設 `mailto:ops@example.com`） |
+| `WEB_PUSH_SEND_MAX` | 單次 test-send 最多嘗試筆數（預設 **50**） |
 
-實作見 [`web_push_store.py`](../web_push_store.py)、[`api.py`](../api.py) `POST /api/push/subscribe`。
+### 端點
+
+- `POST /api/push/subscribe` — 瀏覽器訂閱後上傳（見 [`pushClient.js`](../data-verification-ui/src/pushClient.js)）。
+- `POST /api/push/test-send` — **管理用**測試推送 JSON `{title, body}`；須 **`WEB_PUSH_ADMIN_KEY`** + VAPID private + 已存完整訂閱。
+
+## VAPID 產生
+
+```bash
+python scripts/vapid_generate.py
+```
+
+將輸出之 **public** 貼到 `VITE_WEB_PUSH_VAPID_PUBLIC_KEY`（與後端 `WEB_PUSH_VAPID_PUBLIC_KEY` 相同字串）；**private** 僅後端。
+
+## BigQuery 表
+
+見 [`SQL/web_push_subscriptions.sql`](SQL/web_push_subscriptions.sql)（`web_push_subscriptions` + `web_push_subscribe_audit`）。
 
 ## 前端（可選註冊）
 
-- [`data-verification-ui/src/pushClient.js`](../data-verification-ui/src/pushClient.js)：若 `VITE_WEB_PUSH_REGISTER=1` 且瀏覽器支援 **PushManager**，於載入時呼叫 `POST /api/push/subscribe`（失敗不阻斷 UI）。
-- 預設 **不** 自動註冊，避免開發者本機對後端送垃圾訂閱。
+- [`data-verification-ui/src/pushClient.js`](../data-verification-ui/src/pushClient.js)：`VITE_WEB_PUSH_REGISTER=1` 且 `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` 非空時 `pushManager.subscribe` 並 `POST /api/push/subscribe`。
 
-## 下一階（未實作）
-
-1. **VAPID** 金鑰與 `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`。
-2. **持久化**（Redis／Firestore／BQ）與 **分散式** rate limit／審計日誌（程序內 `WEB_PUSH_SUBSCRIBE_RATE_PER_MIN` 僅為開發用 guard）。
-3. **後端發送**（`pywebpush` 或等效）與訊息模板審核。
-
-## 通知事件語意草案（T4b，文件先行）
-
-在 **合規／產品拍板** 前僅列候選，避免預設開啟高噪音推播：
+## 通知事件語意草案（T4b）
 
 | 事件類型 | 建議預設 | 說明 |
 |---------|----------|------|
-| `validate_report` **blocking** 失敗（gate artifact 寫入） | 可考慮 **digest**（每日至多 1 則摘要） | 與 [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](GATE_FAILURE_HINT_WORKFLOW.md) 人審流程銜接；避免每條 issue 一推 |
-| 執行意圖 `PENDING_REVIEW` → `APPROVED_FOR_PAPER` | 關閉或僅 in-app | 紙上仍非真下單；推播須與 OMS 真實事件分離 |
-| War Room SSE bump（僅版本變更） | **不**直推使用者裝置 | 已由 PWA `EventSource` + React Query invalidate 覆蓋 |
-| 管線成功交付 | 不推（或每週週報 opt-in） | 與 Telegram 主通道重複風險 |
-
-實作 T4 時應再定：訂閱維度（per-user vs per-workspace）、靜音窗、與 **BigQuery** 事件表（若寫入）之 schema。
+| `validate_report` blocking 失敗 | digest | 見 [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](GATE_FAILURE_HINT_WORKFLOW.md) |
+| 意圖狀態變更 | 關閉或僅 in-app | 與真 OMS 分離 |
+| War Room SSE bump | 不直推 | 已由 PWA invalidate |
 
 ## 修訂紀錄
 
-- **2026-04-14**：初版 — API 雙模式 + 前端可選註冊環境變數。
-- **2026-04-14（T4b 草案）**：補「通知事件語意」表 — 與 [`TODOS.md`](../TODOS.md) Terminal T4b 對齊（僅規格、未改 runtime）。
-- **2026-04-14（T4a 小步）**：`WEB_PUSH_STORE` 改 **endpoint 去重** + 可選 **IP rate limit**／store 上限（仍非持久化、無 pywebpush）。
+- **2026-04-14**：初版 — API 雙模式 + 前端可選註冊。
+- **2026-04-14（T4b 草案）**：通知事件語意表。
+- **2026-04-14（T4a 小步）**：程序內去重／IP limit。
+- **2026-04-14（T4a 完整）**：Redis、`pywebpush`、`POST /api/push/test-send`、可選 BQ persist／audit、[`scripts/vapid_generate.py`](../scripts/vapid_generate.py)。

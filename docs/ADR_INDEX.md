@@ -11,7 +11,8 @@
 | [CRITICAL_ENV_POLICY.md](CRITICAL_ENV_POLICY.md) | `PIPELINE_STRICT_ENV` 與啟動契約 |
 | [STAGING_THRESHOLD_EXPERIMENT.md](STAGING_THRESHOLD_EXPERIMENT.md) | 選標／rotation 閾值 staging 實驗 |
 | [TERMINAL_MID_TIER_ROADMAP.md](TERMINAL_MID_TIER_ROADMAP.md) | Terminal 中段 M1–M5 |
-| [PWA_WEB_PUSH.md](PWA_WEB_PUSH.md) | Web Push 分階（API／Vite 可選註冊） |
+| [PWA_WEB_PUSH.md](PWA_WEB_PUSH.md) | Web Push（Redis、VAPID、`pywebpush`、可選 BQ） |
+| [SQL/price_probe_log.sql](SQL/price_probe_log.sql) | 實盤 BQ vs yfinance 觀測表（`scripts/symbol_price_probe.py`） |
 | [BLOOMBERG_ALIGNMENT.md](BLOOMBERG_ALIGNMENT.md) | Terminal 對齊 Phase 0 驗收 |
 
 ## 修訂紀錄

@@ -459,6 +459,13 @@ class WebPushSubscribeBody(BaseModel):
     keys: dict[str, str] | None = None
 
 
+class WebPushTestSendBody(BaseModel):
+    """管理端測試推送（須 ``WEB_PUSH_ADMIN_KEY`` 與 ``WEB_PUSH_VAPID_PRIVATE_KEY``）。"""
+
+    title: str = Field(default="Q-Silicon", max_length=120)
+    body: str = Field(default="Test notification", max_length=500)
+
+
 class WarRoomSnapshot(BaseModel):
     gate_failure: dict[str, Any] | None = None
     scratchpad: dict[str, Any] | None = None
@@ -622,6 +629,13 @@ def _paper_tick_auth_ok(request: Request) -> bool:
     return request.headers.get("X-Paper-Tick-Key") == key
 
 
+def _web_push_admin_ok(request: Request) -> bool:
+    key = (os.getenv("WEB_PUSH_ADMIN_KEY") or "").strip()
+    if not key:
+        return False
+    return request.headers.get("X-Web-Push-Admin-Key") == key
+
+
 def _validate_symbol(symbol: str) -> str:
     try:
         return validate_symbol_for_snapshot(symbol)
@@ -747,11 +761,7 @@ def get_symbol_snapshot(
 
 @app.post("/api/push/subscribe")
 def push_subscribe(request: Request, body: WebPushSubscribeBody) -> dict[str, Any]:
-    """Web Push 訂閱：預設關閉；開啟後為 log-only 或程序內暫存（見 `web_push_store`）。
-
-    - ``WEB_PUSH_ENABLED=0``：501（與舊行為一致）。
-    - ``WEB_PUSH_ENABLED=1``：驗證 endpoint；可選 ``WEB_PUSH_STORE=1`` 寫入程序內 deque（**重啟即失**）。
-    """
+    """Web Push 訂閱：預設關閉；開啟後見 ``web_push_store``（Redis／程序內／log-only）。"""
     import web_push_store
 
     if not web_push_store.web_push_enabled():
@@ -765,6 +775,18 @@ def push_subscribe(request: Request, body: WebPushSubscribeBody) -> dict[str, An
     client_ip = (request.client.host if request.client else "") or ""
     meta = web_push_store.record_subscription(body.model_dump(mode="json"), client_ip=client_ip)
     return {"ok": True, **meta}
+
+
+@app.post("/api/push/test-send")
+def push_test_send(request: Request, body: WebPushTestSendBody) -> dict[str, Any]:
+    """對已存訂閱送一則 **測試** Web Push（``pywebpush``）。須 ``WEB_PUSH_ADMIN_KEY`` Header。"""
+    import web_push_store
+
+    if not web_push_store.web_push_enabled():
+        raise HTTPException(status_code=501, detail="Web Push disabled")
+    if not _web_push_admin_ok(request):
+        raise HTTPException(status_code=404, detail="admin endpoint disabled or invalid key")
+    return web_push_store.send_test_push(body.title, body.body)
 
 
 @app.get("/api/war-room/latest")

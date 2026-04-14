@@ -11,6 +11,10 @@ from api import app
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.delenv("WEB_PUSH_ENABLED", raising=False)
+    monkeypatch.delenv("WEB_PUSH_REDIS_URL", raising=False)
+    import web_push_store
+
+    web_push_store.clear_subscriptions_for_tests()
     return TestClient(app)
 
 
