@@ -2,7 +2,7 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)
 
-**同步狀態（2026-04-12）**：本檔於 **2026-04-23 改寫**；**2026-04-14（四）** 補登 **Playwright E2E**（Today vs Terminal BTC、`pwa-e2e` workflow、`SymbolCandleChart` v5）；**2026-04-14（三）** 補登「可加強項」切片；**2026-04-14（二）** Phase A–E；**2026-04-14** 日報品質代理；**2026-04-12** [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
+**同步狀態（2026-04-12）**：本檔於 **2026-04-23 改寫**；**2026-04-14（五）** 新增 [**Terminal／戰情室後中段路線（T1–T5）**](#terminal-post-mid-tier-t1-t5)（每切片對應檔案）；**2026-04-14（四）** Playwright E2E；**2026-04-14（三）** 可加強項；**2026-04-14（二）** Phase A–E；**2026-04-14** 日報品質代理；**2026-04-12** [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
 
 ---
 
@@ -100,6 +100,54 @@
 
 ---
 
+<a id="terminal-post-mid-tier-t1-t5"></a>
+
+## Terminal／戰情室 — 後中段路線（T1–T5，每切片對應檔案）
+
+> **語意**：M1–M5 已交付（見上節與 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)）。以下為 **持續 improve** 的建議切片；**不綁日曆天數**，以可 review 的 PR 為單位。完成後寫入 [`CHANGELOG.md`](CHANGELOG.md) 並更新本節或改「✓」。
+
+### Phase T1 — 穩定與可觀測
+
+| 切片 | 目標 | 主要檔案（起點） |
+|------|------|------------------|
+| **T1a** | 戰情室／Terminal **錯誤態矩陣**（重試、降級、避免輪詢風暴） | [`data-verification-ui/src/pages/Today.jsx`](data-verification-ui/src/pages/Today.jsx)、[`data-verification-ui/src/components/WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx)、[`data-verification-ui/src/components/TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)、[`data-verification-ui/src/components/ExecutionIntentsBlotter.jsx`](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)、[`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)、[`data-verification-ui/src/pages/Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx) |
+| **T1b** | **觀測**：API 失敗率／延遲與 `data_provenance` 敘事對齊（文件或輕量 log） | [`api.py`](api.py)、[`war_room_stream.py`](war_room_stream.py)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`docs/GATE_INTERNAL_DASHBOARD.md`](docs/GATE_INTERNAL_DASHBOARD.md)、[`README.md`](README.md) |
+| **T1c** | **E2E 擴面**：mock 多 ticker 或 `price_alignment` 分支 | [`data-verification-ui/e2e/mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs)、[`data-verification-ui/e2e/cross-page-btc-price.spec.js`](data-verification-ui/e2e/cross-page-btc-price.spec.js)（新增 spec）、[`data-verification-ui/e2e/run-ci.sh`](data-verification-ui/e2e/run-ci.sh)、[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml) |
+
+### Phase T2 — 資料與一致性（Bloomberg §6 口徑）
+
+| 切片 | 目標 | 主要檔案（起點） |
+|------|------|------------------|
+| **T2a** | **跨路由／跨來源**數字口徑寫入契約（何時以 snapshot OHLC、何時以 quote、何時 N/A） | [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) |
+| **T2b** | **`price_alignment.aligned === false`** 時 Today／Terminal **UI 提示**（非靜默） | [`symbol_snapshot_service.py`](symbol_snapshot_service.py)、[`data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx`](data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx)、[`data-verification-ui/src/components/TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)、[`data-verification-ui/e2e/`](data-verification-ui/e2e/) |
+| **T2c** | **Streamlit ↔ PWA** 同形 snapshot 路徑迴歸說明／輕測 | [`dashboard.py`](dashboard.py)、[`symbol_snapshot_service.py`](symbol_snapshot_service.py)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)（`SYMBOL_SNAPSHOT_HTTP_BASE`）、[`README.md`](README.md) |
+
+### Phase T3 — 互動與效率
+
+| 切片 | 目標 | 主要檔案（起點） |
+|------|------|------------------|
+| **T3a** | **Workspace／關注**：匯入匯出、模板、快捷操作（產品定義內） | [`data-verification-ui/src/pages/Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)、[`data-verification-ui/src/context/SymbolFocusContext.jsx`](data-verification-ui/src/context/SymbolFocusContext.jsx)、[`data-verification-ui/src/components/SymbolFocusBar.jsx`](data-verification-ui/src/components/SymbolFocusBar.jsx) |
+| **T3b** | **意圖表**：篩選、排序、欄位契約 | [`data-verification-ui/src/components/ExecutionIntentsBlotter.jsx`](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)、[`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)、[`api.py`](api.py)（若需 query 參數）、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) |
+| **T3c** | **輪詢／快取**：減少重複 snapshot、調整 stale／interval | [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)、[`data-verification-ui/src/pages/Terminal.jsx`](data-verification-ui/src/pages/Terminal.jsx)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)（`VITE_TERMINAL_POLL_MS` 等） |
+
+### Phase T4 — 通知與閉環（合規後）
+
+| 切片 | 目標 | 主要檔案（起點） |
+|------|------|------------------|
+| **T4a** | **Web Push 分階 2**（VAPID、持久化、rate limit、去重） | [`web_push_store.py`](web_push_store.py)、[`api.py`](api.py)、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)、[`data-verification-ui/src/pushClient.js`](data-verification-ui/src/pushClient.js)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) |
+| **T4b** | **通知事件語意**（與 war-room／gate  digest 對齊，避免噪音） | [`war_room_stream.py`](war_room_stream.py)、[`scripts/gate_failure_hint_digest.py`](scripts/gate_failure_hint_digest.py)、[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md)、[`bigquery_writer.py`](bigquery_writer.py)（若寫 BQ 訂閱／事件表） |
+
+### Phase T5 — 與日報／意圖敘事閉環（長線）
+
+| 切片 | 目標 | 主要檔案（起點） |
+|------|------|------------------|
+| **T5a** | **report_links**／當日報告在 Terminal 的**可發現深連結** | [`data-verification-ui/src/components/TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)、[`data-verification-ui/src/pages/Report.jsx`](data-verification-ui/src/pages/Report.jsx)、[`api.py`](api.py)（`GET /api/reports/{date}`）、[`symbol_snapshot_service.py`](symbol_snapshot_service.py) |
+| **T5b** | **意圖狀態 ↔ gate 失敗** 讀向索引（僅讀、不冒充 OMS） | [`execution_intents.py`](execution_intents.py)、[`docs/SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql)、[`docs/GATE_INTERNAL_DASHBOARD.md`](docs/GATE_INTERNAL_DASHBOARD.md) |
+
+**建議執行順序**：T1 → T2 → T3；（T4 規格可與 T1 並行準備，**實作**待合規拍板）→ T5 與 T2–T4 可交錯。
+
+---
+
 ## 長期與需拍板（索引，不在此逐條實作）
 
 | 區塊 | 說明與文件 |
@@ -151,6 +199,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-14（五）**：新增 [Terminal／戰情室後中段路線（T1–T5）](#terminal-post-mid-tier-t1-t5) — 每切片對應主要檔案與建議執行順序；[`CHANGELOG.md`](CHANGELOG.md) `### Docs` 同步。
 - **2026-04-14（四）**：**Playwright E2E** — 「下一批隊列」**12** ~~刪線~~；`SymbolCandleChart` lightweight-charts **v5**；`pwa-e2e` workflow；[`CHANGELOG.md`](CHANGELOG.md)／[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b 補 UI 層。
 - **2026-04-14（三）**：**可加強項落地** — snapshot **`price_alignment`**、deep metrics 細欄位、CI **npm cache**、Web Push **API／PWA 分階 1**；「下一批隊列」**10** 改 ~~分階 1~~ 並新增 **11–12**（分階 2、Playwright）；「已交付摘要」增列；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-14** 同日合併敘述；Bloomberg 錨點補 **snapshot price_alignment**。
 - **2026-04-14（二）**：**Phase A–E 切片** — 「已交付摘要」增列；「下一批隊列」**1–9** ~~刪線~~；Bloomberg 進度表內部勾選 **12/15→13/15** 並註記條目 6／14 之 pytest／CI 錨點；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-14** `### Changed`／`### Docs`／`### Tests`。
