@@ -49,6 +49,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`report_html_gates.py`](report_html_gates.py) | HTML/env/BQ gate: `validate_report()` (news, UTC+8, freshness, QSREC, rotation, …) |
 | [`schemas.py`](schemas.py) | Pydantic contract + `ReportOutput` / `parse_report_output` + `validate_structured_report` + `DailyBriefReport` business rules |
 | [`report_judge.py`](report_judge.py) | Hard-pattern judge; optional `REPORT_LLM_JUDGE` |
+| [`report_quality_agent.py`](report_quality_agent.py) | Optional post-gate QA (`REPORT_QUALITY_AGENT`): composite score + TODOS follow-ups |
 | [`report_editor.py`](report_editor.py) | Optional polish pass (`EDITOR_AGENT_ENABLED`) |
 | [`validation_rules.py`](validation_rules.py) | Shared regex / rule fragments for validation |
 | [`telegram_sender.py`](telegram_sender.py) | HTML sanitization + send helpers |

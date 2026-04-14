@@ -262,6 +262,11 @@ def append_judge_result(payload: dict[str, Any]) -> None:
     _write_event("judge_result", {"payload": _redact_obj(payload)})
 
 
+def append_quality_agent_result(payload: dict[str, Any]) -> None:
+    """日報品質代理（REPORT_QUALITY_AGENT）：複合分與 TODOS 後續摘要。"""
+    _write_event("quality_agent_result", {"payload": _redact_obj(payload)})
+
+
 def append_editor_result(payload: dict[str, Any]) -> None:
     """日報潤稿 Agent 結果（meta only，不寫全文）。"""
     _write_event("editor_result", {"payload": _redact_obj(payload)})
