@@ -88,7 +88,7 @@
 7. ~~**G-7 小項**~~ — **已交付（2026-04-14）**：[`README.md`](README.md) badges + LICENSE 對齊句；[`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)；[`CLAUDE.md`](CLAUDE.md) 索引。
 8. ~~**G-8 漸進**~~ — **已交付（2026-04-14）**：[`test_schemas_cap_internal_field.py`](test_schemas_cap_internal_field.py)（`boundary` + `hypothesis`）。
 9. ~~**PWA War Room 二期**~~ — **已交付（最小切片，2026-04-14）**：[`WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx) 錯誤態重試／成功態重新整理；視覺拋光仍可在後續波次加強。
-10. ~~**PWA Web Push（分階 1）**~~ — **已交付（2026-04-14）**：[`web_push_store.py`](web_push_store.py)、`WEB_PUSH_ENABLED`／`WEB_PUSH_STORE`、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)、PWA [`pushClient.js`](data-verification-ui/src/pushClient.js)（`VITE_WEB_PUSH_*`）。**未完成（分階 2）**：VAPID 輪替、**持久化**訂閱、**pywebpush** 發送、rate limit／去重 — 仍列下方 **11**。
+10. ~~**PWA Web Push（分階 1）**~~ — **已交付（2026-04-14）**：[`web_push_store.py`](web_push_store.py)、`WEB_PUSH_ENABLED`／`WEB_PUSH_STORE`、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)、PWA [`pushClient.js`](data-verification-ui/src/pushClient.js)（`VITE_WEB_PUSH_*`）。**未完成（分階 2）**見隊列 **11**。
 11. **PWA Web Push（分階 2 — 生產級）** — VAPID、訂閱儲存（Redis／BQ）、發送管線與合規審核（[`Direction 1A`](#維護者意見執行順序不變)）；不阻塞日報主線。
 12. **Terminal E2E（Playwright）** — Today vs `/terminal` 同源 ticker 與 snapshot `price_alignment` 可視化對照（補齊 Bloomberg **6** 之 UI 層）；見波次 G。
 13. ~~**Bloomberg 對齊 Phase 2**~~ — **已交付（2026-04-10 CHANGELOG）**：Terminal v2 分組／模板、跨頁 Symbol Context（`SymbolFocusBar` + `TerminalSymbolCard` 設為全域關注）、Streamlit 與 `symbol_snapshot_service`／可選 HTTP 對齊 snapshot 形狀。
