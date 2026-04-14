@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useSymbolQuote, useSymbolSnapshot } from "../hooks/useApi";
 import SymbolCandleChart from "./SymbolCandleChart";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
@@ -83,12 +84,19 @@ export default function TerminalSymbolCard({
   onMoveDown,
   dragHandleProps,
 }) {
-  const { data, isLoading, error, isFetching } = useSymbolSnapshot(symbol, 30, 12, { livePoll: true });
+  const {
+    data,
+    isLoading,
+    error,
+    isFetching,
+    refetch: refetchSnapshot,
+  } = useSymbolSnapshot(symbol, 30, 12, { livePoll: true });
   const {
     data: quote,
     isLoading: quoteLoading,
     error: quoteError,
     isFetching: quoteFetching,
+    refetch: refetchQuote,
   } = useSymbolQuote(symbol, { livePoll: true });
   const { symbol: focusSymbol, setSymbol: setGlobalFocus } = useSymbolFocus();
   const isFocused = focusSymbol === symbol.toUpperCase();
@@ -128,6 +136,16 @@ export default function TerminalSymbolCard({
       {error && (
         <div className="error-msg">
           {symbol} 載入失敗（<code>/api/symbols/{symbol}/snapshot</code>）：{error.message}
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="terminal-btn terminal-btn--small"
+              disabled={isFetching}
+              onClick={() => refetchSnapshot()}
+            >
+              {isFetching ? "重試中…" : "重試快照"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -139,12 +157,57 @@ export default function TerminalSymbolCard({
             {isFetching ? <span className="terminal-card-poll"> · 輪詢更新中</span> : null}
           </div>
 
+          {data.price_alignment && data.price_alignment.aligned === false ? (
+            <div
+              className="error-msg"
+              style={{ marginBottom: 10, fontSize: 12 }}
+              role="alert"
+              data-testid={`terminal-price-mismatch-banner-${symbol}`}
+            >
+              <strong>價格對齊警告</strong>：日線 OHLC 尾端與 <code>/quote</code> 最新收盤不一致（相對差{" "}
+              {data.price_alignment.rel_diff != null
+                ? `${(Number(data.price_alignment.rel_diff) * 100).toFixed(3)}%`
+                : "N/A"}
+              ）。請以「資料溯源」與後端 <code>price_alignment</code> 為準；圖表與 headline 數字可能不同步。
+              {data.price_alignment?.e2e_override ? (
+                <span>
+                  {" "}
+                  （<code>E2E</code> 覆寫）
+                </span>
+              ) : null}
+              <div style={{ marginTop: 6, fontSize: 11, opacity: 0.95 }}>
+                儀表 KPI（<code>latest_metrics</code>）來源為 BigQuery；本警告僅涵蓋 yfinance 之 OHLC 尾端 vs <code>/quote</code>。
+              </div>
+              {quoteError ? (
+                <div style={{ marginTop: 6 }}>
+                  <button
+                    type="button"
+                    className="terminal-btn terminal-btn--small"
+                    disabled={quoteFetching}
+                    onClick={() => refetchQuote()}
+                  >
+                    {quoteFetching ? "重試 quote…" : "重試 quote"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="terminal-quote-strip">
             {quoteLoading && !quote ? (
               <span className="terminal-quote-muted">最新價載入中…</span>
             ) : quoteError ? (
               <span className="terminal-quote-muted" title={quoteError.message}>
                 最新價：無法取得（<code>/api/symbols/{symbol}/quote</code>）
+                <button
+                  type="button"
+                  className="terminal-btn terminal-btn--small"
+                  style={{ marginLeft: 8, verticalAlign: "middle" }}
+                  disabled={quoteFetching}
+                  onClick={() => refetchQuote()}
+                >
+                  {quoteFetching ? "…" : "重試"}
+                </button>
               </span>
             ) : quote && quote.last != null ? (
               <>
@@ -220,12 +283,23 @@ export default function TerminalSymbolCard({
           {Array.isArray(data.report_links) && data.report_links.length > 0 && (
             <>
               <div className="section-header subtle">關聯報告</div>
-              <div className="terminal-report-links">
-                {data.report_links.map((link) => (
-                  <a key={link.href} href={link.href} target="_blank" rel="noreferrer">
-                    {link.report_date}
-                  </a>
-                ))}
+              <div className="terminal-report-links" data-testid={`terminal-report-links-${symbol}`}>
+                {data.report_links.map((link) => {
+                  const href = link.href || "";
+                  const internal = href.startsWith("/report/");
+                  return internal ? (
+                    <Link key={link.href || link.report_date} to={href}>
+                      {link.report_date}
+                    </Link>
+                  ) : (
+                    <a key={link.href || link.report_date} href={href} target="_blank" rel="noreferrer">
+                      {link.report_date}
+                    </a>
+                  );
+                })}
+                <Link className="terminal-report-links-today" to="/" data-testid={`terminal-today-link-${symbol}`}>
+                  今日戰情室
+                </Link>
               </div>
             </>
           )}

@@ -17,10 +17,34 @@ import TodayBtcSnapshotStrip from "../components/TodayBtcSnapshotStrip";
 export default function Today() {
   const [warRoomIntentFilter, setWarRoomIntentFilter] = useState("all");
   const today = new Date().toISOString().slice(0, 10);
-  const { data: metrics, isLoading: mLoading, error: mError } = useMetricsLatest();
-  const { data: report, isLoading: rLoading, error: rError } = useReport(today);
-  const { data: openPos, isLoading: oLoading, error: oError } = useOpenPositions(90);
-  const { data: warRoom, isLoading: wLoading, error: wError, refetch: wRefetch } = useWarRoomLatest();
+  const {
+    data: metrics,
+    isLoading: mLoading,
+    error: mError,
+    refetch: mRefetch,
+    isFetching: mFetching,
+  } = useMetricsLatest();
+  const {
+    data: report,
+    isLoading: rLoading,
+    error: rError,
+    refetch: rRefetch,
+    isFetching: rFetching,
+  } = useReport(today);
+  const {
+    data: openPos,
+    isLoading: oLoading,
+    error: oError,
+    refetch: oRefetch,
+    isFetching: oFetching,
+  } = useOpenPositions(90);
+  const {
+    data: warRoom,
+    isLoading: wLoading,
+    error: wError,
+    refetch: wRefetch,
+    isFetching: wFetching,
+  } = useWarRoomLatest();
 
   const forceDemo = useGlassboxDemoMode();
   const allSettled = !mLoading && !rLoading && !oLoading;
@@ -57,6 +81,8 @@ export default function Today() {
         openCount={openCount}
         loading={useDemo ? false : oLoading}
         error={useDemo ? null : oError}
+        onRetryOpen={useDemo ? undefined : () => oRefetch()}
+        retryingOpen={useDemo ? false : oFetching}
       />
 
       {useDemo && (
@@ -100,6 +126,25 @@ export default function Today() {
           <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
             請確認 FastAPI 已啟動、BigQuery 憑證就緒，並檢查 <code>VITE_API_URL</code>。
             若僅預覽 UI，可設 <code>VITE_GLASSBOX_MOCK=1</code>。
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="war-room-retry"
+              disabled={mFetching}
+              onClick={() => mRefetch()}
+              style={{
+                fontSize: 12,
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--border)",
+                background: "var(--panel)",
+                color: "var(--text)",
+                cursor: mFetching ? "not-allowed" : "pointer",
+              }}
+            >
+              {mFetching ? "重試中…" : "重試指標"}
+            </button>
           </div>
         </div>
       )}
@@ -218,6 +263,25 @@ export default function Today() {
       {!useDemo && rError && (
         <div className="error-msg" style={{ marginBottom: 12 }}>
           無法載入今日報告：{rError.message}
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="war-room-retry"
+              disabled={rFetching}
+              onClick={() => rRefetch()}
+              style={{
+                fontSize: 12,
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--border)",
+                background: "var(--panel)",
+                color: "var(--text)",
+                cursor: rFetching ? "not-allowed" : "pointer",
+              }}
+            >
+              {rFetching ? "重試中…" : "重試報告"}
+            </button>
+          </div>
         </div>
       )}
 

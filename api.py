@@ -11,6 +11,8 @@ import asyncio
 import json
 import logging
 import os
+import re
+import time
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -58,6 +60,41 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def _api_request_observability_middleware(request: Request, call_next):
+    """Lightweight latency / outcome logging for Terminal-facing API routes (T1b)."""
+    path = request.url.path
+    t0 = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        if path.startswith("/api/"):
+            logger.warning(
+                "api_request path=%s method=%s status=exception elapsed_ms=%.1f",
+                path,
+                request.method,
+                elapsed_ms,
+            )
+        raise
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    if path.startswith("/api/") and os.getenv("API_HTTP_REQUEST_LOG", "0").lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        log_fn = logger.warning if response.status_code >= 400 else logger.info
+        log_fn(
+            "api_request path=%s method=%s status=%s elapsed_ms=%.1f",
+            path,
+            request.method,
+            response.status_code,
+            elapsed_ms,
+        )
+    return response
+
 
 # ── BigQuery client singleton ───────────────────────────────────────────────
 _bq_client: bigquery.Client | None = None
@@ -526,6 +563,51 @@ def _latest_gate_failure_summary() -> dict[str, Any] | None:
     }
 
 
+def _gate_line_matches_intent(line: str, asset_u: str, signal_id: str) -> bool:
+    """Avoid substring false positives (e.g. ``ASSET`` inside ``PASSSETS``) where possible."""
+    if not asset_u:
+        return False
+    lu = line.upper()
+    if len(asset_u) >= 2:
+        try:
+            if re.search(rf"\b{re.escape(asset_u)}\b", lu):
+                return True
+        except re.error:
+            pass
+    sid = (signal_id or "").upper()
+    parts = {p for p in re.split(r"[^A-Z0-9]+", sid) if len(p) >= 2}
+    if asset_u in parts and asset_u in lu:
+        return True
+    return asset_u in lu
+
+
+def _enrich_intents_with_gate_hints(
+    intents: list[dict[str, Any]],
+    gate_failure: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Read-only cross-hints (T5b): match gate issue lines to ``asset`` / ``signal_id`` segments."""
+    issues_raw = (gate_failure or {}).get("issues") if isinstance(gate_failure, dict) else None
+    if not intents or not isinstance(issues_raw, list) or not issues_raw:
+        return intents
+    issues = [str(x).strip() for x in issues_raw if str(x).strip()]
+    if not issues:
+        return intents
+    out: list[dict[str, Any]] = []
+    for row in intents:
+        asset = str(row.get("asset") or "").strip().upper()
+        sid = str(row.get("signal_id") or "").strip()
+        if not asset:
+            out.append(row)
+            continue
+        matched = [line for line in issues if _gate_line_matches_intent(line, asset, sid)]
+        if not matched:
+            out.append(row)
+            continue
+        merged = {**row, "gate_issue_hints": matched[:8]}
+        out.append(merged)
+    return out
+
+
 def _sse_auth_ok(request: Request) -> bool:
     key = (os.getenv("API_STREAM_AUTH_KEY") or "").strip()
     if not key:
@@ -550,9 +632,35 @@ def _validate_symbol(symbol: str) -> str:
 @app.get("/api/execution-intents")
 def list_execution_intents(
     limit: int = Query(default=50, ge=1, le=200),
+    status: str | None = Query(
+        default=None,
+        description="Optional case-insensitive substring filter on intent status (e.g. PAPER).",
+    ),
+    category: str | None = Query(
+        default=None,
+        description="Optional prefix filter: CRYPTO or AI (case-insensitive).",
+    ),
+    sort_by: str = Query(
+        default="updated_desc",
+        description="Sort: updated_desc (default), created_desc, asset_asc.",
+    ),
 ) -> list[dict[str, Any]]:
     """Latest execution intent per ``signal_id`` (append-only JSONL collapsed for Terminal blotter)."""
-    return latest_execution_intents(limit=limit, dedupe=True)
+    sort_key = (sort_by or "updated_desc").strip().lower()
+    if sort_key not in {"updated_desc", "created_desc", "asset_asc"}:
+        raise HTTPException(
+            status_code=400,
+            detail="sort_by must be one of: updated_desc, created_desc, asset_asc",
+        )
+    rows = latest_execution_intents(
+        limit=limit,
+        dedupe=True,
+        status=status,
+        category=category,
+        sort_by=sort_key,
+    )
+    gate = _latest_gate_failure_summary()
+    return _enrich_intents_with_gate_hints(rows, gate)
 
 
 @app.get("/api/execution-intents/allowed-statuses")
@@ -638,7 +746,7 @@ def get_symbol_snapshot(
 
 
 @app.post("/api/push/subscribe")
-def push_subscribe(body: WebPushSubscribeBody) -> dict[str, Any]:
+def push_subscribe(request: Request, body: WebPushSubscribeBody) -> dict[str, Any]:
     """Web Push 訂閱：預設關閉；開啟後為 log-only 或程序內暫存（見 `web_push_store`）。
 
     - ``WEB_PUSH_ENABLED=0``：501（與舊行為一致）。
@@ -654,17 +762,20 @@ def push_subscribe(body: WebPushSubscribeBody) -> dict[str, Any]:
                 "可選 WEB_PUSH_STORE=1 啟用程序內暫存（非持久化）。詳見 docs/PWA_WEB_PUSH.md。"
             ),
         )
-    meta = web_push_store.record_subscription(body.model_dump(mode="json"))
+    client_ip = (request.client.host if request.client else "") or ""
+    meta = web_push_store.record_subscription(body.model_dump(mode="json"), client_ip=client_ip)
     return {"ok": True, **meta}
 
 
 @app.get("/api/war-room/latest")
 def get_war_room_latest() -> dict[str, Any]:
     """Read-only War Room snapshot from local gate-failure artifacts and scratchpad."""
+    gate = _latest_gate_failure_summary()
+    intents = latest_execution_intents(limit=20)
     payload = WarRoomSnapshot(
-        gate_failure=_latest_gate_failure_summary(),
+        gate_failure=gate,
         scratchpad=_latest_scratchpad_summary(),
-        execution_intents=latest_execution_intents(limit=20),
+        execution_intents=_enrich_intents_with_gate_hints(intents, gate),
     )
     return payload.model_dump(mode="json")
 

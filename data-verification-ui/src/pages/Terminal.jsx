@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import TerminalSymbolCard from "../components/TerminalSymbolCard";
 import ExecutionIntentsBlotter from "../components/ExecutionIntentsBlotter";
 import SymbolFocusBar from "../components/SymbolFocusBar";
@@ -9,13 +9,44 @@ const STORAGE_V2 = "qs_terminal_workspace_v2";
 
 const DEFAULT_SYMBOLS = ["BTC", "SPY"];
 
-/** E2E 建置（VITE_E2E=1）：固定單卡 BTC，不依賴 localStorage 競態。 */
-function e2eDefaultWorkspace() {
-  const gid = "g_e2e_seed";
+const E2E_GROUP_ID = "g_e2e_seed";
+
+/** E2E 建置（VITE_E2E=1）：預設 BTC+SPY；`?e2e_btc=1` 僅 BTC；`?e2e_symbols=BTC,SPY` 可覆寫。 */
+function e2eSeedWorkspaceFromWindow() {
+  if (typeof window === "undefined") {
+    return {
+      version: 2,
+      groups: [{ id: E2E_GROUP_ID, name: "E2E", symbols: ["BTC", "SPY"] }],
+      activeGroupId: E2E_GROUP_ID,
+    };
+  }
+  try {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("e2e_btc") === "1") {
+      return {
+        version: 2,
+        groups: [{ id: E2E_GROUP_ID, name: "E2E", symbols: ["BTC"] }],
+        activeGroupId: E2E_GROUP_ID,
+      };
+    }
+    const raw = p.get("e2e_symbols");
+    if (raw) {
+      const list = [...new Set(raw.split(",").map(normalizeSymbol).filter(Boolean))];
+      if (list.length) {
+        return {
+          version: 2,
+          groups: [{ id: E2E_GROUP_ID, name: "E2E", symbols: list }],
+          activeGroupId: E2E_GROUP_ID,
+        };
+      }
+    }
+  } catch {
+    // ignore
+  }
   return {
     version: 2,
-    groups: [{ id: gid, name: "E2E", symbols: ["BTC"] }],
-    activeGroupId: gid,
+    groups: [{ id: E2E_GROUP_ID, name: "E2E", symbols: ["BTC", "SPY"] }],
+    activeGroupId: E2E_GROUP_ID,
   };
 }
 
@@ -68,22 +99,16 @@ function migrateV1ToV2(rawV1) {
 export default function Terminal() {
   const { symbol: globalSymbol } = useSymbolFocus();
   const [workspace, setWorkspace] = useState(() =>
-    import.meta.env.VITE_E2E === "1" ? e2eDefaultWorkspace() : defaultWorkspace(),
+    import.meta.env.VITE_E2E === "1" ? e2eSeedWorkspaceFromWindow() : defaultWorkspace(),
   );
   const [input, setInput] = useState("");
   const [dragIndex, setDragIndex] = useState(null);
   const [newGroupName, setNewGroupName] = useState("");
+  const importInputRef = useRef(null);
 
   useEffect(() => {
     if (import.meta.env.VITE_E2E === "1") {
-      try {
-        const p = new URLSearchParams(window.location.search);
-        if (p.get("e2e_btc") === "1") {
-          setWorkspace(e2eDefaultWorkspace());
-        }
-      } catch {
-        // ignore
-      }
+      setWorkspace(e2eSeedWorkspaceFromWindow());
       return;
     }
     try {
@@ -219,12 +244,77 @@ export default function Terminal() {
     }
   };
 
+  const exportWorkspaceJson = useCallback(() => {
+    const blob = new Blob([JSON.stringify(workspace, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "qs_terminal_workspace.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [workspace]);
+
+  const importWorkspaceFromFile = useCallback(
+    (file) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || "{}"));
+          if (parsed?.version !== 2 || !Array.isArray(parsed.groups) || !parsed.groups.length) {
+            window.alert("檔案格式錯誤：需要 version=2 且含 groups 陣列。");
+            return;
+          }
+          const groups = parsed.groups.map((g) => ({
+            id: g.id || newId("g"),
+            name: (g.name || "分組").slice(0, 32),
+            symbols: Array.isArray(g.symbols)
+              ? [...new Set(g.symbols.map(normalizeSymbol).filter(Boolean))]
+              : [],
+          }));
+          let activeId = parsed.activeGroupId;
+          if (!groups.some((g) => g.id === activeId)) activeId = groups[0].id;
+          setWorkspace({ version: 2, groups, activeGroupId: activeId });
+        } catch {
+          window.alert("無法解析 JSON。");
+        }
+      };
+      reader.readAsText(file, "utf-8");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (import.meta.env.VITE_E2E === "1") return undefined;
+    const onKey = (ev) => {
+      if (!ev.altKey || !ev.shiftKey) return;
+      const tag = (ev.target && ev.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || ev.target?.isContentEditable) return;
+      if (ev.code === "KeyE") {
+        ev.preventDefault();
+        exportWorkspaceJson();
+      }
+      if (ev.code === "KeyI") {
+        ev.preventDefault();
+        importInputRef.current?.click();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [exportWorkspaceJson]);
+
   return (
     <>
       <div className="page-header">
         <div className="page-title">Terminal 工作區</div>
         <div className="page-subtitle">
           v2：多分組、一鍵模板、拖曳重排；與「關注代號」條同步（localStorage）
+          {import.meta.env.VITE_E2E === "1" ? null : (
+            <span>
+              {" "}
+              · <strong>Alt+Shift+E</strong> 匯出 JSON · <strong>Alt+Shift+I</strong> 匯入
+            </span>
+          )}
         </div>
       </div>
 
@@ -284,6 +374,27 @@ export default function Terminal() {
       </div>
 
       <div className="terminal-toolbar">
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) importWorkspaceFromFile(f);
+            e.target.value = "";
+          }}
+        />
+        <button type="button" className="terminal-btn terminal-btn--small" onClick={exportWorkspaceJson}>
+          匯出工作區 JSON
+        </button>
+        <button
+          type="button"
+          className="terminal-btn terminal-btn--small"
+          onClick={() => importInputRef.current?.click()}
+        >
+          匯入工作區…
+        </button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

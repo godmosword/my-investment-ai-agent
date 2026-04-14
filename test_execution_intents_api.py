@@ -172,6 +172,138 @@ def test_patch_execution_intent_bad_status_returns_404(tmp_path, monkeypatch):
     assert r.status_code == 404
 
 
+def test_execution_intents_filter_sort(tmp_path, monkeypatch):
+    store = tmp_path / "intents.jsonl"
+    rows = [
+        {
+            "signal_id": "a-btc",
+            "created_at": "2026-04-09T00:00:00Z",
+            "category": "CRYPTO",
+            "asset": "BTC",
+            "direction": "LONG",
+            "star_rating": 1,
+            "status": "PENDING_REVIEW",
+            "status_updated_at": "2026-04-09T12:00:00Z",
+        },
+        {
+            "signal_id": "b-spy",
+            "created_at": "2026-04-10T00:00:00Z",
+            "category": "AI",
+            "asset": "SPY",
+            "direction": "LONG",
+            "star_rating": 1,
+            "status": "APPROVED_FOR_PAPER",
+            "status_updated_at": "2026-04-11T00:00:00Z",
+        },
+    ]
+    store.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    monkeypatch.setattr("api._latest_gate_failure_summary", lambda: None)
+    client = TestClient(app)
+    r = client.get("/api/execution-intents?limit=10&status=PENDING")
+    assert r.status_code == 200
+    assert len(r.json()) == 1
+    assert r.json()[0]["asset"] == "BTC"
+
+    r2 = client.get("/api/execution-intents?limit=10&category=AI&sort_by=asset_asc")
+    assert r2.status_code == 200
+    assert r2.json()[0]["asset"] == "SPY"
+
+    r3 = client.get("/api/execution-intents?sort_by=bad")
+    assert r3.status_code == 400
+
+
+def test_execution_intents_gate_issue_hints(tmp_path, monkeypatch):
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "spy-1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "AI",
+                "asset": "SPY",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "PENDING_REVIEW",
+                "status_updated_at": "2026-04-10T00:00:00Z",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    monkeypatch.setattr(
+        "api._latest_gate_failure_summary",
+        lambda: {"issues": ["check SPY spread", "unrelated line"]},
+    )
+    client = TestClient(app)
+    r = client.get("/api/execution-intents?limit=10")
+    assert r.status_code == 200
+    body = r.json()
+    assert body[0].get("gate_issue_hints") == ["check SPY spread"]
+
+
+def test_gate_issue_hints_no_false_positive_substring(tmp_path, monkeypatch):
+    """``ASSET`` must not match inside unrelated tokens like ``PASSSETS``."""
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "x-asset-long-1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "CRYPTO",
+                "asset": "ASSET",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "PENDING_REVIEW",
+                "status_updated_at": "2026-04-10T00:00:00Z",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    monkeypatch.setattr(
+        "api._latest_gate_failure_summary",
+        lambda: {"issues": ["PASSSETS validation ok"]},
+    )
+    client = TestClient(app)
+    r = client.get("/api/execution-intents?limit=10")
+    assert r.status_code == 200
+    row = r.json()[0]
+    assert "gate_issue_hints" not in row
+
+
+def test_war_room_enriches_intents_with_gate_hints(tmp_path, monkeypatch):
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "spy-1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "AI",
+                "asset": "SPY",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "PENDING_REVIEW",
+                "status_updated_at": "2026-04-10T00:00:00Z",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    monkeypatch.setattr(
+        "api._latest_gate_failure_summary",
+        lambda: {"issues": ["SPY gate block"]},
+    )
+    client = TestClient(app)
+    r = client.get("/api/war-room/latest")
+    assert r.status_code == 200
+    intents = r.json().get("execution_intents") or []
+    assert intents[0].get("gate_issue_hints") == ["SPY gate block"]
+
+
 def test_patch_execution_intent_paper_status_not_allowed(tmp_path, monkeypatch):
     store = tmp_path / "intents.jsonl"
     store.write_text(

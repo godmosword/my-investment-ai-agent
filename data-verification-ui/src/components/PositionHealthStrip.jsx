@@ -2,7 +2,7 @@
  * 依 BigQuery OPEN 持倉筆數顯示曝險紅綠燈（機構風控一覽）。
  * 0–2 綠、3–4 黃、≥5 紅。
  */
-export default function PositionHealthStrip({ openCount, loading, error }) {
+export default function PositionHealthStrip({ openCount, loading, error, onRetryOpen, retryingOpen }) {
   if (error) {
     return (
       <div
@@ -18,6 +18,26 @@ export default function PositionHealthStrip({ openCount, loading, error }) {
         <div className="glassbox-health__text">
           <strong>部位信號</strong>
           <span className="glassbox-health__sub">無法載入 OPEN 持倉（{error.message || "錯誤"}）</span>
+          {onRetryOpen ? (
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => onRetryOpen()}
+                disabled={Boolean(retryingOpen)}
+                style={{
+                  fontSize: 11,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: "1px solid var(--border)",
+                  background: "var(--panel)",
+                  color: "var(--text)",
+                  cursor: retryingOpen ? "not-allowed" : "pointer",
+                }}
+              >
+                {retryingOpen ? "重試中…" : "重試持倉"}
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     );

@@ -134,11 +134,44 @@ def append_execution_intents(
     return rows
 
 
-def latest_execution_intents(limit: int = 20, *, dedupe: bool = True) -> list[dict[str, Any]]:
+def _intent_updated_ts(row: dict[str, Any]) -> str:
+    return str(row.get("status_updated_at") or row.get("created_at") or "")
+
+
+def _intent_created_ts(row: dict[str, Any]) -> str:
+    return str(row.get("created_at") or "")
+
+
+def _iso_ts_to_epoch(ts: str) -> float:
+    if not ts:
+        return 0.0
+    s = ts.strip()
+    if not s:
+        return 0.0
+    try:
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s).timestamp()
+    except (TypeError, ValueError, OSError):
+        return 0.0
+
+
+def latest_execution_intents(
+    limit: int = 20,
+    *,
+    dedupe: bool = True,
+    status: str | None = None,
+    category: str | None = None,
+    sort_by: str = "updated_desc",
+) -> list[dict[str, Any]]:
     """Return the last *limit* intent rows, optionally collapsing JSONL to latest row per ``signal_id``.
 
     Append-only updates (see ``update_execution_intent_status``) add a new line with the same
     ``signal_id``; with ``dedupe=True`` we return the **last** row per id (Terminal-style blotter).
+
+    Optional ``status`` / ``category`` filter Terminal blotter (case-insensitive substring on status;
+    category prefix match on ``CRYPTO`` / ``AI``). ``sort_by`` one of
+    ``updated_desc`` (default), ``created_desc``, ``asset_asc``.
     """
     path = _store_path()
     if not path.is_file():
@@ -153,10 +186,8 @@ def latest_execution_intents(limit: int = 20, *, dedupe: bool = True) -> list[di
         logger.warning("execution intent read failed: %s", exc)
         return []
     if not dedupe:
-        return rows[-limit:]
-
-    def _ts(row: dict[str, Any]) -> str:
-        return str(row.get("status_updated_at") or row.get("created_at") or "")
+        tail = rows[-limit:]
+        return _filter_and_sort_intents(tail, status=status, category=category, sort_by=sort_by)[:limit]
 
     # Last JSONL line per signal_id wins (append-only updates).
     by_id: dict[str, dict[str, Any]] = {}
@@ -165,8 +196,37 @@ def latest_execution_intents(limit: int = 20, *, dedupe: bool = True) -> list[di
         if sid:
             by_id[sid] = row
     merged = list(by_id.values())
-    merged.sort(key=_ts, reverse=True)
+    merged = _filter_and_sort_intents(merged, status=status, category=category, sort_by=sort_by)
     return merged[:limit]
+
+
+def _filter_and_sort_intents(
+    rows: list[dict[str, Any]],
+    *,
+    status: str | None,
+    category: str | None,
+    sort_by: str,
+) -> list[dict[str, Any]]:
+    st_sub = (status or "").strip().upper()
+    cat_u = (category or "").strip().upper()
+    out = rows
+    if st_sub:
+        out = [r for r in out if st_sub in str(r.get("status") or "").upper()]
+    if cat_u:
+        out = [r for r in out if str(r.get("category") or "").upper().startswith(cat_u)]
+    sort_u = (sort_by or "updated_desc").strip().lower()
+    if sort_u == "created_desc":
+        out.sort(key=lambda r: _intent_created_ts(r), reverse=True)
+    elif sort_u == "asset_asc":
+        out.sort(
+            key=lambda r: (
+                str(r.get("asset") or "").upper(),
+                -_iso_ts_to_epoch(_intent_updated_ts(r)),
+            ),
+        )
+    else:
+        out.sort(key=lambda r: _intent_updated_ts(r), reverse=True)
+    return out
 
 
 def update_execution_intent_status(

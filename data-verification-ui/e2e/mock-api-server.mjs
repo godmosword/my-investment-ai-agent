@@ -1,80 +1,139 @@
 /**
  * Minimal mock API for Playwright (Bloomberg §6 cross-route price alignment).
- * Serves GET /api/symbols/BTC/snapshot and /api/symbols/BTC/quote with matching OHLC tail vs quote.last.
+ * BTC：aligned；SPY：刻意 misaligned（price_alignment.aligned=false）供 Terminal 警告 E2E。
  */
 import http from "node:http";
 
 const PORT = Number(process.env.E2E_MOCK_API_PORT || "9999");
-const LAST = 50000.125;
+const BTC_LAST = 50000.125;
+const SPY_OHLC_LAST = 600;
+const SPY_QUOTE_LAST = 610.25;
+const SPY_REL_DIFF = Math.abs(SPY_QUOTE_LAST - SPY_OHLC_LAST) / SPY_OHLC_LAST;
 
-const snapshotBody = {
-  symbol: "BTC",
-  as_of: "2026-04-14T00:00:00+00:00",
-  source: "bigquery",
-  latest_metrics: {
-    timestamp: "2026-04-14T00:00:00+00:00",
-    dxy: 100,
-    etf_flow_millions: 1,
-    avg_risk_score: 2.5,
-    mvrv_z_score: 1,
-    sentiment_score: 0.1,
-    sopr: 1,
-    exchange_netflow: -1,
-    regime_score: 2,
-  },
-  history: [],
-  price_series: [
-    { time: "2026-04-12", open: 1, high: 2, low: 0.5, close: 49000 },
-    { time: "2026-04-13", open: 1, high: 2, low: 0.5, close: 49500 },
-    { time: "2026-04-14", open: 1, high: 2, low: 0.5, close: LAST },
-  ],
-  event_markers: [],
-  recommendations: [],
-  report_links: [],
-  data_provenance: {
-    ohlc: { source: "yfinance", as_of: "2026-04-14", interval: "1d", underlying_symbol: "BTC-USD" },
-    daily_metrics: { source: "bigquery", table_id: "e2e.mock", as_of: "2026-04-14T00:00:00+00:00" },
-    recommendations: { source: "bigquery", table_id: "e2e.mock", query_window_days: 30, as_of: "2026-04-14T00:00:00+00:00" },
-    price_alignment: {
-      note: "e2e mock",
-      ohlc_vs_quote: {
-        ohlc_last_close: LAST,
-        quote_last: LAST,
-        abs_diff: 0,
-        rel_diff: 0,
-        aligned: true,
-        quote_error: null,
+/** 模擬「儀表 KPI（BQ）≠ 圖表 OHLC 尾端 vs /quote」敘述：snapshot 仍標 source=bigquery，但 OHLC/quote 數值刻意分歧（Bloomberg §6 UI 迴歸）。 */
+const NVDA_OHLC_LAST = 880;
+const NVDA_QUOTE_LAST = 900.125;
+const NVDA_REL_DIFF = Math.abs(NVDA_QUOTE_LAST - NVDA_OHLC_LAST) / NVDA_OHLC_LAST;
+
+function enrichAlignment(align) {
+  return {
+    ...align,
+    ohlc_source: "yfinance",
+    quote_source: "yfinance",
+    daily_metrics_source: "bigquery",
+    routes: {
+      ohlc: "fetch_symbol_ohlc → price_series[-1].close",
+      quote: "fetch_symbol_quote → last",
+    },
+    e2e_mock_cross_route: true,
+  };
+}
+
+function baseSnapshot(symbol, lastClose, priceAlignment) {
+  return {
+    symbol,
+    as_of: "2026-04-14T00:00:00+00:00",
+    source: "bigquery",
+    latest_metrics: {
+      timestamp: "2026-04-14T00:00:00+00:00",
+      dxy: 100,
+      etf_flow_millions: 1,
+      avg_risk_score: 2.5,
+      mvrv_z_score: 1,
+      sentiment_score: 0.1,
+      sopr: 1,
+      exchange_netflow: -1,
+      regime_score: 2,
+    },
+    history: [],
+    price_series: [
+      { time: "2026-04-12", open: 1, high: 2, low: 0.5, close: lastClose * 0.98 },
+      { time: "2026-04-13", open: 1, high: 2, low: 0.5, close: lastClose * 0.99 },
+      { time: "2026-04-14", open: 1, high: 2, low: 0.5, close: lastClose },
+    ],
+    event_markers: [],
+    recommendations:
+      symbol === "BTC"
+        ? []
+        : [
+            {
+              report_date: "2026-04-14",
+              direction: "LONG",
+              status: "OPEN",
+              entry_price: 1,
+              target_price: 2,
+              stop_price: 0.5,
+            },
+          ],
+    report_links:
+      symbol === "BTC"
+        ? []
+        : [{ report_date: "2026-04-14", href: "/report/2026-04-14", api_href: "/api/reports/2026-04-14" }],
+    data_provenance: {
+      ohlc: { source: "yfinance", as_of: "2026-04-14", interval: "1d", underlying_symbol: `${symbol}-USD` },
+      daily_metrics: { source: "bigquery", table_id: "e2e.mock", as_of: "2026-04-14T00:00:00+00:00" },
+      recommendations: { source: "bigquery", table_id: "e2e.mock", query_window_days: 30, as_of: "2026-04-14T00:00:00+00:00" },
+      price_alignment: {
+        note: "e2e mock",
+        ohlc_vs_quote: priceAlignment,
       },
     },
-  },
-  price_alignment: {
-    ohlc_last_close: LAST,
-    quote_last: LAST,
-    abs_diff: 0,
-    rel_diff: 0,
-    aligned: true,
-    quote_error: null,
-  },
+    price_alignment: enrichAlignment(priceAlignment),
+  };
+}
+
+const btcAligned = {
+  ohlc_last_close: BTC_LAST,
+  quote_last: BTC_LAST,
+  abs_diff: 0,
+  rel_diff: 0,
+  aligned: true,
+  quote_error: null,
 };
 
-const quoteBody = {
-  symbol: "BTC",
-  as_of: "2026-04-14T00:00:00Z",
-  source: "yfinance",
-  underlying_symbol: "BTC-USD",
-  last: LAST,
-  currency: "USD",
-  change_pct_1d: 0.01,
-  cached: false,
-  data_provenance: {
-    price: {
-      source: "yfinance",
-      as_of: "2026-04-14T00:00:00Z",
-      interval: "1d",
-      underlying_symbol: "BTC-USD",
-    },
-  },
+const spyMisaligned = {
+  ohlc_last_close: SPY_OHLC_LAST,
+  quote_last: SPY_QUOTE_LAST,
+  abs_diff: SPY_QUOTE_LAST - SPY_OHLC_LAST,
+  rel_diff: SPY_REL_DIFF,
+  aligned: false,
+  quote_error: null,
 };
+
+const nvdaMisaligned = {
+  ohlc_last_close: NVDA_OHLC_LAST,
+  quote_last: NVDA_QUOTE_LAST,
+  abs_diff: NVDA_QUOTE_LAST - NVDA_OHLC_LAST,
+  rel_diff: NVDA_REL_DIFF,
+  aligned: false,
+  quote_error: null,
+  e2e_override: true,
+};
+
+const snapshotBtc = baseSnapshot("BTC", BTC_LAST, btcAligned);
+const snapshotSpy = baseSnapshot("SPY", SPY_OHLC_LAST, spyMisaligned);
+const snapshotNvda = baseSnapshot("NVDA", NVDA_OHLC_LAST, nvdaMisaligned);
+
+function quoteBody(symbol, last) {
+  return {
+    symbol,
+    as_of: "2026-04-14T00:00:00Z",
+    source: "yfinance",
+    underlying_symbol: `${symbol}-USD`,
+    last,
+    currency: "USD",
+    change_pct_1d: 0.01,
+    cached: false,
+    data_provenance: {
+      price: {
+        source: "yfinance",
+        as_of: "2026-04-14T00:00:00Z",
+        interval: "1d",
+        underlying_symbol: `${symbol}-USD`,
+      },
+    },
+  };
+}
 
 const metricsBody = {
   timestamp: "2026-04-14T00:00:00Z",
@@ -120,24 +179,89 @@ const server = http.createServer((req, res) => {
     sendJson(res, 200, metricsBody);
     return;
   }
-  if (url.pathname === "/api/symbols/BTC/snapshot") {
-    sendJson(res, 200, snapshotBody);
+  const snapMatch = url.pathname.match(/^\/api\/symbols\/([^/]+)\/snapshot$/);
+  if (snapMatch) {
+    const sym = snapMatch[1].toUpperCase();
+    if (sym === "BTC") {
+      sendJson(res, 200, snapshotBtc);
+      return;
+    }
+    if (sym === "SPY") {
+      sendJson(res, 200, snapshotSpy);
+      return;
+    }
+    if (sym === "NVDA") {
+      sendJson(res, 200, snapshotNvda);
+      return;
+    }
+    sendJson(res, 404, { error: "unknown_symbol" });
     return;
   }
-  if (url.pathname === "/api/symbols/BTC/quote") {
-    sendJson(res, 200, quoteBody);
+  const quoteMatch = url.pathname.match(/^\/api\/symbols\/([^/]+)\/quote$/);
+  if (quoteMatch) {
+    const sym = quoteMatch[1].toUpperCase();
+    if (sym === "BTC") {
+      sendJson(res, 200, quoteBody("BTC", BTC_LAST));
+      return;
+    }
+    if (sym === "SPY") {
+      sendJson(res, 200, quoteBody("SPY", SPY_QUOTE_LAST));
+      return;
+    }
+    if (sym === "NVDA") {
+      sendJson(res, 200, quoteBody("NVDA", NVDA_QUOTE_LAST));
+      return;
+    }
+    sendJson(res, 404, { error: "unknown_symbol" });
     return;
   }
   if (url.pathname === "/api/war-room/latest") {
-    sendJson(res, 200, { gate_failure: null, scratchpad: null, execution_intents: [] });
+    sendJson(res, 200, {
+      gate_failure: {
+        valid: false,
+        issue_count: 1,
+        issues: ["SPY exposure check failed for SPY leg"],
+        written_utc: "2026-04-14T00:00:00Z",
+      },
+      scratchpad: null,
+      execution_intents: [
+        {
+          signal_id: "e2e-spy-1",
+          created_at: "2026-04-14T00:00:00Z",
+          category: "AI",
+          regime: "x",
+          asset: "SPY",
+          direction: "LONG",
+          star_rating: 1,
+          status: "PENDING_REVIEW",
+          status_updated_at: "2026-04-14T00:00:00Z",
+        },
+      ],
+    });
     return;
   }
   if (url.pathname.startsWith("/api/execution-intents/allowed-statuses")) {
-    sendJson(res, 200, { statuses: ["PENDING_REVIEW"], client_patchable: [] });
+    sendJson(res, 200, {
+      statuses: ["PENDING_REVIEW", "APPROVED_FOR_PAPER"],
+      client_patchable: ["PENDING_REVIEW", "APPROVED_FOR_PAPER", "REJECTED", "SUPERSEDED"],
+    });
     return;
   }
   if (url.pathname.startsWith("/api/execution-intents")) {
-    sendJson(res, 200, []);
+    sendJson(res, 200, [
+      {
+        signal_id: "e2e-spy-1",
+        created_at: "2026-04-14T00:00:00Z",
+        category: "AI",
+        regime: "x",
+        asset: "SPY",
+        direction: "LONG",
+        star_rating: 1,
+        status: "PENDING_REVIEW",
+        status_updated_at: "2026-04-14T00:00:00Z",
+        gate_issue_hints: ["SPY exposure check failed for SPY leg"],
+      },
+    ]);
     return;
   }
   if (url.pathname === "/api/reports/" + url.pathname.slice("/api/reports/".length)) {

@@ -62,8 +62,19 @@
 
 ### 4b) 條目 6／14 的 repo 內自動化錨點（2026-04-14）
 
-- **條目 6（跨頁 ticker 數值一致）**：pytest [`test_terminal_numeric_consistency.py`](../test_terminal_numeric_consistency.py)（`fetch_symbol_quote` 之 `last`／`change_pct_1d` 與 `fetch_symbol_ohlc` 最後一筆 close 於同源 yfinance 時一致）；`GET /api/symbols/{symbol}/snapshot` 回應另含 **`price_alignment`**（`symbol_snapshot_service._align_snapshot_price`）與 `data_provenance.price_alignment` 供儀表／除錯對照。**UI 層**：Playwright [`data-verification-ui/e2e/cross-page-btc-price.spec.js`](../data-verification-ui/e2e/cross-page-btc-price.spec.js)（`/` 之 `today-btc-quote-last` vs `/terminal` 之 `terminal-quote-last-BTC`，mock API；`npm run test:e2e`）。
+- **條目 6（跨頁 ticker 數值一致）**：pytest [`test_terminal_numeric_consistency.py`](../test_terminal_numeric_consistency.py)（`fetch_symbol_quote` 之 `last`／`change_pct_1d` 與 `fetch_symbol_ohlc` 最後一筆 close 於同源 yfinance 時一致）；`GET /api/symbols/{symbol}/snapshot` 回應另含 **`price_alignment`**（`symbol_snapshot_service._align_snapshot_price`；欄位含 **`ohlc_source`／`quote_source`／`daily_metrics_source`** 與 **`routes`**）與 `data_provenance.price_alignment` 供儀表／除錯對照。可選 **`PRICE_ALIGNMENT_E2E_OVERRIDES`**（JSON）於 staging／E2E 強制 OHLC vs quote 數值（見 `ENV_TEMPLATE.txt`）。**UI 層**：Playwright [`data-verification-ui/e2e/cross-page-btc-price.spec.js`](../data-verification-ui/e2e/cross-page-btc-price.spec.js)（`/` vs `/terminal` BTC）；[`e2e/nvda-cross-route-banner.spec.js`](../data-verification-ui/e2e/nvda-cross-route-banner.spec.js)（mock **儀表＝BQ** 敘述下 **OHLC vs `/quote` 分歧** 之警告文案；`npm run test:e2e`）。
 - **條目 14（Terminal 變更回歸紀錄）**：CI 步驟「Terminal contract」執行 [`scripts/ci_terminal_contract_check.sh`](../scripts/ci_terminal_contract_check.sh)（`pytest test_terminal_numeric_consistency` + PWA `npm run build`）。
+
+### 4c) 跨路由數字口徑（T2a — snapshot vs quote）
+
+| 欄位／UI | 資料來源 | 語意 |
+|---------|----------|------|
+| `GET …/snapshot` 之 `price_series[].close` | yfinance 日線 OHLC（經 `symbol_snapshot_service`） | K 線與「尾端 bar」錨點 |
+| `GET …/quote` 之 `last` | 同源 yfinance 日線 **收盤**（`fetch_symbol_quote`） | Terminal／Today 頂欄「最新收盤（日線）」 |
+| `price_alignment` | 後端比對 OHLC 最後一筆 `close` 與 quote `last` | `aligned: true` 表示兩者一致；`false` 時 UI **必須**顯示警告（見 PWA `TerminalSymbolCard`／`TodayBtcSnapshotStrip`） |
+| 任一來源失敗 | — | quote 503 或 snapshot BQ 異常時顯示錯誤態＋重試；**不以 LLM 補數字** |
+
+Streamlit 與 PWA 應消費**同一 JSON**（`build_symbol_snapshot` 或 `SYMBOL_SNAPSHOT_HTTP_BASE` + HTTP），見 [`docs/DASHBOARD_CONTRACT.md`](DASHBOARD_CONTRACT.md) 與 [`dashboard.py`](../dashboard.py) `_dashboard_symbol_snapshot_payload`。
 
 ---
 

@@ -52,6 +52,43 @@ def test_push_subscribe_stores_in_memory_when_store_flag(client, monkeypatch):
     assert body.get("count", 0) >= 1
 
 
+def test_push_subscribe_dedupes_same_endpoint(client, monkeypatch):
+    import web_push_store
+
+    web_push_store.clear_subscriptions_for_tests()
+    monkeypatch.setenv("WEB_PUSH_ENABLED", "1")
+    monkeypatch.setenv("WEB_PUSH_STORE", "1")
+    body_json = {"endpoint": "https://example.com/push/dedup-me", "keys": {"p256dh": "a", "auth": "b"}}
+    r1 = client.post("/api/push/subscribe", json=body_json)
+    r2 = client.post("/api/push/subscribe", json=body_json)
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r2.json().get("deduped") is True
+    assert r2.json().get("count") == 1
+
+
+def test_push_subscribe_rate_limit_per_ip(client, monkeypatch):
+    import web_push_store
+
+    web_push_store.clear_subscriptions_for_tests()
+    monkeypatch.setenv("WEB_PUSH_ENABLED", "1")
+    monkeypatch.setenv("WEB_PUSH_STORE", "1")
+    monkeypatch.setenv("WEB_PUSH_SUBSCRIBE_RATE_PER_MIN", "2")
+    for i in range(2):
+        r = client.post(
+            "/api/push/subscribe",
+            json={"endpoint": f"https://example.com/push/rate-{i}", "keys": {"p256dh": "x", "auth": "y"}},
+        )
+        assert r.status_code == 200
+        assert r.json().get("rate_limited") is not True
+    r3 = client.post(
+        "/api/push/subscribe",
+        json={"endpoint": "https://example.com/push/rate-blocked", "keys": {"p256dh": "x", "auth": "y"}},
+    )
+    assert r3.status_code == 200
+    assert r3.json().get("rate_limited") is True
+
+
 def test_war_room_latest_reads_local_artifacts(client, tmp_path, monkeypatch):
     gate_dir = tmp_path / ".qsilicon" / "last_gate_failure"
     gate_dir.mkdir(parents=True)
