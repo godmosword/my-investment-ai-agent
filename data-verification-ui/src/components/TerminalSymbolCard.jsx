@@ -169,6 +169,15 @@ export default function TerminalSymbolCard({
                 ? `${(Number(data.price_alignment.rel_diff) * 100).toFixed(3)}%`
                 : "N/A"}
               ）。請以「資料溯源」與後端 <code>price_alignment</code> 為準；圖表與 headline 數字可能不同步。
+              {data.price_alignment?.e2e_override ? (
+                <span>
+                  {" "}
+                  （<code>E2E</code> 覆寫）
+                </span>
+              ) : null}
+              <div style={{ marginTop: 6, fontSize: 11, opacity: 0.95 }}>
+                儀表 KPI（<code>latest_metrics</code>）來源為 BigQuery；本警告僅涵蓋 yfinance 之 OHLC 尾端 vs <code>/quote</code>。
+              </div>
               {quoteError ? (
                 <div style={{ marginTop: 6 }}>
                   <button

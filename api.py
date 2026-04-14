@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from datetime import date, datetime
 from pathlib import Path
@@ -562,11 +563,29 @@ def _latest_gate_failure_summary() -> dict[str, Any] | None:
     }
 
 
+def _gate_line_matches_intent(line: str, asset_u: str, signal_id: str) -> bool:
+    """Avoid substring false positives (e.g. ``ASSET`` inside ``PASSSETS``) where possible."""
+    if not asset_u:
+        return False
+    lu = line.upper()
+    if len(asset_u) >= 2:
+        try:
+            if re.search(rf"\b{re.escape(asset_u)}\b", lu):
+                return True
+        except re.error:
+            pass
+    sid = (signal_id or "").upper()
+    parts = {p for p in re.split(r"[^A-Z0-9]+", sid) if len(p) >= 2}
+    if asset_u in parts and asset_u in lu:
+        return True
+    return asset_u in lu
+
+
 def _enrich_intents_with_gate_hints(
     intents: list[dict[str, Any]],
     gate_failure: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
-    """Read-only cross-hints (T5b): substring-match intent ``asset`` against latest gate issue lines."""
+    """Read-only cross-hints (T5b): match gate issue lines to ``asset`` / ``signal_id`` segments."""
     issues_raw = (gate_failure or {}).get("issues") if isinstance(gate_failure, dict) else None
     if not intents or not isinstance(issues_raw, list) or not issues_raw:
         return intents
@@ -576,10 +595,11 @@ def _enrich_intents_with_gate_hints(
     out: list[dict[str, Any]] = []
     for row in intents:
         asset = str(row.get("asset") or "").strip().upper()
+        sid = str(row.get("signal_id") or "").strip()
         if not asset:
             out.append(row)
             continue
-        matched = [line for line in issues if asset in line.upper()]
+        matched = [line for line in issues if _gate_line_matches_intent(line, asset, sid)]
         if not matched:
             out.append(row)
             continue
@@ -726,7 +746,7 @@ def get_symbol_snapshot(
 
 
 @app.post("/api/push/subscribe")
-def push_subscribe(body: WebPushSubscribeBody) -> dict[str, Any]:
+def push_subscribe(request: Request, body: WebPushSubscribeBody) -> dict[str, Any]:
     """Web Push 訂閱：預設關閉；開啟後為 log-only 或程序內暫存（見 `web_push_store`）。
 
     - ``WEB_PUSH_ENABLED=0``：501（與舊行為一致）。
@@ -742,7 +762,8 @@ def push_subscribe(body: WebPushSubscribeBody) -> dict[str, Any]:
                 "可選 WEB_PUSH_STORE=1 啟用程序內暫存（非持久化）。詳見 docs/PWA_WEB_PUSH.md。"
             ),
         )
-    meta = web_push_store.record_subscription(body.model_dump(mode="json"))
+    client_ip = (request.client.host if request.client else "") or ""
+    meta = web_push_store.record_subscription(body.model_dump(mode="json"), client_ip=client_ip)
     return {"ok": True, **meta}
 
 

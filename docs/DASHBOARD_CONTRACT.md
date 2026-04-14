@@ -24,7 +24,7 @@
 |------|------|------|
 | `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema |
 | `GET /api/metrics/history` | 歷史指標 | query：`days` |
-| `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit`；回應含 **`data_provenance`**（OHLC／BQ 來源與 as_of） |
+| `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit`；回應含 **`data_provenance`**（OHLC／BQ 來源與 as_of）；**`price_alignment`** 描述 **yfinance OHLC 尾端** vs **`/quote` 之 last**（皆 yfinance），並標 **`daily_metrics_source: bigquery`**；staging 可選 **`PRICE_ALIGNMENT_E2E_OVERRIDES`** 強制數值（見 `ENV_TEMPLATE.txt`） |
 | `GET /api/symbols/{symbol}/quote` | 輕量 **最新日線收盤** + 可選 **1D %**（僅 yfinance，無 BQ） | 失敗 **503**；伺服端快取約 **45s**；回應含 **`data_provenance.price`** |
 | `GET /api/execution-intents` | 執行意圖列表（每 `signal_id` 最新一列） | query：`limit`；可選 **`status`**（狀態字串之子字串比對，大小寫不敏感）、**`category`**（`CRYPTO`／`AI` 前綴）、**`sort_by`**（`updated_desc`｜`created_desc`｜`asset_asc`）。若存在本機 **`.qsilicon/last_gate_failure/validation_summary.json`**，列表列會附加唯讀 **`gate_issue_hints`**（資產代號出現在 gate issue 行時） |
 | `GET /api/execution-intents/allowed-statuses` | 意圖狀態集合 | 回傳 **`statuses`**（含紙上 `PAPER_*`）與 **`client_patchable`**（僅人審可 PATCH 子集） |
@@ -36,7 +36,7 @@
 | `GET /api/trades` | 交易列表 | |
 | `GET /api/trades/performance` | 績效彙總 | |
 | `GET /healthz` | 存活探測 | |
-| `POST /api/push/subscribe` | Web Push 訂閱（**分階**） | 預設 **501**；`WEB_PUSH_ENABLED=1` 時 **log-only**（`stored:false`）；`WEB_PUSH_STORE=1` 時程序內暫存（非持久化）。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
+| `POST /api/push/subscribe` | Web Push 訂閱（**分階**） | 預設 **501**；`WEB_PUSH_ENABLED=1` 時 **log-only**（`stored:false`）；`WEB_PUSH_STORE=1` 時程序內暫存（非持久化），同一 **endpoint** 以 fingerprint **去重**（`deduped`），可選 **`WEB_PUSH_SUBSCRIBE_RATE_PER_MIN`**／**`WEB_PUSH_STORE_MAX_SUBSCRIPTIONS`**。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
 
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
 Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。

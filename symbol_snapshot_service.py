@@ -6,7 +6,9 @@ so the PWA and dashboard do not drift.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -200,7 +202,10 @@ def _align_snapshot_price(
     normalized_symbol: str,
     price_series: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Cross-source alignment probe: snapshot OHLC tail vs standalone quote (same yfinance paths)."""
+    """Cross-route alignment probe: snapshot ``price_series`` tail vs standalone ``/quote`` (yfinance).
+
+    ``latest_metrics`` 仍來自 BigQuery（見 ``build_symbol_snapshot``）；本欄位僅描述 **OHLC 尾端 vs quote** 兩條 yfinance 路徑是否一致。
+    """
     out: dict[str, Any] = {
         "ohlc_last_close": None,
         "quote_last": None,
@@ -208,6 +213,13 @@ def _align_snapshot_price(
         "rel_diff": None,
         "aligned": None,
         "quote_error": None,
+        "ohlc_source": "yfinance",
+        "quote_source": "yfinance",
+        "daily_metrics_source": "bigquery",
+        "routes": {
+            "ohlc": "fetch_symbol_ohlc → price_series[-1].close",
+            "quote": "fetch_symbol_quote → last (same symbol, separate HTTP 路徑於 /quote)",
+        },
     }
     bar = _last_ohlc_bar(price_series)
     if not bar or bar.get("close") is None:
@@ -246,6 +258,57 @@ def _align_snapshot_price(
     out["rel_diff"] = round(diff / denom, 8)
     out["aligned"] = diff <= max(1e-6, 1e-4 * denom)
     return out
+
+
+def _price_alignment_e2e_overrides() -> dict[str, dict[str, Any]]:
+    """Optional JSON map for Playwright / staging: force OHLC vs quote numbers without yfinance.
+
+    Env ``PRICE_ALIGNMENT_E2E_OVERRIDES`` example::
+
+        {"NVDA":{"ohlc_last_close":100,"quote_last":105.5}}
+
+    Keys are uppercased symbols. Values may include ``ohlc_last_close`` and/or ``quote_last`` floats.
+    """
+    raw = (os.getenv("PRICE_ALIGNMENT_E2E_OVERRIDES") or "").strip()
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("PRICE_ALIGNMENT_E2E_OVERRIDES is not valid JSON; ignoring")
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for k, v in data.items():
+        sym = str(k).strip().upper()
+        if sym and isinstance(v, dict):
+            out[sym] = v
+    return out
+
+
+def _apply_price_alignment_e2e_override(normalized_symbol: str, align: dict[str, Any]) -> None:
+    ov = _price_alignment_e2e_overrides().get(normalized_symbol)
+    if not ov:
+        return
+    ohlc_v = ov.get("ohlc_last_close")
+    quote_v = ov.get("quote_last")
+    try:
+        ohlc_close = float(ohlc_v) if ohlc_v is not None else align.get("ohlc_last_close")
+        ql = float(quote_v) if quote_v is not None else align.get("quote_last")
+    except (TypeError, ValueError):
+        return
+    if ohlc_close is None or ql is None:
+        return
+    align["ohlc_last_close"] = ohlc_close
+    align["quote_last"] = ql
+    diff = abs(ohlc_close - ql)
+    align["abs_diff"] = round(diff, 8)
+    denom = max(abs(ohlc_close), 1e-12)
+    align["rel_diff"] = round(diff / denom, 8)
+    align["aligned"] = diff <= max(1e-6, 1e-4 * denom)
+    align["quote_error"] = None
+    align["e2e_override"] = True
 
 
 def build_symbol_snapshot(
@@ -341,6 +404,7 @@ def build_symbol_snapshot(
         ohlc_as_of = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     align = _align_snapshot_price(normalized_symbol, price_series)
+    _apply_price_alignment_e2e_override(normalized_symbol, align)
 
     data_provenance: dict[str, Any] = {
         "ohlc": {
@@ -362,7 +426,10 @@ def build_symbol_snapshot(
         },
         "price_alignment": {
             "ohlc_vs_quote": align,
-            "note": "OHLC 與 /quote 皆走 yfinance；不一致多為快取邊界或資料延遲。",
+            "note": (
+                "KPI（latest_metrics）來自 BigQuery；OHLC 與 /quote 之 last 皆來自 yfinance。"
+                " 不一致多為快取邊界或資料延遲；跨「BQ 數字 vs yfinance 數字」目前無單一自動對齊欄位。"
+            ),
         },
     }
 

@@ -243,6 +243,37 @@ def test_execution_intents_gate_issue_hints(tmp_path, monkeypatch):
     assert body[0].get("gate_issue_hints") == ["check SPY spread"]
 
 
+def test_gate_issue_hints_no_false_positive_substring(tmp_path, monkeypatch):
+    """``ASSET`` must not match inside unrelated tokens like ``PASSSETS``."""
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "x-asset-long-1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "CRYPTO",
+                "asset": "ASSET",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "PENDING_REVIEW",
+                "status_updated_at": "2026-04-10T00:00:00Z",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    monkeypatch.setattr(
+        "api._latest_gate_failure_summary",
+        lambda: {"issues": ["PASSSETS validation ok"]},
+    )
+    client = TestClient(app)
+    r = client.get("/api/execution-intents?limit=10")
+    assert r.status_code == 200
+    row = r.json()[0]
+    assert "gate_issue_hints" not in row
+
+
 def test_war_room_enriches_intents_with_gate_hints(tmp_path, monkeypatch):
     store = tmp_path / "intents.jsonl"
     store.write_text(

@@ -8,7 +8,9 @@
 |------|------|
 | `WEB_PUSH_ENABLED=0`（預設） | `POST /api/push/subscribe` → **501** |
 | `WEB_PUSH_ENABLED=1` | 驗證 JSON body；**log-only**（`stored: false`） |
-| `WEB_PUSH_ENABLED=1` 且 `WEB_PUSH_STORE=1` | 將訂閱摘要寫入 **程序內** `deque`（重啟即失；**非**生產持久化） |
+| `WEB_PUSH_ENABLED=1` 且 `WEB_PUSH_STORE=1` | 將訂閱摘要寫入 **程序內** `dict`（以 endpoint **SHA256 fingerprint** 去重；重啟即失；**非**生產持久化） |
+| （同上）+ `WEB_PUSH_STORE_MAX_SUBSCRIPTIONS` | 可選上限（預設 **512**）；超過時丟最舊列 |
+| （同上）+ `WEB_PUSH_SUBSCRIBE_RATE_PER_MIN` | 可選每 **client IP** 每分鐘 POST 上限（預設 **30**；**0** 關閉）；觸發時回 `stored:false`、`rate_limited:true` |
 
 實作見 [`web_push_store.py`](../web_push_store.py)、[`api.py`](../api.py) `POST /api/push/subscribe`。
 
@@ -20,7 +22,7 @@
 ## 下一階（未實作）
 
 1. **VAPID** 金鑰與 `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`。
-2. **持久化**（Redis／Firestore／BQ）與 **rate limit**、endpoint 去重。
+2. **持久化**（Redis／Firestore／BQ）與 **分散式** rate limit／審計日誌（程序內 `WEB_PUSH_SUBSCRIBE_RATE_PER_MIN` 僅為開發用 guard）。
 3. **後端發送**（`pywebpush` 或等效）與訊息模板審核。
 
 ## 通知事件語意草案（T4b，文件先行）
@@ -40,3 +42,4 @@
 
 - **2026-04-14**：初版 — API 雙模式 + 前端可選註冊環境變數。
 - **2026-04-14（T4b 草案）**：補「通知事件語意」表 — 與 [`TODOS.md`](../TODOS.md) Terminal T4b 對齊（僅規格、未改 runtime）。
+- **2026-04-14（T4a 小步）**：`WEB_PUSH_STORE` 改 **endpoint 去重** + 可選 **IP rate limit**／store 上限（仍非持久化、無 pywebpush）。

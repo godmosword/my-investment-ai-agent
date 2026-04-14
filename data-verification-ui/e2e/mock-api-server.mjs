@@ -10,6 +10,25 @@ const SPY_OHLC_LAST = 600;
 const SPY_QUOTE_LAST = 610.25;
 const SPY_REL_DIFF = Math.abs(SPY_QUOTE_LAST - SPY_OHLC_LAST) / SPY_OHLC_LAST;
 
+/** 模擬「儀表 KPI（BQ）≠ 圖表 OHLC 尾端 vs /quote」敘述：snapshot 仍標 source=bigquery，但 OHLC/quote 數值刻意分歧（Bloomberg §6 UI 迴歸）。 */
+const NVDA_OHLC_LAST = 880;
+const NVDA_QUOTE_LAST = 900.125;
+const NVDA_REL_DIFF = Math.abs(NVDA_QUOTE_LAST - NVDA_OHLC_LAST) / NVDA_OHLC_LAST;
+
+function enrichAlignment(align) {
+  return {
+    ...align,
+    ohlc_source: "yfinance",
+    quote_source: "yfinance",
+    daily_metrics_source: "bigquery",
+    routes: {
+      ohlc: "fetch_symbol_ohlc → price_series[-1].close",
+      quote: "fetch_symbol_quote → last",
+    },
+    e2e_mock_cross_route: true,
+  };
+}
+
 function baseSnapshot(symbol, lastClose, priceAlignment) {
   return {
     symbol,
@@ -59,7 +78,7 @@ function baseSnapshot(symbol, lastClose, priceAlignment) {
         ohlc_vs_quote: priceAlignment,
       },
     },
-    price_alignment: priceAlignment,
+    price_alignment: enrichAlignment(priceAlignment),
   };
 }
 
@@ -81,8 +100,19 @@ const spyMisaligned = {
   quote_error: null,
 };
 
+const nvdaMisaligned = {
+  ohlc_last_close: NVDA_OHLC_LAST,
+  quote_last: NVDA_QUOTE_LAST,
+  abs_diff: NVDA_QUOTE_LAST - NVDA_OHLC_LAST,
+  rel_diff: NVDA_REL_DIFF,
+  aligned: false,
+  quote_error: null,
+  e2e_override: true,
+};
+
 const snapshotBtc = baseSnapshot("BTC", BTC_LAST, btcAligned);
 const snapshotSpy = baseSnapshot("SPY", SPY_OHLC_LAST, spyMisaligned);
+const snapshotNvda = baseSnapshot("NVDA", NVDA_OHLC_LAST, nvdaMisaligned);
 
 function quoteBody(symbol, last) {
   return {
@@ -160,6 +190,10 @@ const server = http.createServer((req, res) => {
       sendJson(res, 200, snapshotSpy);
       return;
     }
+    if (sym === "NVDA") {
+      sendJson(res, 200, snapshotNvda);
+      return;
+    }
     sendJson(res, 404, { error: "unknown_symbol" });
     return;
   }
@@ -172,6 +206,10 @@ const server = http.createServer((req, res) => {
     }
     if (sym === "SPY") {
       sendJson(res, 200, quoteBody("SPY", SPY_QUOTE_LAST));
+      return;
+    }
+    if (sym === "NVDA") {
+      sendJson(res, 200, quoteBody("NVDA", NVDA_QUOTE_LAST));
       return;
     }
     sendJson(res, 404, { error: "unknown_symbol" });

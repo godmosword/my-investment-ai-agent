@@ -71,5 +71,28 @@ def test_build_symbol_snapshot_includes_price_alignment(monkeypatch: pytest.Monk
 
     out = sss.build_symbol_snapshot(_Client(), "BTC", days=30, recommendation_limit=5)
     assert out.get("price_alignment", {}).get("aligned") is True
+    pa = out.get("price_alignment") or {}
+    assert pa.get("ohlc_source") == "yfinance"
+    assert pa.get("quote_source") == "yfinance"
+    assert pa.get("daily_metrics_source") == "bigquery"
     prov = out.get("data_provenance") or {}
     assert "price_alignment" in prov
+
+
+def test_price_alignment_e2e_override_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "PRICE_ALIGNMENT_E2E_OVERRIDES",
+        '{"NVDA":{"ohlc_last_close":100,"quote_last":110}}',
+    )
+    series = [{"time": "2026-04-10", "close": 100.0}]
+    monkeypatch.setattr(
+        sss,
+        "fetch_symbol_quote",
+        lambda _s: {"last": 100.0, "error": None},
+    )
+    a = sss._align_snapshot_price("NVDA", series)
+    sss._apply_price_alignment_e2e_override("NVDA", a)
+    assert a.get("e2e_override") is True
+    assert a.get("quote_last") == 110.0
+    assert a.get("ohlc_last_close") == 100.0
+    assert a.get("aligned") is False
