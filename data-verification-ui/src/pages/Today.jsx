@@ -12,6 +12,7 @@ import {
   mockReportForDate,
 } from "../utils/mockToday";
 import SymbolFocusBar from "../components/SymbolFocusBar";
+import TodayBtcSnapshotStrip from "../components/TodayBtcSnapshotStrip";
 
 export default function Today() {
   const [warRoomIntentFilter, setWarRoomIntentFilter] = useState("all");
@@ -80,6 +81,8 @@ export default function Today() {
       </div>
 
       <SymbolFocusBar compact />
+
+      {!useDemo && <TodayBtcSnapshotStrip />}
 
       <div className="section-header subtle">War Room（Gate / Scratchpad / Intent）</div>
       <WarRoomCard
