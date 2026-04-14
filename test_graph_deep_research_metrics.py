@@ -54,3 +54,5 @@ def test_deep_research_tool_llm_emits_scratchpad_metrics(monkeypatch: pytest.Mon
     assert len(captured) == 1
     assert captured[0].get("tool_calls_total", 0) >= 1
     assert captured[0].get("elapsed_ms", 0) >= 0
+    assert captured[0].get("finish_kind") == "tools_and_synthesis"
+    assert captured[0].get("unknown_tool_hits", -1) == 0

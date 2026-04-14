@@ -7,22 +7,27 @@
 
 ### Added
 - **日報品質代理（可選）**：[`report_quality_agent.py`](report_quality_agent.py) — `REPORT_QUALITY_AGENT=1` 時在 `validate_report` 乾淨通過或 warn-pass 交付後，以 LLM rubric（沿用 `llm_quality_judge`）與可選 `domain_quality_check` 計算複合分；低於 `REPORT_QUALITY_AGENT_COMPOSITE_MIN` 時將改善項寫入 [`TODOS.md`](TODOS.md) 內 `REPORT_QUALITY_AGENT_TODOS_*` 機器區塊；[`scratchpad.py`](scratchpad.py) 新增 `quality_agent_result` 事件；[`main.py`](main.py) 在三處成功交付路徑掛勾。可選 `REPORT_QUALITY_AGENT_GIT_PUSH` + `REPORT_QUALITY_AGENT_GIT_ALLOW` 於寫入後 `git commit`／`push`（預設關閉）。環境變數見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
+- **Symbol snapshot 價格對齊探測**：[`symbol_snapshot_service.py`](symbol_snapshot_service.py) 回應含 `price_alignment` 與 `data_provenance.price_alignment`（OHLC 尾端 vs `fetch_symbol_quote`）；[`api.py`](api.py) `SymbolSnapshot` 增欄位。
+- **Web Push 分階**：[`web_push_store.py`](web_push_store.py)；`WEB_PUSH_ENABLED=1` 時 `POST /api/push/subscribe` 可 log-only 或 `WEB_PUSH_STORE=1` 程序內暫存；[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)；PWA [`pushClient.js`](data-verification-ui/src/pushClient.js) + [`main.jsx`](data-verification-ui/src/main.jsx) 可選註冊（`VITE_WEB_PUSH_*`）。
 
 ### Changed
-- [`main.py`](main.py)：`scratchpad.begin_run` 的 `init.meta` 附帶 `pipeline_config`（`PIPELINE_STRICT_ENV`、`ADAPTIVE_GATE_*`、`GRAPH_DEEP_RESEARCH_TOOL_LLM`、`effective_pick_rotation_override_min_gap` 等非機密快照）；`_validate_env_types` 納入自適應門檻相關數值 env 校驗。
-- [`graph/graph_nodes.py`](graph/graph_nodes.py)：`GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 時 deep research 寫入 scratchpad `graph_deep_research_metrics`（輪次、工具次數、耗時）。
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：新增 Node 20 與 **Terminal contract** 步驟（[`scripts/ci_terminal_contract_check.sh`](scripts/ci_terminal_contract_check.sh)）。
+- [`main.py`](main.py)：`scratchpad.begin_run` 的 `init.meta` 附帶 `pipeline_config`（`PIPELINE_STRICT_ENV`、`ADAPTIVE_GATE_*`、`GRAPH_DEEP_RESEARCH_TOOL_LLM`、`WEB_PUSH_*`、`effective_pick_rotation_override_min_gap` 等非機密快照）；`_validate_env_types` 納入自適應門檻相關數值 env 校驗。
+- [`graph/graph_nodes.py`](graph/graph_nodes.py)：`GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 時 deep research 寫入 scratchpad `graph_deep_research_metrics`（輪次、工具次數、耗時、**unknown_tool_hits**／**tool_invoke_errors**／**finish_kind**）。
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：新增 Node 20、**Terminal contract**（[`scripts/ci_terminal_contract_check.sh`](scripts/ci_terminal_contract_check.sh)）、**npm cache**（`data-verification-ui/package.json`）。
 - [`data-verification-ui/src/components/WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx)／[`Today.jsx`](data-verification-ui/src/pages/Today.jsx)：War Room 錯誤態 **重試** 與成功態 **重新整理**。
+- [`api.py`](api.py)：`POST /api/push/subscribe` 分階行為（見上）；`WEB_PUSH_ENABLED=1` 時回 `stored`／`endpoint_fp` 等 meta。
 
 ### Docs
-- 新增 [`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b 補條目 6／14 之 pytest／CI 錨點；[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md)、[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)、[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 對齊 scratchpad／CI 觀測。
-- [`README.md`](README.md)：MIT／Python／CI **badges**（shields.io 靜態連結至 `.github/workflows/ci.yml`）與 LICENSE 對齊一句；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引增 ADR 索引。
+- 新增 [`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b 補條目 6／14 之 pytest／CI 錨點與 **snapshot price_alignment**；[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md)、[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)、[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 對齊 scratchpad／CI 觀測；[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 同步 Web Push／snapshot 欄位。
+- [`README.md`](README.md)：MIT／Python／CI **badges**（shields.io 靜態連結至 `.github/workflows/ci.yml`）、LICENSE 對齊一句、CI 小節註記 **npm cache**；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引增 ADR 索引與 PWA Web Push。
 
 ### Tests
 - 新增 [`test_report_quality_agent.py`](test_report_quality_agent.py)（複合分、TODOS 區塊、整體流程 mock）。
 - 新增 [`test_terminal_numeric_consistency.py`](test_terminal_numeric_consistency.py)（quote vs OHLC 同源 yfinance）。
 - 新增 [`test_graph_deep_research_metrics.py`](test_graph_deep_research_metrics.py)（mock bind_tools 路徑驗證 scratchpad metrics）。
 - 新增 [`test_schemas_cap_internal_field.py`](test_schemas_cap_internal_field.py)（`hypothesis` + `boundary`：`schemas._cap_internal_field`）。
+- 新增 [`test_symbol_snapshot_alignment.py`](test_symbol_snapshot_alignment.py)（snapshot `price_alignment` 與 `_align_snapshot_price`）。
+- 更新 [`test_api_symbols_snapshot.py`](test_api_symbols_snapshot.py)、[`test_api_push.py`](test_api_push.py)（Web Push 分階契約）。
 
 ## 2026-04-12
 

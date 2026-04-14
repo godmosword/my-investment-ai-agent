@@ -113,6 +113,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | Streamlit / API / PWA KPI contract |
 | [`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) | Terminal-style capability map and acceptance checklist |
 | [`ADR_INDEX.md`](docs/ADR_INDEX.md) | ADR／架構決策與相鄰設計稿索引 |
+| [`PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) | Web Push 分階實作與環境變數 |
 | [`TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md) | Terminal「中段」路線：data provenance、互動節奏、執行意圖 API（M1–M5） |
 | [`DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) | Production deploy + GitHub Environment reviewers |
 | [`AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md) + [`autoresearch.plan.md`](docs/autoresearch.plan.md) | Autoresearch loop spec |

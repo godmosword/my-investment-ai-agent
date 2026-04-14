@@ -439,6 +439,7 @@ class SymbolSnapshot(BaseModel):
     recommendations: list[dict[str, Any]]
     report_links: list[dict[str, str]]
     data_provenance: dict[str, Any] = Field(default_factory=dict)
+    price_alignment: dict[str, Any] | None = None
 
 
 class SymbolQuote(BaseModel):
@@ -637,21 +638,24 @@ def get_symbol_snapshot(
 
 
 @app.post("/api/push/subscribe")
-def push_subscribe(_body: WebPushSubscribeBody) -> dict[str, Any]:
-    """Web Push 訂閱預留：須 VAPID、持久化與 rate limit 審核後才啟用。
+def push_subscribe(body: WebPushSubscribeBody) -> dict[str, Any]:
+    """Web Push 訂閱：預設關閉；開啟後為 log-only 或程序內暫存（見 `web_push_store`）。
 
-    設 **WEB_PUSH_ENABLED=1** 前一律 **501**，避免誤以為已可寫入生產訂閱。
+    - ``WEB_PUSH_ENABLED=0``：501（與舊行為一致）。
+    - ``WEB_PUSH_ENABLED=1``：驗證 endpoint；可選 ``WEB_PUSH_STORE=1`` 寫入程序內 deque（**重啟即失**）。
     """
-    if os.getenv("WEB_PUSH_ENABLED", "0").lower() not in ("1", "true", "yes"):
+    import web_push_store
+
+    if not web_push_store.web_push_enabled():
         raise HTTPException(
             status_code=501,
             detail=(
-                "Web Push 未啟用。完成安全檢視後設 WEB_PUSH_ENABLED=1，"
-                "並實作 VAPID／訂閱儲存（見 TODOS Direction 1A）。"
+                "Web Push 未啟用。設 WEB_PUSH_ENABLED=1 後可 POST 訂閱；"
+                "可選 WEB_PUSH_STORE=1 啟用程序內暫存（非持久化）。詳見 docs/PWA_WEB_PUSH.md。"
             ),
         )
-    logger.warning("WEB_PUSH_ENABLED=1 but subscription persistence not implemented — no-op accept")
-    return {"ok": True, "stored": False}
+    meta = web_push_store.record_subscription(body.model_dump(mode="json"))
+    return {"ok": True, **meta}
 
 
 @app.get("/api/war-room/latest")

@@ -24,12 +24,32 @@ def test_push_subscribe_returns_501_when_disabled(client):
 
 def test_push_subscribe_accepts_when_enabled(client, monkeypatch):
     monkeypatch.setenv("WEB_PUSH_ENABLED", "1")
+    monkeypatch.delenv("WEB_PUSH_STORE", raising=False)
     r = client.post(
         "/api/push/subscribe",
         json={"endpoint": "https://example.com/push/abc", "keys": {"p256dh": "x", "auth": "y"}},
     )
     assert r.status_code == 200
-    assert r.json().get("ok") is True
+    body = r.json()
+    assert body.get("ok") is True
+    assert body.get("stored") is False
+
+
+@pytest.mark.smoke
+def test_push_subscribe_stores_in_memory_when_store_flag(client, monkeypatch):
+    import web_push_store
+
+    web_push_store.clear_subscriptions_for_tests()
+    monkeypatch.setenv("WEB_PUSH_ENABLED", "1")
+    monkeypatch.setenv("WEB_PUSH_STORE", "1")
+    r = client.post(
+        "/api/push/subscribe",
+        json={"endpoint": "https://example.com/push/stored-1", "keys": {"p256dh": "x", "auth": "y"}},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("stored") is True
+    assert body.get("count", 0) >= 1
 
 
 def test_war_room_latest_reads_local_artifacts(client, tmp_path, monkeypatch):
