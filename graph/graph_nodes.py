@@ -1048,6 +1048,8 @@ def _deep_research_with_bound_tools(query: str) -> str:
     _t0 = time.perf_counter()
     _rounds_used = 0
     _tool_names_flat: list[str] = []
+    _unknown_tool_hits = 0
+    _tool_invoke_errors = 0
 
     logger.info("--- [Node] Deep Research (Tool Calling LLM) 啟動 ---")
     llm = _get_debate_llm()
@@ -1090,6 +1092,7 @@ def _deep_research_with_bound_tools(query: str) -> str:
             name = _tool_call_name(tc)
             selected = tool_map.get(name)
             if not selected:
+                _unknown_tool_hits += 1
                 err = f"[DATA_MISSING:unknown_tool:{name}]"
                 tool_excerpts.append(f"【來自 {name}】\n{err}")
                 messages.append(
@@ -1100,6 +1103,7 @@ def _deep_research_with_bound_tools(query: str) -> str:
                 out = selected.invoke(_tool_call_args(tc))
                 out_s = out if isinstance(out, str) else str(out)
             except Exception as exc:  # pragma: no cover - defensive
+                _tool_invoke_errors += 1
                 out_s = f"工具執行失敗: {exc}"
             tool_excerpts.append(f"【來自 {name} 的真實數據】\n{out_s}")
             messages.append(
@@ -1108,6 +1112,13 @@ def _deep_research_with_bound_tools(query: str) -> str:
 
     synthesis = (last_ai.content or "").strip() if last_ai else ""
     _elapsed_ms = round((time.perf_counter() - _t0) * 1000.0, 2)
+    _finish = "incomplete"
+    if tool_excerpts and synthesis:
+        _finish = "tools_and_synthesis"
+    elif synthesis:
+        _finish = "synthesis_only"
+    elif tool_excerpts:
+        _finish = "tools_only"
     try:
         scratchpad.append_graph_deep_research_metrics(
             {
@@ -1116,6 +1127,9 @@ def _deep_research_with_bound_tools(query: str) -> str:
                 "tool_names_sample": _tool_names_flat[:12],
                 "elapsed_ms": _elapsed_ms,
                 "chars_out": len(synthesis) + sum(len(x) for x in tool_excerpts),
+                "unknown_tool_hits": _unknown_tool_hits,
+                "tool_invoke_errors": _tool_invoke_errors,
+                "finish_kind": _finish,
             }
         )
     except Exception:

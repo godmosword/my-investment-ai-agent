@@ -190,6 +190,64 @@ def fetch_symbol_quote(normalized_symbol: str) -> dict[str, Any]:
     return {**{k: v for k, v in out.items() if k != "cached"}, "cached": False}
 
 
+def _last_ohlc_bar(price_series: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not price_series:
+        return None
+    return price_series[-1]
+
+
+def _align_snapshot_price(
+    normalized_symbol: str,
+    price_series: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Cross-source alignment probe: snapshot OHLC tail vs standalone quote (same yfinance paths)."""
+    out: dict[str, Any] = {
+        "ohlc_last_close": None,
+        "quote_last": None,
+        "abs_diff": None,
+        "rel_diff": None,
+        "aligned": None,
+        "quote_error": None,
+    }
+    bar = _last_ohlc_bar(price_series)
+    if not bar or bar.get("close") is None:
+        out["quote_error"] = "no_ohlc_close"
+        return out
+    try:
+        ohlc_close = float(bar["close"])
+    except (TypeError, ValueError):
+        out["quote_error"] = "ohlc_close_unparseable"
+        return out
+    out["ohlc_last_close"] = ohlc_close
+
+    try:
+        q = fetch_symbol_quote(normalized_symbol)
+    except Exception as exc:  # pragma: no cover - defensive
+        out["quote_error"] = f"quote_fetch:{exc.__class__.__name__}"
+        return out
+
+    if q.get("error"):
+        out["quote_error"] = str(q.get("error"))
+        return out
+    if q.get("last") is None:
+        out["quote_error"] = "quote_last_null"
+        return out
+
+    try:
+        ql = float(q["last"])
+    except (TypeError, ValueError):
+        out["quote_error"] = "quote_last_unparseable"
+        return out
+
+    out["quote_last"] = ql
+    diff = abs(ohlc_close - ql)
+    out["abs_diff"] = round(diff, 8)
+    denom = max(abs(ohlc_close), 1e-12)
+    out["rel_diff"] = round(diff / denom, 8)
+    out["aligned"] = diff <= max(1e-6, 1e-4 * denom)
+    return out
+
+
 def build_symbol_snapshot(
     client: bigquery.Client,
     normalized_symbol: str,
@@ -282,6 +340,8 @@ def build_symbol_snapshot(
     if not ohlc_as_of:
         ohlc_as_of = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    align = _align_snapshot_price(normalized_symbol, price_series)
+
     data_provenance: dict[str, Any] = {
         "ohlc": {
             "source": "yfinance",
@@ -300,6 +360,10 @@ def build_symbol_snapshot(
             "query_window_days": days,
             "as_of": latest_metrics.get("timestamp"),
         },
+        "price_alignment": {
+            "ohlc_vs_quote": align,
+            "note": "OHLC 與 /quote 皆走 yfinance；不一致多為快取邊界或資料延遲。",
+        },
     }
 
     return {
@@ -313,4 +377,5 @@ def build_symbol_snapshot(
         "recommendations": recommendations,
         "report_links": report_links,
         "data_provenance": data_provenance,
+        "price_alignment": align,
     }

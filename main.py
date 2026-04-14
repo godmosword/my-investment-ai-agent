@@ -758,6 +758,8 @@ def _pipeline_config_snapshot_for_scratchpad() -> dict:
         "GRAPH_DEEP_RESEARCH_TOOL_LLM": (os.getenv("GRAPH_DEEP_RESEARCH_TOOL_LLM") or "").strip()[:16],
         "GRAPH_ENABLE_TOOL_CALLS": (os.getenv("GRAPH_ENABLE_TOOL_CALLS") or "").strip()[:16],
         "USE_LANGGRAPH_ENGINE": (os.getenv("USE_LANGGRAPH_ENGINE") or "").strip()[:16],
+        "WEB_PUSH_ENABLED": (os.getenv("WEB_PUSH_ENABLED") or "").strip()[:16],
+        "WEB_PUSH_STORE": (os.getenv("WEB_PUSH_STORE") or "").strip()[:16],
     }
     try:
         from adaptive_gate_thresholds import effective_pick_rotation_override_min_gap

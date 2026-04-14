@@ -106,6 +106,20 @@ def test_symbol_snapshot_success(monkeypatch):
             {"time": "2026-04-10", "open": 74000.0, "high": 76500.0, "low": 73000.0, "close": 75800.0}
         ],
     )
+    monkeypatch.setattr(
+        "symbol_snapshot_service.fetch_symbol_quote",
+        lambda _sym: {
+            "symbol": "BTC",
+            "as_of": "2026-04-10T00:00:00Z",
+            "source": "yfinance",
+            "underlying_symbol": "BTC-USD",
+            "last": 75800.0,
+            "currency": "USD",
+            "change_pct_1d": 0.1,
+            "error": None,
+            "cached": False,
+        },
+    )
     client = TestClient(app)
     response = client.get("/api/symbols/btc/snapshot?days=30&recommendation_limit=5")
     assert response.status_code == 200
@@ -123,6 +137,12 @@ def test_symbol_snapshot_success(monkeypatch):
     assert prov["ohlc"]["underlying_symbol"] == "BTC-USD"
     assert prov["daily_metrics"]["source"] == "bigquery"
     assert prov["recommendations"]["query_window_days"] == 30
+    pa_root = payload.get("price_alignment") or {}
+    assert pa_root.get("aligned") is True
+    assert pa_root.get("ohlc_last_close") == 75800.0
+    assert pa_root.get("quote_last") == 75800.0
+    nested = (prov.get("price_alignment") or {}).get("ohlc_vs_quote") or {}
+    assert nested.get("aligned") is True
 
 
 def test_symbol_snapshot_rejects_bad_symbol():
