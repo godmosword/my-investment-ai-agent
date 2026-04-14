@@ -8,8 +8,21 @@
 ### Added
 - **日報品質代理（可選）**：[`report_quality_agent.py`](report_quality_agent.py) — `REPORT_QUALITY_AGENT=1` 時在 `validate_report` 乾淨通過或 warn-pass 交付後，以 LLM rubric（沿用 `llm_quality_judge`）與可選 `domain_quality_check` 計算複合分；低於 `REPORT_QUALITY_AGENT_COMPOSITE_MIN` 時將改善項寫入 [`TODOS.md`](TODOS.md) 內 `REPORT_QUALITY_AGENT_TODOS_*` 機器區塊；[`scratchpad.py`](scratchpad.py) 新增 `quality_agent_result` 事件；[`main.py`](main.py) 在三處成功交付路徑掛勾。可選 `REPORT_QUALITY_AGENT_GIT_PUSH` + `REPORT_QUALITY_AGENT_GIT_ALLOW` 於寫入後 `git commit`／`push`（預設關閉）。環境變數見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
 
+### Changed
+- [`main.py`](main.py)：`scratchpad.begin_run` 的 `init.meta` 附帶 `pipeline_config`（`PIPELINE_STRICT_ENV`、`ADAPTIVE_GATE_*`、`GRAPH_DEEP_RESEARCH_TOOL_LLM`、`effective_pick_rotation_override_min_gap` 等非機密快照）；`_validate_env_types` 納入自適應門檻相關數值 env 校驗。
+- [`graph/graph_nodes.py`](graph/graph_nodes.py)：`GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 時 deep research 寫入 scratchpad `graph_deep_research_metrics`（輪次、工具次數、耗時）。
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml)：新增 Node 20 與 **Terminal contract** 步驟（[`scripts/ci_terminal_contract_check.sh`](scripts/ci_terminal_contract_check.sh)）。
+- [`data-verification-ui/src/components/WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx)／[`Today.jsx`](data-verification-ui/src/pages/Today.jsx)：War Room 錯誤態 **重試** 與成功態 **重新整理**。
+
+### Docs
+- 新增 [`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b 補條目 6／14 之 pytest／CI 錨點；[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md)、[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)、[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 對齊 scratchpad／CI 觀測。
+- [`README.md`](README.md)：MIT／Python／CI **badges**（shields.io 靜態連結至 `.github/workflows/ci.yml`）與 LICENSE 對齊一句；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引增 ADR 索引。
+
 ### Tests
 - 新增 [`test_report_quality_agent.py`](test_report_quality_agent.py)（複合分、TODOS 區塊、整體流程 mock）。
+- 新增 [`test_terminal_numeric_consistency.py`](test_terminal_numeric_consistency.py)（quote vs OHLC 同源 yfinance）。
+- 新增 [`test_graph_deep_research_metrics.py`](test_graph_deep_research_metrics.py)（mock bind_tools 路徑驗證 scratchpad metrics）。
+- 新增 [`test_schemas_cap_internal_field.py`](test_schemas_cap_internal_field.py)（`hypothesis` + `boundary`：`schemas._cap_internal_field`）。
 
 ## 2026-04-12
 

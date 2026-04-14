@@ -1,6 +1,10 @@
 # Q-Silicon Institutional Research AI Agent
 
-以 **Python** 串起 **CrewAI**、**LiteLLM** 與可選 **LangGraph**，並行產出 **加密** 與 **AI／美股** 研究；經 **Pydantic** 與 **`validate_report`** 後輸出 **Telegram HTML**。客觀數字來自工具與 API 注入，而非模型臆測。可選 **BigQuery**、**Streamlit**、**FastAPI** 與 **React PWA**。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
+
+以 **Python** 串起 **CrewAI**、**LiteLLM** 與可選 **LangGraph**，並行產出 **加密** 與 **AI／美股** 研究；經 **Pydantic** 與 **`validate_report`** 後輸出 **Telegram HTML**。客觀數字來自工具與 API 注入，而非模型臆測。可選 **BigQuery**、**Streamlit**、**FastAPI** 與 **React PWA**。授權與本 repo 根目錄 [`LICENSE`](LICENSE) 一致（MIT）。
 
 | 連結 | 用途 |
 |------|------|
@@ -31,7 +35,7 @@
 | 戰情室 UI | `streamlit run dashboard.py --server.port 8501 --server.headless true` | 否（BQ 區塊降級） |
 | PWA 版型 | `cd data-verification-ui && npm install && VITE_GLASSBOX_MOCK=1 npm run dev` | 否 |
 | PWA Terminal（代號快照／K 線） | 同上；開啟 **`/terminal`**。接實盤 API 時設 **`VITE_API_URL`**（例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`） | 否（mock）；是（讀 BQ 需本機 `uvicorn` + GCP） |
-| 對齊 CI | `ruff check .` · `python3 -m pytest -m smoke -q` | 否 |
+| 對齊 CI | `ruff check .` · `python3 -m pytest -m smoke -q` · `./scripts/ci_terminal_contract_check.sh`（quote／OHLC 契約 + PWA build） | 否（PWA build 需 Node） |
 | 乾跑管線 | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` | 是（啟動四項 LLM／資料 key，見下） |
 | LangGraph 路徑 | `USE_LANGGRAPH_ENGINE=1 python main.py` | 與上同；見 [LangGraph](#langgraph-可選) |
 | 生產式檢查 | `PIPELINE_STRICT_ENV=1`（未 skip 時強制 Telegram／GCP） | 是 |

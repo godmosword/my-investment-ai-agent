@@ -19,7 +19,7 @@ export default function Today() {
   const { data: metrics, isLoading: mLoading, error: mError } = useMetricsLatest();
   const { data: report, isLoading: rLoading, error: rError } = useReport(today);
   const { data: openPos, isLoading: oLoading, error: oError } = useOpenPositions(90);
-  const { data: warRoom, isLoading: wLoading, error: wError } = useWarRoomLatest();
+  const { data: warRoom, isLoading: wLoading, error: wError, refetch: wRefetch } = useWarRoomLatest();
 
   const forceDemo = useGlassboxDemoMode();
   const allSettled = !mLoading && !rLoading && !oLoading;
@@ -88,6 +88,7 @@ export default function Today() {
         error={useDemo ? null : wError}
         intentStatusFilter={warRoomIntentFilter}
         onIntentStatusChange={setWarRoomIntentFilter}
+        onWarRoomRetry={useDemo ? undefined : () => wRefetch()}
       />
 
       {!useDemo && mError && (

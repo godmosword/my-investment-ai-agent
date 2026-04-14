@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -1042,6 +1043,12 @@ def _deep_research_with_bound_tools(query: str) -> str:
     """Run ChatOpenAI with bind_tools; execute tool_calls until model returns text."""
     from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
+    import scratchpad
+
+    _t0 = time.perf_counter()
+    _rounds_used = 0
+    _tool_names_flat: list[str] = []
+
     logger.info("--- [Node] Deep Research (Tool Calling LLM) 啟動 ---")
     llm = _get_debate_llm()
     llm_with_tools = llm.bind_tools(RESEARCH_TOOLS)
@@ -1068,13 +1075,16 @@ def _deep_research_with_bound_tools(query: str) -> str:
             continue
         last_ai = response
         messages.append(response)
+        _rounds_used += 1
 
         if not response.tool_calls:
             break
 
+        _names = [_tool_call_name(tc) for tc in response.tool_calls]
+        _tool_names_flat.extend(n for n in _names if n)
         logger.info(
             "Deep Research tool_calls: %s",
-            [_tool_call_name(tc) for tc in response.tool_calls],
+            _names,
         )
         for tc in response.tool_calls:
             name = _tool_call_name(tc)
@@ -1097,6 +1107,20 @@ def _deep_research_with_bound_tools(query: str) -> str:
             )
 
     synthesis = (last_ai.content or "").strip() if last_ai else ""
+    _elapsed_ms = round((time.perf_counter() - _t0) * 1000.0, 2)
+    try:
+        scratchpad.append_graph_deep_research_metrics(
+            {
+                "rounds_used": _rounds_used,
+                "tool_calls_total": len(_tool_names_flat),
+                "tool_names_sample": _tool_names_flat[:12],
+                "elapsed_ms": _elapsed_ms,
+                "chars_out": len(synthesis) + sum(len(x) for x in tool_excerpts),
+            }
+        )
+    except Exception:
+        logger.debug("graph_deep_research_metrics scratchpad append skipped", exc_info=True)
+
     if tool_excerpts and synthesis:
         return "\n\n".join(tool_excerpts) + "\n\n【綜合】\n" + synthesis
     if synthesis:

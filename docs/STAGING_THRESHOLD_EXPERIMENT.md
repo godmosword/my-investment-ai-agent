@@ -19,7 +19,8 @@
    - 或暫緊 `PICK_REPEAT_MIN_SELECTION_SCORE`（例如 75 → 78）→ 提高重複選用門檻
 2. 跑完整管線或至少雙 crew，記錄：
    - `validate_report` 是否通過
-   - [`gate_failure_log`](../docs/SQL/gate_failure_weekly_summary.sql) 或本機 `.qsilicon/last_gate_failure/`（`GATE_FAILURE_ARTIFACTS`）
+   - [`gate_failure_log`](SQL/gate_failure_weekly_summary.sql) 或本機 `.qsilicon/last_gate_failure/`（`GATE_FAILURE_ARTIFACTS`）
+   - `.qsilicon/scratchpad/*.jsonl` 之 `init.meta.pipeline_config`（`PICK_ROTATION_*`、`ADAPTIVE_GATE_*`、`effective_pick_rotation_override_min_gap` 等非機密快照，便於對照當次實驗參數）
    - 主觀：日報是否仍「可讀、可執行、標的多樣性可接受」
 3. **維持 3–5 個交易日**再換下一組參數，避免單日雜訊。
 4. **回滾**：還原 env 為預設或上一組穩定值；staging 與 prod **分開**設定，勿直接試產線。
@@ -42,4 +43,5 @@
 
 ## 修訂紀錄
 
+- **2026-04-14**：實驗紀錄建議納入 scratchpad `pipeline_config` 快照（見上）。
 - **2026-04-04**：補預設值表、實驗紀錄表、回滾與成功判準。

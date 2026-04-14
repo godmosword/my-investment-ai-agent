@@ -42,4 +42,5 @@
 
 ## 修訂紀錄
 
+- **2026-04-14**：對齊 [`main.py`](../main.py) `_validate_env_types` — 自適應門檻相關數值變數（`ADAPTIVE_GATE_BQ_LOOKBACK_DAYS` 等）納入啟動校驗；scratchpad `init.meta.pipeline_config` 寫入非機密旗標與 `effective_pick_rotation_override_min_gap`（便於 staging／稽核）。
 - **2026-04-04**：由「草案」升級為定稿；補程式對照表、環境矩陣、維運檢查清單。

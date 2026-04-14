@@ -2,7 +2,7 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md)
 
-**同步狀態（2026-04-12）**：本檔於 **2026-04-23 改寫**；**2026-04-14** 補登「日報品質代理」已交付摘要與修訂紀錄（對齊 CHANGELOG 同日）；**2026-04-12** 於「已交付摘要」補登 [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)（日報組裝衛生、`crew`／FD 規則）。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
+**同步狀態（2026-04-12）**：本檔於 **2026-04-23 改寫**；**2026-04-14（二）** 補登 Phase A–E 切片（scratchpad 組態快照、LangGraph deep metrics、CI Terminal 契約、PWA War Room 重試、ADR 索引／README badges、schema property test）與 CHANGELOG **2026-04-14** `### Changed`／`### Docs`／`### Tests`；**2026-04-14** 補登「日報品質代理」已交付摘要與修訂紀錄（對齊 CHANGELOG 同日）；**2026-04-12** 於「已交付摘要」補登 [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)（日報組裝衛生、`crew`／FD 規則）。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
 
 ---
 
@@ -27,9 +27,9 @@
 ### 硬指標錨點
 
 - **Bloomberg 對齊 Phase 0**：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4 — **15 條驗收至少通過 12 條**方可宣稱 Phase 0；建議內部逐條勾選作為「Terminal 面差距」的**量化分母**。
-- **內部勾選（2026-04-12）**：暫列 **12/15** 通過、**3 項例外**。  
-  - 已通過：1/2/3/4/5/7/8/9/10/11/12/13（snapshot、provenance、錯誤態、workspace、OHLC+事件、pytest、路由、CHANGELOG↔TODOS 對齊）。  
-  - 例外：6（跨頁同 ticker 的數值一致性仍未形成自動驗證）、14（雖未改壞白名單，但缺少針對 Terminal 變更的專項回歸檢核紀錄）、15（新增即時資料面仍以公開/現有來源為主，尚無「已審核清單」型治理文件）。  
+- **內部勾選（2026-04-14）**：暫列 **13/15** 通過、**2 項例外**（對齊 CHANGELOG **2026-04-14** Terminal 契約測試 + CI）。  
+  - 已通過：1/2/3/4/5/6/7/8/9/10/11/12/13（含 **6** — [`test_terminal_numeric_consistency.py`](test_terminal_numeric_consistency.py)；**14** — CI `ci_terminal_contract_check` + [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b）。  
+  - 例外：15（新增即時資料面仍以公開/現有來源為主，尚無「已審核清單」型治理文件）；另 **6** 目前僅覆蓋 **yfinance quote／OHLC 同源** 一致性，跨資料源（BQ vs yfinance）仍待產品定義後擴充。  
 - **建議內部 KPI（可自訂盤點）**：(1) Phase 0 通過條數／15；(2) 生產是否固定開 `STRICT_INSTITUTIONAL_PHASE_A/B/C`；(3) 財報聚焦觸發率／工具命中率（log／BQ）；(4) 儀表板與敘事含 **as_of／來源** 覆蓋率（對齊 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)）；(5) QSREC→監控→告警／紙上交易閉環程度。
 
 **一句話**：**可驗證日報＋ Gate** 軸線偏中上；**類 Terminal 資料壟斷＋即時互動＋執行層** 軸線仍早中段，差距主要在資料深度、產品互動與執行閉環，而非「有無 LLM 寫報告」。
@@ -55,6 +55,7 @@
 | LangGraph 工具橋接與深度查證 | [`graph/graph_tools.py`](graph/graph_tools.py)、`RESEARCH_TOOLS`、`deep_research_node` |
 | 日報 HTML／Gate／schema | [`report_html_gates.py`](report_html_gates.py)、[`schemas.py`](schemas.py)、[`report_render.py`](report_render.py)、[`templates/telegram_report.j2`](templates/telegram_report.j2) |
 | 日報品質代理（複合分／TODOS 後續） | [`report_quality_agent.py`](report_quality_agent.py)、[`main.py`](main.py)（成功交付後掛勾）、`REPORT_QUALITY_AGENT*`（[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）；scratchpad `quality_agent_result` |
+| Phase A–E 觀測與 Terminal 契約 | [`main.py`](main.py) scratchpad `init.meta.pipeline_config`；[`graph/graph_nodes.py`](graph/graph_nodes.py) `graph_deep_research_metrics`；[`scripts/ci_terminal_contract_check.sh`](scripts/ci_terminal_contract_check.sh)、[`.github/workflows/ci.yml`](.github/workflows/ci.yml)；[`test_terminal_numeric_consistency.py`](test_terminal_numeric_consistency.py)、[`test_graph_deep_research_metrics.py`](test_graph_deep_research_metrics.py)、[`test_schemas_cap_internal_field.py`](test_schemas_cap_internal_field.py)；PWA [`WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx)；[`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)、[`README.md`](README.md) badges |
 | 日報組裝衛生（三情境、儀表板分區） | [`report_render.py`](report_render.py)：BTC 現價 **>50k** 且情境列含 **突破** 時 **`7.6k`→`76k`**；**`instrument_sections`** 前剔除與 IB 區塊標題同名之**空白佔位列**、**連續重複** `is_section_header`；[`test_report_render.py`](test_report_render.py)（CHANGELOG **2026-04-10**） |
 | Crew 新聞／工具敘述邊界 | [`crew.py`](crew.py)：加密 **1–3** `investment_takeaway` 禁止無據 **垃圾債／HY／spread** 跳喻；**FinancialDatasets** 營收相關 MetricLine **`label` 須含期間口徑**（annual／quarterly／FY／年份等）；[`tools_legacy.py`](tools_legacy.py) `_fd_summarize_ticker` 尾註提醒 **fiscal／口徑**（CHANGELOG **2026-04-10**） |
 | 模板 `$` 與交易卡顯示 | `strip_usd` 濾鏡、`ExecutableTradeLeg` 欄位正規化（CHANGELOG **2026-04-22**） |
@@ -77,15 +78,15 @@
 
 依維護者順序與工程可切性排列；**完成後**把對應句寫進 CHANGELOG，並在本節刪行或改「✓」。
 
-1. **P0 Critical env 定稿** — [`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) + `PIPELINE_STRICT_ENV` 契約對齊 [`main.py`](main.py)。
-2. **橫切閾值實驗** — [`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)（`PICK_ROTATION_*` 等 staging 實驗）。
-3. **P3 Gate 失敗 → 人審提示** — [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md)、[`scripts/gate_failure_hint_digest.py`](scripts/gate_failure_hint_digest.py)、`gate_failure_log` 閉環。
-4. **自適應門檻 BQ 接線** — [`adaptive_gate_thresholds.py`](adaptive_gate_thresholds.py) 骨架接實際查詢／門檻。
-5. **LG-3 補齊** — LangGraph **mock LLM + tool_calls** 多輪整合測試（CI 不依真 API）。
-6. **LG-1 觀測** — `GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 成本／延遲／失敗率與 cache 命中率文件化或輕量 metrics。
-7. **G-7 小項** — README **badges**、與 `LICENSE` 同步一句；`docs/` **ADR 索引**一頁。
-8. **G-8 漸進** — `hypothesis` 擴充 [`schemas.py`](schemas.py)／邊界契約（見 [`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md)）。
-9. **PWA War Room 二期** — 錯誤態 UX、視覺拋光（首期已交付）。
+1. ~~**P0 Critical env 定稿**~~ — **已交付（2026-04-14）**：[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) 修訂；[`main.py`](main.py) `_validate_env_types` 納入 `ADAPTIVE_*` 數值校驗；scratchpad `pipeline_config`。
+2. ~~**橫切閾值實驗**~~ — **已交付（2026-04-14）**：[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md) 補 scratchpad 實驗紀錄欄位。
+3. ~~**P3 Gate 失敗 → 人審提示**~~ — **已交付（2026-04-14）**：[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 補 CI 錨點（digest 腳本／BQ 流程既有）。
+4. ~~**自適應門檻 BQ 接線**~~ — **已確認落地**：[`adaptive_gate_thresholds.py`](adaptive_gate_thresholds.py) + [`report_html_gates.py`](report_html_gates.py)；**2026-04-14** 補啟動數值校驗與 scratchpad 可觀測性。
+5. ~~**LG-3 補齊**~~ — **已交付（2026-04-14）**：[`test_graph_deep_research_metrics.py`](test_graph_deep_research_metrics.py)（`smoke`，mock `bind_tools`）。
+6. ~~**LG-1 觀測**~~ — **已交付（2026-04-14）**：`graph_deep_research_metrics` scratchpad 事件；`pipeline_config` 旗標快照。
+7. ~~**G-7 小項**~~ — **已交付（2026-04-14）**：[`README.md`](README.md) badges + LICENSE 對齊句；[`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)；[`CLAUDE.md`](CLAUDE.md) 索引。
+8. ~~**G-8 漸進**~~ — **已交付（2026-04-14）**：[`test_schemas_cap_internal_field.py`](test_schemas_cap_internal_field.py)（`boundary` + `hypothesis`）。
+9. ~~**PWA War Room 二期**~~ — **已交付（最小切片，2026-04-14）**：[`WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx) 錯誤態重試／成功態重新整理；視覺拋光仍可在後續波次加強。
 10. **PWA Web Push** — Service Worker／持久訂閱（[`Direction 1A`](#維護者意見執行順序不變) 對齊）；不阻塞日報主線。
 11. ~~**Bloomberg 對齊 Phase 2**~~ — **已交付（2026-04-10 CHANGELOG）**：Terminal v2 分組／模板、跨頁 Symbol Context（`SymbolFocusBar` + `TerminalSymbolCard` 設為全域關注）、Streamlit 與 `symbol_snapshot_service`／可選 HTTP 對齊 snapshot 形狀。
 12. ~~**Terminal 中段 M2**~~ — **已交付**：見「已交付摘要」列與 CHANGELOG **2026-04-12** `### PWA`；規格見 [`docs/TERMINAL_MID_TIER_ROADMAP.md` — M2](docs/TERMINAL_MID_TIER_ROADMAP.md#m2-terminal-pwa)。
@@ -146,6 +147,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-14（二）**：**Phase A–E 切片** — 「已交付摘要」增列；「下一批隊列」**1–9** ~~刪線~~；Bloomberg 進度表內部勾選 **12/15→13/15** 並註記條目 6／14 之 pytest／CI 錨點；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-14** `### Changed`／`### Docs`／`### Tests`。
 - **2026-04-14**：**日報品質代理** — 「已交付摘要」增列；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-14** `### Added`；機器區塊標記 `<!-- REPORT_QUALITY_AGENT_TODOS_BEGIN/END -->`（低分時自動 bullet，**勿手改區塊內**；見 [`report_quality_agent.py`](report_quality_agent.py)）。
 - **2026-04-12（二）**：新增 [進度分析表（華爾街級日報 · 財報週期 · Bloomberg 對齊）](#progress-vs-wall-st-bloomberg) — 維度粗評 1–5、Phase 0（15 條中 ≥12）錨點、建議內部 KPI；對齊 [`CHANGELOG.md`](CHANGELOG.md) 同日 `### Docs`。
 - **2026-04-12（三）**：**Terminal 中段 M1** — 「已交付摘要」增列；「下一批隊列」增 **M2**；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-12** `### Added` 補 `data_provenance`、`execution-intents` API、[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引增該檔。
