@@ -3,6 +3,7 @@
 ## GitHub Actions
 
 - Workflow：[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)。  
+- **`push` 觸發條件**：workflow 設有 **`paths`** 篩選（`*.py`、`Dockerfile`、`requirements*.txt` 等）；**僅 Markdown／計畫文件等變更 push 到 `main` 不會啟動**本 workflow（省 Actions 分鐘、避免無需重建映像）。仍要上線時：Repo → **Actions** → **Deploy — Cloud Run Job** → **Run workflow**（`workflow_dispatch`；仍會先跑可重用的 `ci.yml`）。
 - `deploy` job 已使用 `environment: production`（**DONE-C1**）。
 - **Deploy 併發**：[`deploy.yml`](../.github/workflows/deploy.yml) 對 `main` 使用 **`concurrency.cancel-in-progress: true`**：較新的 push 會取消進行中的 deploy，只跑**最後一次**完整流程，節省 Actions 分鐘（與 CHANGELOG 2026-03-30 一致）。若需「排隊全跑完」可改回 `cancel-in-progress: false`。
 - **Runner 磁碟**：deploy job 內「Free disk space」預設 **`if: false`** 以縮短數分鐘；若 Docker build 因磁碟滿失敗，暫改該步驟為 `if: true` 後重跑 workflow。

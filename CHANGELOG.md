@@ -7,6 +7,7 @@
 
 ### Docs
 - **日報區塊模組化計畫（重排與五 Phase）**：根目錄 [`modularization_plan.md`](modularization_plan.md) — **短期／中期／長期**目標表；**Phase 1** 模板原子化（可切片 PR 1a–1f）、**Phase 2** `brief_profiles`／`BLOCK_REGISTRY`／`REPORT_PROFILE`／`lite`、**Phase 3** profile-aware `validate_report` 與區塊一致性、**Phase 4** `crypto-only`／可選 YAML layout／BQ `profile`、**Phase 5** 【時事多觀點】Podcast 型文字區塊；閱讀地圖與附錄（Grok、一區塊一 Agent、Gemini 原子化／Registry 對齊）。**僅文件**；管線與 `templates/telegram_report.j2` **尚未**依計畫改動。
+- **Deploy 何時會跑**：[`deploy.yml`](.github/workflows/deploy.yml) 對 `main` 的 **`push` 設有 `paths` 篩選**（見 workflow 註解「純文件不觸發」）；純文件 ship 後若需 Cloud Run 映像更新，請 **Actions → Deploy — Cloud Run Job → Run workflow**。已補 [`CLAUDE.md`](CLAUDE.md)、[`README.md`](README.md)、[`AGENTS.md`](AGENTS.md)、[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)。
 
 ## 2026-04-24
 

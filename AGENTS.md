@@ -18,7 +18,7 @@ Adapted from a product-building prompt framework (Miles Deutscher / AIEDGE), sco
 
 ### Git / ship workflow（本 repo 預設）
 
-- **縮短流程**：變更就緒後優先 **`git push origin main`**（在 `main` 上 commit，或先 `merge` 回 `main` 再推），以觸發 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 的 `push` 部署；**不要**自動執行 `gh pr create`，除非使用者明確要 PR、或 **GitHub branch protection** 禁止直推 `main`（此時改走 PR 並說明原因）。
+- **縮短流程**：變更就緒後優先 **`git push origin main`**（在 `main` 上 commit，或先 `merge` 回 `main` 再推）。**自動 deploy** 僅當變更落在 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 的 **`push.paths`**（執行檔、Docker、依賴等）；**純文件 push 不觸發** deploy，需上線請用 **Actions → Deploy — Cloud Run Job → Run workflow**。**不要**自動執行 `gh pr create`，除非使用者明確要 PR、或 **GitHub branch protection** 禁止直推 `main`（此時改走 PR 並說明原因）。
 - **合併前**：本地仍應跑與 CI 對齊的檢查（例如 `ruff check .`、`pytest -m smoke`），與是否開 PR 無關。
 
 ### Project overview

@@ -227,7 +227,7 @@ docker run --env-file .env q-silicon-agent
 | Workflow | 說明 |
 |----------|------|
 | [`ci.yml`](.github/workflows/ci.yml) | PR：`ruff` + smoke；可 `workflow_dispatch` quick／full |
-| [`deploy.yml`](.github/workflows/deploy.yml) | `main`：smoke 後 Docker |
+| [`deploy.yml`](.github/workflows/deploy.yml) | `main` 且變更命中 **`paths`**（`*.py`／Docker／依賴等）才自動跑 smoke → Docker；**純 `.md`／文件 push 不觸發**。需部署時：**Actions** → 本 workflow → **Run workflow**。 |
 | [`nightly-ci.yml`](.github/workflows/nightly-ci.yml) | 全量 pytest |
 | [`monitor-intraday.yml`](.github/workflows/monitor-intraday.yml) | 盤中監控（cron 預設關） |
 | [`weekly-scout.yml`](.github/workflows/weekly-scout.yml) | OSS scout |

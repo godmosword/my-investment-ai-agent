@@ -280,7 +280,7 @@
 
 ## 修訂紀錄
 
-- **2026-04-25**：**日報區塊模組化計畫** — [`modularization_plan.md`](modularization_plan.md) 重排邏輯、五 Phase、短中長期；「已交付摘要」增列（**僅文件**）；「下一批隊列」增 **22**；[`README.md`](README.md) 連結表 + 小節；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-25** `### Docs`。
+- **2026-04-25**：**日報區塊模組化計畫** — [`modularization_plan.md`](modularization_plan.md) 重排邏輯、五 Phase、短中長期；「已交付摘要」增列（**僅文件**）；「下一批隊列」增 **22**；[`README.md`](README.md) 連結表 + 小節；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-25** `### Docs`。**（續）** **`deploy.yml` `push.paths`** — 純 `.md`／文件 push **不**觸發自動 Deploy；手動 **Run workflow** 說明寫入 [`CLAUDE.md`](CLAUDE.md)、README、[`AGENTS.md`](AGENTS.md)、[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md)；CHANGELOG 同日 `### Docs` 增列。
 - **2026-04-24**：**日報 Telegram 行動格式** — 「已交付摘要」更新 `report_render`／`report_quality_agent` 列；**同步狀態**一句；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-24** `### Changed`。
 - **2026-04-16**：[`README.md`](README.md) 補 **日報品質代理**（`.env`：`REPORT_QUALITY_AGENT=1`、`REPORT_LLM_JUDGE_MODEL`／預設 **gpt-4o-mini**、`source .env`）；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-16** `### Docs`；本檔「已交付摘要」與**同步狀態**一句。
 - **2026-04-15（二）**：新增 [git pull／讀 codebase 提醒](#pull-or-read-codebase-reminder) 與隊列 **18–21**（BQ DDL、Redis、VAPID、staging test-send）；[`CHANGELOG.md`](CHANGELOG.md) `### Docs`；[`CLAUDE.md`](CLAUDE.md) 導覽一句。

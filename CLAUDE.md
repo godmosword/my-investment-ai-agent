@@ -171,7 +171,8 @@ See [`gstack.md`](gstack.md) if present for repo-local gstack notes.
 
 ## Git / ship（本 repo 覆寫）
 
-- 使用者要 **ship／deploy／上線** 時：預設 **直推 `main`**（commit → `git push origin main`）以觸發 deploy；**勿**自動開 PR，除非使用者要求或 `main` 受保護無法直推。
+- 使用者要 **ship／deploy／上線** 時：預設 **直推 `main`**（`git push origin main`）；**勿**自動開 PR，除非使用者要求或 `main` 受保護無法直推。
+- **自動 Deploy**（[`deploy.yml`](.github/workflows/deploy.yml)）僅在 `push` 變更落在 **`paths`** 內時觸發（例如 `**/*.py`、`Dockerfile`、`requirements*.txt`、`assets_config.json`、相關 workflow 檔等）；**純文件**（`README.md`、`CHANGELOG.md`、`TODOS.md`、`modularization_plan.md` 等）**不會**觸發，以免無謂 Docker build。若要在此情況下仍部署 Cloud Run：GitHub → **Actions** → **Deploy — Cloud Run Job** → **Run workflow**（`workflow_dispatch`）。
 - gstack `/ship` 技能若預設開 PR，在此 repo **改為** 上述直推流程（仍須先跑 `ruff` + `pytest -m smoke` 等約定檢查）。
 
 ## Skill routing
