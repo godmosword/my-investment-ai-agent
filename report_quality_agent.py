@@ -33,6 +33,36 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parent
 
 
+_FORMAT_NOISE_EMOJI_RE = re.compile(r"[📈📉🔥🚨💥💣🧨]")
+
+
+def _formatting_quality_hints(report_html: str) -> list[str]:
+    """Lightweight formatter checks aligned with DAILY_BRIEF_V2 mobile reading goals."""
+    if not (report_html or "").strip():
+        return []
+    plain = re.sub(r"<[^>]+>", "", report_html)
+    lines = [ln.strip() for ln in plain.splitlines() if ln.strip()]
+    hints: list[str] = []
+
+    mobile_lines = [
+        ln for ln in lines
+        if ln.startswith(("·", "→", "本日選擇理由", "今日風險預算", "訊號衝突摘要"))
+    ]
+    overlong = [ln for ln in mobile_lines if len(ln) > 72]
+    if overlong:
+        hints.append(f"手機可讀性：有 {len(overlong)} 行超過 72 字，建議分句或軟換行。")
+
+    noisy = [ln for ln in lines if len(_FORMAT_NOISE_EMOJI_RE.findall(ln)) >= 2]
+    if noisy:
+        hints.append(f"視覺噪音：有 {len(noisy)} 行含 2 個以上高噪音 emoji，建議精簡。")
+
+    sep_count = sum(1 for ln in lines if "────────────" in ln)
+    if sep_count > 4:
+        hints.append(f"分隔線偏多：偵測 {sep_count} 條，建議控制在 4 條以內。")
+
+    return hints
+
+
 def _composite_score(
     llm: dict[str, Any],
     dqc: dict[str, Any] | None,
@@ -61,7 +91,11 @@ def _composite_score(
     return (None, "none")
 
 
-def _build_improvement_items(llm: dict[str, Any], dqc: dict[str, Any] | None) -> list[str]:
+def _build_improvement_items(
+    llm: dict[str, Any],
+    dqc: dict[str, Any] | None,
+    formatting_hints: list[str] | None = None,
+) -> list[str]:
     items: list[str] = []
     rubric = llm.get("rubric") if isinstance(llm.get("rubric"), dict) else {}
     for dim, sc in rubric.items():
@@ -99,6 +133,10 @@ def _build_improvement_items(llm: dict[str, Any], dqc: dict[str, Any] | None) ->
         sl = int(dqc.get("scenario_legs") or 0)
         if tl > 0 and sl < tl:
             items.append(f"三情境（🐂⚖️🐻）覆蓋率偏低（{sl}/{tl} 交易腿）；檢視 crew 交易卡模板。")
+
+    for hint in formatting_hints or []:
+        if hint:
+            items.append(hint)
 
     # 去重保序
     seen: set[str] = set()
@@ -245,6 +283,7 @@ def maybe_run_report_quality_agent_after_success(
     run_domain = _env_truthy("REPORT_QUALITY_AGENT_DOMAIN")
     llm = llm_quality_judge(final_report_html)
     dqc = domain_quality_check(final_report_html) if run_domain else None
+    fmt_hints = _formatting_quality_hints(final_report_html)
 
     source = (os.getenv("REPORT_QUALITY_AGENT_SOURCE") or "dual").strip().lower()
     score, score_label = _composite_score(llm, dqc, source)
@@ -264,6 +303,7 @@ def maybe_run_report_quality_agent_after_success(
         "below_threshold": score < min_score,
         "llm": {k: llm.get(k) for k in ("pass", "overall_score", "rubric", "reasons", "raw_error")},
         "domain": dqc,
+        "formatting_hints": fmt_hints,
         "elapsed_sec": round(time.monotonic() - t0, 3),
     }
 
@@ -276,7 +316,7 @@ def maybe_run_report_quality_agent_after_success(
         )
         return summary
 
-    items = _build_improvement_items(llm, dqc)
+    items = _build_improvement_items(llm, dqc, fmt_hints)
     if not items:
         items = [f"綜合分 {score:.1f} 低於門檻 {min_score:.1f}；請檢視本輪 HTML 與 gate 日誌。"]
 

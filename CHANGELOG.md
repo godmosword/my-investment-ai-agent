@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-24
+
+### Changed
+- **日報 Telegram 行動閱讀格式（HTML 白名單內）**：[`report_render.py`](report_render.py) — Jinja 濾鏡 **`tg_emphasize_numbers`**（價格／百分比等 token 以 `<b>` 強調）、**`tg_soft_wrap_mobile`**（長行依 `，。；｜` 等軟斷行，約 70 字）；執行摘要 **`_format_exec_summary_for_mobile`**（降噪 emoji、軟換行，接於 `_scrub_exec_summary_history_slogans` 之後）。[`templates/telegram_report.j2`](templates/telegram_report.j2) — 執行摘要與宏觀／預測市場／呢喃／本日選擇理由等區塊套用上述濾鏡；**不**引入 `<pre>`／`<br>` 等契約外標籤。[`report_quality_agent.py`](report_quality_agent.py) — **`_formatting_quality_hints`**（超長行、emoji 噪音、分隔線過多）併入改善項與 summary payload。[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) — 新增 **§8 低風險格式規則**、Phase A/B/C rollout 與驗收指標。
+
 ## 2026-04-23
 
 ### Changed

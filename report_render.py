@@ -126,6 +126,50 @@ def tg_escape(value: object) -> str:
     return html.escape(str(value), quote=False)
 
 
+_EMPHASIZE_NUMERIC_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:\$?\d{1,3}(?:,\d{3})*(?:\.\d+)?%?|\d+(?:\.\d+)?%)(?![A-Za-z0-9])"
+)
+
+
+def tg_emphasize_numbers(value: object) -> str:
+    """Escape text then wrap numeric tokens with <b> for quick scanning."""
+    escaped = tg_escape(value)
+    if not escaped.strip():
+        return escaped
+
+    def _wrap(m: re.Match[str]) -> str:
+        tok = m.group(0)
+        if not any(ch.isdigit() for ch in tok):
+            return tok
+        return f"<b>{tok}</b>"
+
+    return _EMPHASIZE_NUMERIC_TOKEN_RE.sub(_wrap, escaped)
+
+
+def tg_soft_wrap_mobile(value: object, *, max_chars: int = 70) -> str:
+    """Soft-wrap long lines for mobile readability without changing semantics."""
+    text = tg_escape(value)
+    if len(text) <= max_chars:
+        return text
+    out: list[str] = []
+    rest = text
+    while len(rest) > max_chars:
+        cut = max(
+            rest.rfind("，", 0, max_chars + 1),
+            rest.rfind("。", 0, max_chars + 1),
+            rest.rfind("；", 0, max_chars + 1),
+            rest.rfind("｜", 0, max_chars + 1),
+            rest.rfind(" ", 0, max_chars + 1),
+        )
+        if cut < int(max_chars * 0.6):
+            cut = max_chars
+        out.append(rest[:cut].rstrip())
+        rest = rest[cut:].lstrip()
+    if rest:
+        out.append(rest)
+    return "\n".join(out)
+
+
 def strip_usd_for_template(value: object) -> str:
     """Strip leading $ from price-like strings before template prepends $ (avoids $$ in HTML)."""
     if value is None:
@@ -1083,6 +1127,22 @@ def _scrub_exec_summary_history_slogans(lines: list[str]) -> list[str]:
     return out
 
 
+_EXEC_SUMMARY_NOISE_EMOJI_RE = re.compile(r"[📈📉🔥🚨💥💣🧨]")
+
+
+def _format_exec_summary_for_mobile(lines: list[str]) -> list[str]:
+    """De-noise and soft-wrap exec summary lines for mobile scanning."""
+    out: list[str] = []
+    for ln in lines or []:
+        s = re.sub(r"\s+", " ", (ln or "").strip())
+        if not s:
+            continue
+        s = _EXEC_SUMMARY_NOISE_EMOJI_RE.sub("", s).strip()
+        s = tg_soft_wrap_mobile(s, max_chars=70)
+        out.append(s)
+    return out
+
+
 _BEAT_MISS_VERBS_RE = re.compile(
     r"(超預期|遜於預期|優於共識|低於共識|beat|miss|Beat|Miss|EPS\s*beat|revenue\s*beat)",
     re.IGNORECASE,
@@ -1281,6 +1341,7 @@ def _postprocess_brief_data_hygiene(crypto: CryptoSection, ai: AISection) -> tup
         crypto = crypto.model_copy(update={"crypto_cycle_valuation_notes": cyc})
 
     ex = _scrub_exec_summary_history_slogans(list(crypto.exec_summary or []))
+    ex = _format_exec_summary_for_mobile(ex)
     if ex != list(crypto.exec_summary or []):
         crypto = crypto.model_copy(update={"exec_summary": ex})
 
@@ -1825,6 +1886,8 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
         lstrip_blocks=True,
     )
     env.filters["tg_escape"] = tg_escape
+    env.filters["tg_emphasize_numbers"] = tg_emphasize_numbers
+    env.filters["tg_soft_wrap_mobile"] = tg_soft_wrap_mobile
     env.filters["strip_usd"] = strip_usd_for_template
     env.filters["clean_invalidation"] = _clean_invalidation
 

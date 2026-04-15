@@ -49,3 +49,28 @@
 
 - 提示詞：`crew.py` → `_BRIEF_V2_RULE`、`_AI_RISK_BRIDGE_RULE`、`_HEDGE_FUND_BRIEF_RULE`
 - 後處理：`main.py` → `_fix_glued_na_suffix`、`_postprocess_report_for_resilience`
+
+## 8. 低風險格式規則（2026-04 補強）
+
+在不擴充 Telegram HTML 白名單前提下（仍限 `b/i/u/s/code/blockquote/a`），套用下列 formatter 規則：
+
+- **重點數字**：`執行摘要` 行內數字（價格／百分比）可用 `<b>` 強調，避免每行堆疊 emoji。
+- **手機行寬**：摘要與敘事行建議 `<= 70` 字；過長優先在 `，。；｜` 斷句（軟換行）。
+- **交易卡欄位順序固定**：`現價 → 計畫(進場/目標/停損) → 執行 → 失效 → 敘事 → 流動性/執行`。
+- **分隔線節制**：`────────────` 以 4 條內為原則，避免視覺疲勞。
+- **次要訊號弱化**：Polymarket / chatter 保留資訊密度，但文句優先短行與可掃讀，不新增標籤。
+
+> 產品決策延續：不採 `<pre>`、`<details>`、`<summary>`、`<br>`；`🤖 區塊①` 命名維持不變。
+
+### 建議 rollout（A/B/C）
+
+- **Phase A（立即）**：摘要數字強調、軟換行、emoji 降噪、分隔線節制（不改 Gate 契約）。
+- **Phase B（低風險）**：次要資訊下沉與段落節奏調整（不改標題/區塊識別）。
+- **Phase C（產品實驗）**：可選雙訊息推送（完整版＋輕量版）；先做 1–2 週 A/B 觀測。
+
+### 驗收指標
+
+- `validate_report` blocking 率不得上升。
+- Telegram parser entity error 率不得上升。
+- 交易段欄位完整率（進場/目標/停損/失效）維持或提升。
+- 手機端可讀性代理指標改善（超長行數下降）。

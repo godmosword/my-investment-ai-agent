@@ -3,7 +3,7 @@
 {% if crypto.exec_summary %}
 <b>📋 【執行摘要】</b>
 {% for line in crypto.exec_summary %}
-→ {{ line|tg_escape }}
+→ {{ line|tg_emphasize_numbers }}
 
 {% endfor %}
 {% endif %}
@@ -21,13 +21,13 @@
 
 <b>🏛️ 宏觀框架</b>
 {% for line in crypto.macro_framework_lines %}
-· {{ line|tg_escape }}
+· {{ line|tg_soft_wrap_mobile }}
 {% endfor %}
 
 {% if crypto.prediction_market_highlight_lines %}
 <b>【預測市場熱門】</b> <i>（Polymarket 二元 Yes 價；非投資建議）</i>
 {% for line in crypto.prediction_market_highlight_lines %}
-· {{ line|tg_escape }}
+· {{ line|tg_soft_wrap_mobile }}
 {% endfor %}
 {% endif %}
 
@@ -64,7 +64,7 @@
 <b>區塊③</b>【市場呢喃與傳聞】
 {% if crypto.chatter %}
 {% for c in crypto.chatter %}
-· {{ c.text|tg_escape }}
+· {{ c.text|tg_soft_wrap_mobile }}
 {% endfor %}
 {% else %}
 · 傳聞可信度：B（未確認）｜主流媒體二次驗證：否
@@ -74,9 +74,9 @@
 {% if crypto.crypto_block4_recommendation_line %}
 {{ crypto.crypto_block4_recommendation_line }}
 {% endif %}
-本日選擇理由：{{ crypto.pick_reason|tg_escape }}
-今日風險預算：{{ crypto.risk_budget_summary|tg_escape }}
-訊號衝突摘要：{{ crypto.signal_conflict_summary|tg_escape }}
+本日選擇理由：{{ crypto.pick_reason|tg_soft_wrap_mobile }}
+今日風險預算：{{ crypto.risk_budget_summary|tg_soft_wrap_mobile }}
+訊號衝突摘要：{{ crypto.signal_conflict_summary|tg_soft_wrap_mobile }}
 {% if crypto.trade_legs %}
 {% for leg in crypto.trade_legs %}
 {% if not loop.first %}
@@ -108,7 +108,7 @@
 {% if ai.macro_bridge_lines %}
 <i>宏觀連結：</i>
 {% for line in ai.macro_bridge_lines %}
-· {{ line|tg_escape }}
+· {{ line|tg_soft_wrap_mobile }}
 {% endfor %}
 {% endif %}
 
@@ -143,7 +143,7 @@
 <b>區塊③</b>【產業鏈呢喃】
 {% if ai.chatter %}
 {% for c in ai.chatter %}
-· {{ c.text|tg_escape }}
+· {{ c.text|tg_soft_wrap_mobile }}
 {% endfor %}
 {% else %}
 · 傳聞可信度：B（未確認）｜主流媒體二次驗證：否
@@ -153,8 +153,8 @@
 {% if ai.ai_block4_recommendation_line %}
 {{ ai.ai_block4_recommendation_line }}
 {% endif %}
-本日選擇理由：{{ ai.pick_reason|tg_escape }}
-訊號衝突摘要：{{ ai.signal_conflict_summary|tg_escape }}
+本日選擇理由：{{ ai.pick_reason|tg_soft_wrap_mobile }}
+訊號衝突摘要：{{ ai.signal_conflict_summary|tg_soft_wrap_mobile }}
 {% if ai.us_equity_allocation_note %}
 · <b>美股部位框</b>：{{ ai.us_equity_allocation_note|tg_escape }}
 {% endif %}
