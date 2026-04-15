@@ -2,7 +2,7 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) · [**git pull／讀 codebase 時先看**](#pull-or-read-codebase-reminder)
 
-**同步狀態（2026-04-12）**：本檔於 **2026-04-24** 補 **日報 Telegram 行動格式**（`tg_emphasize_numbers`／`tg_soft_wrap_mobile`、執行摘要後處理、品質代理格式 hints、[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §8）— 見 CHANGELOG **2026-04-24**；**2026-04-23 改寫**；**2026-04-16** [`README.md`](README.md) 補 **日報品質代理 `.env` 啟用說明**（`REPORT_QUALITY_AGENT=1`、預設 **gpt-4o-mini**）— 見 CHANGELOG **2026-04-16**；**2026-04-15** **T4a 完整元件**（Redis、`pywebpush`、`POST /api/push/test-send`、可選 BQ persist／audit、[`scripts/vapid_generate.py`](scripts/vapid_generate.py)）與 **實盤觀測 CLI** [`scripts/symbol_price_probe.py`](scripts/symbol_price_probe.py) — 見 CHANGELOG **2026-04-15**；**2026-04-14（八）** 下一輪：**NVDA mock 跨路由 E2E**、`price_alignment` **來源欄位**與 **`PRICE_ALIGNMENT_E2E_OVERRIDES`**、**Web Push store 去重／IP rate limit**、**gate_issue_hints 單字邊界**（見 CHANGELOG **2026-04-14**）；**2026-04-14（七）** 依建議順序落地 **Terminal 主線 T1–T3** 首批實作並穿插 **T4b（通知語意草案）**／**T5a／T5b**（見 CHANGELOG **2026-04-14** 與下節 T1–T5 錨點）；**2026-04-14（六）** 精煉 T1–T5 **建議執行順序**（主線／並線／交錯表）；**2026-04-14（五）** 新增 [**Terminal／戰情室後中段路線（T1–T5）**](#terminal-post-mid-tier-t1-t5)（每切片對應檔案）；**2026-04-14（四）** Playwright E2E；**2026-04-14（三）** 可加強項；**2026-04-14（二）** Phase A–E；**2026-04-14** 日報品質代理；**2026-04-12** [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
+**同步狀態（2026-04-12）**：本檔於 **2026-04-25** 補 **日報區塊模組化計畫**（[`modularization_plan.md`](modularization_plan.md) — 五 Phase、短中長期、可切片 PR；**程式未動**）— 見 CHANGELOG **2026-04-25** `### Docs`；**2026-04-24** 補 **日報 Telegram 行動格式**（`tg_emphasize_numbers`／`tg_soft_wrap_mobile`、執行摘要後處理、品質代理格式 hints、[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §8）— 見 CHANGELOG **2026-04-24**；**2026-04-23 改寫**；**2026-04-16** [`README.md`](README.md) 補 **日報品質代理 `.env` 啟用說明**（`REPORT_QUALITY_AGENT=1`、預設 **gpt-4o-mini**）— 見 CHANGELOG **2026-04-16**；**2026-04-15** **T4a 完整元件**（Redis、`pywebpush`、`POST /api/push/test-send`、可選 BQ persist／audit、[`scripts/vapid_generate.py`](scripts/vapid_generate.py)）與 **實盤觀測 CLI** [`scripts/symbol_price_probe.py`](scripts/symbol_price_probe.py) — 見 CHANGELOG **2026-04-15**；**2026-04-14（八）** 下一輪：**NVDA mock 跨路由 E2E**、`price_alignment` **來源欄位**與 **`PRICE_ALIGNMENT_E2E_OVERRIDES`**、**Web Push store 去重／IP rate limit**、**gate_issue_hints 單字邊界**（見 CHANGELOG **2026-04-14**）；**2026-04-14（七）** 依建議順序落地 **Terminal 主線 T1–T3** 首批實作並穿插 **T4b（通知語意草案）**／**T5a／T5b**（見 CHANGELOG **2026-04-14** 與下節 T1–T5 錨點）；**2026-04-14（六）** 精煉 T1–T5 **建議執行順序**（主線／並線／交錯表）；**2026-04-14（五）** 新增 [**Terminal／戰情室後中段路線（T1–T5）**](#terminal-post-mid-tier-t1-t5)（每切片對應檔案）；**2026-04-14（四）** Playwright E2E；**2026-04-14（三）** 可加強項；**2026-04-14（二）** Phase A–E；**2026-04-14** 日報品質代理；**2026-04-12** [**CHANGELOG 2026-04-10** Pipeline](CHANGELOG.md)。先前版本中數百條可勾選項（G-1～G-8 全表、OSS Phase 1–4 細拆、演進 Phase 1–4、商業化階段 E、週報 spike 清單等）**並未在程式庫中全部實作**；為避免「待辦檔＝永遠勾不滿的巨型清單」與正文重複，改為 **導覽 + 下一批隊列 + 外部文件索引**。細項論述與威脅建模仍見 `docs/` 與 `docs/oss_candidates/`。**紅線**見 [`.cursorrules`](.cursorrules) 與 [`CLAUDE.md`](CLAUDE.md)（無數據幻覺、Telegram HTML 白名單、`main.py` 雙線程安全、`validate_report` 契約）。
 
 ---
 
@@ -66,6 +66,7 @@
 
 | 主題 | 代表檔案／行為 |
 |------|----------------|
+| **日報區塊模組化計畫（文件，2026-04-25）** | [`modularization_plan.md`](modularization_plan.md) — Phase 1–5、短中長期、BLOCK_REGISTRY／YAML 可選；**尚未**改 `telegram_report.j2`／`main.py`（見下一批隊列 **22**） |
 | 雙軌 Crew + 可選 LangGraph | [`main.py`](main.py)、[`graph/`](graph/)、`USE_LANGGRAPH_ENGINE`、`GRAPH_*` |
 | LangGraph 工具橋接與深度查證 | [`graph/graph_tools.py`](graph/graph_tools.py)、`RESEARCH_TOOLS`、`deep_research_node` |
 | 日報 HTML／Gate／schema | [`report_html_gates.py`](report_html_gates.py)、[`schemas.py`](schemas.py)、[`report_render.py`](report_render.py)（**2026-04-24** 行動閱讀濾鏡與執行摘要後處理）、[`templates/telegram_report.j2`](templates/telegram_report.j2) |
@@ -123,6 +124,7 @@
 19. **營運：Redis + `WEB_PUSH_REDIS_URL`** — 接上後端可連之 Redis；與 **18** 一併驗證 `POST /api/push/subscribe` 回 `backend: redis`。
 20. **營運：VAPID 金鑰** — `python3 scripts/vapid_generate.py`；public → PWA env、private → 後端 only；勿提交私鑰。
 21. **營運：staging 小流量 `test-send`** — `WEB_PUSH_ADMIN_KEY` + `POST /api/push/test-send`；確認瀏覽器能收再放量。
+22. **日報區塊模組化（實作）** — 依 [`modularization_plan.md`](modularization_plan.md) 自 **Phase 1**（`templates/blocks/` macro 切分、`full` 輸出等價）起逐步交付；**Phase 2** `brief_profiles`／`BLOCK_REGISTRY`／`REPORT_PROFILE`／`lite`；**Phase 3** Gate；**Phase 4** `crypto-only`／可選 YAML／BQ `profile`；**Phase 5** 【時事多觀點】。計畫全文已於 **2026-04-25** 寫入 CHANGELOG `### Docs`；完成各 Phase 後寫入 CHANGELOG `### Changed`／`### Added` 並更新本節。
 
 ---
 
@@ -278,6 +280,7 @@
 
 ## 修訂紀錄
 
+- **2026-04-25**：**日報區塊模組化計畫** — [`modularization_plan.md`](modularization_plan.md) 重排邏輯、五 Phase、短中長期；「已交付摘要」增列（**僅文件**）；「下一批隊列」增 **22**；[`README.md`](README.md) 連結表 + 小節；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-25** `### Docs`。
 - **2026-04-24**：**日報 Telegram 行動格式** — 「已交付摘要」更新 `report_render`／`report_quality_agent` 列；**同步狀態**一句；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-24** `### Changed`。
 - **2026-04-16**：[`README.md`](README.md) 補 **日報品質代理**（`.env`：`REPORT_QUALITY_AGENT=1`、`REPORT_LLM_JUDGE_MODEL`／預設 **gpt-4o-mini**、`source .env`）；[`CHANGELOG.md`](CHANGELOG.md) **2026-04-16** `### Docs`；本檔「已交付摘要」與**同步狀態**一句。
 - **2026-04-15（二）**：新增 [git pull／讀 codebase 提醒](#pull-or-read-codebase-reminder) 與隊列 **18–21**（BQ DDL、Redis、VAPID、staging test-send）；[`CHANGELOG.md`](CHANGELOG.md) `### Docs`；[`CLAUDE.md`](CLAUDE.md) 導覽一句。

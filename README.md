@@ -15,8 +15,13 @@
 | 開發導覽 | [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) |
 | 環境變數 | [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) → 複製為 `.env` |
 | 日報版面 | [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) |
+| 日報模組化（路線圖，計畫文件） | [`modularization_plan.md`](modularization_plan.md) |
 
 **本 README 對齊 repo 現況（持續更新；重大變更見 [`CHANGELOG.md`](CHANGELOG.md)）。** 細節與紅線亦見 [`.cursorrules`](.cursorrules)。
+
+### 日報模組化（計畫文件）
+
+多 profile（`full`／`lite`／`crypto-only`）、`templates/blocks/` macro 切片、`brief_profiles`／`BLOCK_REGISTRY`、profile-aware **`validate_report`**，以及可選 YAML 佈局與 **【時事多觀點】** 區塊之**短／中／長期**切分，見根目錄 [`modularization_plan.md`](modularization_plan.md)。**現況為規格與實作順序文件**（CHANGELOG **2026-04-25**）；實際模板與 `main.py` 尚未依該計畫重構。實作時仍須遵守 **Telegram HTML 白名單**與 **無數據幻覺**（見上表「日報版面」）。
 
 ---
 
