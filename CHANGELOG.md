@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-23
+
+### Changed
+- **日報評估對齊（Polymarket API／宏觀錨點／LangGraph）**：[`tools_legacy.py`](tools_legacy.py) `fetch_polymarket_hot_highlight_lines` 支援 **`PREDICTION_MARKETS_TAG_IDS`**／**`PREDICTION_MARKETS_EXCLUDE_TAG_IDS`**（Gamma `tag_id`／`exclude_tag_id`）、`order=volume_24hr`，tag 篩選不足 3 條時合併無 tag 成交量後援；`macro_context_tool` 快取改 **`latest_v4_gspc_spy`** 並新增 **`fetch_spy_etf_last_close_anchor`**（SPY ETF 與 ^GSPC 指數分離敘述）；[`graph/graph_nodes.py`](graph/graph_nodes.py) `trade_picker_node` 與 native **`final_formatter_node`** 系統提示加入 **上下文刪減**（對齊 crew 因果紀律）；[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §7b 與 **Telegram HTML 白名單**產品約定（不採 `<tg-spoiler>`）；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)；測試 [`test_prediction_markets_tool.py`](test_prediction_markets_tool.py)、[`test_spy_etf_anchor.py`](test_spy_etf_anchor.py)。
+
 ## 2026-04-16
 
 ### Tests

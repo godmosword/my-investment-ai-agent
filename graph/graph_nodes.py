@@ -38,6 +38,12 @@ from validation_rules import ensure_news_timestamp_line_utc8
 
 logger = logging.getLogger(__name__)
 
+# 與 crew.py「工具真值／因果」對齊：LangGraph 路徑亦禁止為用滿 context 而硬湊無關宏觀讀數。
+_GRAPH_CONTEXT_PRUNING_RULE = (
+    "【上下文刪減】你可省略與當前標的、新聞或 trade thesis 無直接、可驗證關聯的工具讀數（如 DXY、HF 下載量、"
+    "與主線無關的利率細節）；禁止為了「用滿資料」而牽強單一主因或宏觀跳接。寧可簡短，也不要硬湊。"
+)
+
 
 def _hkt_now() -> str:
     return datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
@@ -797,7 +803,8 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
                 "system",
                 "你是交易篩選編輯。僅輸出 0-2 筆 trade intents。"
                 "嚴禁輸出任何價格數字，僅可輸出 asset/direction/star_rating/thesis_one_liner。"
-                "star_rating 只能是 1 或 2。若訊號不足，回傳空陣列。",
+                "star_rating 只能是 1 或 2。若訊號不足，回傳空陣列。"
+                + _GRAPH_CONTEXT_PRUNING_RULE,
             ),
             (
                 "human",
@@ -1231,7 +1238,8 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
                 "system",
                 "你是 Q-Silicon 最終排版總編。"
                 "你只能根據提供的內部簡報生成內容，禁止捏造新聞、價格、代碼、交易腿。"
-                "輸出需精簡、機構語氣、可直接寫入 JSON 欄位。",
+                "輸出需精簡、機構語氣、可直接寫入 JSON 欄位。"
+                + _GRAPH_CONTEXT_PRUNING_RULE,
             ),
             (
                 "human",
@@ -1257,7 +1265,8 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
                 "system",
                 "你是 Q-Silicon 最終排版總編。"
                 "你只能根據提供的內部簡報生成內容，禁止捏造新聞、價格、代碼、交易腿。"
-                "輸出需精簡、機構語氣、可直接寫入 JSON 欄位。",
+                "輸出需精簡、機構語氣、可直接寫入 JSON 欄位。"
+                + _GRAPH_CONTEXT_PRUNING_RULE,
             ),
             (
                 "human",

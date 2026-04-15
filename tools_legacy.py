@@ -3414,69 +3414,24 @@ def _parse_outcome_prices(raw: object) -> list[float] | None:
     return out
 
 
-def fetch_polymarket_hot_highlight_lines(*, limit_events: int = 40, top_n: int = 5) -> list[str]:
-    """Return 3–6 plain-text lines for CryptoSection.prediction_market_highlight_lines (no HTML).
-
-    Uses Polymarket Gamma ``/events`` (24h volume order). Picks binary markets with Yes price in (0.02, 0.98).
-    """
-    if os.getenv("MOCK_APIS", "").lower() in ("1", "true", "yes"):
-        return [
-            "Polymarket Yes≈55.0%｜24h量≈$1.2M｜【MOCK】示例：某政策事件是否於 Q2 前落地",
-            "Polymarket Yes≈42.0%｜24h量≈$800K｜【MOCK】示例：Fed 年內降息次數 ≥3",
-            "Polymarket Yes≈38.5%｜24h量≈$500K｜【MOCK】示例：加密現貨 ETF 週淨流入連續為正",
-        ]
-    n_ev = max(10, min(int(limit_events), 80))
-    n_top = max(3, min(int(top_n), 8))
-    deny_terms = [
-        x.strip().lower()
-        for x in (os.getenv("PREDICTION_MARKETS_DENYLIST") or "nba,nfl,rebounds,assists,touchdown").split(",")
-        if x.strip()
-    ]
-    keywords = [
-        x.strip() for x in (os.getenv("PREDICTION_MARKETS_KEYWORDS") or "").split(",") if x.strip()
-    ]
-    cache_key = (
-        "polymarket_hot",
-        str(n_ev),
-        str(n_top),
-        ",".join(keywords),
-        ",".join(deny_terms),
-    )
-    cached = _get_cache(cache_key)
-    if cached:
+def _polymarket_parse_tag_ints(env_name: str) -> list[int]:
+    raw = (os.getenv(env_name) or "").strip()
+    if not raw:
+        return []
+    out: list[int] = []
+    for part in raw.split(","):
+        p = part.strip()
+        if not p:
+            continue
         try:
-            data = json.loads(cached)
-            if isinstance(data, list) and data:
-                return [str(x) for x in data if str(x).strip()][:6]
-        except json.JSONDecodeError:
-            pass
+            out.append(int(p))
+        except ValueError:
+            logger.warning("polymarket %s skip non-int: %r", env_name, p)
+    return out
 
-    params = {
-        "active": "true",
-        "closed": "false",
-        "limit": str(n_ev),
-        "order": "volume24hr",
-        "ascending": "false",
-    }
-    try:
-        resp = _http_get(_GAMMA_EVENTS_URL, params=params, timeout=18)
-    except Exception as e:
-        logger.warning("polymarket gamma GET failed: %s", e)
-        return []
 
-    if resp.status_code != 200:
-        logger.warning("polymarket gamma HTTP %s", resp.status_code)
-        return []
-
-    try:
-        events = resp.json()
-    except ValueError as e:
-        logger.warning("polymarket gamma JSON error: %s", e)
-        return []
-
-    if not isinstance(events, list):
-        return []
-
+def _polymarket_events_to_scored(events: list) -> list[tuple[float, float, str]]:
+    """Gamma /events payload -> (volume24h, yes_prob, question) rows."""
     scored: list[tuple[float, float, str]] = []
     for ev in events:
         if not isinstance(ev, dict):
@@ -3506,7 +3461,53 @@ def fetch_polymarket_hot_highlight_lines(*, limit_events: int = 40, top_n: int =
             except (TypeError, ValueError):
                 vol = 0.0
             scored.append((vol, yes, q))
+    return scored
 
+
+def _polymarket_merge_events(chunks: list[list]) -> list:
+    """Dedupe events across tag fetches (id > slug > title)."""
+    seen: set[str] = set()
+    out: list = []
+    for chunk in chunks:
+        if not isinstance(chunk, list):
+            continue
+        for ev in chunk:
+            if not isinstance(ev, dict):
+                continue
+            key = str(ev.get("id") or ev.get("slug") or ev.get("title") or "") or json.dumps(
+                ev, ensure_ascii=False, sort_keys=True, default=str
+            )[:200]
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(ev)
+    return out
+
+
+def _polymarket_gamma_get_events(params: dict) -> list:
+    try:
+        resp = _http_get(_GAMMA_EVENTS_URL, params=params, timeout=18)
+    except Exception as e:
+        logger.warning("polymarket gamma GET failed: %s", e)
+        return []
+    if resp.status_code != 200:
+        logger.warning("polymarket gamma HTTP %s", resp.status_code)
+        return []
+    try:
+        events = resp.json()
+    except ValueError as e:
+        logger.warning("polymarket gamma JSON error: %s", e)
+        return []
+    return events if isinstance(events, list) else []
+
+
+def _polymarket_build_highlight_lines(
+    scored: list[tuple[float, float, str]],
+    *,
+    n_top: int,
+    deny_terms: list[str],
+    keywords: list[str],
+) -> list[str]:
     scored.sort(key=lambda t: t[0], reverse=True)
 
     def _question_denied(q: str) -> bool:
@@ -3563,6 +3564,86 @@ def fetch_polymarket_hot_highlight_lines(*, limit_events: int = 40, top_n: int =
                 break
             _append_line(vol, yes, q, with_vol=False)
 
+    return lines[:6]
+
+
+def fetch_polymarket_hot_highlight_lines(*, limit_events: int = 40, top_n: int = 5) -> list[str]:
+    """Return 3–6 plain-text lines for CryptoSection.prediction_market_highlight_lines (no HTML).
+
+    Uses Polymarket Gamma ``/events`` (24h volume order; param ``order=volume_24hr`` per Gamma docs).
+    Optional ``PREDICTION_MARKETS_TAG_IDS`` / ``PREDICTION_MARKETS_EXCLUDE_TAG_IDS`` filter at API layer;
+    if tag-filtered rows are fewer than 3, merges a **global volume** fetch (same deny/keyword rules).
+    """
+    if os.getenv("MOCK_APIS", "").lower() in ("1", "true", "yes"):
+        return [
+            "Polymarket Yes≈55.0%｜24h量≈$1.2M｜【MOCK】示例：某政策事件是否於 Q2 前落地",
+            "Polymarket Yes≈42.0%｜24h量≈$800K｜【MOCK】示例：Fed 年內降息次數 ≥3",
+            "Polymarket Yes≈38.5%｜24h量≈$500K｜【MOCK】示例：加密現貨 ETF 週淨流入連續為正",
+        ]
+    n_ev = max(10, min(int(limit_events), 80))
+    n_top = max(3, min(int(top_n), 8))
+    deny_terms = [
+        x.strip().lower()
+        for x in (os.getenv("PREDICTION_MARKETS_DENYLIST") or "nba,nfl,rebounds,assists,touchdown").split(",")
+        if x.strip()
+    ]
+    keywords = [
+        x.strip() for x in (os.getenv("PREDICTION_MARKETS_KEYWORDS") or "").split(",") if x.strip()
+    ]
+    tag_ids = _polymarket_parse_tag_ints("PREDICTION_MARKETS_TAG_IDS")
+    exclude_tag_ids = _polymarket_parse_tag_ints("PREDICTION_MARKETS_EXCLUDE_TAG_IDS")
+    cache_key = (
+        "polymarket_hot",
+        str(n_ev),
+        str(n_top),
+        ",".join(keywords),
+        ",".join(deny_terms),
+        ",".join(str(t) for t in tag_ids),
+        ",".join(str(t) for t in exclude_tag_ids),
+    )
+    cached = _get_cache(cache_key)
+    if cached:
+        try:
+            data = json.loads(cached)
+            if isinstance(data, list) and data:
+                return [str(x) for x in data if str(x).strip()][:6]
+        except json.JSONDecodeError:
+            pass
+
+    def _base_params(*, with_tag: int | None) -> dict[str, str]:
+        p: dict[str, str] = {
+            "active": "true",
+            "closed": "false",
+            "limit": str(n_ev),
+            "order": "volume_24hr",
+            "ascending": "false",
+        }
+        if exclude_tag_ids:
+            p["exclude_tag_id"] = str(exclude_tag_ids[0])
+        if with_tag is not None:
+            p["tag_id"] = str(with_tag)
+        return p
+
+    event_chunks: list[list] = []
+    if tag_ids:
+        for tid in tag_ids[:5]:
+            event_chunks.append(_polymarket_gamma_get_events(_base_params(with_tag=tid)))
+    else:
+        event_chunks.append(_polymarket_gamma_get_events(_base_params(with_tag=None)))
+
+    events_merged = _polymarket_merge_events(event_chunks)
+    scored = _polymarket_events_to_scored(events_merged)
+    lines = _polymarket_build_highlight_lines(scored, n_top=n_top, deny_terms=deny_terms, keywords=keywords)
+
+    if len(lines) < 3 and tag_ids:
+        fb_events = _polymarket_gamma_get_events(_base_params(with_tag=None))
+        fb_scored = _polymarket_events_to_scored(fb_events)
+        seen_q = {q for _, _, q in scored}
+        merged_scored = list(scored) + [(v, y, q) for v, y, q in fb_scored if q not in seen_q]
+        lines = _polymarket_build_highlight_lines(
+            merged_scored, n_top=n_top, deny_terms=deny_terms, keywords=keywords
+        )
+
     if lines:
         _set_cache(cache_key, json.dumps(lines, ensure_ascii=False))
     return lines[:6]
@@ -3573,6 +3654,9 @@ def prediction_markets_tool(query: str = "") -> str:
     """
     預測市場熱門事件（Polymarket Gamma API，無需 API Key）。
     回傳按 24h 成交排序之二元市場：Yes 隱含機率（非官方預測）＋成交量級＋題目摘要。
+    可選環境變數：`PREDICTION_MARKETS_TAG_IDS`（逗號分隔 tag_id，對應 Gamma ``GET /tags``）、
+    `PREDICTION_MARKETS_EXCLUDE_TAG_IDS`（排除標籤，API 僅傳第一個 ``exclude_tag_id``）；
+    與 `PREDICTION_MARKETS_KEYWORDS`／`DENYLIST` 並用；tag 篩選不足 3 條時會再合併全域成交量後援。
     query 可留空；或 \"limit=40\" 調整拉取事件數（測試用）。
     戰報【預測市場熱門】欄位須與本工具一致，禁止捏造機率。
     """
@@ -3657,6 +3741,54 @@ def fetch_gspc_last_close_anchor() -> float | None:
     return None
 
 
+_SPY_ETF_MIN = 80.0
+_SPY_ETF_MAX = 2500.0
+
+
+def fetch_spy_etf_last_close_anchor() -> float | None:
+    """最近一筆 SPY（S&P 500 ETF）日線收盤（yfinance）；與 ^GSPC 指數點位不可互換敘述。"""
+    cache_key = ("spy_etf_anchor_close", "v1")
+    cached = _get_cache(cache_key)
+    if cached:
+        try:
+            payload = json.loads(cached)
+            v = payload.get("close")
+            if isinstance(v, (int, float)):
+                fv = float(v)
+                if _SPY_ETF_MIN <= fv <= _SPY_ETF_MAX:
+                    return fv
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+    try:
+        df = _yf_download_with_timeout(
+            "SPY", period="7d", interval="1d", progress=False, auto_adjust=True
+        )
+    except Exception as e:
+        logger.warning("spy etf anchor yfinance failed: %s", e)
+        return None
+    if df is None or df.empty:
+        return None
+    c = df["Close"].dropna()
+    if hasattr(c, "ndim") and c.ndim > 1:
+        c = c.iloc[:, 0]
+    if c.empty:
+        return None
+    for back in range(min(5, len(c))):
+        idx = len(c) - 1 - back
+        try:
+            raw = float(c.iloc[idx])
+        except (TypeError, ValueError):
+            continue
+        if _SPY_ETF_MIN <= raw <= _SPY_ETF_MAX:
+            out = round(raw, 2)
+            try:
+                _set_cache(cache_key, json.dumps({"close": out}))
+            except Exception:
+                pass
+            return out
+    return None
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Macro Context Tool（美債利率、殖利率曲線、Fed 期貨、本週財報）
 # ═══════════════════════════════════════════════════════════════════
@@ -3669,8 +3801,8 @@ def macro_context_tool(query: str = "") -> str:
     """
 
     def _run() -> str:
-        # v3：含 ^GSPC 指數錨點行（與 fetch_gspc_last_close_anchor 同源邏輯）
-        cache_key = ("macro_context", "latest_v3_gspc")
+        # v4：^GSPC 指數錨點 + SPY（ETF）錨點，避免指數／ETF 語意混淆
+        cache_key = ("macro_context", "latest_v4_gspc_spy")
         cached = _get_cache(cache_key)
         if cached:
             return _append_data_as_of(cached, "macro_context")
@@ -3798,6 +3930,18 @@ def macro_context_tool(query: str = "") -> str:
             lines.append(
                 "📊 S&P 500（^GSPC 最近收盤，yfinance）: <code>N/A</code> "
                 "｜指數點位敘述請省略或寫相對估值，勿臆測數字。"
+            )
+
+        spy_etf = fetch_spy_etf_last_close_anchor()
+        if spy_etf is not None:
+            lines.append(
+                f"📈 SPY（SPDR S&P 500 ETF，yfinance）: <code>{spy_etf:,.2f}</code> "
+                "｜此為 **ETF** 成交價，**禁止**寫成「標普 500 指數／S&P 500 Index／SPX」之指數點位；指數請**僅**用上行 **^GSPC**。"
+            )
+        else:
+            lines.append(
+                "📈 SPY（SPDR S&P 500 ETF，yfinance）: <code>N/A</code> "
+                "｜與 ^GSPC 指數不同；指數敘述請以上行 ^GSPC 行為準。"
             )
 
         # ── 2. Fed SOFR 期貨隱含預期 ─────────────────────────────────────

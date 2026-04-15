@@ -175,6 +175,115 @@ class TestPredictionMarketsTool(unittest.TestCase):
         self.assertIn("Bitcoin", joined)
         self.assertIn("CPI", joined)
 
+    def test_fetch_passes_tag_id_and_exclude_when_env_set(self) -> None:
+        captured: list[dict] = []
+        bulk = [
+            {
+                "id": "fb1",
+                "markets": [
+                    {
+                        "question": "Will macro X hit?",
+                        "outcomePrices": '["0.33", "0.67"]',
+                        "volume24hr": 3_000_000,
+                    }
+                ],
+            },
+            {
+                "id": "fb2",
+                "markets": [
+                    {
+                        "question": "Will macro Y hit?",
+                        "outcomePrices": '["0.34", "0.66"]',
+                        "volume24hr": 2_500_000,
+                    }
+                ],
+            },
+            {
+                "id": "fb3",
+                "markets": [
+                    {
+                        "question": "Will macro Z hit?",
+                        "outcomePrices": '["0.35", "0.65"]',
+                        "volume24hr": 2_000_000,
+                    }
+                ],
+            },
+        ]
+
+        def fake_get(url, params=None, timeout=None, headers=None):
+            p = dict(params or {})
+            captured.append(p)
+            if p.get("tag_id"):
+                return _FakeResp(200, [])
+            return _FakeResp(200, bulk)
+
+        env = {
+            "MOCK_APIS": "",
+            "PREDICTION_MARKETS_TAG_IDS": "100381,100382",
+            "PREDICTION_MARKETS_EXCLUDE_TAG_IDS": "999",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            with patch("tools_legacy._http_get", side_effect=fake_get):
+                lines = fetch_polymarket_hot_highlight_lines(limit_events=10, top_n=3)
+        self.assertGreaterEqual(len(lines), 3)
+        self.assertEqual([c.get("tag_id") for c in captured[:2]], ["100381", "100382"])
+        self.assertEqual(captured[0].get("exclude_tag_id"), "999")
+        self.assertEqual(captured[0].get("order"), "volume_24hr")
+        self.assertNotIn("tag_id", captured[-1])
+
+    def test_fetch_fallback_without_tag_when_tag_pool_insufficient(self) -> None:
+        events_global = [
+            {
+                "id": "g1",
+                "title": "Macro",
+                "markets": [
+                    {
+                        "question": "Will CPI surprise next?",
+                        "outcomePrices": '["0.44", "0.56"]',
+                        "volume24hr": 2_000_000,
+                    }
+                ],
+            },
+            {
+                "id": "g2",
+                "title": "Macro2",
+                "markets": [
+                    {
+                        "question": "Will Fed cut before Q3?",
+                        "outcomePrices": '["0.46", "0.54"]',
+                        "volume24hr": 1_800_000,
+                    }
+                ],
+            },
+            {
+                "id": "g3",
+                "title": "Macro3",
+                "markets": [
+                    {
+                        "question": "Will core PCE stay above 2%?",
+                        "outcomePrices": '["0.41", "0.59"]',
+                        "volume24hr": 1_500_000,
+                    }
+                ],
+            },
+        ]
+        calls: list[dict] = []
+
+        def fake_get(url, params=None, timeout=None, headers=None):
+            c = dict(params or {})
+            calls.append(c)
+            if c.get("tag_id") == "424242":
+                return _FakeResp(200, [])
+            return _FakeResp(200, events_global)
+
+        env = {"MOCK_APIS": "", "PREDICTION_MARKETS_TAG_IDS": "424242"}
+        with patch.dict("os.environ", env, clear=False):
+            with patch("tools_legacy._http_get", side_effect=fake_get):
+                lines = fetch_polymarket_hot_highlight_lines(limit_events=10, top_n=3)
+        self.assertGreaterEqual(len(lines), 3)
+        self.assertTrue(any("tag_id" not in c or c.get("tag_id") is None for c in calls))
+        self.assertTrue(any(c.get("tag_id") == "424242" for c in calls))
+
 
 if __name__ == "__main__":
     unittest.main()

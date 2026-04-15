@@ -11,12 +11,14 @@
 5. 【今日市場模式】+ **極簡**評分呈現（✅❌⬜ + 讀數，避免長算式列）
 6. **· 今日主敘事：** 單句（≤45 字），與主 regime 一致
 7. 🏛️ 宏觀框架
-7b. **【預測市場熱門】**（可選）— Polymarket Gamma 即時熱門二元市場；`assemble` 注入 `prediction_market_highlight_lines`；`PREDICTION_MARKETS_IN_BRIEF=0` 可關閉。選題：`PREDICTION_MARKETS_KEYWORDS`（逗號分隔，命中題目優先；不足 3 條則退回原 24h 成交量排序）、`PREDICTION_MARKETS_DENYLIST`（逗號分隔，預設含 nba／rebounds 等體育統計向關鍵字）過濾後再排序。
+7b. **【預測市場熱門】**（可選）— Polymarket Gamma 即時熱門二元市場；`assemble` 注入 `prediction_market_highlight_lines`；`PREDICTION_MARKETS_IN_BRIEF=0` 可關閉。選題：`PREDICTION_MARKETS_KEYWORDS`（逗號分隔，命中題目優先；不足 3 條則退回原 24h 成交量排序）、`PREDICTION_MARKETS_DENYLIST`（逗號分隔，預設含 nba／rebounds 等體育統計向關鍵字）過濾後再排序。API 層可選：`PREDICTION_MARKETS_TAG_IDS`（逗號分隔之 `tag_id`，見 Gamma `GET /tags`）、`PREDICTION_MARKETS_EXCLUDE_TAG_IDS`（排除用 tag；請求僅帶第一個 `exclude_tag_id`）；tag 篩選仍不足 3 條時會再合併**無 tag** 之全域成交量後援。
 8. 📊 加密市場：區塊①～④（① 儀表板可含管線注入之分區小標：宏觀／衍生品／鏈上／技術；④ 開頭可有一行 **部位摘要**）
 9. 🤖 AI 市場：**🤖 區塊①**～④（讀者版抬頭與加密段「區塊①」區分；內容規則同儀表板／新聞／呢喃／精準操作）
 10. 【機構速讀｜命題與情境】— 投資命題、支持·反駁、假設、失效、組合框架、三情境、估值錨、事件日曆（**2–3 條**支持／反駁，投行速讀）
 11. （系統注入）【SourceHealth】等三行 — 置於 **QSREC 前**、`templates/telegram_report.j2`；**勿寫在儀表板內**
 12. `[QSREC_START]` …（與 AI 段 QSREC 合併為同一陣列時由 pipeline 拼接）
+
+**Telegram HTML 與免責（產品約定）**：戰報 HTML 僅允許白名單標籤（`b` `i` `u` `s` `code` `blockquote` `a`），見 `telegram_sender.sanitize_telegram_html`；**不採** `<tg-spoiler>`，以免與 Gate／去標籤邏輯不一致。免責維持 `<blockquote>` 與模板位置；AI 儀表抬頭維持 **🤖 區塊①**（與加密段「區塊①」字樣區隔靠前綴符號）。
 
 ## 2. 區塊順序（AI 下半部）
 
