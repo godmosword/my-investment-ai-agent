@@ -5,6 +5,9 @@
 
 ## 2026-04-16
 
+### Tests
+- **PWA E2E（Bloomberg §6 Today）**：[`data-verification-ui/e2e/today-btc-mismatch-banner.spec.js`](data-verification-ui/e2e/today-btc-mismatch-banner.spec.js) — `localStorage.e2e_btc_misaligned=1` 時 mock 回 `price_alignment.aligned=false`，斷言 [`TodayBtcSnapshotStrip.jsx`](data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx) **`today-btc-price-mismatch-banner`**；[`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 支援 **`?e2e_btc_misaligned=1`**（BTC snapshot／quote）；[`useApi.js`](data-verification-ui/src/hooks/useApi.js) 僅 **`VITE_E2E=1`** 建置時附加該 query（不影響一般 preview／prod）。
+
 ### Docs
 - [`README.md`](README.md)：新增 **日報品質代理（可選）** 小節 — `.env` 設 `REPORT_QUALITY_AGENT=1`、`REPORT_LLM_JUDGE_MODEL` 預設 **gpt-4o-mini**、載入方式與勿亂開 `GIT_PUSH` 提醒；README 日期敘述改為指向 CHANGELOG。
 

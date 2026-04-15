@@ -1,6 +1,7 @@
 /**
  * Minimal mock API for Playwright (Bloomberg §6 cross-route price alignment).
- * BTC：aligned；SPY：刻意 misaligned（price_alignment.aligned=false）供 Terminal 警告 E2E。
+ * BTC：預設 aligned；`?e2e_btc_misaligned=1`（與 snapshot／quote 同源）→ misaligned，供 Today 橫幅 E2E。
+ * SPY／NVDA：刻意 misaligned 供 Terminal 警告 E2E。
  */
 import http from "node:http";
 
@@ -91,6 +92,17 @@ const btcAligned = {
   quote_error: null,
 };
 
+const BTC_OHLC_LAST_MIS = 50000;
+const BTC_QUOTE_LAST_MIS = 50150.25;
+const btcMisaligned = {
+  ohlc_last_close: BTC_OHLC_LAST_MIS,
+  quote_last: BTC_QUOTE_LAST_MIS,
+  abs_diff: BTC_QUOTE_LAST_MIS - BTC_OHLC_LAST_MIS,
+  rel_diff: Math.abs(BTC_QUOTE_LAST_MIS - BTC_OHLC_LAST_MIS) / BTC_OHLC_LAST_MIS,
+  aligned: false,
+  quote_error: null,
+};
+
 const spyMisaligned = {
   ohlc_last_close: SPY_OHLC_LAST,
   quote_last: SPY_QUOTE_LAST,
@@ -111,6 +123,7 @@ const nvdaMisaligned = {
 };
 
 const snapshotBtc = baseSnapshot("BTC", BTC_LAST, btcAligned);
+const snapshotBtcMisaligned = baseSnapshot("BTC", BTC_OHLC_LAST_MIS, btcMisaligned);
 const snapshotSpy = baseSnapshot("SPY", SPY_OHLC_LAST, spyMisaligned);
 const snapshotNvda = baseSnapshot("NVDA", NVDA_OHLC_LAST, nvdaMisaligned);
 
@@ -183,7 +196,8 @@ const server = http.createServer((req, res) => {
   if (snapMatch) {
     const sym = snapMatch[1].toUpperCase();
     if (sym === "BTC") {
-      sendJson(res, 200, snapshotBtc);
+      const mis = url.searchParams.get("e2e_btc_misaligned") === "1";
+      sendJson(res, 200, mis ? snapshotBtcMisaligned : snapshotBtc);
       return;
     }
     if (sym === "SPY") {
@@ -201,7 +215,8 @@ const server = http.createServer((req, res) => {
   if (quoteMatch) {
     const sym = quoteMatch[1].toUpperCase();
     if (sym === "BTC") {
-      sendJson(res, 200, quoteBody("BTC", BTC_LAST));
+      const mis = url.searchParams.get("e2e_btc_misaligned") === "1";
+      sendJson(res, 200, quoteBody("BTC", mis ? BTC_QUOTE_LAST_MIS : BTC_LAST));
       return;
     }
     if (sym === "SPY") {

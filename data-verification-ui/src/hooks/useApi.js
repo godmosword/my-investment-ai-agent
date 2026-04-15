@@ -2,6 +2,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
+/**
+ * E2E only：Playwright `addInitScript` 設 `localStorage.e2e_btc_misaligned=1` 時，對 BTC snapshot／quote
+ * 附加 query，讓 mock-api-server 回傳 `price_alignment.aligned=false`（Bloomberg §6 Today 橫幅迴歸）。
+ */
+function e2eBtcMisalignedQuery(symbol) {
+  if (import.meta.env.VITE_E2E !== "1") return "";
+  const sym = String(symbol ?? "").trim().toUpperCase();
+  if (sym !== "BTC") return "";
+  try {
+    if (globalThis.localStorage?.getItem("e2e_btc_misaligned") === "1") {
+      return "e2e_btc_misaligned=1";
+    }
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
 /** Terminal `/terminal` 輪詢間隔（ms）；可由 `VITE_TERMINAL_POLL_MS` 覆寫，預設 45s，最小 5s、最大 5min。 */
 export function getTerminalRefetchIntervalMs() {
   const raw = import.meta.env.VITE_TERMINAL_POLL_MS;
@@ -163,9 +181,11 @@ export function useSymbolQuote(symbol, options = {}) {
   const refetchInterval = coalesce && livePoll ? interval * 1.1 : interval;
   const normalized = (symbol ?? "").trim().toUpperCase();
   const sharedStale = getTerminalSharedStaleTimeMs();
+  const e2eMisQ = e2eBtcMisalignedQuery(normalized);
+  const quoteSuffix = e2eMisQ ? `?${e2eMisQ}` : "";
   return useQuery({
-    queryKey: ["symbol", "quote", normalized, livePoll ? "live" : "static"],
-    queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/quote`),
+    queryKey: ["symbol", "quote", normalized, e2eMisQ ? "e2e_btc_mis" : "e2e_btc_ok", livePoll ? "live" : "static"],
+    queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/quote${quoteSuffix}`),
     enabled: !!normalized,
     staleTime: livePoll ? sharedStale : 60 * 1000,
     refetchInterval,
@@ -185,12 +205,19 @@ export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, o
   const refetchInterval = coalesce && livePoll ? interval * 1.15 : interval;
   const normalized = (symbol ?? "").trim().toUpperCase();
   const sharedStale = getTerminalSharedStaleTimeMs();
+  const e2eMisQ = e2eBtcMisalignedQuery(normalized);
+  const snapQs = `days=${days}&recommendation_limit=${recommendationLimit}${e2eMisQ ? `&${e2eMisQ}` : ""}`;
   return useQuery({
-    queryKey: ["symbol", "snapshot", normalized, days, recommendationLimit, livePoll ? "live" : "static"],
-    queryFn: () =>
-      apiFetch(
-        `/api/symbols/${encodeURIComponent(normalized)}/snapshot?days=${days}&recommendation_limit=${recommendationLimit}`,
-      ),
+    queryKey: [
+      "symbol",
+      "snapshot",
+      normalized,
+      days,
+      recommendationLimit,
+      e2eMisQ ? "e2e_btc_mis" : "e2e_btc_ok",
+      livePoll ? "live" : "static",
+    ],
+    queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/snapshot?${snapQs}`),
     enabled: !!normalized,
     staleTime: livePoll ? sharedStale : 3 * 60 * 1000,
     refetchInterval,
