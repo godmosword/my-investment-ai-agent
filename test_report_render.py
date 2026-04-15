@@ -1,5 +1,6 @@
 """Smoke for Jinja Telegram render + structured validation."""
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -709,7 +710,9 @@ def test_render_contains_qsrec_and_passes_structured_gate():
     assert "BTC" in html
     sres = validate_structured_report(report)
     assert sres["valid"], sres["issues"]
-    vhtml = validate_report(html)
+    # 固定樣本新聞為 03/22；本測試重點在 QSREC／結構化 gate，非新聞新鮮度（見 test_news_freshness.py）。
+    with patch.dict(os.environ, {"STRICT_NEWS_FRESHNESS_GATE": "0"}, clear=False):
+        vhtml = validate_report(html)
     assert vhtml["valid"], vhtml["issues"]
 
 
@@ -909,6 +912,74 @@ def test_ensure_btc_ma_dashboard_rows_inserts_after_btc_spot(mock_ext, monkeypat
     assert any("MA20" in lab for lab, _ in labels_vals)
     assert any("MA50" in lab for lab, _ in labels_vals)
     mock_ext.assert_called_once()
+
+
+def test_sync_dashboard_btc_rsi_emoji_matches_scorecard():
+    from report_render import _sync_dashboard_btc_rsi_with_scorecard
+
+    crypto = CryptoSection(
+        report_title_date="2026-04-10",
+        exec_summary=[],
+        market=MarketRegimeBlock(
+            regime="risk_on",
+            score_suffix="（+4/6）",
+            scorecard_lines=[
+                "✅ VIX <code>18.0(<20)</code>→+1 | ✅ BTC RSI <code>55.0(45–65)</code>→+1",
+            ],
+        ),
+        narrative_of_day="n",
+        macro_framework_lines=[],
+        dashboard=[
+            MetricLine(label="BTC RSI(14)", value="55.0", status_emoji="⬜"),
+        ],
+        news=_sample_news_crypto(),
+        x_highlights=[],
+        chatter=[
+            ChatterItem(
+                text="流動性（未確認）｜來源：a｜可信度：B｜主流媒體二次驗證：否"
+            )
+        ],
+        pick_reason="x" * 40,
+        risk_budget_summary="risk_on 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    out = _sync_dashboard_btc_rsi_with_scorecard(crypto)
+    rsi_rows = [r for r in out.dashboard if "RSI" in (r.label or "").upper() and "BTC" in (r.label or "").upper()]
+    assert rsi_rows
+    assert rsi_rows[0].status_emoji == "✅"
+
+
+def test_normalize_btc_ma_citations_aligns_nearby_dollar_to_dashboard():
+    from report_render import _normalize_btc_ma_citations_from_dashboard
+
+    crypto = CryptoSection(
+        report_title_date="2026-04-10",
+        exec_summary=[],
+        market=MarketRegimeBlock(regime="neutral", score_suffix=""),
+        narrative_of_day="BTC MA20 支撐於 $69155.98 附近",
+        macro_framework_lines=[],
+        dashboard=[
+            MetricLine(label="BTC MA20（日線）", value="$69,156.64", status_emoji="⬜"),
+            MetricLine(label="BTC MA50（日線）", value="$68,627.00", status_emoji="⬜"),
+        ],
+        news=_sample_news_crypto(),
+        x_highlights=[],
+        chatter=[
+            ChatterItem(
+                text="流動性（未確認）｜來源：a｜可信度：B｜主流媒體二次驗證：否"
+            )
+        ],
+        pick_reason="x" * 40,
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="a｜b",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    out = _normalize_btc_ma_citations_from_dashboard(crypto)
+    assert "$69,156.64" in (out.narrative_of_day or "")
+    assert "69155.98" not in (out.narrative_of_day or "")
 
 
 def test_ensure_crypto_liquidation_fallback_note_appends_when_absent():

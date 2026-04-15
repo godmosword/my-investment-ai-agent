@@ -542,6 +542,198 @@ def _ensure_btc_ma_dashboard_rows(crypto: CryptoSection) -> CryptoSection:
     return crypto.model_copy(update={"dashboard": merged})
 
 
+def _parse_scorecard_btc_rsi_status_emoji(scorecard_lines: list[str] | None) -> str | None:
+    """Extract ✅/❌/⬜ for the BTC RSI item from regime scorecard (tool or LLM echo).
+
+    Scorecard may be one pipe-joined line or multiple lines; optional ``<code>`` wrappers
+    are stripped before matching.
+    """
+    if not scorecard_lines:
+        return None
+    blob = " | ".join(str(ln or "") for ln in scorecard_lines)
+    blob = re.sub(r"</?code>", "", blob, flags=re.IGNORECASE)
+    m = re.search(r"(✅|❌|⬜)\s*BTC\s*RSI", blob, re.IGNORECASE)
+    return m.group(1) if m else None
+
+
+def _sync_dashboard_btc_rsi_with_scorecard(crypto: CryptoSection) -> CryptoSection:
+    """Align 區塊① BTC RSI row ``status_emoji`` with 【今日市場模式】評分卡 (single audit trail)."""
+    emoji = _parse_scorecard_btc_rsi_status_emoji(list(crypto.market.scorecard_lines or []))
+    if not emoji:
+        return crypto
+    rows = list(crypto.dashboard or [])
+    new_rows: list[MetricLine] = []
+    changed = False
+    for r in rows:
+        if getattr(r, "is_section_header", False):
+            new_rows.append(r)
+            continue
+        lab_u = (r.label or "").upper()
+        if "BTC" in lab_u and "RSI" in lab_u:
+            cur = (r.status_emoji or "").strip()
+            if cur != emoji:
+                new_rows.append(r.model_copy(update={"status_emoji": emoji}))
+                changed = True
+                continue
+        new_rows.append(r)
+    if not changed:
+        return crypto
+    logger.info("dashboard: synced BTC RSI status_emoji to scorecard (%s)", emoji)
+    return crypto.model_copy(update={"dashboard": new_rows})
+
+
+def _btc_ma_canonical_from_dashboard(rows: list[MetricLine]) -> dict[int, tuple[float, str]]:
+    """Map 20|50 -> (float, ``$xx,xxx.xx``) from dashboard MA rows (post-inject)."""
+    out: dict[int, tuple[float, str]] = {}
+    for r in rows or []:
+        if getattr(r, "is_section_header", False):
+            continue
+        lab = r.label or ""
+        m = re.search(r"MA\s*(20|50)\b", lab, re.IGNORECASE)
+        if not m:
+            continue
+        n = int(m.group(1))
+        v = _parse_first_usd_number(r.value or "")
+        if v is None or not (10_000 < v < 500_000):
+            continue
+        out[n] = (v, f"${v:,.2f}")
+    return out
+
+
+def _nearest_ma_band_before_dollar(text: str, dollar_pos: int) -> int | None:
+    """Pick MA20 vs MA50 for a ``$`` price using the closest preceding ``MA`` keyword."""
+    prefix = text[:dollar_pos]
+    last20: int | None = None
+    last50: int | None = None
+    for m in re.finditer(r"\bMA\s*20\b", prefix, re.IGNORECASE):
+        last20 = m.end()
+    for m in re.finditer(r"\bMA\s*50\b", prefix, re.IGNORECASE):
+        last50 = m.end()
+    if last20 is None and last50 is None:
+        return None
+    if last20 is None:
+        return 50
+    if last50 is None:
+        return 20
+    return 20 if last20 > last50 else 50
+
+
+def _ma_price_matches_canonical(val: float, tgt: float) -> bool:
+    if tgt <= 0:
+        return False
+    return abs(val - tgt) / tgt <= 0.003
+
+
+def _normalize_ma_adjacent_usd_prices(text: str, ma_map: dict[int, tuple[float, str]]) -> str:
+    """Rewrite ``$`` amounts that clearly refer to MA20/MA50 to dashboard canonical formatting."""
+    if not text.strip() or not ma_map:
+        return text
+    out: list[str] = []
+    pos = 0
+    for m in re.finditer(r"\$[\d,]+(?:\.\d+)?", text):
+        out.append(text[pos : m.start()])
+        frag = m.group(0)
+        band = _nearest_ma_band_before_dollar(text, m.start())
+        if band is None or band not in ma_map:
+            out.append(frag)
+            pos = m.end()
+            continue
+        tgt, disp = ma_map[band]
+        val = _parse_first_usd_number(frag)
+        if val is not None and _ma_price_matches_canonical(val, tgt):
+            out.append(disp)
+        else:
+            out.append(frag)
+        pos = m.end()
+    out.append(text[pos:])
+    return "".join(out)
+
+
+def _normalize_btc_ma_citations_from_dashboard(crypto: CryptoSection) -> CryptoSection:
+    """Align narrative/news dollar cites near MA20/MA50 with 區塊① dashboard (same source as inject)."""
+    ma_map = _btc_ma_canonical_from_dashboard(list(crypto.dashboard or []))
+    if not ma_map:
+        return crypto
+    updates: dict = {}
+
+    def _maybe(field: str) -> None:
+        cur = getattr(crypto, field, None)
+        if not isinstance(cur, str) or not cur:
+            return
+        new_t = _normalize_ma_adjacent_usd_prices(cur, ma_map)
+        if new_t != cur:
+            updates[field] = new_t
+
+    for fld in (
+        "narrative_of_day",
+        "investment_thesis_one_liner",
+        "narrative_invalidation_summary",
+        "portfolio_framing_summary",
+        "scenario_probability_notes",
+        "crypto_cycle_valuation_notes",
+        "equity_valuation_framing",
+        "pick_reason",
+        "risk_budget_summary",
+        "signal_conflict_summary",
+    ):
+        _maybe(fld)
+
+    for lf in (
+        "exec_summary",
+        "thesis_supporting_points",
+        "thesis_contrary_points",
+        "key_assumptions_lines",
+        "macro_framework_lines",
+    ):
+        cur = getattr(crypto, lf) or []
+        new_lines = [_normalize_ma_adjacent_usd_prices(str(x), ma_map) for x in cur]
+        if new_lines != list(cur):
+            updates[lf] = new_lines
+
+    news_changed = False
+    new_news: list[NewsItem] = []
+    for n in crypto.news or []:
+        kw: dict = {}
+        for attr in ("title", "summary", "investment_takeaway", "editor_consensus"):
+            cur = getattr(n, attr, None) or ""
+            if not isinstance(cur, str):
+                continue
+            new_t = _normalize_ma_adjacent_usd_prices(cur, ma_map)
+            if new_t != cur:
+                kw[attr] = new_t
+        if kw:
+            new_news.append(n.model_copy(update=kw))
+            news_changed = True
+        else:
+            new_news.append(n)
+
+    new_legs: list[ExecutableTradeLeg] = []
+    legs_changed = False
+    for leg in crypto.trade_legs or []:
+        kw = {}
+        for attr in ("narrative", "trigger", "invalidation", "sizing_logic", "liquidity_execution_note"):
+            cur = getattr(leg, attr, None) or ""
+            if not isinstance(cur, str):
+                continue
+            new_t = _normalize_ma_adjacent_usd_prices(cur, ma_map)
+            if new_t != cur:
+                kw[attr] = new_t
+        if kw:
+            new_legs.append(leg.model_copy(update=kw))
+            legs_changed = True
+        else:
+            new_legs.append(leg)
+
+    if not updates and not news_changed and not legs_changed:
+        return crypto
+    if news_changed:
+        updates["news"] = new_news
+    if legs_changed:
+        updates["trade_legs"] = new_legs
+    logger.info("crypto body: normalized MA20/MA50 $ cites to dashboard canonical")
+    return crypto.model_copy(update=updates)
+
+
 def _parse_report_title_date_iso(s: str) -> date | None:
     """Parse CryptoSection.report_title_date (YYYY-MM-DD) for assembly-time guards."""
     raw = (s or "").strip()
@@ -1558,6 +1750,8 @@ def assemble_daily_brief_report(
     if crypto.market.regime in _AGREED_REGIME_TOKENS:
         ai = _fix_us_equity_allocation_misbranded_risk_off(ai, crypto.market.regime)
     crypto = _ensure_btc_ma_dashboard_rows(crypto)
+    crypto = _sync_dashboard_btc_rsi_with_scorecard(crypto)
+    crypto = _normalize_btc_ma_citations_from_dashboard(crypto)
     crypto = _ensure_crypto_liquidation_fallback_note(crypto)
     crypto, ai = _postprocess_brief_data_hygiene(crypto, ai)
     crypto, ai = _coerce_trade_leg_position_pcts(crypto, ai)

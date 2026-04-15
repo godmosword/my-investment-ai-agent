@@ -70,6 +70,7 @@
 - **文件**：[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)（中段定義、切片 M1–M5、驗收語意）。
 
 ### Changed
+- [`report_render.py`](report_render.py)：`assemble_daily_brief_report` 在 MA 儀表列注入後，**以【今日市場模式】評分卡為準**同步 **BTC RSI** 儀表列之 `status_emoji`（✅／❌／⬜）；並將敘事／新聞／交易卡內 **緊鄰 MA20／MA50** 之美元價（與儀表板僅微小差異者）正規化為儀表板同一格式，避免可審計口徑分裂。
 - [`api.py`](api.py)：`report_links.href` 改為前端報告路由 `/report/{date}`，並保留 `api_href` 指向 `/api/reports/{date}`；`_fetch_symbol_ohlc` 新增短 TTL 快取降低 yfinance 重複查詢。
 - [`api.py`](api.py)：CORS `allow_methods` 含 **`PATCH`**（意圖狀態 API）。
 - [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)：新增 `useSymbolSnapshot`（後續 M2 擴充 `livePoll`／`useMutation` 見 `### PWA`）。
@@ -78,6 +79,7 @@
 - [`data-verification-ui/src/App.jsx`](data-verification-ui/src/App.jsx)：`/terminal` 改 **`React.lazy` + `Suspense`**，將 Terminal 頁與 `lightweight-charts` 拆成**獨立 async chunk**（首屏 bundle 減重）。
 
 ### Tests
+- [`test_report_render.py`](test_report_render.py)：評分卡 ↔ 儀表板 **BTC RSI emoji**；**MA20 鄰近 $** 敘事對齊儀表板；QSREC smoke 於 `validate_report` 前 **patch `STRICT_NEWS_FRESHNESS_GATE=0`**，避免本機啟用新鮮度 gate 時與固定 **03/22** 樣本新聞耦合（專項見 [`test_news_freshness.py`](test_news_freshness.py)）。
 - 新增 [`test_api_symbols_snapshot.py`](test_api_symbols_snapshot.py)（成功、symbol 格式錯誤、BigQuery 失敗）。
 - 新增 [`test_execution_intents_api.py`](test_execution_intents_api.py)（allowed-statuses、列表去重、`PATCH` 成功／404）。
 - 驗證：`python3 -m pytest test_api_symbols_snapshot.py test_api_push.py test_execution_intents_api.py test_api_symbol_quote.py`。
