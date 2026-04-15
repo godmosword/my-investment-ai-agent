@@ -4,16 +4,16 @@
 
 ## 1. 區塊順序（加密上半部）
 
-1. 標題（含日期）
+1. 標題（含日期）；**機構固定免責**（`<blockquote>…不構成…`）置於 **【機構速讀｜命題與情境】** 標題**之前**，不再緊接標題後顯示。
 2. 【執行摘要】（若有）
 3. **掃讀順序**一行（模板固定，引導先讀市場模式再讀儀表板）
 4. 【上期建議追蹤】（BQ 權威；LLM 勿改寫）
 5. 【今日市場模式】+ **極簡**評分呈現（✅❌⬜ + 讀數，避免長算式列）
 6. **· 今日主敘事：** 單句（≤45 字），與主 regime 一致
 7. 🏛️ 宏觀框架
-7b. **【預測市場熱門】**（可選）— Polymarket Gamma 即時熱門二元市場；`assemble` 注入 `prediction_market_highlight_lines`；`PREDICTION_MARKETS_IN_BRIEF=0` 可關閉
+7b. **【預測市場熱門】**（可選）— Polymarket Gamma 即時熱門二元市場；`assemble` 注入 `prediction_market_highlight_lines`；`PREDICTION_MARKETS_IN_BRIEF=0` 可關閉。選題：`PREDICTION_MARKETS_KEYWORDS`（逗號分隔，命中題目優先；不足 3 條則退回原 24h 成交量排序）、`PREDICTION_MARKETS_DENYLIST`（逗號分隔，預設含 nba／rebounds 等體育統計向關鍵字）過濾後再排序。
 8. 📊 加密市場：區塊①～④（① 儀表板可含管線注入之分區小標：宏觀／衍生品／鏈上／技術；④ 開頭可有一行 **部位摘要**）
-9. 🤖 AI 市場：區塊①～④（同上）
+9. 🤖 AI 市場：**🤖 區塊①**～④（讀者版抬頭與加密段「區塊①」區分；內容規則同儀表板／新聞／呢喃／精準操作）
 10. 【機構速讀｜命題與情境】— 投資命題、支持·反駁、假設、失效、組合框架、三情境、估值錨、事件日曆（**2–3 條**支持／反駁，投行速讀）
 11. （系統注入）【SourceHealth】等三行 — 置於 **QSREC 前**、`templates/telegram_report.j2`；**勿寫在儀表板內**
 12. `[QSREC_START]` …（與 AI 段 QSREC 合併為同一陣列時由 pipeline 拼接）

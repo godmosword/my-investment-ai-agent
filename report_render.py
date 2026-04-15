@@ -42,6 +42,49 @@ logger = logging.getLogger(__name__)
 
 _AGREED_REGIME_TOKENS = frozenset({"risk_on", "risk_off", "neutral"})
 
+# 標普 500 指數點位誤植（與個股同量級）— 對齊 macro_context / ^GSPC 錨點
+_SPX_LEVEL_AFTER_KEYWORD_RE = re.compile(
+    r"(?:標普\s*500|S&P\s*500)\s*(?:指數)?\D{0,28}"
+    r"([\d]{1,2}(?:,\d{3})+(?:\.\d{1,2})?|\d{3,4}(?:\.\d{1,2})?)",
+    re.IGNORECASE,
+)
+
+
+def sanitize_equity_valuation_framing_spx(text: str, anchor: float | None) -> str:
+    """若錨點可用，將 equity_valuation_framing 內明顯偏離的標普／S&P 500 指數數字改為錨點讀數。"""
+    if not (text and anchor and 2500.0 <= anchor <= 12000.0):
+        return text or ""
+    threshold = anchor * 0.55
+
+    def repl(m: re.Match[str]) -> str:
+        raw = m.group(1).replace(",", "").replace("，", "")
+        try:
+            val = float(raw)
+        except ValueError:
+            return m.group(0)
+        if 80.0 <= val < 3000.0 and val < threshold:
+            fmt = f"{anchor:,.2f}"
+            return m.group(0).replace(m.group(1), fmt, 1)
+        return m.group(0)
+
+    return _SPX_LEVEL_AFTER_KEYWORD_RE.sub(repl, text)
+
+
+def _apply_gspc_anchor_to_equity_framing(crypto: CryptoSection) -> CryptoSection:
+    try:
+        from tools_legacy import fetch_gspc_last_close_anchor  # noqa: PLC0415
+    except Exception:
+        return crypto
+    anchor = fetch_gspc_last_close_anchor()
+    ev = (crypto.equity_valuation_framing or "").strip()
+    if not ev:
+        return crypto
+    fixed = sanitize_equity_valuation_framing_spx(ev, anchor)
+    if fixed != ev:
+        logger.info("equity_valuation_framing: applied ^GSPC anchor sanitize (anchor=%s)", anchor)
+        return crypto.model_copy(update={"equity_valuation_framing": fixed})
+    return crypto
+
 # Telegram HTML whitelist: <b> <i> <blockquote> only here.
 _INSTITUTIONAL_DISCLAIMER_HTML = (
     "<blockquote>"
@@ -1754,6 +1797,7 @@ def assemble_daily_brief_report(
     crypto = _normalize_btc_ma_citations_from_dashboard(crypto)
     crypto = _ensure_crypto_liquidation_fallback_note(crypto)
     crypto, ai = _postprocess_brief_data_hygiene(crypto, ai)
+    crypto = _apply_gspc_anchor_to_equity_framing(crypto)
     crypto, ai = _coerce_trade_leg_position_pcts(crypto, ai)
     ai = _coerce_ai_equity_trade_prices_from_market(ai)
     crypto, ai = _normalize_pick_reason_repeat_headers(crypto, ai)

@@ -5,7 +5,12 @@ from unittest.mock import patch
 
 import pytest
 from report_html_gates import _REPEAT_PICK_REASON_RE
-from report_render import assemble_daily_brief_report, instrument_sections_for_ib_layout, render_telegram_daily_brief
+from report_render import (
+    assemble_daily_brief_report,
+    instrument_sections_for_ib_layout,
+    render_telegram_daily_brief,
+    sanitize_equity_valuation_framing_spx,
+)
 from report_html_gates import validate_report
 from schemas import (
     validate_structured_report,
@@ -354,6 +359,9 @@ def test_assemble_ib_layout_dashboard_groups_and_block4_summary():
     assert "<b>加密部位摘要</b>" in html
     assert "<b>美股部位摘要</b>" in html
     assert "【機構速讀｜命題與情境】" in html
+    assert "🤖 區塊①" in html
+    assert "<blockquote>" in html
+    assert html.find("<blockquote>") < html.find("【機構速讀｜命題與情境】")
     assert "【投資命題】" in html
     assert "【SourceHealth】" in html
     assert "[QSREC_START]" in html
@@ -635,6 +643,63 @@ def test_assemble_prepends_regime_when_risk_budget_has_no_english_token():
     assert "中性體制" in report.crypto.risk_budget_summary
     v = validate_structured_report(report)
     assert v["valid"], v["issues"]
+
+
+def test_sanitize_equity_valuation_framing_spx_replaces_mis_leveled_index():
+    text = "標普500約694與個股現價易混淆；S&P 500 報 695 亦錯。"
+    out = sanitize_equity_valuation_framing_spx(text, 5694.25)
+    assert "約694" not in out and "報 695" not in out
+    assert "5,694.25" in out
+
+
+def test_assemble_applies_gspc_anchor_to_equity_framing(monkeypatch):
+    """assemble 會以 ^GSPC 錨點修正 equity_valuation_framing 內明顯錯誤的標普點位。"""
+    monkeypatch.setattr("tools_legacy.fetch_gspc_last_close_anchor", lambda: 5480.0)
+
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="risk_on", score_suffix="（+4/6）"),
+        narrative_of_day="主敘事",
+        portfolio_framing_summary="組合一句。",
+        scenario_probability_notes="樂觀：…（機率 30%）\n基準：…（機率 45%）\n悲觀：…（機率 25%）",
+        crypto_cycle_valuation_notes="週期一句。",
+        equity_valuation_framing="標普500指數約694點，AI 倍數承壓。",
+        event_calendar_lines=["03/25 NVDA 財報", "03/26 FOMC", "04/01 期權"],
+        macro_framework_lines=["宏觀"],
+        dashboard=[MetricLine(label="DXY", value="104")],
+        news=_sample_news_crypto(),
+        chatter=[ChatterItem(text="呢喃（未確認）｜可信度：B｜主流媒體二次驗證：否")],
+        pick_reason=(
+            "本日選擇理由：現貨 ETF 淨流入與交易所淨流出同向，資金費率支持短線偏多，"
+            "新聞面以 BTC 催化最集中，故以 BTC 為單邊主軸。"
+        ),
+        risk_budget_summary="risk_on 總曝險 60%",
+        signal_conflict_summary="無",
+        trade_legs=[_sample_trade_leg("BTC")],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=["bridge"],
+        dashboard=[MetricLine(label="NVDA yfinance", value="100")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason=(
+            "本日選擇理由：NVDA 與 AMD 於主流新聞同時具備資料中心 CAPEX 與 GPU 拉貨能見度，"
+            "財報前瞻與供應鏈報導形成共振，故兩檔並列為今日美股主倉。"
+        ),
+        signal_conflict_summary="無",
+        trade_legs=[_sample_trade_leg("NVDA")],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert "694" not in (report.crypto.equity_valuation_framing or "")
+    assert "5,480.00" in (report.crypto.equity_valuation_framing or "")
 
 
 def test_qsrec_json_excludes_internal_reasoning():

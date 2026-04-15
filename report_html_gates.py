@@ -1888,6 +1888,33 @@ def _has_ai_trade_section(text: str) -> bool:
     return bool(re.search(r'精準操作.*Equit', text, re.IGNORECASE))
 
 
+def _spx_index_level_suspect_message(html: str) -> str | None:
+    """偵測「標普 500／S&P 500」鄰近出現百位級數字（易與個股混淆）。預設僅 log；STRICT_SPX_LEVEL_SANITY_GATE=1 可升格 blocking。"""
+    if not (html or "").strip():
+        return None
+    plain = re.sub(r"<[^>]+>", " ", html)
+    plain = re.sub(r"\s+", " ", plain)
+    m = re.search(
+        r"(?:標普\s*500|S&P\s*500)\s*(?:指數)?\D{0,28}"
+        r"([\d]{1,2}(?:,\d{3})+(?:\.\d{1,2})?|\d{3,4}(?:\.\d{1,2})?)",
+        plain,
+        re.IGNORECASE,
+    )
+    if not m:
+        return None
+    raw = m.group(1).replace(",", "").replace("，", "")
+    try:
+        v = float(raw)
+    except ValueError:
+        return None
+    if 80.0 <= v < 3000.0:
+        return (
+            "標普／S&P 500 指數鄰近數值疑似量級異常（請對齊 macro_context 之 ^GSPC；"
+            "見 STRICT_SPX_LEVEL_SANITY_GATE）"
+        )
+    return None
+
+
 # ── Gate failure artifacts ────────────────────────────────────────────
 
 
@@ -2184,6 +2211,12 @@ def validate_report(text: str) -> dict:
         issues.append("交易段含 N/A 關鍵價格（現價/進場/目標/停損），不可執行")
     if has_macro_outlier:
         issues.append("宏觀數值疑似異常（10Y/2Y/SOFR/利差超出合理範圍）")
+    spx_suspect_msg = _spx_index_level_suspect_message(text)
+    if spx_suspect_msg:
+        if os.getenv("STRICT_SPX_LEVEL_SANITY_GATE", "0").lower() in ("1", "true", "yes"):
+            issues.append(spx_suspect_msg)
+        else:
+            logger.warning("validate_report: %s — logged only, not blocking", spx_suspect_msg)
     if has_macro_conflict:
         if os.getenv("STRICT_MACRO_CONFLICT_GATE", "0").lower() in ("1", "true", "yes"):
             issues.append("宏觀段落前後矛盾（2Y/利差數值不一致）；請核對或設 STRICT_MACRO_CONFLICT_GATE=0")

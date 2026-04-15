@@ -1,16 +1,11 @@
 <b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {{ crypto.report_title_date|tg_escape }}</i>
 ────────────
-{% if institutional_disclaimer_html %}
-{{ institutional_disclaimer_html }}
-────────────
-{% endif %}
 {% if crypto.exec_summary %}
 <b>📋 【執行摘要】</b>
 {% for line in crypto.exec_summary %}
 → {{ line|tg_escape }}
 
 {% endfor %}
-────────────
 {% endif %}
 <i>掃讀順序</i>：<b>市場模式與主敘事</b> → <b>儀表板／新聞</b> → <b>文末｜投資命題與情境</b> → <b>交易與 QSREC</b>
 ────────────
@@ -85,7 +80,7 @@
 {% if crypto.trade_legs %}
 {% for leg in crypto.trade_legs %}
 {% if not loop.first %}
-────────
+
 {% endif %}
 · <b>${{ (leg.asset|string|strip_usd)|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|strip_usd)|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
@@ -117,7 +112,7 @@
 {% endfor %}
 {% endif %}
 
-<b>區塊①</b>【AI 數據儀表板】
+<b>🤖 區塊①</b>【AI 數據儀表板】
 {% for row in ai.dashboard %}
 {% if row.is_section_header %}
 · <b>{{ row.label|tg_escape }}</b>
@@ -166,7 +161,7 @@
 {% if ai.trade_legs %}
 {% for leg in ai.trade_legs %}
 {% if not loop.first %}
-────────
+
 {% endif %}
 · <b>${{ (leg.asset|string|strip_usd)|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|strip_usd)|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
 
@@ -190,6 +185,9 @@
 {% endif %}
 
 ────────────
+{% if institutional_disclaimer_html %}
+{{ institutional_disclaimer_html }}
+{% endif %}
 {% if crypto.investment_thesis_one_liner or crypto.portfolio_framing_summary or crypto.scenario_probability_notes or crypto.event_calendar_lines %}
 <b>【機構速讀｜命題與情境】</b>
 {% if crypto.investment_thesis_one_liner %}

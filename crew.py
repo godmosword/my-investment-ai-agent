@@ -139,7 +139,7 @@ _FINAL_TEMPLATE_CRYPTO = dedent("""\
 _FINAL_TEMPLATE_AI = dedent("""\
     === 極簡範例（嚴禁輸出除錯字樣） ===
     ══════ <b>🤖 AI 市場</b> ══════
-    區塊①【AI 數據儀表板】（每行獨立，數值用 <code>）
+    🤖 區塊①【AI 數據儀表板】（每行獨立，數值用 <code>）
     區塊②【AI 產業新聞】（3 則，每則含投資解讀 + 💎主編共識）
     區塊③【產業鏈呢喃】（2~3 條）
     區塊④【AI 產業鏈精準操作 (US Equities)】（2 檔，由今日新聞動態選出，含完整風控欄位）
@@ -384,7 +384,7 @@ _INSTITUTIONAL_PHASE_B_RULE = dedent("""\
 _INSTITUTIONAL_PHASE_C_RULE = dedent("""\
     【華爾街級 Phase C｜估值錨、事件日曆、流動性（CryptoSection + trade_legs）】
     - `crypto_cycle_valuation_notes`：1–3 句 ≤220 字——BTC 週期位置與鏈上估值錨（NVT/MVRV 等）對價格含義；數字須與加密儀表板一致。**禁止**「下一次減半／減半前夕／區塊高度 840,000」等敘述（易與已發生事件混淆且非本管線鏈上驗證欄位）；週期僅能寫**工具已回傳**之 MVRV/NVT 或定性「減半後週期」等不含**未來具體日期與高度**之語句。
-    - `equity_valuation_framing`：2–4 句 ≤320 字——AI 權值相對大盤、盈利修正／利率對倍數壓力；勿發明儀表未列之精確本益比。
+    - `equity_valuation_framing`：2–4 句 ≤320 字——AI 權值相對大盤、盈利修正／利率對倍數壓力；勿發明儀表未列之精確本益比。**凡出現「標普 500」「S&P 500」「SPX」之指數點位**，須與當日 `macro_context_tool` 回傳之 **^GSPC 最近收盤** 一致（千分位格式可不同）；若宏觀段為 N/A 則**不得**寫具體指數點位，僅能寫倍數／相對估值敘事。
     - `event_calendar_lines`：**3–6 條**字串，每條 ≤96 字，**每條開頭須含日期**（`MM/DD` 或 `YYYY-MM-DD`）＋事件類型（財報/Fed/期權到期/解鎖等）；僅寫已公告或可核之日程，**禁止捏造**未證實日期。**禁止**列入「BTC 減半／halving／區塊高度 840,000」等未經本管線鏈上高度工具驗證之日程（管線可能逕行移除）；期權名目金額等**僅能**寫入日曆列，**不得**剪貼進無關新聞的 `investment_takeaway`。
     - **每筆** `trade_legs`（加密與美股，可執行腿）須填 `liquidity_execution_note`：一句 ≤100 字——ADV/買賣價差/大額可行性或建議限價區間（定性即可）；加密可寫主要所深度。
     """)
@@ -419,6 +419,7 @@ _TOOL_TRUTH_RULE = dedent(f"""\
     - **美股基本面（精簡）**：營收、淨利、現金流等敘述必須來自 `financial_datasets_tool` 回傳。儀表板 **僅要求 anchor（core）**：{_CREW_FD_CORE_BACKTICK} MetricLine，label 皆含 **`FinancialDatasets`** 與該代號，優先 **營收**、**營收同比%**（次選 **自由現金流**；缺欄則 value=`N/A` 並 ≤20 字原因）。**營收／同比／損益相關列**：`label` **必須**含期間口徑字樣之一（如 `annual`、`quarterly`、`FY`、西元四位年份、`fiscal`、或中文「季報／年報／半年」），避免單一 `$xxxB` 被誤讀為 TAM。**extended watchlist 其餘檔位**：每檔 **至多三行**（同上三指標擇優），避免儀表板過長；禁止整檔濃縮成單行卻在正文大段複述未列示之財務數字。
     - **AI 族群市場（可交易讀數）**：僅能複述 `ai_sector_market_tool` 回傳之 **{_CREW_YF_ENUM}** 各標的收盤與 1D／5D 報酬；每標的一行 MetricLine，**label 須含 ticker 與「yfinance」** 字樣；禁止發明股價或報酬。
     - AI 儀表板（HuggingFace／OpenRouter／RSS）：**敘事參考、非股價訊號**；禁止發明工具未提供的欄位，**嚴禁**出現以下字樣作為指標名：「AI Token Market Cap」「OpenRouter API Request Rank」「OpenRouter Request Vol」「AI Sector Sentiment」「Error Rate（排行）」；**至多兩行**；僅能複述 `ai_momentum_tool` 回傳中 **排序最前之一至二則** 模型行或 RSS 備援標題（勿列 Top5）；缺資料則單行 value=`N/A`（≤30 字原因）—不得捏造數字。
+    - **HF／OpenRouter 數字與 watchlist**：若儀表板行或正文引用 HuggingFace 下載／按讚／排名等**具體數字**，**同一行或緊接下一行**須一句點明與當輪 **yfinance 族群或 FinancialDatasets core** 中至少一檔標的之**產業／雲端／推理需求鏈路**；無法一句連結者 **勿寫數字**，改質性句（例：「開源推理模型熱度仍高」）。
     - **預測市場**：`prediction_markets_tool` 提供 Polymarket 熱門二元市場之 **Yes 隱含機率與成交量級**；`prediction_market_highlight_lines` **建議留空**（管線組裝時自動注入）。若自填，須與工具回傳逐字一致；**禁止**臆造機率或平台。""")
 
 _NEWS_FMT = dedent("""\
@@ -435,6 +436,7 @@ _NEWS_FMT = dedent("""\
     - editor_consensus：1 句（≤28 字）且點名具體標的；**禁止**以 `$TICKER` 點名未出現於本輪 **AI 區塊④ trade_legs 或 QSREC（EQUITY）** 之股票（可改寫「RWA 板塊／敘事標的」而不點名小幣股代號）。
     - **pricing_note（Phase B）**：每則必填，僅能為「未定價／增量資訊」「大致已定價」「已高度反應」之一；標註該事件相對現價是否已充分反應。
     - **跨板塊新聞**：單則若同時涉及加密與美股／AI，必須一句寫明傳導鏈（風險偏好、資金流、beta 等）；禁止無機制硬接。
+    - **單標的微結構與 DXY**：主體若為單一代幣／RWA／Defi 事件（如代幣解鎖、單一協議流動性），`investment_takeaway` **禁止**以 **DXY／美元指數** 作為**唯一或壓倒性主因**（除非該則 title／summary 或宏觀工具已明確含匯率／美元流動性事件）；需宏觀框定時改寫「見上方宏觀框架」或改寫與該資產直接相關之監管／流動性因素。
     - 禁止輸出任何 HTML/Markdown 標籤與排版符號，僅輸出可映射 schema 的純文字欄位值。""")
 
 _DASHBOARD_FMT = dedent(f"""\
@@ -618,6 +620,7 @@ _BRIEF_V2_RULE = dedent("""\
        ✅ 正確：「· 備註：第三方 API 暫未提供最新下載數據」
        ❌ 錯誤：「· 備註：數據源正常回傳 N/A」或「API 失敗」
     4) 【Source 三行】區塊①儀表板內禁止輸出整行【SourceHealth】/【SourceErrors】/【SourceQuota】；pipeline 僅於後台 logger 記錄，讀者版 Telegram 不顯示。儀表板內若要交代資料健康，僅能用一句自然語言。
+    5) 【讀者版標題】Telegram 中 AI 儀表板抬頭為「🤖 區塊①」；加密段維持「區塊①」以利掃讀區分。
     """)
 
 _AI_RISK_BRIDGE_RULE = dedent("""\

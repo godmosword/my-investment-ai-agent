@@ -922,6 +922,7 @@ def ai_sector_market_tool(query: str = "") -> str:
 def ai_momentum_tool(metric: str = "openrouter_rankings") -> str:
     """
     取得 AI 開源模型熱度排名（敘事參考；非股價）。
+    戰報中若複述下載／按讚等數字，須與 AI watchlist（yfinance／FD）一句鏈路，否則主編應省略數字（見 crew `_TOOL_TRUTH_RULE`）。
     策略 A：HuggingFace 官方 API（預設趨勢→按讚→下載；metric 含 download 時改以下載優先）。
     策略 B：OpenRouter API（需 OPENROUTER_API_KEY，模型清單順序）。
     策略 C：AI RSS 備援（近 48h 熱門 AI 新聞標題）。
@@ -3426,7 +3427,21 @@ def fetch_polymarket_hot_highlight_lines(*, limit_events: int = 40, top_n: int =
         ]
     n_ev = max(10, min(int(limit_events), 80))
     n_top = max(3, min(int(top_n), 8))
-    cache_key = ("polymarket_hot", str(n_ev), str(n_top))
+    deny_terms = [
+        x.strip().lower()
+        for x in (os.getenv("PREDICTION_MARKETS_DENYLIST") or "nba,nfl,rebounds,assists,touchdown").split(",")
+        if x.strip()
+    ]
+    keywords = [
+        x.strip() for x in (os.getenv("PREDICTION_MARKETS_KEYWORDS") or "").split(",") if x.strip()
+    ]
+    cache_key = (
+        "polymarket_hot",
+        str(n_ev),
+        str(n_top),
+        ",".join(keywords),
+        ",".join(deny_terms),
+    )
     cached = _get_cache(cache_key)
     if cached:
         try:
@@ -3493,27 +3508,60 @@ def fetch_polymarket_hot_highlight_lines(*, limit_events: int = 40, top_n: int =
             scored.append((vol, yes, q))
 
     scored.sort(key=lambda t: t[0], reverse=True)
+
+    def _question_denied(q: str) -> bool:
+        low = q.lower()
+        return any(d in low for d in deny_terms)
+
+    def _keyword_hit(q: str) -> bool:
+        if not keywords:
+            return True
+        low = q.lower()
+        return any(k.lower() in low for k in keywords)
+
+    scored_ok = [(v, y, q) for v, y, q in scored if not _question_denied(q)]
+    if not scored_ok:
+        scored_ok = list(scored)
+    kw_pool = [(v, y, q) for v, y, q in scored_ok if _keyword_hit(q)]
+    if keywords and len(kw_pool) >= 3:
+        pick_pool = kw_pool
+    else:
+        pick_pool = scored_ok
+
     lines: list[str] = []
-    for vol, yes, q in scored[:n_top]:
+    used_q: set[str] = set()
+
+    def _append_line(vol: float, yes: float, q: str, *, with_vol: bool) -> None:
+        if q in used_q:
+            return
+        used_q.add(q)
         pct = yes * 100.0
         q_short = q if len(q) <= 88 else q[:85] + "…"
-        if vol >= 1_000_000:
-            vs = f"{vol / 1_000_000:.2f}M"
-        elif vol >= 1_000:
-            vs = f"{vol / 1_000:.1f}K"
+        if with_vol:
+            if vol >= 1_000_000:
+                vs = f"{vol / 1_000_000:.2f}M"
+            elif vol >= 1_000:
+                vs = f"{vol / 1_000:.1f}K"
+            else:
+                vs = f"{vol:.0f}"
+            lines.append(f"Polymarket Yes≈{pct:.1f}%｜24h量≈${vs}｜{q_short}")
         else:
-            vs = f"{vol:.0f}"
-        lines.append(
-            f"Polymarket Yes≈{pct:.1f}%｜24h量≈${vs}｜{q_short}"
-        )
+            lines.append(f"Polymarket Yes≈{pct:.1f}%｜{q_short}")
 
-    if len(lines) < 3 and scored:
-        for vol, yes, q in scored[n_top : n_top + 4]:
+    for vol, yes, q in pick_pool[:n_top]:
+        _append_line(vol, yes, q, with_vol=True)
+
+    if len(lines) < 3 and pick_pool:
+        for vol, yes, q in pick_pool[n_top : n_top + 8]:
             if len(lines) >= 3:
                 break
-            pct = yes * 100.0
-            q_short = q if len(q) <= 88 else q[:85] + "…"
-            lines.append(f"Polymarket Yes≈{pct:.1f}%｜{q_short}")
+            _append_line(vol, yes, q, with_vol=False)
+
+    if len(lines) < 3 and scored:
+        for vol, yes, q in scored:
+            if len(lines) >= 3:
+                break
+            _append_line(vol, yes, q, with_vol=False)
 
     if lines:
         _set_cache(cache_key, json.dumps(lines, ensure_ascii=False))
@@ -3558,6 +3606,58 @@ def prediction_markets_tool(query: str = "") -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════
+# S&P 500（^GSPC）收盤錨點 — macro_context 與 equity_valuation_framing 後處理共用
+# ═══════════════════════════════════════════════════════════════════
+
+_GSPC_ANCHOR_MIN = 1500.0
+_GSPC_ANCHOR_MAX = 12000.0
+
+
+def fetch_gspc_last_close_anchor() -> float | None:
+    """最近一筆 ^GSPC 日線收盤（yfinance），供宏觀區與 `equity_valuation_framing` 敘述錨定。"""
+    cache_key = ("gspc_anchor_close", "v1")
+    cached = _get_cache(cache_key)
+    if cached:
+        try:
+            payload = json.loads(cached)
+            v = payload.get("close")
+            if isinstance(v, (int, float)):
+                fv = float(v)
+                if _GSPC_ANCHOR_MIN <= fv <= _GSPC_ANCHOR_MAX:
+                    return fv
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+    try:
+        df = _yf_download_with_timeout(
+            "^GSPC", period="7d", interval="1d", progress=False, auto_adjust=True
+        )
+    except Exception as e:
+        logger.warning("gspc anchor yfinance failed: %s", e)
+        return None
+    if df is None or df.empty:
+        return None
+    c = df["Close"].dropna()
+    if hasattr(c, "ndim") and c.ndim > 1:
+        c = c.iloc[:, 0]
+    if c.empty:
+        return None
+    for back in range(min(5, len(c))):
+        idx = len(c) - 1 - back
+        try:
+            raw = float(c.iloc[idx])
+        except (TypeError, ValueError):
+            continue
+        if _GSPC_ANCHOR_MIN <= raw <= _GSPC_ANCHOR_MAX:
+            out = round(raw, 2)
+            try:
+                _set_cache(cache_key, json.dumps({"close": out}))
+            except Exception:
+                pass
+            return out
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════
 # Macro Context Tool（美債利率、殖利率曲線、Fed 期貨、本週財報）
 # ═══════════════════════════════════════════════════════════════════
 
@@ -3569,7 +3669,8 @@ def macro_context_tool(query: str = "") -> str:
     """
 
     def _run() -> str:
-        cache_key = ("macro_context", "latest")
+        # v3：含 ^GSPC 指數錨點行（與 fetch_gspc_last_close_anchor 同源邏輯）
+        cache_key = ("macro_context", "latest_v3_gspc")
         cached = _get_cache(cache_key)
         if cached:
             return _append_data_as_of(cached, "macro_context")
@@ -3685,6 +3786,19 @@ def macro_context_tool(query: str = "") -> str:
             curve_signal = ""
 
         lines.append(f"🏛️ 美債 10Y: <code>{y10_str}</code> | 2Y: <code>{y2_str}</code> | 利差: <code>{spread_str}</code> {curve_signal}")
+
+        # ── 1b. S&P 500 指數錨點（^GSPC；equity_valuation_framing 須對齊）──
+        gspc_close = fetch_gspc_last_close_anchor()
+        if gspc_close is not None:
+            lines.append(
+                f"📊 S&P 500（^GSPC 最近收盤，yfinance）: <code>{gspc_close:,.2f}</code> "
+                "｜正文寫「標普 500／S&P 500／SPX」指數點位須與此一致；缺值則勿寫具體點位。"
+            )
+        else:
+            lines.append(
+                "📊 S&P 500（^GSPC 最近收盤，yfinance）: <code>N/A</code> "
+                "｜指數點位敘述請省略或寫相對估值，勿臆測數字。"
+            )
 
         # ── 2. Fed SOFR 期貨隱含預期 ─────────────────────────────────────
         _SOFR_MIN, _SOFR_MAX = -0.5, 25.0
