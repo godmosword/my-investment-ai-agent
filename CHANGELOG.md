@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-27
+
+### Changed
+- **日報 Telegram 模板 Phase 2（`REPORT_PROFILE`、profiles、`brief_profiles`）**：新增 [`brief_profiles.py`](brief_profiles.py) — `BLOCK_IDS`、`PROFILES`（`full`／`lite`／`crypto-only` 佔位）、`BLOCK_REGISTRY`、`get_active_profile()`／`telegram_profile_template_relpath()`；[`templates/profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)（等同 Phase 1 完整組裝）、[`templates/profiles/telegram_lite.j2`](templates/profiles/telegram_lite.j2)（精簡版型）；[`templates/blocks/_crypto_trades_only.j2`](templates/blocks/_crypto_trades_only.j2)、[`templates/blocks/_ai_trades_only.j2`](templates/blocks/_ai_trades_only.j2) 供 `lite` 重用區塊④。[`templates/telegram_report.j2`](templates/telegram_report.j2) 改為 `{% include "profiles/telegram_full.j2" %}`。[`report_render.render_telegram_daily_brief`](report_render.py) 支援 **`profile=`** 並讀 **`REPORT_PROFILE`**（預設 `full`）。**等價**：`full` 仍對 [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2) **byte-identical**（`test_telegram_template_modularization` + [`test_brief_profiles.py`](test_brief_profiles.py)）。環境變數見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
+
 ## 2026-04-26
 
 ### Changed

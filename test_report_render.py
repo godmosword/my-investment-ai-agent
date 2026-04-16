@@ -829,9 +829,9 @@ def test_render_raises_helpful_error_on_missing_template():
     report = _minimal_report()
     with patch.object(
         jinja2.Environment, "get_template",
-        side_effect=jinja2.TemplateNotFound("telegram_report.j2"),
+        side_effect=jinja2.TemplateNotFound("profiles/telegram_full.j2"),
     ):
-        with pytest.raises(RuntimeError, match="telegram_report.j2"):
+        with pytest.raises(RuntimeError, match="profiles/telegram_full.j2"):
             render_telegram_daily_brief(report)
 
 
@@ -844,7 +844,7 @@ def test_render_raises_helpful_error_on_template_syntax_error():
     broken_tmpl = MagicMock()
     broken_tmpl.render.side_effect = jinja2.TemplateError("unexpected end of template")
     with patch.object(jinja2.Environment, "get_template", return_value=broken_tmpl):
-        with pytest.raises(RuntimeError, match="telegram_report.j2"):
+        with pytest.raises(RuntimeError, match="profiles/telegram_full.j2"):
             render_telegram_daily_brief(report)
 
 

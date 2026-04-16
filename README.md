@@ -152,7 +152,7 @@ flowchart TB
 | [`graph/`](graph/) | 可選狀態機與工具橋接 |
 | [`tools/`](tools/) · [`tools_legacy.py`](tools_legacy.py) | 市場／新聞／鏈上工具；`MOCK_APIS` 見 ADR |
 | [`schemas.py`](schemas.py) | `DailyBriefReport`、QSREC、結構化驗證 |
-| [`report_render.py`](report_render.py) · [`templates/telegram_report.j2`](templates/telegram_report.j2) | 組裝與 HTML |
+| [`report_render.py`](report_render.py) · [`templates/telegram_report.j2`](templates/telegram_report.j2) · [`templates/profiles/`](templates/profiles/) · [`brief_profiles.py`](brief_profiles.py) | 組裝與 Telegram HTML；可選 **`REPORT_PROFILE=lite`**（預設 `full`，與凍結基線 **byte-identical**；見 `ENV_TEMPLATE.txt`） |
 | [`report_html_gates.py`](report_html_gates.py) | `validate_report` |
 | [`telegram_sender.py`](telegram_sender.py) · [`bigquery_writer.py`](bigquery_writer.py) | 推送、metrics、`write_gate_failure_log` |
 | [`api.py`](api.py) · [`dashboard.py`](dashboard.py) | FastAPI、Streamlit |

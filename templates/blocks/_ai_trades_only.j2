@@ -1,0 +1,37 @@
+{% macro telegram_ai_trades_only(crypto, ai) %}
+<b>區塊④</b>【AI 產業鏈精準操作 (US Equities)】
+{% if ai.ai_block4_recommendation_line %}
+{{ ai.ai_block4_recommendation_line }}
+{% endif %}
+本日選擇理由：{{ ai.pick_reason|tg_soft_wrap_mobile }}
+訊號衝突摘要：{{ ai.signal_conflict_summary|tg_soft_wrap_mobile }}
+{% if ai.us_equity_allocation_note %}
+· <b>美股部位框</b>：{{ ai.us_equity_allocation_note|tg_escape }}
+{% endif %}
+{% if ai.trade_legs %}
+{% for leg in ai.trade_legs %}
+{% if not loop.first %}
+
+{% endif %}
+· <b>${{ (leg.asset|string|strip_usd)|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|strip_usd)|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+
+· <b>計畫</b>：進場 <code>{{ (leg.entry|string|strip_usd)|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|strip_usd)|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|strip_usd)|tg_escape }}</code>（建議倉位 {{ (leg.position_pct|string|strip_usd)|tg_escape }}）
+
+· <b>執行</b>：{{ (leg.trigger|default('', true)|string|strip_usd)|replace('。。', '。')|tg_escape }}
+{% if leg.invalidation %}
+· <b>失效</b>：{{ leg.invalidation|clean_invalidation|tg_escape }}
+{% endif %}
+
+· <b>敘事</b>：{{ leg.narrative|tg_escape }}
+{% if leg.liquidity_execution_note %}
+· <b>流動性／執行</b>：{{ leg.liquidity_execution_note|tg_escape }}
+{% endif %}
+
+{% endfor %}
+{% else %}
+· <b>觀望模式</b>：資料不足觀望，暫不提供股票進出場價格。
+· 風險預算：依 <code>{{ crypto.market.regime }}</code> 模式執行防守配置，避免情緒性追價。
+· 重新進場條件：需補齊產業催化、成交量與多時框確認後再發布可執行建議。
+{% endif %}
+
+{% endmacro %}
