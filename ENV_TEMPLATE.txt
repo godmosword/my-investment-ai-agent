@@ -62,7 +62,7 @@ FINANCIAL_DATASETS_API_KEY=
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 # TELEGRAM_REPORT_HISTORY_URL=https://your-pwa.example/archive  # 非空時首則戰報附「查看歷史」inline 連結
-# REPORT_PROFILE=full   # 日報 Telegram 版型：`full`（預設，與 Phase 0 **byte-identical**）｜`lite`（精簡：無上期／宏觀／預測市場／儀表板與新聞／呢喃／機構速讀；僅市場模式 + 雙邊區塊④ + QSREC 尾段）。`crypto-only` 保留至 Phase 4。
+# REPORT_PROFILE=full   # 日報 Telegram 版型：`full`（預設，與 Phase 0 **byte-identical**）｜`lite`（精簡：無上期／宏觀／預測市場／儀表板與新聞／呢喃／機構速讀；僅市場模式 + 雙邊區塊④ + QSREC 尾段）。`crypto-only` 保留至 Phase 4。亦驅動 `validate_report(..., profile=)`（`lite` 放寬四區塊／新聞 Gate；機構 Phase A/B/C **HTML** 不檢；見 `report_html_gates.py`）。
 
 # ---------- GCP / BigQuery（選填，預設專案名見下）----------
 GCP_PROJECT_ID=my-investment-ai-agent
