@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-26
+
+### Docs
+- **日報區塊模組化 — 產品與交付原則**：[`modularization_plan.md`](modularization_plan.md) 新增 **產品與交付原則** 一節 — **過渡期** production 固定 **`full`／等價門檻**、新版型僅 staging／手動、**單一資料管線**不變；**完成後** 以 `REPORT_PROFILE`、`BLOCK_REGISTRY`、可選 YAML、profile-aware Gate、BQ `profile` 支援 **組織級客製**。閱讀地圖編號順延。**僅文件**；`templates/` 與 `main.py` **尚未**依計畫改動。
+
 ## 2026-04-25
 
 ### Docs
