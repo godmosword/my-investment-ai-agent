@@ -3,12 +3,13 @@
 ## 閱讀地圖（建議順序）
 
 1. **[目標：短／中／長期](#目標短期--中期--長期)** — 交付節奏與願景  
-2. **[五個 Phase 總覽](#五個-phase-總覽)** — 實作主軸一頁表  
-3. **[Phase 1–5 詳情與可切片任務](#phase-1模板原子化)** — 開發與 PR 切法  
-4. **[架構三層與 Registry](#架構三層與-registry)** — Jinja2／程式／Gate  
-5. **[版型與區塊行為](#版型與區塊行為)** — Profile、互動、Lite 版面、Gate 設計  
-6. **[決策附錄](#附錄-a外部方案對照grok)** — Grok、一區塊一 Agent、時事多觀點  
-7. **[Critical Files](#critical-files)**、**[Verification](#verification)**、**[NOT in Scope](#not-in-scope)**
+2. **[產品與交付原則](#產品與交付原則)** — 過渡期不影響日報產出、完成後組織級客製  
+3. **[五個 Phase 總覽](#五個-phase-總覽)** — 實作主軸一頁表  
+4. **[Phase 1–5 詳情與可切片任務](#phase-1模板原子化)** — 開發與 PR 切法  
+5. **[架構三層與 Registry](#架構三層與-registry)** — Jinja2／程式／Gate  
+6. **[版型與區塊行為](#版型與區塊行為)** — Profile、互動、Lite 版面、Gate 設計  
+7. **[決策附錄](#附錄-a外部方案對照grok)** — Grok、一區塊一 Agent、時事多觀點  
+8. **[Critical Files](#critical-files)**、**[Verification](#verification)**、**[NOT in Scope](#not-in-scope)**
 
 ---
 
@@ -21,6 +22,33 @@
 **Intended outcome:** 以 **named profile**（`full` / `lite` / `crypto-only` 等）驅動有序 **block_id** 列表；每區塊獨立 Jinja2 macro；`validate_report` **profile-aware**；資料仍由既有 `assemble`／tools 注入（首階段不在區塊內第二套抓數）。語氣差異首階段靠 **Crew 提示詞 + profile 可見區塊**；每使用者即時選 tone 見 [NOT in Scope](#not-in-scope)。
 
 **設計成熟度（內部評分）：** 概念由約 4/10 收斂至 **8/10**（區塊粒度、profile 開關、lite 內容、Gate 策略、掃讀 hint 已定）。
+
+---
+
+## 產品與交付原則
+
+本節為 **產品／工程對齊用** 的成功定義：模組化 **過程中** 預設讀者無感；**完成後** 同一套引擎可支援 **組織級** 版型與區塊組合（非第二條獨立資料管線，除非另做產品決策）。
+
+### 過渡期（模組化進行中）— 不影響日報產出
+
+1. **預設路徑鎖定現行行為**：在 Phase 1 與 Phase 2 的 **`full` 等價**驗收通過前，**正式環境**只走與今日管線等價之組裝。若已引入 `REPORT_PROFILE`，**production 固定 `full`**（或由程式內預設 `full`，非必要不切換）。
+2. **等價為合併門檻**：Phase 1 拆 macro 後須通過計畫內 **golden／byte-identical 或專案約定之 diff 收斂**，並搭配 `pytest -m smoke` 與 `validate_report`，避免空白、條件分支或縮排差異造成 Gate 或 Telegram 呈現漂移。
+3. **新版型僅先離線驗證**：`lite`、`crypto-only`、可選 YAML layout、新區塊等，**不**在未驗證前綁定 production cron；僅 **staging／手動**或明確試驗排程啟用。
+4. **單一資料管線**：模組化過程 **不** 改變既有 `assemble`／tools 注入契約；組織差異先落在 **模板／profile／組裝順序**，避免客觀數字與敘事來源與現行分叉（對齊專案「無數據幻覺」紅線）。
+
+### 完成後 — 日報產出可組織級客製
+
+於 Phase 2–4 落地並驗收後，組織可依下列機制差異化（細節見 [五個 Phase 總覽](#五個-phase-總覽)、[Phase 4](#phase-4擴充版型與配置驅動)）：
+
+| 機制 | 作用 |
+|------|------|
+| **`REPORT_PROFILE`**（`full`／`lite`／`crypto-only`） | 選擇讀本厚度與區塊集合。 |
+| **`BLOCK_REGISTRY`** + **`templates/blocks/*.j2`** | 區塊級責任邊界與替換，PR 範圍縮小。 |
+| **可選 `config/brief_layouts/*.yaml`**（白名單） | 覆寫內建 `PROFILES` 的 block 順序與開關。 |
+| **`validate_report(..., profile=)`**（Phase 3） | 避免 `lite` 被僅適用 `full` 之機構 Gate 誤擋。 |
+| **BQ `profile` 欄位**（Phase 4） | 營運稽核各版型實際使用情形。 |
+
+**仍非本計畫預設交付**：每使用者即時 tone、run 中切 profile、未經產品決策即擴充超過三個內建 profile 等 — 見 [NOT in Scope](#not-in-scope)。
 
 ---
 
