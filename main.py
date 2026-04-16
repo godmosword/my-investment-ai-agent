@@ -11,6 +11,7 @@ import yfinance as yf
 from pathlib import Path
 
 from crew import AIResearchCrew, CryptoResearchCrew
+from brief_profiles import get_active_profile
 from report_html_postprocess import post_process_html_for_gate
 from report_render import assemble_daily_brief_report, render_telegram_daily_brief
 from schemas import (
@@ -342,7 +343,7 @@ def _validate_report_candidate(text: str) -> dict:
     """
     from report_html_gates import validate_report as _vr
 
-    return _vr(text)
+    return _vr(text, profile=get_active_profile())
 
 
 def _log_validation_dual_run(final_report: str, legacy_result: dict) -> None:
@@ -741,7 +742,7 @@ def _run_pipeline_once(
             report_tier_partial_news=partial_tier,
             agreed_regime=agreed_regime,
         )
-        html = render_telegram_daily_brief(report_model)
+        html = render_telegram_daily_brief(report_model, profile=get_active_profile())
         html = post_process_html_for_gate(html, agreed_regime=agreed_regime)
         return html, None, report_model
     except Exception as e:
@@ -872,7 +873,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     structural_validation_err,
                 )
 
-            result = validate_report(final_report)
+            result = validate_report(final_report, profile=get_active_profile())
             # Structured business rules enforced at DailyBriefReport construction (schemas).
             _log_validation_dual_run(final_report, result)
             last_validation = result
@@ -1243,7 +1244,11 @@ if __name__ == "__main__":
     gate_artifact_rel: str | None = None
     if not report_valid and final_report and (not final_report.startswith("🚨")):
         try:
-            inv = validation_result if validation_result is not None else validate_report(final_report)
+            inv = (
+                validation_result
+                if validation_result is not None
+                else validate_report(final_report, profile=get_active_profile())
+            )
             gate_issues_full = [i for i in inv.get("issues", []) if i]
             invalid_issues_preview = " | ".join(gate_issues_full[:3])
             art_path = _persist_gate_validation_failure(final_report, inv)

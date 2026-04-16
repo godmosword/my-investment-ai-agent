@@ -128,10 +128,10 @@ templates/
 
 | 切片 | 內容 | 驗收 |
 |------|------|------|
-| 3a | `validate_report(text, *, profile="full")`；`_phase_a/b/c_gate_required(profile)` | 簽名與呼叫點更新 |
-| 3b | `main.py` 傳 `profile` 進 validate | 整合測試 |
-| 3c | `_check_profile_block_consistency(text, profile)` | lite 不含機構區時不報錯 |
-| 3d | 測試：`REPORT_PROFILE=lite` + `STRICT_INSTITUTIONAL_PHASE_A_GATE=1` 不誤擋 | `pytest -m smoke` |
+| 3a | `validate_report(text, *, profile="full")`；lite 時跳過機構 Phase A/B/C HTML 檢查 | **已落地**（[`report_html_gates.py`](report_html_gates.py)；回傳含 **`profile`**） |
+| 3b | `main.py` 傳 `profile` 進 `validate_report`／`render_telegram_daily_brief`；`_validate_report_candidate` 同步 | **已落地**（[`main.py`](main.py)） |
+| 3c | `_check_profile_block_consistency(text, profile)` | **已落地**（lite 誤用 full HTML 時 blocking） |
+| 3d | 測試：`REPORT_PROFILE=lite` + `STRICT_INSTITUTIONAL_PHASE_A/B/C_GATE=1` 不誤擋 | **已落地**（[`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py)，`pytest -m smoke`） |
 
 ---
 
@@ -294,7 +294,8 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 | `test_brief_profiles.py` | 2 |
 | `config/brief_layouts/*.yaml` | 4 |
 | `report_render.py` | 1–2（`build_telegram_jinja_env`／`telegram_render_context`／`render_telegram_daily_brief(..., profile=)`） |
-| `report_html_gates.py` | 3 |
+| `report_html_gates.py` | 3（`validate_report(..., profile=)`、lite 放寬、`_check_profile_block_consistency`） |
+| `test_validate_report_profile_phase3.py` | 3 |
 | `main.py` | 2–3 |
 | `schemas.py` / `crew.py` / `graph/*` | 5 |
 | `docs/DAILY_BRIEF_V2.md` | 5 |
@@ -307,9 +308,10 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 ruff check .
 python3 -m pytest -m smoke -v
 python3 -m pytest test_brief_profiles.py -v   # Phase 2：full byte-identical + lite 精簡斷言
+python3 -m pytest test_validate_report_profile_phase3.py -v   # Phase 3：profile Gate + full 等價
 REPORT_PROFILE=full SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py   # 與重構前等價檢查
 REPORT_PROFILE=lite SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py
-REPORT_PROFILE=lite STRICT_INSTITUTIONAL_PHASE_A_GATE=1 python3 -m pytest -m smoke -v
+REPORT_PROFILE=lite STRICT_INSTITUTIONAL_PHASE_A_GATE=1 python3 -m pytest test_validate_report_profile_phase3.py -v
 ```
 
 ---

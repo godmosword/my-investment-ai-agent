@@ -15,6 +15,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from brief_profiles import get_active_profile
 from config import PROJECT_ID, RECOMMENDATIONS_TABLE
 from telegram_sender import strip_html
 from validation_rules import (
@@ -1974,8 +1975,34 @@ def _persist_gate_validation_failure(report_text: str, validation: dict) -> Path
 # ── 主驗證函式 ────────────────────────────────────────────────────────
 
 
-def validate_report(text: str) -> dict:
-    """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。"""
+def _check_profile_block_consistency(text: str, profile: str) -> tuple[bool, str]:
+    """Lightweight sanity: lite 不應含 full-only 大段（防模板誤切）。
+
+    失敗時回 (False, issue)；通過 (True, "")。
+    """
+    p = (profile or "full").strip().lower()
+    if p != "lite":
+        return True, ""
+    if "══════" in text and "📊 加密市場" in text:
+        return False, "lite 版型不應含完整「══════ … 加密市場」儀表板標題區"
+    if "🤖 AI 市場" in text:
+        return False, "lite 版型不應含「🤖 AI 市場」全段"
+    if "【機構速讀｜命題與情境】" in text:
+        return False, "lite 版型不應含【機構速讀｜命題與情境】"
+    return True, ""
+
+
+def validate_report(text: str, *, profile: str | None = None) -> dict:
+    """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。
+
+    ``profile`` 對齊 ``REPORT_PROFILE`` / ``brief_profiles.get_active_profile``：
+    - ``full``（預設）：行為與未導入 profile 參數前一致（**等價**）。
+    - ``lite``：放寬「四區塊」結構檢查（無儀表板／新聞／呢喃／AI 全段），且 **即使**
+      ``STRICT_INSTITUTIONAL_PHASE_*_GATE=1`` 亦不檢查機構 Phase A/B/C HTML（該區塊不在 lite 模板內）。
+    """
+    active_profile = get_active_profile(profile)
+    is_lite = active_profile == "lite"
+
     news_count = _count_effective_news_items(text)
     fallback_count = _fallback_news_count(text)
 
@@ -1986,6 +2013,11 @@ def validate_report(text: str) -> dict:
     has_ai_trade = _has_ai_trade_section(text)
     has_ai_section = bool(HAS_AI_SECTION_RE.search(text))
     has_crypto_section = bool(HAS_CRYPTO_SECTION_RE.search(text))
+    if is_lite:
+        # Lite 僅渲染市場模式 + 雙邊區塊④；略過「須含儀表板／加密+AI 全段／呢喃」等 full 結構前提。
+        has_dashboard = True
+        has_crypto_section = True
+        has_ai_section = True
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
     has_data_missing = bool(HAS_DATA_MISSING_RE.search(text))
     data_missing_fields = sorted(set(DATA_MISSING_FIELDS_RE.findall(text)))
@@ -2020,9 +2052,15 @@ def validate_report(text: str) -> dict:
         text, report_dt=_fresh_anchor
     )
     exec_summary_ok, exec_summary_err = _exec_summary_html_ok(text)
-    phase_a_ok, phase_a_err = _institutional_phase_a_html_ok(text)
-    phase_b_ok, phase_b_err = _institutional_phase_b_html_ok(text)
-    phase_c_ok, phase_c_err = _institutional_phase_c_html_ok(text)
+    if is_lite:
+        # Lite 模板不含機構速讀區塊；勿套用 Phase A/B/C HTML 強檢（即使 env 開啟 strict）。
+        phase_a_ok, phase_a_err = True, ""
+        phase_b_ok, phase_b_err = True, ""
+        phase_c_ok, phase_c_err = True, ""
+    else:
+        phase_a_ok, phase_a_err = _institutional_phase_a_html_ok(text)
+        phase_b_ok, phase_b_err = _institutional_phase_b_html_ok(text)
+        phase_c_ok, phase_c_err = _institutional_phase_c_html_ok(text)
     too_many_na = len(NA_TOKEN_RE.findall(text)) > 3
     has_low_confidence_tag = bool(HAS_LOW_CONFIDENCE_RE.search(text))
     has_missing_reason_proxy = bool(_MISSING_REASON_PROXY_RE.search(text))
@@ -2096,37 +2134,47 @@ def validate_report(text: str) -> dict:
         )
 
     fund_cite_ok, fund_cite_err = True, ""
-    if _strict_ai_fundamentals_citation():
+    if _strict_ai_fundamentals_citation() and (not is_lite):
         fund_cite_ok, fund_cite_err = _ai_fundamentals_citation_ok(text)
 
+    if is_lite:
+        # Lite 無新聞／呢喃段落：勿套用依賴該結構之 Gate 前題。
+        news_freshness_ok, news_freshness_err = True, ""
+        has_chatter = True
+        has_numeric_in_investment = True
+
     issues = []
+    prof_ok, prof_err = _check_profile_block_consistency(text, active_profile)
+    if not prof_ok:
+        issues.append(prof_err)
     tagged_news = _count_news_tags_only(text)
-    if len(text) < 3000:
+    if (not is_lite) and len(text) < 3000:
         issues.append(f"報告過短（{len(text)} chars，預期 >3000）")
-    if tagged_news < 6 and not news_six_relaxed:
+    if (not is_lite) and tagged_news < 6 and not news_six_relaxed:
         issues.append(
             f"核心新聞〔新聞 N〕標籤不足（{tagged_news}/6）：須以〔新聞 1〕…〔新聞 6〕標示幣圈 3 + AI 3，"
             f"禁止僅用 1. 2. 3. 作為新聞編號（避免與辯論列表混淆）。"
             f"（分段放行：交易觀望／或符合「新聞資料不足分段」— 3~5 則且〔新聞 1~3〕+ UTC+8 + 不補虛構宣告，見 ALLOW_PARTIAL_NEWS_GATE）"
         )
-    if news_count < 6 and not news_six_relaxed:
+    if (not is_lite) and news_count < 6 and not news_six_relaxed:
         issues.append(
             f"新聞數不足（{news_count}/6）且未符合觀望或新聞分段條件（見 validate_report 說明／README）"
         )
     if not has_regime:
         issues.append("缺少 market_regime 標籤（risk_on/risk_off/neutral）")
-    if not has_dashboard:
+    if (not is_lite) and not has_dashboard:
         issues.append("缺少數據儀表板（DXY/RSI/資金費率/Fear&Greed）")
     if not has_crypto_trade:
         issues.append("缺少加密市場操作建議（精準操作 Crypto）")
     if not has_ai_trade:
         issues.append("缺少 AI 美股操作建議（精準操作 US Equities）")
-    if not has_ai_section:
+    if (not is_lite) and not has_ai_section:
         issues.append("缺少 AI 市場段落")
-    if not has_crypto_section:
+    if (not is_lite) and not has_crypto_section:
         issues.append("缺少加密市場段落")
     if (
-        _strict_tool_evidence_gate()
+        (not is_lite)
+        and _strict_tool_evidence_gate()
         and not trade_watch_mode
         and has_crypto_section
         and len(text) >= 3000
@@ -2137,7 +2185,7 @@ def validate_report(text: str) -> dict:
             issues.append(
                 f"加密段工具證據關鍵詞不足（{hits}/{need}，見 STRICT_TOOL_EVIDENCE_GATE／STRICT_TOOL_EVIDENCE_MIN_HITS）"
             )
-    if not has_chatter:
+    if (not is_lite) and not has_chatter:
         issues.append("缺少呢喃/傳聞區塊")
     if not has_qsrec_markers:
         issues.append("缺少系統追蹤載荷區塊（[QSREC_START]...[QSREC_END]）")
@@ -2168,7 +2216,7 @@ def validate_report(text: str) -> dict:
         )
     if not fund_cite_ok:
         issues.append(fund_cite_err)
-    if not has_utc8:
+    if (not is_lite) and not has_utc8:
         issues.append("新聞時間未統一標示 UTC+8")
     if not news_freshness_ok:
         issues.append(news_freshness_err)
@@ -2182,7 +2230,7 @@ def validate_report(text: str) -> dict:
         issues.append(phase_c_err)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
-    if not has_rumor_grade:
+    if (not is_lite) and not has_rumor_grade:
         issues.append("傳聞區缺少可信度分級（A/B/C 或 0~100）")
     if (not trade_watch_mode) and (not has_rr or not has_max_drawdown):
         issues.append("交易建議缺少 R:R 或最大回撤風險欄位")
@@ -2190,15 +2238,15 @@ def validate_report(text: str) -> dict:
         issues.append("交易建議缺少預期勝率或 Signal Score 欄位")
     if not has_risk_budget:
         issues.append("缺少今日風險預算摘要")
-    if (not trade_watch_mode) and (not has_numeric_in_investment):
+    if (not is_lite) and (not trade_watch_mode) and (not has_numeric_in_investment):
         issues.append("投資解讀缺少當日量化數據引用")
     invest_dash_ok, invest_dash_err = True, ""
-    if (not trade_watch_mode) and _strict_investment_dashboard_numeric_gate():
+    if (not is_lite) and (not trade_watch_mode) and _strict_investment_dashboard_numeric_gate():
         invest_dash_ok, invest_dash_err = _investment_takeaway_dashboard_numeric_ok(text)
     if not invest_dash_ok:
         issues.append(invest_dash_err)
     chatter_msm_ok, chatter_msm_err = True, ""
-    if (not trade_watch_mode) and _strict_chatter_msm_verify_gate():
+    if (not is_lite) and (not trade_watch_mode) and _strict_chatter_msm_verify_gate():
         chatter_msm_ok, chatter_msm_err = _chatter_msm_verify_ok(text)
     if not chatter_msm_ok:
         issues.append(chatter_msm_err)
@@ -2323,6 +2371,7 @@ def validate_report(text: str) -> dict:
 
     return {
         "valid": len(issues) == 0,
+        "profile": active_profile,
         "blocking_issues": blocking_issues,
         "warning_issues": warning_issues,
         "issues": issues,

@@ -40,10 +40,14 @@ def main() -> int:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     report = mod.minimal_valid_report_text()
-    result = validate_report(report)
+    profile = (os.getenv("REPORT_PROFILE") or "").strip() or None
+    result = validate_report(report, profile=profile)
     valid = bool(result.get("valid"))
     issues = list(result.get("issues") or [])
-    print(f"validate_report dry-run: valid={valid} issues={len(issues)}")
+    print(
+        f"validate_report dry-run: profile={result.get('profile', 'full')} "
+        f"valid={valid} issues={len(issues)}"
+    )
     for i, issue in enumerate(issues[:24], 1):
         line = str(issue).replace("\n", " ")[:200]
         print(f"  {i}. {line}")
