@@ -320,7 +320,7 @@ def test_modular_template_byte_matches_monolithic_fixture(factory):
     """Merge gate: `templates/telegram_report.j2` (macros) ≡ frozen monolithic Jinja."""
     report = factory()
     modular = build_telegram_jinja_env(_ROOT / "templates").get_template(
-        "telegram_report.j2"
+        "profiles/telegram_full.j2"
     ).render(**telegram_render_context(report))
     mono = _render_with_fixture("telegram_report_phase0_monolithic.j2", report)
     assert modular == mono, (
@@ -367,7 +367,7 @@ def test_modular_template_matches_constructed_partial_news_low_confidence():
         low_confidence_disclaimer="低信心免責測試",
     )
     modular = build_telegram_jinja_env(_ROOT / "templates").get_template(
-        "telegram_report.j2"
+        "profiles/telegram_full.j2"
     ).render(**telegram_render_context(report))
     mono = _render_with_fixture("telegram_report_phase0_monolithic.j2", report)
     assert modular == mono

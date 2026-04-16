@@ -110,11 +110,11 @@ templates/
 
 | 切片 | 內容 | 驗收 |
 |------|------|------|
-| 2a | 新增 `brief_profiles.py`：`BLOCK_IDS`、`PROFILES`、`get_active_profile()` | 單元測試鍵名穩定 |
-| 2b | `BLOCK_REGISTRY`：`block_id` → 模板路徑、macro 名、`empty_behavior`；**handler 不呼叫 LLM** | `BLOCK_IDS` 與 registry keys 一致測試 |
-| 2c | `templates/profiles/telegram_full.j2`（= 現 full 組裝）與 `telegram_lite.j2` | lite 輸出行數顯著低於 full |
-| 2d | `report_render.render_telegram_daily_brief(..., profile=)`；`main.py` 讀 `REPORT_PROFILE` | 預設 `full`；`lite` 可跑通 dry run |
-| 2e | `test_brief_profiles.py`：full vs lite 結構／長度／必要區塊 | smoke + 新測 |
+| 2a | 新增 `brief_profiles.py`：`BLOCK_IDS`、`PROFILES`、`get_active_profile()` | 單元測試鍵名穩定（**已落地**，見 [`brief_profiles.py`](brief_profiles.py)、[`test_brief_profiles.py`](test_brief_profiles.py)） |
+| 2b | `BLOCK_REGISTRY`：`block_id` → 模板路徑、macro 名、`empty_behavior`；**handler 不呼叫 LLM** | `BLOCK_IDS` 與 registry keys 一致測試（**已落地**） |
+| 2c | `templates/profiles/telegram_full.j2`（= 現 full 組裝）與 `telegram_lite.j2` | lite 輸出行數顯著低於 full（**已落地**；`full` 仍 **byte-identical** 至 Phase 0 fixture） |
+| 2d | `report_render.render_telegram_daily_brief(..., profile=)`；**`REPORT_PROFILE`** env | 預設 `full`；`lite` 可渲染（**已落地**；`main.py` 透過 env 傳遞即可） |
+| 2e | `test_brief_profiles.py`：full vs lite 結構／長度／必要區塊 | smoke + 新測（**已落地**） |
 
 **環境變數：** `REPORT_PROFILE=lite|full|crypto-only`（`crypto-only` 可於 Phase 2 末尾或 Phase 4 再啟用模板檔，registry 可先登記）。
 
@@ -291,8 +291,9 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 | `test_telegram_template_modularization.py` | 1（**smoke** byte-identical gate） |
 | `templates/profiles/telegram_*.j2` | 2、4 |
 | `brief_profiles.py`（可選 `brief/block_registry.py`） | 2 |
+| `test_brief_profiles.py` | 2 |
 | `config/brief_layouts/*.yaml` | 4 |
-| `report_render.py` | 1（`build_telegram_jinja_env`／`telegram_render_context`）→ 2 |
+| `report_render.py` | 1–2（`build_telegram_jinja_env`／`telegram_render_context`／`render_telegram_daily_brief(..., profile=)`） |
 | `report_html_gates.py` | 3 |
 | `main.py` | 2–3 |
 | `schemas.py` / `crew.py` / `graph/*` | 5 |
@@ -305,6 +306,7 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 ```bash
 ruff check .
 python3 -m pytest -m smoke -v
+python3 -m pytest test_brief_profiles.py -v   # Phase 2：full byte-identical + lite 精簡斷言
 REPORT_PROFILE=full SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py   # 與重構前等價檢查
 REPORT_PROFILE=lite SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py
 REPORT_PROFILE=lite STRICT_INSTITUTIONAL_PHASE_A_GATE=1 python3 -m pytest -m smoke -v

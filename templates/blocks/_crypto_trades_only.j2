@@ -1,0 +1,35 @@
+{% macro telegram_crypto_trades_only(crypto) %}
+<b>區塊④</b>【資金流向與精準操作 (Crypto)】
+{% if crypto.crypto_block4_recommendation_line %}
+{{ crypto.crypto_block4_recommendation_line }}
+{% endif %}
+本日選擇理由：{{ crypto.pick_reason|tg_soft_wrap_mobile }}
+今日風險預算：{{ crypto.risk_budget_summary|tg_soft_wrap_mobile }}
+訊號衝突摘要：{{ crypto.signal_conflict_summary|tg_soft_wrap_mobile }}
+{% if crypto.trade_legs %}
+{% for leg in crypto.trade_legs %}
+{% if not loop.first %}
+
+{% endif %}
+· <b>${{ (leg.asset|string|strip_usd)|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|strip_usd)|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+
+· <b>計畫</b>：進場 <code>{{ (leg.entry|string|strip_usd)|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|strip_usd)|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|strip_usd)|tg_escape }}</code>（建議倉位 {{ (leg.position_pct|string|strip_usd)|tg_escape }}）
+
+· <b>執行</b>：{{ (leg.trigger|default('', true)|string|strip_usd)|replace('。。', '。')|tg_escape }}
+{% if leg.invalidation %}
+· <b>失效</b>：{{ leg.invalidation|clean_invalidation|tg_escape }}
+{% endif %}
+
+· <b>敘事</b>：{{ leg.narrative|tg_escape }}
+{% if leg.liquidity_execution_note %}
+· <b>流動性／執行</b>：{{ leg.liquidity_execution_note|tg_escape }}
+{% endif %}
+
+{% endfor %}
+{% else %}
+· <b>觀望模式</b>：資料不足觀望，暫不開新倉（避免捏造現價/進場/目標/停損）。
+· 風險預算：依 <code>{{ crypto.market.regime }}</code> 模式降低風險，僅保留既有倉位管理。
+· 重新進場條件：待下一輪有效新聞、即時報價與多時框訊號齊備後再提供交易參數。
+{% endif %}
+
+{% endmacro %}

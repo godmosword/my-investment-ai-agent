@@ -13,6 +13,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
 from assets_universe import equity_universe_merged
+from brief_profiles import get_active_profile, telegram_profile_template_relpath
 from schemas import (
     AISection,
     CryptoSection,
@@ -1916,24 +1917,29 @@ def telegram_render_context(report: DailyBriefReport) -> dict:
     }
 
 
-def render_telegram_daily_brief(report: DailyBriefReport) -> str:
+def render_telegram_daily_brief(report: DailyBriefReport, *, profile: str | None = None) -> str:
+    """Render Telegram HTML from `DailyBriefReport`.
+
+    ``profile`` overrides env ``REPORT_PROFILE``; default is ``full`` (must stay
+    byte-equivalent to Phase 0 — see ``test_telegram_template_modularization``).
+    """
     root = Path(__file__).resolve().parent
     env = build_telegram_jinja_env(root / "templates")
 
     ctx = telegram_render_context(report)
+    active = get_active_profile(profile)
+    rel = telegram_profile_template_relpath(active)
     try:
-        tmpl = env.get_template("telegram_report.j2")
+        tmpl = env.get_template(rel)
     except TemplateNotFound as exc:
-        expected = root / "templates" / "telegram_report.j2"
+        expected = root / "templates" / rel
         raise RuntimeError(
-            f"Jinja2 template not found: telegram_report.j2 "
-            f"(expected at {expected})"
+            f"Jinja2 template not found: {rel} (expected at {expected})"
         ) from exc
     try:
         return tmpl.render(**ctx)
     except TemplateError as exc:
-        expected = root / "templates" / "telegram_report.j2"
+        expected = root / "templates" / rel
         raise RuntimeError(
-            f"Jinja2 template error in telegram_report.j2 "
-            f"(path: {expected}): {exc}"
+            f"Jinja2 template error in {rel} (path: {expected}): {exc}"
         ) from exc
