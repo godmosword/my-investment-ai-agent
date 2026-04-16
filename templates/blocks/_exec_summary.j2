@@ -1,0 +1,11 @@
+{% macro telegram_exec_summary(crypto) %}
+{% if crypto.exec_summary %}
+<b>📋 【執行摘要】</b>
+{% for line in crypto.exec_summary %}
+→ {{ line|tg_emphasize_numbers }}
+
+{% endfor %}
+{% endif %}
+<i>掃讀順序</i>：<b>市場模式與主敘事</b> → <b>儀表板／新聞</b> → <b>文末｜投資命題與情境</b> → <b>交易與 QSREC</b>
+────────────
+{% endmacro %}

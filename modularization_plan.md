@@ -86,15 +86,17 @@
 | 1b | 抽 `_market_mode.j2`、`_macro_framework.j2`、`_prediction_markets.j2` | 同上 |
 | 1c | 抽 crypto 四段（dashboard／news／chatter／trades） | 同上 |
 | 1d | 抽 AI 五段（bridge／dashboard／news／chatter／trades） | 同上 |
-| 1e | 抽 `_institutional_view.j2`、`_source_health.j2`、`_qsrec.j2`、`_previous_recs.j2` | 同上 |
-| 1f | 根 `telegram_report.j2` 僅剩 profile 前之身分：**匯入並依現順序呼叫 macro**；全 CI smoke | **`REPORT_PROFILE` 尚未分流時，輸出與拆前等價**（golden 或 byte diff） |
+| 1e | 抽 `_institutional_view.j2`、`_previous_recs.j2`；**尾段**（partial tier／low_confidence／source health／QSREC）以 **`_footer_tail.j2`** 單一 macro **逐字複製**凍結基線（見下節「合併門檻」） | 同上 |
+| 1f | 根 `telegram_report.j2`：**單行**匯入並依現順序呼叫 macro；全 CI smoke | **`REPORT_PROFILE` 尚未分流時，輸出與拆前等價**（見下節 **byte-identical** 測試） |
+
+**合併門檻（Phase 1，已落地）：** [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2) 為凍結之 **Phase 0 單檔** Jinja（與拆 macro **前**之 `telegram_report.j2` 一致）；[`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) 以相同 `telegram_render_context` 渲染 **modular 根模板** 與 **fixture**，斷言 **`==`（byte-identical）**；標記 **`pytest -m smoke`**。變更尾段空白語意時須**同步更新 fixture** 或調整 macro 使測試仍綠。
 
 **目錄參考：**
 
 ```
 templates/
   blocks/
-    _header.j2 … _qsrec.j2
+    _header.j2 … _institutional_view.j2、_footer_tail.j2（尾段 verbatim）
     _current_affairs_roundtable.j2   # Phase 5 才接線；Phase 1 可建空壳或略過
 ```
 
@@ -285,10 +287,12 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 |------|-------|
 | `templates/telegram_report.j2` | 1 → 2（改為 profile 入口或 re-export） |
 | `templates/blocks/*.j2` | 1 |
+| `tests/fixtures/telegram_report_phase0_monolithic.j2` | 1（**等價凍結基線**；與 macro 化前單檔一致） |
+| `test_telegram_template_modularization.py` | 1（**smoke** byte-identical gate） |
 | `templates/profiles/telegram_*.j2` | 2、4 |
 | `brief_profiles.py`（可選 `brief/block_registry.py`） | 2 |
 | `config/brief_layouts/*.yaml` | 4 |
-| `report_render.py` | 2 |
+| `report_render.py` | 1（`build_telegram_jinja_env`／`telegram_render_context`）→ 2 |
 | `report_html_gates.py` | 3 |
 | `main.py` | 2–3 |
 | `schemas.py` / `crew.py` / `graph/*` | 5 |

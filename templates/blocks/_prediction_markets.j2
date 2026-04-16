@@ -1,0 +1,9 @@
+{% macro telegram_prediction_markets(crypto) %}
+{% if crypto.prediction_market_highlight_lines %}
+<b>【預測市場熱門】</b> <i>（Polymarket 二元 Yes 價；非投資建議）</i>
+{% for line in crypto.prediction_market_highlight_lines %}
+· {{ line|tg_soft_wrap_mobile }}
+{% endfor %}
+{% endif %}
+
+{% endmacro %}

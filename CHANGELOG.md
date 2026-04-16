@@ -5,8 +5,11 @@
 
 ## 2026-04-26
 
+### Changed
+- **日報 Telegram 模板 Phase 1（macro 化，輸出等價）**：[`templates/telegram_report.j2`](templates/telegram_report.j2) 改為匯入 [`templates/blocks/`](templates/blocks/)（`_header`、`_exec_summary`、`_previous_recs`、`_market_mode`、`_macro_framework`、`_prediction_markets`、`_crypto_section`、`_ai_section`、`_institutional_view`、**`_footer_tail`** — 尾段含 partial tier／low_confidence／source health／QSREC，**逐字對齊**凍結基線）；[`report_render.py`](report_render.py) 新增 **`build_telegram_jinja_env`**、**`telegram_render_context`** 供渲染與測試共用。**合併門檻**：[`test_telegram_template_modularization.py`](test_telegram_template_modularization.py)（`pytest -m smoke`）對 [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2) **byte-identical**。
+
 ### Docs
-- **日報區塊模組化 — 產品與交付原則**：[`modularization_plan.md`](modularization_plan.md) 新增 **產品與交付原則** 一節 — **過渡期** production 固定 **`full`／等價門檻**、新版型僅 staging／手動、**單一資料管線**不變；**完成後** 以 `REPORT_PROFILE`、`BLOCK_REGISTRY`、可選 YAML、profile-aware Gate、BQ `profile` 支援 **組織級客製**。閱讀地圖編號順延。**僅文件**；`templates/` 與 `main.py` **尚未**依計畫改動。
+- **日報區塊模組化 — 產品與交付原則**：[`modularization_plan.md`](modularization_plan.md) 新增 **產品與交付原則** 一節 — **過渡期** production 固定 **`full`／等價門檻**、新版型僅 staging／手動、**單一資料管線**不變；**完成後** 以 `REPORT_PROFILE`、`BLOCK_REGISTRY`、可選 YAML、profile-aware Gate、BQ `profile` 支援 **組織級客製**。閱讀地圖編號順延。（本條為計畫文件；**同日 `### Changed`** 為 Phase 1 模板實作。）
 
 ## 2026-04-25
 

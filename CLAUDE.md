@@ -75,7 +75,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | Path | Contents |
 |------|----------|
 | [`core/`](core/) | Reserved package root (`__init__.py`); compare path uses `main._validate_report_candidate` → `report_html_gates.validate_report` |
-| [`templates/`](templates/) | `telegram_report.j2` |
+| [`templates/`](templates/) | `telegram_report.j2`；**Phase 1** 區塊 macro 見 [`templates/blocks/`](templates/blocks/)（合併門檻：`pytest -m smoke` [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) vs [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2)） |
 | [`docs/`](docs/) | Design docs, runbooks, SQL samples (see §5) |
 | [`scripts/`](scripts/) | `bench_autoresearch.sh`, `oss_scout_candidates.py`, `write_ml_weights.py`, `inject_test_data.py` |
 | [`data-verification-ui/`](data-verification-ui/) | Vite + React PWA |

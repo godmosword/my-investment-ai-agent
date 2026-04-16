@@ -1,0 +1,8 @@
+{% macro telegram_market_mode(crypto) %}
+<b>【今日市場模式】</b> <code>{{ crypto.market.regime|tg_escape }}</code>{{ crypto.market.score_suffix|tg_escape }}
+{% for line in crypto.market.scorecard_lines %}
+{{ line|tg_escape }}
+{% endfor %}
+· <i>今日主敘事</i>：<b>{{ crypto.narrative_of_day|tg_escape }}</b>
+
+{% endmacro %}
