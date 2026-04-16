@@ -1,0 +1,263 @@
+<b>🛡️ Q-Silicon Institutional Research</b> / <i>Daily Brief · {{ crypto.report_title_date|tg_escape }}</i>
+────────────
+{% if crypto.exec_summary %}
+<b>📋 【執行摘要】</b>
+{% for line in crypto.exec_summary %}
+→ {{ line|tg_emphasize_numbers }}
+
+{% endfor %}
+{% endif %}
+<i>掃讀順序</i>：<b>市場模式與主敘事</b> → <b>儀表板／新聞</b> → <b>文末｜投資命題與情境</b> → <b>交易與 QSREC</b>
+────────────
+{% if previous_recs_html %}
+{{ previous_recs_html }}
+
+{% endif %}
+<b>【今日市場模式】</b> <code>{{ crypto.market.regime|tg_escape }}</code>{{ crypto.market.score_suffix|tg_escape }}
+{% for line in crypto.market.scorecard_lines %}
+{{ line|tg_escape }}
+{% endfor %}
+· <i>今日主敘事</i>：<b>{{ crypto.narrative_of_day|tg_escape }}</b>
+
+<b>🏛️ 宏觀框架</b>
+{% for line in crypto.macro_framework_lines %}
+· {{ line|tg_soft_wrap_mobile }}
+{% endfor %}
+
+{% if crypto.prediction_market_highlight_lines %}
+<b>【預測市場熱門】</b> <i>（Polymarket 二元 Yes 價；非投資建議）</i>
+{% for line in crypto.prediction_market_highlight_lines %}
+· {{ line|tg_soft_wrap_mobile }}
+{% endfor %}
+{% endif %}
+
+────────────
+══════ <b>📊 加密市場</b> ══════
+<b>區塊①</b>【數據儀表板】
+{% for row in crypto.dashboard %}
+{% if row.is_section_header %}
+· <b>{{ row.label|tg_escape }}</b>
+{% elif row.status_emoji %}· {{ row.status_emoji }} <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
+{% else %}· <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
+{% endif %}
+{% endfor %}
+
+<b>區塊②</b>【核心新聞】
+{% for n in crypto.news %}
+〔新聞 {{ n.index }}〕{{ n.timestamp_line|tg_escape }}
+<b>{{ n.title|tg_escape }}</b>（{{ n.source_and_nature|tg_escape }}）
+<blockquote>{{ n.summary|tg_escape }}</blockquote>
+<i>投資解讀</i>：{{ n.investment_takeaway|tg_escape }}
+<i>💎主編共識</i>：{{ n.editor_consensus|tg_escape }}
+{% if n.pricing_note %}
+<i>市場定價</i>：<code>{{ n.pricing_note|tg_escape }}</code>
+{% endif %}
+
+{% endfor %}
+{% if crypto.x_highlights %}
+<b>區塊②b</b> 主題式觀點摘要（非即時推文）
+{% for x in crypto.x_highlights %}
+· {{ x|tg_escape }}
+{% endfor %}
+{% endif %}
+
+<b>區塊③</b>【市場呢喃與傳聞】
+{% if crypto.chatter %}
+{% for c in crypto.chatter %}
+· {{ c.text|tg_soft_wrap_mobile }}
+{% endfor %}
+{% else %}
+· 傳聞可信度：B（未確認）｜主流媒體二次驗證：否
+{% endif %}
+
+<b>區塊④</b>【資金流向與精準操作 (Crypto)】
+{% if crypto.crypto_block4_recommendation_line %}
+{{ crypto.crypto_block4_recommendation_line }}
+{% endif %}
+本日選擇理由：{{ crypto.pick_reason|tg_soft_wrap_mobile }}
+今日風險預算：{{ crypto.risk_budget_summary|tg_soft_wrap_mobile }}
+訊號衝突摘要：{{ crypto.signal_conflict_summary|tg_soft_wrap_mobile }}
+{% if crypto.trade_legs %}
+{% for leg in crypto.trade_legs %}
+{% if not loop.first %}
+
+{% endif %}
+· <b>${{ (leg.asset|string|strip_usd)|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|strip_usd)|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+
+· <b>計畫</b>：進場 <code>{{ (leg.entry|string|strip_usd)|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|strip_usd)|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|strip_usd)|tg_escape }}</code>（建議倉位 {{ (leg.position_pct|string|strip_usd)|tg_escape }}）
+
+· <b>執行</b>：{{ (leg.trigger|default('', true)|string|strip_usd)|replace('。。', '。')|tg_escape }}
+{% if leg.invalidation %}
+· <b>失效</b>：{{ leg.invalidation|clean_invalidation|tg_escape }}
+{% endif %}
+
+· <b>敘事</b>：{{ leg.narrative|tg_escape }}
+{% if leg.liquidity_execution_note %}
+· <b>流動性／執行</b>：{{ leg.liquidity_execution_note|tg_escape }}
+{% endif %}
+
+{% endfor %}
+{% else %}
+· <b>觀望模式</b>：資料不足觀望，暫不開新倉（避免捏造現價/進場/目標/停損）。
+· 風險預算：依 <code>{{ crypto.market.regime }}</code> 模式降低風險，僅保留既有倉位管理。
+· 重新進場條件：待下一輪有效新聞、即時報價與多時框訊號齊備後再提供交易參數。
+{% endif %}
+
+────────────
+🤖 AI 市場
+{% if ai.macro_bridge_lines %}
+<i>宏觀連結：</i>
+{% for line in ai.macro_bridge_lines %}
+· {{ line|tg_soft_wrap_mobile }}
+{% endfor %}
+{% endif %}
+
+<b>🤖 區塊①</b>【AI 數據儀表板】
+{% for row in ai.dashboard %}
+{% if row.is_section_header %}
+· <b>{{ row.label|tg_escape }}</b>
+{% else %}
+· <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
+{% endif %}
+{% endfor %}
+
+<b>區塊②</b>【AI 產業新聞】
+{% for n in ai.news %}
+〔新聞 {{ n.index }}〕{{ n.timestamp_line|tg_escape }}
+<b>{{ n.title|tg_escape }}</b>（{{ n.source_and_nature|tg_escape }}）
+<blockquote>{{ n.summary|tg_escape }}</blockquote>
+<i>投資解讀</i>：{{ n.investment_takeaway|tg_escape }}
+<i>💎主編共識</i>：{{ n.editor_consensus|tg_escape }}
+{% if n.pricing_note %}
+<i>市場定價</i>：<code>{{ n.pricing_note|tg_escape }}</code>
+{% endif %}
+
+{% endfor %}
+{% if ai.x_highlights %}
+<b>區塊②b</b> 主題式觀點摘要（非即時推文）
+{% for x in ai.x_highlights %}
+· {{ x|tg_escape }}
+{% endfor %}
+{% endif %}
+
+<b>區塊③</b>【產業鏈呢喃】
+{% if ai.chatter %}
+{% for c in ai.chatter %}
+· {{ c.text|tg_soft_wrap_mobile }}
+{% endfor %}
+{% else %}
+· 傳聞可信度：B（未確認）｜主流媒體二次驗證：否
+{% endif %}
+
+<b>區塊④</b>【AI 產業鏈精準操作 (US Equities)】
+{% if ai.ai_block4_recommendation_line %}
+{{ ai.ai_block4_recommendation_line }}
+{% endif %}
+本日選擇理由：{{ ai.pick_reason|tg_soft_wrap_mobile }}
+訊號衝突摘要：{{ ai.signal_conflict_summary|tg_soft_wrap_mobile }}
+{% if ai.us_equity_allocation_note %}
+· <b>美股部位框</b>：{{ ai.us_equity_allocation_note|tg_escape }}
+{% endif %}
+{% if ai.trade_legs %}
+{% for leg in ai.trade_legs %}
+{% if not loop.first %}
+
+{% endif %}
+· <b>${{ (leg.asset|string|strip_usd)|tg_escape }} ({{ leg.direction }})</b>｜現價：<code>${{ (leg.current_price|string|strip_usd)|tg_escape }}</code>｜信心：{% for _ in range(leg.star_rating|int) %}⭐️{% endfor %}
+
+· <b>計畫</b>：進場 <code>{{ (leg.entry|string|strip_usd)|tg_escape }}</code> 🎯 目標 <code>{{ (leg.target|string|strip_usd)|tg_escape }}</code> 🛑 停損 <code>{{ (leg.stop|string|strip_usd)|tg_escape }}</code>（建議倉位 {{ (leg.position_pct|string|strip_usd)|tg_escape }}）
+
+· <b>執行</b>：{{ (leg.trigger|default('', true)|string|strip_usd)|replace('。。', '。')|tg_escape }}
+{% if leg.invalidation %}
+· <b>失效</b>：{{ leg.invalidation|clean_invalidation|tg_escape }}
+{% endif %}
+
+· <b>敘事</b>：{{ leg.narrative|tg_escape }}
+{% if leg.liquidity_execution_note %}
+· <b>流動性／執行</b>：{{ leg.liquidity_execution_note|tg_escape }}
+{% endif %}
+
+{% endfor %}
+{% else %}
+· <b>觀望模式</b>：資料不足觀望，暫不提供股票進出場價格。
+· 風險預算：依 <code>{{ crypto.market.regime }}</code> 模式執行防守配置，避免情緒性追價。
+· 重新進場條件：需補齊產業催化、成交量與多時框確認後再發布可執行建議。
+{% endif %}
+
+────────────
+{% if institutional_disclaimer_html %}
+{{ institutional_disclaimer_html }}
+{% endif %}
+{% if crypto.investment_thesis_one_liner or crypto.portfolio_framing_summary or crypto.scenario_probability_notes or crypto.event_calendar_lines %}
+<b>【機構速讀｜命題與情境】</b>
+{% if crypto.investment_thesis_one_liner %}
+<b>【投資命題】</b>
+{{ crypto.investment_thesis_one_liner|tg_escape }}
+{% endif %}
+{% if crypto.thesis_supporting_points %}
+<b>【支持論點】</b>
+{% for line in crypto.thesis_supporting_points %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+{% if crypto.thesis_contrary_points %}
+<b>【反駁論點】</b>
+{% for line in crypto.thesis_contrary_points %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+{% if crypto.key_assumptions_lines %}
+<b>【關鍵假設】</b>
+{% for line in crypto.key_assumptions_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+{% if crypto.narrative_invalidation_summary %}
+<b>【敘事失效】</b>
+{{ crypto.narrative_invalidation_summary|tg_escape }}
+{% endif %}
+{% if crypto.portfolio_framing_summary %}
+<b>【組合與曝險框架】</b>
+{{ crypto.portfolio_framing_summary|tg_escape }}
+{% endif %}
+{% if crypto.scenario_probability_notes %}
+<b>【三情境機率】</b>
+{% for line in crypto.scenario_probability_notes.split('\n') %}
+{% if line.strip() %}
+· {{ line.strip()|tg_escape }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if crypto.crypto_cycle_valuation_notes %}
+<b>【加密週期與估值錨】</b>
+{{ crypto.crypto_cycle_valuation_notes|tg_escape }}
+{% endif %}
+{% if crypto.equity_valuation_framing %}
+<b>【美股估值與修正框架】</b>
+{{ crypto.equity_valuation_framing|tg_escape }}
+{% endif %}
+{% if crypto.event_calendar_lines %}
+<b>【近端事件日曆】</b>
+{% for line in crypto.event_calendar_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
+────────────
+{% endif %}
+{% if report_tier_partial_news %}
+[REPORT_TIER:PARTIAL_NEWS]
+【新聞資料狀態】
+以〔新聞 N〕標籤計入的新聞為 <code>{{ tagged_news_count }}</code> 則／目標 <code>6</code> 則（幣圈 3 + AI 3）。已啟用資料不足保護：不補虛構新聞。若實際已寫滿 6 則但格式未統一為〔新聞 N〕，請主編下一版改為規定格式以便系統計數。
+{% endif %}
+{% if low_confidence_disclaimer %}
+
+{{ low_confidence_disclaimer|tg_escape }}
+{% endif %}
+
+{% if source_observability_block %}
+{{ source_observability_block }}
+────────────
+{% endif %}
+[QSREC_START]
+{{ qsrec_json }}
+[QSREC_END]

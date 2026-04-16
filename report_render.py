@@ -1877,10 +1877,10 @@ def assemble_daily_brief_report(
     )
 
 
-def render_telegram_daily_brief(report: DailyBriefReport) -> str:
-    root = Path(__file__).resolve().parent
+def build_telegram_jinja_env(templates_dir: Path) -> Environment:
+    """Jinja2 env for Telegram daily brief (shared by `render_telegram_daily_brief` and tests)."""
     env = Environment(
-        loader=FileSystemLoader(str(root / "templates")),
+        loader=FileSystemLoader(str(templates_dir)),
         autoescape=False,
         trim_blocks=True,
         lstrip_blocks=True,
@@ -1890,11 +1890,37 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
     env.filters["tg_soft_wrap_mobile"] = tg_soft_wrap_mobile
     env.filters["strip_usd"] = strip_usd_for_template
     env.filters["clean_invalidation"] = _clean_invalidation
+    return env
 
+
+def telegram_render_context(report: DailyBriefReport) -> dict:
+    """Jinja context for `telegram_report.j2` (Phase 1 modular blocks).
+
+    Kept as a single function so equivalence tests can render the monolithic
+    baseline fixture with the same variable bundle as production.
+    """
     qsrec_list = [
         r.model_dump(exclude_none=True, exclude=QSREC_JSON_EXCLUDE_FIELDS)
         for r in report.all_qsrec()
     ]
+    return {
+        "crypto": report.crypto,
+        "ai": report.ai,
+        "institutional_disclaimer_html": report.institutional_disclaimer_html or "",
+        "previous_recs_html": report.previous_recs_html,
+        "source_observability_block": report.source_observability_block,
+        "report_tier_partial_news": report.report_tier_partial_news,
+        "tagged_news_count": report.tagged_news_count(),
+        "low_confidence_disclaimer": report.low_confidence_disclaimer or "",
+        "qsrec_json": json.dumps(qsrec_list, ensure_ascii=False),
+    }
+
+
+def render_telegram_daily_brief(report: DailyBriefReport) -> str:
+    root = Path(__file__).resolve().parent
+    env = build_telegram_jinja_env(root / "templates")
+
+    ctx = telegram_render_context(report)
     try:
         tmpl = env.get_template("telegram_report.j2")
     except TemplateNotFound as exc:
@@ -1904,17 +1930,7 @@ def render_telegram_daily_brief(report: DailyBriefReport) -> str:
             f"(expected at {expected})"
         ) from exc
     try:
-        return tmpl.render(
-            crypto=report.crypto,
-            ai=report.ai,
-            institutional_disclaimer_html=report.institutional_disclaimer_html or "",
-            previous_recs_html=report.previous_recs_html,
-            source_observability_block=report.source_observability_block,
-            report_tier_partial_news=report.report_tier_partial_news,
-            tagged_news_count=report.tagged_news_count(),
-            low_confidence_disclaimer=report.low_confidence_disclaimer or "",
-            qsrec_json=json.dumps(qsrec_list, ensure_ascii=False),
-        )
+        return tmpl.render(**ctx)
     except TemplateError as exc:
         expected = root / "templates" / "telegram_report.j2"
         raise RuntimeError(

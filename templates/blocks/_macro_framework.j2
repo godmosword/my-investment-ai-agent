@@ -1,0 +1,7 @@
+{% macro telegram_macro_framework(crypto) %}
+<b>🏛️ 宏觀框架</b>
+{% for line in crypto.macro_framework_lines %}
+· {{ line|tg_soft_wrap_mobile }}
+{% endfor %}
+
+{% endmacro %}
