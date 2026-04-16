@@ -890,6 +890,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     validation=result,
                     report_chars=len(final_report or ""),
                     used_fallback=_used_fallback,
+                    profile=result.get("profile"),
                 )
             fallback_cnt = _fallback_news_count(final_report)
             logger.info(
@@ -1010,6 +1011,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                 retry_count=_total_retries,
                 gate_passed=report_valid,
                 gate_issues=_gate_issues,
+                profile=(last_validation or {}).get("profile"),
             )
         except Exception as _llm_log_err:
             logger.warning("LLM run log write failed (non-fatal): %s", _llm_log_err)

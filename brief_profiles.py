@@ -66,6 +66,7 @@ PROFILES: Final[dict[str, tuple[str, ...]]] = {
 _PROFILE_TEMPLATE: Final[dict[str, str]] = {
     "full": "profiles/telegram_full.j2",
     "lite": "profiles/telegram_lite.j2",
+    "crypto-only": "profiles/telegram_crypto_only.j2",
 }
 
 
@@ -123,16 +124,17 @@ def get_active_profile(explicit: str | None = None) -> str:
 
 
 def profile_block_ids(profile: str) -> tuple[str, ...]:
-    return PROFILES[_normalize_profile(profile)]
+    """Coarse block order for ``profile``, optionally merged from ``BRIEF_LAYOUT_FILE``."""
+    from brief_profiles_layout import merge_profile_blocks_from_file
+
+    p = _normalize_profile(profile)
+    base = PROFILES[p]
+    return merge_profile_blocks_from_file(p, base)
 
 
 def telegram_profile_template_relpath(profile: str) -> str:
     """Relative path under `templates/` for the profile root template."""
     p = _normalize_profile(profile)
-    if p == "crypto-only":
-        raise ValueError(
-            "profile 'crypto-only' is reserved for Phase 4; no telegram_crypto_only.j2 yet"
-        )
     return _PROFILE_TEMPLATE[p]
 
 

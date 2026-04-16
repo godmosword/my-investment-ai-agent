@@ -529,12 +529,30 @@ def _get_last_success_report_time_utc(
         return None
 
 
+def _resolve_profile_for_bq(
+    *,
+    explicit: str | None,
+    validation_profile: object | None = None,
+) -> str:
+    """Resolve `REPORT_PROFILE` for BQ audit rows: explicit kw > validation dict > env."""
+    from brief_profiles import get_active_profile
+
+    raw: str | None = None
+    if explicit is not None and str(explicit).strip() != "":
+        raw = str(explicit).strip()
+    elif validation_profile is not None and str(validation_profile).strip() != "":
+        raw = str(validation_profile).strip()
+    return get_active_profile(raw)
+
+
 def write_llm_run_log(
     model_name: str,
     used_fallback: bool,
     retry_count: int,
     gate_passed: bool,
     gate_issues: list[str] | None = None,
+    *,
+    profile: str | None = None,
     project_id: str = PROJECT_ID,
 ) -> None:
     """Write LLM run metadata to BigQuery llm_run_log table.
@@ -547,6 +565,7 @@ def write_llm_run_log(
         return
     llm_run_log_table = f"{project_id}.market_data.llm_run_log"
     try:
+        active_profile = _resolve_profile_for_bq(explicit=profile)
         client = bigquery.Client(project=project_id)
         schema = [
             bigquery.SchemaField("timestamp", "TIMESTAMP"),
@@ -556,6 +575,7 @@ def write_llm_run_log(
             bigquery.SchemaField("gate_passed", "BOOL"),
             bigquery.SchemaField("gate_issues_count", "INTEGER"),
             bigquery.SchemaField("gate_issues_preview", "STRING"),
+            bigquery.SchemaField("profile", "STRING"),
         ]
         table_ref = bigquery.Table(llm_run_log_table, schema=schema)
         client.create_table(table_ref, exists_ok=True)
@@ -581,17 +601,19 @@ def write_llm_run_log(
             "gate_passed": gate_passed,
             "gate_issues_count": len(issues),
             "gate_issues_preview": " | ".join(issues[:3]) if issues else None,
+            "profile": active_profile,
         }
         errors = client.insert_rows_json(llm_run_log_table, [row])
         if errors:
             logger.error("BigQuery LLM run log insert errors: %s", errors)
         else:
             logger.info(
-                "LLM run log written (model=%s, fallback=%s, retries=%d, gate=%s).",
+                "LLM run log written (model=%s, fallback=%s, retries=%d, gate=%s, profile=%s).",
                 model_name,
                 used_fallback,
                 retry_count,
                 gate_passed,
+                active_profile,
             )
     except DefaultCredentialsError as e:
         logger.warning("BigQuery credentials not configured (LLM run log skipped): %s", e)
@@ -629,6 +651,7 @@ def write_gate_failure_log(
     validation: dict,
     report_chars: int,
     used_fallback: bool,
+    profile: str | None = None,
     table_id: str | None = None,
 ) -> None:
     """將單次 validate_report 失敗（含僅 warning）寫入 BQ，供事後聚合與自我改善分析。
@@ -648,6 +671,9 @@ def write_gate_failure_log(
     blocking = validation.get("blocking_issues") or []
     warnings = validation.get("warning_issues") or []
     try:
+        active_profile = _resolve_profile_for_bq(
+            explicit=profile, validation_profile=validation.get("profile")
+        )
         client = bigquery.Client(project=bq_project)
         schema = [
             bigquery.SchemaField("timestamp", "TIMESTAMP"),
@@ -661,6 +687,7 @@ def write_gate_failure_log(
             bigquery.SchemaField("issues_preview", "STRING"),
             bigquery.SchemaField("fingerprint", "STRING"),
             bigquery.SchemaField("report_chars", "INTEGER"),
+            bigquery.SchemaField("profile", "STRING"),
         ]
         table_ref = bigquery.Table(tid, schema=schema)
         client.create_table(table_ref, exists_ok=True)
@@ -693,16 +720,18 @@ def write_gate_failure_log(
             "issues_preview": preview_src or None,
             "fingerprint": fp,
             "report_chars": int(report_chars),
+            "profile": active_profile,
         }
         errors = client.insert_rows_json(tid, [row])
         if errors:
             logger.error("BigQuery gate_failure_log insert errors: %s", errors)
         else:
             logger.info(
-                "gate_failure_log written (attempt=%s, issues=%d, blocking=%d).",
+                "gate_failure_log written (attempt=%s, issues=%d, blocking=%d, profile=%s).",
                 attempt,
                 len(issues),
                 len(blocking),
+                active_profile,
             )
     except DefaultCredentialsError as e:
         logger.warning("BigQuery credentials not configured (gate_failure_log skipped): %s", e)

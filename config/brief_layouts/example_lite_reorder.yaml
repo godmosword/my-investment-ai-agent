@@ -1,0 +1,9 @@
+# Example: reorder trades sections under `lite` (same block set as built-in PROFILES["lite"]).
+applies_to_profile: lite
+blocks:
+  - header
+  - exec_summary
+  - market_mode
+  - ai_trades
+  - crypto_trades
+  - qsrec

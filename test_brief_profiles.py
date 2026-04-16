@@ -62,6 +62,7 @@ def test_get_active_profile_invalid():
 def test_telegram_profile_template_paths():
     assert telegram_profile_template_relpath("full") == "profiles/telegram_full.j2"
     assert telegram_profile_template_relpath("lite") == "profiles/telegram_lite.j2"
+    assert telegram_profile_template_relpath("crypto-only") == "profiles/telegram_crypto_only.j2"
 
 
 @pytest.mark.smoke

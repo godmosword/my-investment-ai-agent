@@ -75,7 +75,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | Path | Contents |
 |------|----------|
 | [`core/`](core/) | Reserved package root (`__init__.py`); compare path uses `main._validate_report_candidate` → `report_html_gates.validate_report` |
-| [`templates/`](templates/) | `telegram_report.j2`（`include` → [`profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)）；**Phase 1** macro [`templates/blocks/`](templates/blocks/)；**Phase 2** [`brief_profiles.py`](brief_profiles.py) + `REPORT_PROFILE`（`full`／`lite`）；合併門檻：`pytest -m smoke` [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) + [`test_brief_profiles.py`](test_brief_profiles.py) vs [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2)（`full` **byte-identical**） |
+| [`templates/`](templates/) | `telegram_report.j2`（`include` → [`profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)）；**Phase 1** macro [`templates/blocks/`](templates/blocks/)；**Phase 2** [`brief_profiles.py`](brief_profiles.py) + `REPORT_PROFILE`（`full`／`lite`／`crypto-only`）；**Phase 4b** 可選 [`brief_profiles_layout.py`](brief_profiles_layout.py) + `BRIEF_LAYOUT_FILE` + [`config/brief_layouts/`](config/brief_layouts/)（`profile_block_ids` merge）；合併門檻：`pytest -m smoke` [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) + [`test_brief_profiles.py`](test_brief_profiles.py) vs [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2)（`full` **byte-identical**） |
 | [`docs/`](docs/) | Design docs, runbooks, SQL samples (see §5) |
 | [`scripts/`](scripts/) | `bench_autoresearch.sh`, `oss_scout_candidates.py`, `write_ml_weights.py`, `inject_test_data.py` |
 | [`data-verification-ui/`](data-verification-ui/) | Vite + React PWA |
@@ -124,6 +124,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) | Splitting legacy tools |
 | [`ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md) | MOCK_APIS / `tools` package (Office Hours Alt B) |
 | [`SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql) | Example BQ aggregation for gate failures |
+| [`SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) | Optional DDL: add `profile` to `llm_run_log` / `gate_failure_log` (Phase 4c; pipeline also auto-adds) |
 | [`oss_candidates/README.md`](docs/oss_candidates/README.md) | OSS scout process |
 
 **Env reference**: [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) (copy to `.env`).
@@ -133,7 +134,8 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 ## 6. Observability & Gates (quick reference)
 
 - **Gate failure artifacts**: `.qsilicon/last_gate_failure/` when `GATE_FAILURE_ARTIFACTS` enabled.
-- **Gate failure BigQuery**: `write_gate_failure_log` → `{PROJECT}.market_data.gate_failure_log`; toggle `GATE_FAILURE_BQ_LOG`, respect `SKIP_BIGQUERY`.
+- **Gate failure BigQuery**: `write_gate_failure_log` → `{PROJECT}.market_data.gate_failure_log`（列含 **`profile`**，與 `REPORT_PROFILE`／`validate_report` 對齊）；toggle `GATE_FAILURE_BQ_LOG`, respect `SKIP_BIGQUERY`.
+- **LLM run log BigQuery**: `write_llm_run_log` → `{PROJECT}.market_data.llm_run_log`（列含 **`profile`**）；respect `SKIP_BIGQUERY`.
 - **Scratchpad**: `.qsilicon/scratchpad/*.jsonl` when `SCRATCHPAD_ENABLED`.
 - **News freshness** (optional): `STRICT_NEWS_FRESHNESS_GATE`, `NEWS_FRESHNESS_WINDOW_HOURS`, `NEWS_FRESHNESS_SOURCE_WHITELIST` — see [`report_html_gates.py`](report_html_gates.py), tests in [`test_news_freshness.py`](test_news_freshness.py).
 - **投資解讀 vs 儀表板**（optional, default off）: `STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=1` — 每則投資解讀的數字錨點須出現在同段區塊① `<code>` 讀值；觀望模式略過；blocking。

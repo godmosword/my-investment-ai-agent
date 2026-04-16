@@ -1976,19 +1976,27 @@ def _persist_gate_validation_failure(report_text: str, validation: dict) -> Path
 
 
 def _check_profile_block_consistency(text: str, profile: str) -> tuple[bool, str]:
-    """Lightweight sanity: lite 不應含 full-only 大段（防模板誤切）。
+    """Lightweight sanity: lite / crypto-only 不應含與版型互斥的大段（防模板誤切）。
 
     失敗時回 (False, issue)；通過 (True, "")。
     """
     p = (profile or "full").strip().lower()
-    if p != "lite":
+    if p == "lite":
+        if "══════" in text and "📊 加密市場" in text:
+            return False, "lite 版型不應含完整「══════ … 加密市場」儀表板標題區"
+        if "🤖 AI 市場" in text:
+            return False, "lite 版型不應含「🤖 AI 市場」全段"
+        if "【機構速讀｜命題與情境】" in text:
+            return False, "lite 版型不應含【機構速讀｜命題與情境】"
         return True, ""
-    if "══════" in text and "📊 加密市場" in text:
-        return False, "lite 版型不應含完整「══════ … 加密市場」儀表板標題區"
-    if "🤖 AI 市場" in text:
-        return False, "lite 版型不應含「🤖 AI 市場」全段"
-    if "【機構速讀｜命題與情境】" in text:
-        return False, "lite 版型不應含【機構速讀｜命題與情境】"
+    if p == "crypto-only":
+        if HAS_AI_SECTION_RE.search(text) or "🤖 AI 市場" in text:
+            return False, "crypto-only 版型不應含 AI 市場全段"
+        if "【機構速讀" in text:
+            return False, "crypto-only 版型不應含【機構速讀】"
+        if "<b>上期</b>" in text:
+            return False, "crypto-only 版型不應含「上期」昨日建議區"
+        return True, ""
     return True, ""
 
 
@@ -1999,9 +2007,12 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
     - ``full``（預設）：行為與未導入 profile 參數前一致（**等價**）。
     - ``lite``：放寬「四區塊」結構檢查（無儀表板／新聞／呢喃／AI 全段），且 **即使**
       ``STRICT_INSTITUTIONAL_PHASE_*_GATE=1`` 亦不檢查機構 Phase A/B/C HTML（該區塊不在 lite 模板內）。
+    - ``crypto-only``：僅加密全段 + 共同前／尾；不要求 AI 段落／美股精準操作；新聞以加密段
+      〔新聞 1–3〕為足（與 full 六則雙軌解耦）；機構 Phase A/B/C 同 lite 略過。
     """
     active_profile = get_active_profile(profile)
     is_lite = active_profile == "lite"
+    is_crypto_only = active_profile == "crypto-only"
 
     news_count = _count_effective_news_items(text)
     fallback_count = _fallback_news_count(text)
@@ -2018,6 +2029,10 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
         has_dashboard = True
         has_crypto_section = True
         has_ai_section = True
+    elif is_crypto_only:
+        # Crypto desk：無 AI 全段與美股精準操作段，其餘加密結構仍須滿足。
+        has_ai_section = True
+        has_ai_trade = True
     has_chatter = bool(re.search(r'呢喃|傳聞', text))
     has_data_missing = bool(HAS_DATA_MISSING_RE.search(text))
     data_missing_fields = sorted(set(DATA_MISSING_FIELDS_RE.findall(text)))
@@ -2025,10 +2040,18 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
     # 交易觀望：放寬 R:R／勝率等「可執行欄位」檢查（與「新聞不足分段」解耦）
     trade_watch_mode = text_has_positive_trade_watch_mode(text)
     partial_news_ok = _partial_news_ok(text)
-    news_six_relaxed = trade_watch_mode or partial_news_ok
+    tagged_news = _count_news_tags_only(text)
+    news_six_relaxed = trade_watch_mode or partial_news_ok or (
+        is_crypto_only and tagged_news >= 3 and news_count >= 3
+    )
     has_qsrec_markers = bool(QSREC_MARKERS_RE.search(text))
     parsed_qsrec = tracker.extract_recommendations_json(text) if has_qsrec_markers else []
     has_valid_qsrec = bool(parsed_qsrec)
+    recs_equity_gates = (
+        [r for r in parsed_qsrec if str(r.get("category", "")).upper() != "EQUITY"]
+        if is_crypto_only
+        else parsed_qsrec
+    )
     _qsrec_blob_m = QSREC_MARKERS_RE.search(text)
     _qsrec_blob = _qsrec_blob_m.group(0) if _qsrec_blob_m else ""
     has_rr = bool(HAS_RR_RE.search(text)) or bool(
@@ -2052,8 +2075,8 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
         text, report_dt=_fresh_anchor
     )
     exec_summary_ok, exec_summary_err = _exec_summary_html_ok(text)
-    if is_lite:
-        # Lite 模板不含機構速讀區塊；勿套用 Phase A/B/C HTML 強檢（即使 env 開啟 strict）。
+    if is_lite or is_crypto_only:
+        # Lite / crypto-only 模板不含機構速讀區塊；勿套用 Phase A/B/C HTML 強檢（即使 env 開啟 strict）。
         phase_a_ok, phase_a_err = True, ""
         phase_b_ok, phase_b_err = True, ""
         phase_c_ok, phase_c_err = True, ""
@@ -2115,13 +2138,13 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
     pick_equity_ok, pick_equity_err = True, ""
     if _strict_pick_justification() and not trade_watch_mode and has_valid_qsrec:
         pick_crypto_ok, pick_crypto_err = _pick_justification_crypto_ok(text, parsed_qsrec)
-        pick_equity_ok, pick_equity_err = _pick_justification_equity_ok(text, parsed_qsrec)
+        pick_equity_ok, pick_equity_err = _pick_justification_equity_ok(text, recs_equity_gates)
 
     pick_crypto_rot_ok, pick_crypto_rot_err = True, ""
     pick_equity_rot_ok, pick_equity_rot_err = True, ""
     if _strict_pick_rotation() and not trade_watch_mode and has_valid_qsrec:
         pick_crypto_rot_ok, pick_crypto_rot_err = _pick_rotation_crypto_ok(text, parsed_qsrec)
-        pick_equity_rot_ok, pick_equity_rot_err = _pick_rotation_equity_ok(text, parsed_qsrec)
+        pick_equity_rot_ok, pick_equity_rot_err = _pick_rotation_equity_ok(text, recs_equity_gates)
 
     pick_crypto_roll_freq_ok, pick_crypto_roll_freq_err = True, ""
     pick_equity_roll_freq_ok, pick_equity_roll_freq_err = True, ""
@@ -2130,11 +2153,11 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
             parsed_qsrec, "CRYPTO"
         )
         pick_equity_roll_freq_ok, pick_equity_roll_freq_err = _pick_rolling_frequency_category_ok(
-            parsed_qsrec, "EQUITY"
+            recs_equity_gates, "EQUITY"
         )
 
     fund_cite_ok, fund_cite_err = True, ""
-    if _strict_ai_fundamentals_citation() and (not is_lite):
+    if _strict_ai_fundamentals_citation() and (not is_lite) and (not is_crypto_only):
         fund_cite_ok, fund_cite_err = _ai_fundamentals_citation_ok(text)
 
     if is_lite:
@@ -2147,9 +2170,9 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
     prof_ok, prof_err = _check_profile_block_consistency(text, active_profile)
     if not prof_ok:
         issues.append(prof_err)
-    tagged_news = _count_news_tags_only(text)
-    if (not is_lite) and len(text) < 3000:
-        issues.append(f"報告過短（{len(text)} chars，預期 >3000）")
+    min_report_chars = 2000 if is_crypto_only else 3000
+    if (not is_lite) and len(text) < min_report_chars:
+        issues.append(f"報告過短（{len(text)} chars，預期 >{min_report_chars}）")
     if (not is_lite) and tagged_news < 6 and not news_six_relaxed:
         issues.append(
             f"核心新聞〔新聞 N〕標籤不足（{tagged_news}/6）：須以〔新聞 1〕…〔新聞 6〕標示幣圈 3 + AI 3，"
@@ -2196,7 +2219,7 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
             issues.append(pick_crypto_err)
         if not pick_equity_ok:
             issues.append(pick_equity_err)
-        ai_fund_only, ai_fund_err = _ai_pick_reason_fundamental_only(text, parsed_qsrec)
+        ai_fund_only, ai_fund_err = _ai_pick_reason_fundamental_only(text, recs_equity_gates)
         if ai_fund_only:
             issues.append(ai_fund_err)
     if _strict_pick_rotation() and not trade_watch_mode and has_valid_qsrec:

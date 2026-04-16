@@ -62,7 +62,8 @@ FINANCIAL_DATASETS_API_KEY=
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 # TELEGRAM_REPORT_HISTORY_URL=https://your-pwa.example/archive  # 非空時首則戰報附「查看歷史」inline 連結
-# REPORT_PROFILE=full   # 日報 Telegram 版型：`full`（預設，與 Phase 0 **byte-identical**）｜`lite`（精簡：無上期／宏觀／預測市場／儀表板與新聞／呢喃／機構速讀；僅市場模式 + 雙邊區塊④ + QSREC 尾段）。`crypto-only` 保留至 Phase 4。亦驅動 `validate_report(..., profile=)`（`lite` 放寬四區塊／新聞 Gate；機構 Phase A/B/C **HTML** 不檢；見 `report_html_gates.py`）。
+# REPORT_PROFILE=full   # 日報 Telegram 版型：`full`（預設，與 Phase 0 **byte-identical**）｜`lite`（精簡：無上期／宏觀／預測市場／儀表板與新聞／呢喃／機構速讀；僅市場模式 + 雙邊區塊④ + QSREC 尾段）｜`crypto-only`（僅加密前段 + 區塊①–④ + 尾段；無 AI 全段／機構速讀；Gate 見 `report_html_gates.py`）。亦驅動 `validate_report(..., profile=)`（`lite`／`crypto-only` 放寬四區塊／新聞與美股相關 Gate；機構 Phase A/B/C **HTML** 不檢；見 `report_html_gates.py`）。
+# BRIEF_LAYOUT_FILE=   # 可選；指向 YAML，與內建 `PROFILES` merge 粗粒度 **block 順序**（白名單、同集合重排）。專案根相對或絕對路徑。見 `config/brief_layouts/README.md`。
 
 # ---------- GCP / BigQuery（選填，預設專案名見下）----------
 GCP_PROJECT_ID=my-investment-ai-agent
@@ -161,7 +162,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # REPORT_QUALITY_AGENT_GIT_ALLOW=0    # 與 GIT_PUSH 同開才執行（雙重保險，避免誤推）
 # GATE_FAILURE_ARTIFACTS=1   # validate 失敗時寫入 .qsilicon/last_gate_failure/（draft_report.txt、issues.txt、validation_summary.json）
 # GATE_FAILURE_ARTIFACT_DIR=   # 自訂目錄（預設專案根下 .qsilicon/last_gate_failure）
-# GATE_FAILURE_BQ_LOG=1      # 1=管線每次 validate 含 issues 時寫入 BigQuery `market_data.gate_failure_log`（結構化分類，不自動改 prompt）；SKIP_BIGQUERY=1 時仍略過
+# GATE_FAILURE_BQ_LOG=1      # 1=管線每次 validate 含 issues 時寫入 BigQuery `market_data.gate_failure_log`（結構化分類 + profile；不自動改 prompt）；SKIP_BIGQUERY=1 時仍略過。`llm_run_log` 寫入亦含 profile（Phase 4c）
 # GATE_ALERT_FULL_ISSUES=1   # Gate 告警後再發 1+ 則純文字訊息列出完整 issues（設 0 只保留 top 3 摘要行）
 # GATE_FAILURE_DIGEST_DAYS=14  # scripts/gate_failure_hint_digest.py 查詢近 N 日（1~90）
 # GATE_FAILURE_DIGEST_OUT=.qsilicon/gate_failure_digest.md  # digest script 可選輸出路徑

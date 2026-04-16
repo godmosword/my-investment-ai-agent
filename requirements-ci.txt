@@ -2,6 +2,7 @@
 # 測試依賴 conftest.py 對 crewai、litellm、matplotlib、yfinance 等模組的 stub；
 # 與 pytest smoke + full 套件對齊（見 .github/workflows/ci.yml）。
 Jinja2>=3.1.0
+PyYAML>=6.0.1
 pydantic>=2.7.0
 pytest>=8.0.0
 pytest-mock>=3.12.0

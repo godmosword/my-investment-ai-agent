@@ -87,6 +87,7 @@ class TestWriteGateFailureLog(unittest.TestCase):
                         "blocking_issues": ["缺少新聞時間未統一標示 UTC+8"],
                         "warning_issues": ["缺少 QSREC"],
                         "news_count": 5,
+                        "profile": "crypto-only",
                     },
                     report_chars=4000,
                     used_fallback=True,
@@ -104,6 +105,46 @@ class TestWriteGateFailureLog(unittest.TestCase):
             self.assertIn("bucket_counts_json", row)
             self.assertIn("fingerprint", row)
             self.assertTrue(len(row["fingerprint"]) <= 16)
+            self.assertEqual(row["profile"], "crypto-only")
+
+    def test_profile_kwarg_overrides_validation(self):
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": "", "GATE_FAILURE_BQ_LOG": "1"}):
+            import importlib
+
+            import bigquery_writer
+
+            importlib.reload(bigquery_writer)
+
+            mock_client = MagicMock()
+            mock_client.insert_rows_json.return_value = []
+            mock_client.get_table.return_value = MagicMock(schema=[])
+
+            with patch("bigquery_writer.bigquery") as mock_bq:
+                mock_bq.Client.return_value = mock_client
+
+                def _make_field(name, typ):
+                    f = MagicMock()
+                    f.name = name
+                    return f
+
+                mock_bq.SchemaField = MagicMock(side_effect=_make_field)
+                mock_bq.Table = MagicMock()
+
+                bigquery_writer.write_gate_failure_log(
+                    attempt=1,
+                    validation={
+                        "issues": ["x"],
+                        "blocking_issues": ["x"],
+                        "warning_issues": [],
+                        "profile": "full",
+                    },
+                    report_chars=100,
+                    used_fallback=False,
+                    profile="lite",
+                )
+
+            row = mock_client.insert_rows_json.call_args[0][1][0]
+            self.assertEqual(row["profile"], "lite")
 
 
 class TestBucketGateIssues(unittest.TestCase):

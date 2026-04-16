@@ -63,3 +63,30 @@ def test_lite_profile_consistency_rejects_full_html():
     assert not r["valid"]
     issues = " ".join(r.get("issues") or [])
     assert "lite 版型" in issues or "加密市場" in issues
+
+
+@pytest.mark.smoke
+def test_crypto_only_renders_omits_ai_and_validate_passes_smoke(monkeypatch):
+    """Phase 4a: crypto-only profile template + validate_report(profile=) smoke."""
+    report = _minimal_report()
+    html = render_telegram_daily_brief(report, profile="crypto-only")
+    assert "🤖 AI 市場" not in html
+    assert "══════" in html and "📊 加密市場" in html
+    assert "[QSREC_START]" in html
+    r = validate_report(html, profile="crypto-only")
+    assert r.get("profile") == "crypto-only"
+    blocking = r.get("blocking_issues") or []
+    assert not any("缺少 AI 市場段落" in i for i in r.get("issues", [])), r.get("issues")
+    assert not any("缺少 AI 美股操作" in i for i in r.get("issues", [])), r.get("issues")
+    assert not any("Phase A" in i or "【投資命題】" in i for i in blocking), blocking
+
+
+@pytest.mark.smoke
+def test_crypto_only_profile_consistency_rejects_full_html():
+    """Passing profile=crypto-only with full-template HTML must fail profile consistency."""
+    report = _minimal_report()
+    full_html = render_telegram_daily_brief(report, profile="full")
+    r = validate_report(full_html, profile="crypto-only")
+    assert not r["valid"]
+    issues = " ".join(r.get("issues") or [])
+    assert "crypto-only 版型" in issues

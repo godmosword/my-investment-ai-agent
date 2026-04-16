@@ -19,9 +19,9 @@
 
 **本 README 對齊 repo 現況（持續更新；重大變更見 [`CHANGELOG.md`](CHANGELOG.md)）。** 細節與紅線亦見 [`.cursorrules`](.cursorrules)。
 
-### 日報模組化（計畫文件）
+### 日報模組化（計畫文件 + 已落地切片）
 
-多 profile（`full`／`lite`／`crypto-only`）、`templates/blocks/` macro 切片、`brief_profiles`／`BLOCK_REGISTRY`、profile-aware **`validate_report`**，以及可選 YAML 佈局與 **【時事多觀點】** 區塊之**短／中／長期**切分，見根目錄 [`modularization_plan.md`](modularization_plan.md)。**現況為規格與實作順序文件**（CHANGELOG **2026-04-25**）；實際模板與 `main.py` 尚未依該計畫重構。實作時仍須遵守 **Telegram HTML 白名單**與 **無數據幻覺**（見上表「日報版面」）。
+多 profile（`full`／`lite`／`crypto-only`）、`templates/blocks/` macro、`brief_profiles`／`BLOCK_REGISTRY`、profile-aware **`validate_report`**，以及 Phase 4c（BQ `profile`）／Phase 5（【時事多觀點】）之**短／中／長期**切分，見根目錄 [`modularization_plan.md`](modularization_plan.md)。**已交付**：Phase 1（**2026-04-26**，`templates/blocks/` + smoke byte 對齊）、Phase 2–3（**2026-04-27**，`REPORT_PROFILE`、`templates/profiles/`、`main.py` 傳 profile、Gate `profile=`）、**Phase 4a**（**2026-04-27**，`telegram_crypto_only`、`REPORT_PROFILE=crypto-only`）、**Phase 4b**（**2026-04-27**，[`config/brief_layouts/`](config/brief_layouts/)、`BRIEF_LAYOUT_FILE`、`brief_profiles_layout`、`profile_block_ids` merge）、**Phase 4c**（**2026-04-16**，[`bigquery_writer.py`](bigquery_writer.py) `llm_run_log`／`gate_failure_log` 寫入 **`profile`**，見 [`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql)）；預設 **`full`** 與凍結基線 **byte-identical** — 見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-16**／**2026-04-26**／**2026-04-27**。**仍待**：Phase 5（見 [`TODOS.md`](TODOS.md) 隊列 **22**）。後續實作仍須遵守 **Telegram HTML 白名單**與 **無數據幻覺**（見上表「日報版面」）。
 
 ---
 
@@ -152,7 +152,7 @@ flowchart TB
 | [`graph/`](graph/) | 可選狀態機與工具橋接 |
 | [`tools/`](tools/) · [`tools_legacy.py`](tools_legacy.py) | 市場／新聞／鏈上工具；`MOCK_APIS` 見 ADR |
 | [`schemas.py`](schemas.py) | `DailyBriefReport`、QSREC、結構化驗證 |
-| [`report_render.py`](report_render.py) · [`templates/telegram_report.j2`](templates/telegram_report.j2) · [`templates/profiles/`](templates/profiles/) · [`brief_profiles.py`](brief_profiles.py) | 組裝與 Telegram HTML；可選 **`REPORT_PROFILE=lite`**（預設 `full`，與凍結基線 **byte-identical**；見 `ENV_TEMPLATE.txt`） |
+| [`report_render.py`](report_render.py) · [`templates/telegram_report.j2`](templates/telegram_report.j2) · [`templates/profiles/`](templates/profiles/) · [`brief_profiles.py`](brief_profiles.py) · [`brief_profiles_layout.py`](brief_profiles_layout.py) · [`config/brief_layouts/`](config/brief_layouts/) | 組裝與 Telegram HTML；可選 **`REPORT_PROFILE=lite`** 或 **`crypto-only`**；可選 **`BRIEF_LAYOUT_FILE`** YAML 重排粗粒度 block 順序（預設 `full`，與凍結基線 **byte-identical**；見 `ENV_TEMPLATE.txt`、`config/brief_layouts/README.md`） |
 | [`report_html_gates.py`](report_html_gates.py) | `validate_report` |
 | [`telegram_sender.py`](telegram_sender.py) · [`bigquery_writer.py`](bigquery_writer.py) | 推送、metrics、`write_gate_failure_log` |
 | [`api.py`](api.py) · [`dashboard.py`](dashboard.py) | FastAPI、Streamlit |

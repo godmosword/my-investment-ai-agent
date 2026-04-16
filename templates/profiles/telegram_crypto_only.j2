@@ -1,0 +1,9 @@
+{# Profile: crypto-only — Phase 4a: 共同前段 + 加密區塊①–④ + 尾段；無昨日建議／AI 全段／機構速讀。 #}
+{% from "blocks/_header.j2" import telegram_header %}
+{% from "blocks/_exec_summary.j2" import telegram_exec_summary %}
+{% from "blocks/_market_mode.j2" import telegram_market_mode %}
+{% from "blocks/_macro_framework.j2" import telegram_macro_framework %}
+{% from "blocks/_prediction_markets.j2" import telegram_prediction_markets %}
+{% from "blocks/_crypto_section.j2" import telegram_crypto_section %}
+{% from "blocks/_footer_tail.j2" import telegram_footer_tail %}
+{{ telegram_header(crypto) }}{{ telegram_exec_summary(crypto) }}{{ telegram_market_mode(crypto) }}{{ telegram_macro_framework(crypto) }}{{ telegram_prediction_markets(crypto) }}{{ telegram_crypto_section(crypto) }}{{ telegram_footer_tail(report_tier_partial_news, tagged_news_count, low_confidence_disclaimer, source_observability_block, qsrec_json) }}

@@ -116,7 +116,7 @@ templates/
 | 2d | `report_render.render_telegram_daily_brief(..., profile=)`；**`REPORT_PROFILE`** env | 預設 `full`；`lite` 可渲染（**已落地**；`main.py` 透過 env 傳遞即可） |
 | 2e | `test_brief_profiles.py`：full vs lite 結構／長度／必要區塊 | smoke + 新測（**已落地**） |
 
-**環境變數：** `REPORT_PROFILE=lite|full|crypto-only`（`crypto-only` 可於 Phase 2 末尾或 Phase 4 再啟用模板檔，registry 可先登記）。
+**環境變數：** `REPORT_PROFILE=lite|full|crypto-only`（`crypto-only` 模板與 Gate 於 **Phase 4a** 啟用；registry 見 [`brief_profiles.py`](brief_profiles.py)）。
 
 ---
 
@@ -143,9 +143,9 @@ templates/
 
 | 切片 | 內容 | 驗收 |
 |------|------|------|
-| 4a | `templates/profiles/telegram_crypto_only.j2` + `PROFILES["crypto-only"]` | 渲染測試 |
-| 4b | `config/brief_layouts/README.md` + 範例 YAML；`BRIEF_LAYOUT_FILE=` 才 merge；block_id **白名單** | 無 env 與無檔案時行為同 Phase 2 |
-| 4c | BQ run log（或既有表）新增 `profile` 欄位 | 可選與 `SKIP_BIGQUERY` 相容 |
+| 4a | `templates/profiles/telegram_crypto_only.j2` + `PROFILES["crypto-only"]` | **已落地**（[`templates/profiles/telegram_crypto_only.j2`](templates/profiles/telegram_crypto_only.j2)、[`brief_profiles.py`](brief_profiles.py) `telegram_profile_template_relpath`；[`report_html_gates.py`](report_html_gates.py) `crypto-only` Gate／一致性；[`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py) smoke） |
+| 4b | `config/brief_layouts/README.md` + 範例 YAML；`BRIEF_LAYOUT_FILE=` 才 merge；block_id **白名單** | **已落地**（[`brief_profiles_layout.py`](brief_profiles_layout.py)、[`brief_profiles.py`](brief_profiles.py) `profile_block_ids`；[`config/brief_layouts/`](config/brief_layouts/)；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)；[`test_brief_profiles_layout.py`](test_brief_profiles_layout.py)；無 env／缺檔與 Phase 2 同） |
+| 4c | BQ run log（或既有表）新增 `profile` 欄位 | **已落地**（[`bigquery_writer.py`](bigquery_writer.py) `write_llm_run_log`／`write_gate_failure_log`；[`main.py`](main.py)；[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql)；`SKIP_BIGQUERY=1` 仍略過） |
 
 ---
 

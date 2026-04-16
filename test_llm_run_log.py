@@ -56,6 +56,41 @@ class TestWriteLlmRunLog(unittest.TestCase):
             assert row["retry_count"] == 1
             assert row["gate_passed"] is True
             assert row["gate_issues_count"] == 0
+            assert row["profile"] == "full"
+
+    def test_writes_row_profile_kwarg(self):
+        """Explicit profile= should appear on the inserted row."""
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": ""}):
+            import importlib
+            import bigquery_writer
+            importlib.reload(bigquery_writer)
+
+            mock_client = MagicMock()
+            mock_client.insert_rows_json.return_value = []
+            mock_client.get_table.return_value = MagicMock(schema=[])
+
+            with patch("bigquery_writer.bigquery") as mock_bq:
+                mock_bq.Client.return_value = mock_client
+
+                def _make_field(name, typ):
+                    f = MagicMock()
+                    f.name = name
+                    return f
+
+                mock_bq.SchemaField = MagicMock(side_effect=_make_field)
+                mock_bq.Table = MagicMock()
+
+                bigquery_writer.write_llm_run_log(
+                    model_name="x",
+                    used_fallback=False,
+                    retry_count=0,
+                    gate_passed=True,
+                    gate_issues=[],
+                    profile="lite",
+                )
+
+            row = mock_client.insert_rows_json.call_args[0][1][0]
+            assert row["profile"] == "lite"
 
     def test_gate_issues_preview_truncated_to_3(self):
         """gate_issues_preview should contain at most 3 issues joined with ' | '."""
@@ -90,6 +125,7 @@ class TestWriteLlmRunLog(unittest.TestCase):
             # Preview should contain exactly 3 issues
             assert row["gate_issues_preview"].count(" | ") == 2
             assert "issue4" not in row["gate_issues_preview"]
+            assert row["profile"] == "full"
 
     def test_credentials_error_logs_warning_not_raises(self):
         """DefaultCredentialsError should be caught and logged, not re-raised."""
