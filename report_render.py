@@ -13,10 +13,17 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, TemplateError, TemplateNotFound
 
 from assets_universe import equity_universe_merged
-from brief_profiles import get_active_profile, telegram_profile_template_relpath
+from brief_profiles import (
+    BLOCK_REGISTRY,
+    PROFILES,
+    get_active_profile,
+    profile_block_ids,
+    telegram_profile_template_relpath,
+)
 from schemas import (
     AISection,
     CryptoSection,
+    CurrentAffairsRoundtable,
     DailyBriefReport,
     ExecutableTradeLeg,
     MetricLine,
@@ -1849,6 +1856,7 @@ def assemble_daily_brief_report(
     source_observability_block: str,
     report_tier_partial_news: bool,
     agreed_regime: str | None = None,
+    current_affairs_roundtable: CurrentAffairsRoundtable | None = None,
 ) -> DailyBriefReport:
     crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
     crypto, ai = _coerce_qsrec_regimes_to_market(crypto, ai)
@@ -1875,7 +1883,121 @@ def assemble_daily_brief_report(
         source_observability_block=(source_observability_block or "").strip(),
         report_tier_partial_news=report_tier_partial_news,
         low_confidence_disclaimer=disclaimer,
+        current_affairs_roundtable=current_affairs_roundtable,
     )
+
+
+def _brief_dynamic_render_enabled() -> bool:
+    return os.getenv("BRIEF_DYNAMIC_RENDER", "").strip().lower() in ("1", "true", "yes")
+
+
+def _compress_full_profile_blocks(block_ids: tuple[str, ...]) -> list[str]:
+    """Map coarse ids to render units (one crypto section, one AI section, one footer)."""
+    out: list[str] = []
+    seen_crypto = False
+    seen_ai = False
+    seen_footer = False
+    i = 0
+    while i < len(block_ids):
+        bid = block_ids[i]
+        if bid in ("crypto_dashboard", "crypto_news", "crypto_chatter"):
+            if not seen_crypto:
+                out.append("_unit:crypto_section")
+                seen_crypto = True
+            i += 1
+            continue
+        if bid in ("ai_bridge", "ai_dashboard", "ai_news", "ai_chatter"):
+            if not seen_ai:
+                out.append("_unit:ai_section")
+                seen_ai = True
+            i += 1
+            continue
+        if bid == "source_health":
+            if not seen_footer:
+                out.append("_unit:footer_tail")
+                seen_footer = True
+            i += 1
+            if i < len(block_ids) and block_ids[i] == "qsrec":
+                i += 1
+            continue
+        if bid == "qsrec":
+            if not seen_footer:
+                out.append("_unit:footer_tail")
+                seen_footer = True
+            i += 1
+            continue
+        out.append(bid)
+        i += 1
+    return out
+
+
+def _render_dynamic_full_html(env: Environment, ctx: dict) -> str:
+    """Phase 4d: optional YAML-driven block order for `full` (opt-in; default static template)."""
+    crypto = ctx["crypto"]
+    ai = ctx["ai"]
+    order = _compress_full_profile_blocks(profile_block_ids("full"))
+    parts: list[str] = []
+    for bid in order:
+        if bid == "_unit:crypto_section":
+            frag = env.from_string(
+                '{% from "blocks/_crypto_section.j2" import telegram_crypto_section %}'
+                "{{ telegram_crypto_section(crypto) }}"
+            )
+            parts.append(frag.render(crypto=crypto))
+            continue
+        if bid == "_unit:ai_section":
+            frag = env.from_string(
+                '{% from "blocks/_ai_section.j2" import telegram_ai_section %}'
+                "{{ telegram_ai_section(crypto, ai) }}"
+            )
+            parts.append(frag.render(crypto=crypto, ai=ai))
+            continue
+        if bid == "_unit:footer_tail":
+            frag = env.from_string(
+                '{% from "blocks/_footer_tail.j2" import telegram_footer_tail %}'
+                "{{ telegram_footer_tail(report_tier_partial_news, tagged_news_count, "
+                "low_confidence_disclaimer, source_observability_block, qsrec_json) }}"
+            )
+            parts.append(frag.render(**ctx))
+            continue
+        entry = BLOCK_REGISTRY.get(bid)
+        if entry is None:
+            logger.warning("dynamic full render: unknown block id %r skipped", bid)
+            continue
+        macro = entry.macro_name
+        sub = entry.template_subpath
+        if bid == "institutional_view":
+            frag = env.from_string(
+                f'{{% from "blocks/{sub}" import {macro} %}}'
+                f"{{{{ {macro}(crypto, institutional_disclaimer_html) }}}}"
+            )
+            parts.append(
+                frag.render(crypto=crypto, institutional_disclaimer_html=ctx.get("institutional_disclaimer_html") or "")
+            )
+            continue
+        if bid == "previous_recs":
+            frag = env.from_string(
+                f'{{% from "blocks/{sub}" import {macro} %}}'
+                f"{{{{ {macro}(previous_recs_html) }}}}"
+            )
+            parts.append(frag.render(previous_recs_html=ctx.get("previous_recs_html") or ""))
+            continue
+        if bid == "current_affairs_roundtable":
+            parts.append(str(ctx.get("current_affairs_block_html") or ""))
+            continue
+        if macro == "telegram_ai_trades_only":
+            frag = env.from_string(
+                f'{{% from "blocks/{sub}" import {macro} %}}'
+                f"{{{{ {macro}(crypto, ai) }}}}"
+            )
+            parts.append(frag.render(crypto=crypto, ai=ai))
+            continue
+        frag = env.from_string(
+            f'{{% from "blocks/{sub}" import {macro} %}}'
+            f"{{{{ {macro}(crypto) }}}}"
+        )
+        parts.append(frag.render(crypto=crypto))
+    return "".join(parts)
 
 
 def _current_affairs_block_html(report: DailyBriefReport) -> str:
@@ -1948,6 +2070,10 @@ def render_telegram_daily_brief(report: DailyBriefReport, *, profile: str | None
     active = get_active_profile(profile)
     rel = telegram_profile_template_relpath(active)
     try:
+        if active == "full" and _brief_dynamic_render_enabled():
+            order = profile_block_ids("full")
+            if order != PROFILES["full"]:
+                return _render_dynamic_full_html(env, ctx)
         tmpl = env.get_template(rel)
     except TemplateNotFound as exc:
         expected = root / "templates" / rel

@@ -66,7 +66,10 @@ TELEGRAM_CHAT_ID=
 # BRIEF_CURRENT_AFFAIRS=0   # Phase 5：1=在 `full` 版型【機構速讀】與尾段之間插入可選〔時事多觀點〕（須 `DailyBriefReport.current_affairs_roundtable` 結構化非空；預設 0 **不渲染**，與 Phase 0 **byte-identical**）。
 # CURRENT_AFFAIRS_MIN_VOICES=2
 # CURRENT_AFFAIRS_MAX_VOICES=4
-# STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=0   # 1=在 `full` 且 `BRIEF_CURRENT_AFFAIRS=1` 時 HTML 強檢〔時事多觀點〕標題與 blockquote 數（見 `report_html_gates.py`）。
+# STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=0   # 1=在 `full` 且 `BRIEF_CURRENT_AFFAIRS=1` 時強檢〔時事多觀點〕（HTML + 建議管線傳 `structured_report` 做結構化交叉檢；見 `report_html_gates.py`／`main.py`）。
+# BRIEF_CURRENT_AFFAIRS_JSON=   # 可選；單行 JSON 覆寫 `CurrentAffairsRoundtable`（crew 失敗或本機測試；須 `BRIEF_CURRENT_AFFAIRS=1`）。
+# BRIEF_DYNAMIC_RENDER=0   # 1=當 `BRIEF_LAYOUT_FILE` 使 `profile_block_ids("full")` 與內建順序不同時，`full` 走 macro 動態串接（預設 0 維持 Phase 0 **byte-identical**）。
+# STRICT_LITE_EXEC_SUMMARY_PASS6_GATE=0   # 1=`lite` 執行摘要「→」要點 ≤3 條、每條 ≤40 字（見 `report_html_gates.py`）。
 # BRIEF_LAYOUT_FILE=   # 可選；指向 YAML，與內建 `PROFILES` merge 粗粒度 **block 順序**（白名單、同集合重排）。專案根相對或絕對路徑。見 `config/brief_layouts/README.md`。
 
 # ---------- GCP / BigQuery（選填，預設專案名見下）----------

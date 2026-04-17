@@ -14,8 +14,10 @@
 | [PWA_WEB_PUSH.md](PWA_WEB_PUSH.md) | Web Push（Redis、VAPID、`pywebpush`、可選 BQ） |
 | [SQL/price_probe_log.sql](SQL/price_probe_log.sql) | 實盤 BQ vs yfinance 觀測表（`scripts/symbol_price_probe.py`） |
 | [BLOOMBERG_ALIGNMENT.md](BLOOMBERG_ALIGNMENT.md) | Terminal 對齊 Phase 0 驗收 |
+| [ADR_CURRENT_AFFAIRS_ROUNDTABLE.md](ADR_CURRENT_AFFAIRS_ROUNDTABLE.md) | 〔時事多觀點〕區塊、`BRIEF_DYNAMIC_RENDER`、strict Gate |
 
 ## 修訂紀錄
 
 - **2026-04-14**：初版索引（G-7：集中 ADR／設計稿連結；不含自動生成內容）。
 - **2026-04-14（二）**：補 [`PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md)。
+- **2026-04-27**：補 [`ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)。

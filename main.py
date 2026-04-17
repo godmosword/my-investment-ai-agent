@@ -731,16 +731,49 @@ def _run_pipeline_once(
 
         tagged = len(crypto_section.news) + len(ai_section.news)
         partial_tier = tagged < 6 and _allow_partial_news_gate() and 3 <= tagged
-        _so = (source_observability_lines() or "").strip()
+        _rt = None
+        _so = ""
+        if os.getenv("BRIEF_CURRENT_AFFAIRS", "").strip().lower() in ("1", "true", "yes"):
+            from current_affairs_crew import run_current_affairs_roundtable_task
+
+            with ThreadPoolExecutor(max_workers=2) as _pool2:
+                fut_so = _pool2.submit(source_observability_lines)
+                fut_ca = _pool2.submit(
+                    run_current_affairs_roundtable_task,
+                    crypto=crypto_section,
+                    ai=ai_section,
+                )
+                try:
+                    _raw_so = fut_so.result(timeout=120)
+                    _so = (_raw_so or "").strip()
+                except Exception as _soe:
+                    logger.warning("source_observability_lines failed: %s", _soe)
+                    _so = ""
+                try:
+                    _rt = fut_ca.result(timeout=CREW_FUTURE_TIMEOUT_SEC)
+                except Exception as _cae:
+                    logger.warning("current_affairs_roundtable optional crew failed: %s", _cae)
+                    _rt = None
+        else:
+            _so = (source_observability_lines() or "").strip()
         if _so:
             logger.info("Source observability (not in Telegram body):\n%s", _so)
+        if _rt is None and os.getenv("BRIEF_CURRENT_AFFAIRS_JSON", "").strip():
+            try:
+                from schemas import CurrentAffairsRoundtable as _CAR
+
+                _rt = _CAR.model_validate_json(os.environ["BRIEF_CURRENT_AFFAIRS_JSON"])
+            except Exception as _je:
+                logger.warning("BRIEF_CURRENT_AFFAIRS_JSON parse failed: %s", _je)
+                _rt = None
         report_model = assemble_daily_brief_report(
             crypto_section,
             ai_section,
             previous_recs_html=prev_recs or "",
-            source_observability_block="",
+            source_observability_block=_so,
             report_tier_partial_news=partial_tier,
             agreed_regime=agreed_regime,
+            current_affairs_roundtable=_rt,
         )
         html = render_telegram_daily_brief(report_model, profile=get_active_profile())
         html = post_process_html_for_gate(html, agreed_regime=agreed_regime)
@@ -761,6 +794,8 @@ def _pipeline_config_snapshot_for_scratchpad() -> dict:
         "USE_LANGGRAPH_ENGINE": (os.getenv("USE_LANGGRAPH_ENGINE") or "").strip()[:16],
         "WEB_PUSH_ENABLED": (os.getenv("WEB_PUSH_ENABLED") or "").strip()[:16],
         "WEB_PUSH_STORE": (os.getenv("WEB_PUSH_STORE") or "").strip()[:16],
+        "BRIEF_CURRENT_AFFAIRS": (os.getenv("BRIEF_CURRENT_AFFAIRS") or "").strip()[:8],
+        "BRIEF_DYNAMIC_RENDER": (os.getenv("BRIEF_DYNAMIC_RENDER") or "").strip()[:8],
     }
     try:
         from adaptive_gate_thresholds import effective_pick_rotation_override_min_gap
@@ -873,7 +908,11 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                     structural_validation_err,
                 )
 
-            result = validate_report(final_report, profile=get_active_profile())
+            result = validate_report(
+                final_report,
+                profile=get_active_profile(),
+                structured_report=report_model,
+            )
             # Structured business rules enforced at DailyBriefReport construction (schemas).
             _log_validation_dual_run(final_report, result)
             last_validation = result
