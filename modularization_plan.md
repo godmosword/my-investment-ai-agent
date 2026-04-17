@@ -24,7 +24,7 @@
 | **4b** YAML layout 覆寫 | ✅ 已落地（2026-04-27） | [`brief_profiles_layout.py`](brief_profiles_layout.py)、`profile_block_ids` merge、[`config/brief_layouts/`](config/brief_layouts/)、`BRIEF_LAYOUT_FILE` env、`PyYAML` |
 | **4c** BQ `profile` | ✅ 已落地（2026-04-16） | [`bigquery_writer.py`](bigquery_writer.py) `write_llm_run_log`／`write_gate_failure_log`、[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) |
 | **4d** Phase 1–4 補強 | ✅ 已落地（2026-04-14） | 見 [Phase 4d](#phase-4d) — 一致性錨點、非法 `REPORT_PROFILE` 啟動檢、YAML／BQ 文件對齊 |
-| **5** 時事多觀點區塊 | 🟡 **部分落地** | **5a／5c／5d（可選 Gate）** 已接線（預設關閉＝**byte-identical**）；**5b** Crew／Graph 產出仍待 — 見 [Phase 5](#phase-5時事多觀點區塊podcast-型態文字) |
+| **5** 時事多觀點區塊 | ✅ **已落地（預設關閉）** | **5a–5d + 5b**：[`current_affairs_crew.py`](current_affairs_crew.py)、`main._run_pipeline_once` 並行、`assemble` 注入、`validate_report(..., structured_report=)` strict 擴充；**LangGraph** 路徑同邏輯（不修改 `graph/` 節點圖）— 見 [Phase 5](#phase-5時事多觀點區塊podcast-型態文字) |
 
 > 預設仍 `REPORT_PROFILE=full`，與 Phase 0 凍結基線 **byte-identical**；生產行為零漂移。細節對應 [`CHANGELOG.md`](CHANGELOG.md)（2026-04-16／2026-04-26／2026-04-27）、[`TODOS.md`](TODOS.md) 「同步狀態」段。
 
@@ -75,7 +75,7 @@
 |--------|------|------|
 | **短期** | Phase **1–2** 完成 | 模板切成可維護 macro；`REPORT_PROFILE` + `lite` 可跑；`full` 與重構前輸出 **等價**（byte-identical 或專案約定之 diff 收斂）；`BLOCK_REGISTRY` 與 `BLOCK_IDS` 一致可測。 |
 | **中期** | Phase **3–4** 完成 | Gate 依 profile 跳過機構 Phase A/B/C（lite 等）；profile 區塊一致性檢查；`crypto-only`；可選 **YAML layout** 覆寫（`profile_block_ids`）；BQ run log 帶 `profile`；**Phase 4d** 收斂 1–4 之文件／啟動／一致性缺口。 |
-| **長期** | Phase **5** + 後續產品項 | **時事多觀點**區塊上線（結構化＋模板＋可選 Gate 已備；**Crew 產出**接上後方可營運啟用）；再評估租戶級 layout、雙訊息（`DAILY_BRIEF_V2` Phase C）、per-user tone（需設定儲存）、音訊／TTS、非 Telegram 通道。 |
+| **長期** | Phase **5** + 後續產品項 | **時事多觀點**已可營運啟用（`BRIEF_CURRENT_AFFAIRS=1`）；再評估租戶級 layout、雙訊息（`DAILY_BRIEF_V2` Phase C）、per-user tone（需設定儲存）、音訊／TTS、非 Telegram 通道。 |
 
 ---
 
@@ -87,7 +87,7 @@
 | **2** | 版型與組裝器 | `brief_profiles.py`、`BLOCK_REGISTRY`、`profiles/`、`render_telegram_daily_brief(profile)`、`REPORT_PROFILE`、`lite` | Phase 1 |
 | **3** | Gate 與契約 | `validate_report(..., profile=)`、Phase A/B/C profile-aware、`_check_profile_block_consistency` | Phase 2 |
 | **4** | 擴充版型與配置 | `crypto-only`、可選 `config/brief_layouts/*.yaml`、BQ `profile`、**4d** 補強（見下） | Phase 2–3 |
-| **5** | 時事多觀點區塊 | `schemas` + crew／graph 單一產物 + `_current_affairs_roundtable.j2`、可選 Gate、`DAILY_BRIEF_V2` 小改版 | Phase 1–2（macro 槽位） |
+| **5** | 時事多觀點區塊 | `schemas` + 單 task crew + macro + Gate + `DAILY_BRIEF_V2`；**LangGraph 同 main 鉤子**（不改 `graph/` 圖） | Phase 1–2（macro 槽位） |
 
 ---
 
@@ -190,9 +190,7 @@ templates/
 | **4d-d** | [`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) 註解補「API 自動補欄 vs 手動 ALTER」；[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) 補 **`profile`** 欄與 DDL 連結 | 文件 review |
 | **4d-維護** | 本檔與 CHANGELOG：**full** 變更須同步 **Phase 0 fixture** 或調整 macro 使 [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) 仍綠 | PR 範本／合併檢查清單 |
 
-**後續（非 4d 必含，可併 Phase 5 或獨立 PR）：**
-
-- **動態組版**：讓 `profile_block_ids()` 真正驅動 `telegram_*.j2` 的 macro 呼叫順序（或 codegen 自 `BLOCK_REGISTRY`），屬較大重構；須維持 **`full` byte-identical** 與 smoke 矩陣。
+**動態組版（已落地，預設關閉）：** `BRIEF_DYNAMIC_RENDER=1` 且 YAML 使 `profile_block_ids("full")` ≠ 內建順序時，[`report_render.render_telegram_daily_brief`](report_render.py) 走 macro 串接；預設關閉維持 **byte-identical**。範例 [`config/brief_layouts/example_full_reorder_header_exec.yaml`](config/brief_layouts/example_full_reorder_header_exec.yaml)；測試 [`test_dynamic_full_render.py`](test_dynamic_full_render.py)。
 
 ---
 
@@ -205,9 +203,9 @@ templates/
 | 切片 | 內容 | 驗收 |
 |------|------|------|
 | 5a | `schemas.py` roundtable 結構；`BRIEF_CURRENT_AFFAIRS=1` 類開關 | **已落地**（[`schemas.py`](schemas.py) `RoundtableVoice`／`CurrentAffairsRoundtable`／`DailyBriefReport.current_affairs_roundtable`；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)；[`test_current_affairs_schema.py`](test_current_affairs_schema.py)） |
-| 5b | `crew.py` 或 `graph/` **單一 task／子節點**產出（不採「每區塊一 Agent」預設） | **仍待**（不接線則欄位維持 `None`，預設 **byte-identical**） |
+| 5b | `crew.py` 或 `graph/` **單一 task／子節點**產出（不採「每區塊一 Agent」預設） | **已落地** — [`current_affairs_crew.py`](current_affairs_crew.py)（無 tools 單 task）；[`main.py`](main.py) 雙軌完成後與 `source_observability_lines` **並行**；可選 **`BRIEF_CURRENT_AFFAIRS_JSON`** 覆寫；**不**改 `graph/` 編譯圖 |
 | 5c | `_current_affairs_roundtable.j2`；`BLOCK_REGISTRY` + `full` profile 選用；`assemble` 注入 | **已落地（安全版）** — 由 [`report_render.telegram_render_context`](report_render.py) 注入 **`current_affairs_block_html`**（`BRIEF_CURRENT_AFFAIRS=1` 且欄位非空才非空字串）；[`templates/profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)；**不改** [`assemble_daily_brief_report`](report_render.py) 預設回傳；[`test_current_affairs_render.py`](test_current_affairs_render.py) smoke |
-| 5d | 可選 strict Gate；更新 `docs/DAILY_BRIEF_V2.md` 順序一句 | **Gate 已落地**（`STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE`）；**文件** 見 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §1 補充步驟 |
+| 5d | 可選 strict Gate；更新 `docs/DAILY_BRIEF_V2.md` 順序一句 | **已落地** — `STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE` + `validate_report(..., structured_report=)` 結構化交叉檢；**Lite Pass6** `STRICT_LITE_EXEC_SUMMARY_PASS6_GATE`；ADR [`docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)；[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §1 |
 
 **紅線：** 對話內數字須對齊 tools／儀表板；HTML 僅白名單（見附錄 B）；**第 19 區塊**需與「18 區塊粗粒度」原則做一次設計取捨（ADR 可選）。
 
@@ -215,7 +213,7 @@ templates/
 
 ### Phase 5 執行計畫（Next Step）
 
-> 目標：**不破壞 `full` byte-identical 基線**的前提下，新增可選 **〔時事多觀點〕** 區塊；預設 `BRIEF_CURRENT_AFFAIRS=0`（關閉），開啟時由 Registry + macro 注入到 `full` profile 尾段（【機構速讀】之前）。
+> 目標：**不破壞 `full` byte-identical 基線**的前提下，新增可選 **〔時事多觀點〕** 區塊；預設 `BRIEF_CURRENT_AFFAIRS=0`（關閉），開啟時插入 **【機構速讀】之後**、尾段 **【SourceHealth】／QSREC 之前**（與 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §1 **10b** 一致）。
 
 #### PR 切片與檔案地圖
 
@@ -228,15 +226,13 @@ templates/
 - `ENV_TEMPLATE.txt` 新增 `BRIEF_CURRENT_AFFAIRS=0`（0/1）、`CURRENT_AFFAIRS_MAX_VOICES=4`、`CURRENT_AFFAIRS_MIN_VOICES=2`。
 - 驗收：`python3 -m pytest -m smoke` 綠；新增 `test_current_affairs_schema.py`（**PR-5a 必含 TDD**）。
 
-**PR-5b｜Crew/Graph 產出節點（單一 task，不新增 Agent）**
+**PR-5b｜Crew/Graph 產出節點（單一 task，不新增 Agent）** — **已落地（安全版）**
 
-- **預設路徑（Crew）**：`crew.py` 增加 `current_affairs_roundtable_task`，掛在現有 **Editor/Judge 前**；prompt 要求：
-  - 每個 voice 必須引用區塊① 儀表板中一個 `<code>` 讀值（填入 `evidence_anchor`）或明確 `N/A`。
-  - 至少 1 條 `disagreement`；`consensus`＋`unresolved` 二選一非空。
-  - 禁止 LLM 推導客觀數值（維持 `.cursorrules` §1 紅線）。
-- **可選路徑（LangGraph）**：`graph/graph_nodes.py` 新增 `current_affairs_node`，接在 `Deep` 之後、`Formatter` 之前。`USE_LANGGRAPH_ENGINE=1` 時走此路徑。
-- `crew_output_parse.py` 延伸至 `current_affairs_roundtable` 欄位；解析失敗 → 該欄位設 `None`，**不**阻擋報告。
-- 驗收：`pytest -m smoke` 綠；`SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 BRIEF_CURRENT_AFFAIRS=1 python main.py` 乾跑產出 HTML 含〔時事多觀點〕段。
+- **實作**：[`current_affairs_crew.py`](current_affairs_crew.py) — 單 Agent、**無 tools**、`output_pydantic=CurrentAffairsRoundtable`；[`crew_output_parse.kickoff_to_pydantic`](crew_output_parse.py) 解析。
+- **掛載點**：[`main._run_pipeline_once`](main.py) — **Crypto／AI 雙軌完成後**與 `source_observability_lines()` **同一 `ThreadPoolExecutor(max_workers=2)` 並行**；結果經 [`assemble_daily_brief_report(..., current_affairs_roundtable=)`](report_render.py) 注入（**不**內嵌 `CryptoSection`）。
+- **LangGraph**：同一 `main` 鉤子（**不**新增 `graph_nodes` 節點，避免改狀態機圖）。
+- **可選覆寫**：`BRIEF_CURRENT_AFFAIRS_JSON`（單行 JSON）於 crew 失敗時手動／測試注入。
+- **驗收**：`pytest -m smoke`；啟用 env 之乾跑見下「驗收指令速查」。
 
 **PR-5c｜Block Macro + Registry 掛載**
 
@@ -262,23 +258,17 @@ templates/
   - `BLOCK_REGISTRY["current_affairs_roundtable"] = _current_affairs_roundtable.j2:render_current_affairs_roundtable`。
   - `PROFILES["full"].block_ids` 尾段（**機構速讀前**）條件加入：`if os.getenv("BRIEF_CURRENT_AFFAIRS") == "1"`。
   - `lite` 與 `crypto-only` **不** 納入（維持瘦身精神）。
-- `report_render.py`：`assemble_daily_brief_report` 將 crew 解析後的 `current_affairs_roundtable` 注入 `DailyBriefReport`。
+- `report_render.py`：`assemble_daily_brief_report(..., current_affairs_roundtable=...)`（**已落地**）。
 - 驗收：
   - `BRIEF_CURRENT_AFFAIRS=0` 時 **full profile byte-identical** 與 Phase 0 fixture（smoke 必測）。
   - `BRIEF_CURRENT_AFFAIRS=1` 時模板渲染非空、HTML 標籤僅用白名單（`<b>`／`<i>`／`<code>`／`<blockquote>`）。
 
-**PR-5d｜可選 Strict Gate + 文件**
+**PR-5d｜可選 Strict Gate + 文件** — **已落地**
 
-- `report_html_gates.py` 新增可選 gate：`STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1` 時：
-  - HTML 需含「〔時事多觀點〕」標題、voice 數介於 `[MIN, MAX]`、每個 voice 至少一個 `<blockquote>`。
-  - 結構化驗證 `current_affairs_roundtable.voices` 中至少 1 條 `disagreement` 非空；每個 `evidence_anchor` 如非 `None` 須命中 `dashboard_anchors` 白名單。
-  - profile `lite`／`crypto-only`：**跳過**（與 4a 一致策略）。
-- 文件：
-  - `docs/DAILY_BRIEF_V2.md` 第四大區塊順序補一句：「〔時事多觀點〕（選用，`BRIEF_CURRENT_AFFAIRS=1`，置於機構速讀之前）」。
-  - `CLAUDE.md` §6「Observability & Gates」新增一行 gate 描述。
-  - `CHANGELOG.md` + `TODOS.md`（雙向對齊）記錄 Phase 5 落地日期與 env。
-  - `README.md`「日報模組化」段將 Phase 5 從「仍待」移至「已交付」。
-- 驗收：`ruff check .` + `pytest -m smoke` + `pytest -m boundary` 綠；nightly full suite 綠。
+- `STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1`：HTML blockquote 數 + 建議 **`validate_report(..., structured_report=DailyBriefReport)`**（[`main.py`](main.py) 管線已傳）以做 **disagreement／evidence_anchor 白名單** 結構化交叉檢。
+- **`STRICT_LITE_EXEC_SUMMARY_PASS6_GATE=1`**：`lite` 執行摘要「→」要點 ≤3 條、每條 ≤40 字。
+- 文件：`docs/DAILY_BRIEF_V2.md` §1、`CLAUDE.md` §6、`CHANGELOG`／`TODOS`、`README`、本檔；ADR [`docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)。
+- 驗收：`ruff check .` + `pytest -m smoke`（CI）；`pytest -m boundary` 見 nightly。
 
 #### 紅線重申（`.cursorrules` §1、§2；本檔附錄 B）
 
@@ -303,9 +293,13 @@ BRIEF_CURRENT_AFFAIRS=0 REPORT_PROFILE=full \
 # 啟用新區塊乾跑
 BRIEF_CURRENT_AFFAIRS=1 SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py
 
-# Strict gate 回歸
+# Strict gate 回歸（結構化需由 main 傳入；單測見 test_current_affairs_render.py）
 STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1 BRIEF_CURRENT_AFFAIRS=1 \
-  python3 -m pytest test_validate_report_current_affairs.py -v
+  python3 -m pytest test_current_affairs_render.py -v
+
+# 動態 full 組版（YAML 重排 + BRIEF_DYNAMIC_RENDER=1）
+BRIEF_LAYOUT_FILE=config/brief_layouts/example_full_reorder_header_exec.yaml BRIEF_DYNAMIC_RENDER=1 \
+  python3 -m pytest -m smoke test_dynamic_full_render.py -v
 ```
 
 ---

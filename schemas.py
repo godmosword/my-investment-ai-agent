@@ -1146,6 +1146,24 @@ class RoundtableVoice(BaseModel):
     disagreement: str | None = Field(default=None, max_length=2000)
 
 
+def dashboard_semantic_keys_for_roundtable(
+    crypto: "CryptoSection",
+    ai: "AISection",
+    *,
+    max_keys: int = 24,
+) -> str:
+    """Human-readable keys from MetricLine labels (for crew whitelist hints)."""
+    keys: list[str] = []
+    for sec in (crypto, ai):
+        for row in sec.dashboard:
+            if row.is_section_header:
+                continue
+            lab = (row.label or "").strip()
+            if lab and lab not in keys:
+                keys.append(lab)
+    return "、".join(keys[:max_keys])
+
+
 class CurrentAffairsRoundtable(BaseModel):
     """Optional multi-voice block; rendered only when ``BRIEF_CURRENT_AFFAIRS=1`` and field is set."""
 

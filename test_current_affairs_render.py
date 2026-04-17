@@ -56,9 +56,43 @@ def test_strict_gate_requires_block_when_env_pair(monkeypatch):
     monkeypatch.setenv("STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE", "1")
     report = _make_minimal_structured_report_dbr()
     html = render_telegram_daily_brief(report, profile="full")
-    r = validate_report(html, profile="full")
+    r = validate_report(html, profile="full", structured_report=report)
     assert not r["valid"]
-    assert any("〔時事多觀點〕" in i for i in (r.get("issues") or []))
+    issues = r.get("issues") or []
+    assert any("〔時事多觀點〕" in i for i in issues) or any(
+        "current_affairs_roundtable" in i for i in issues
+    )
+
+
+@pytest.mark.smoke
+def test_strict_structured_disagreement_enforced(monkeypatch):
+    monkeypatch.setenv("BRIEF_CURRENT_AFFAIRS", "1")
+    monkeypatch.setenv("STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE", "1")
+    base = _make_minimal_structured_report_dbr()
+    rt = CurrentAffairsRoundtable(
+        topic="測試",
+        voices=[
+            RoundtableVoice(
+                role="宏觀",
+                viewpoint="足夠長的觀點敘述用於測試 strict 分歧欄位檢查。",
+                disagreement="",
+                evidence_anchor="N/A",
+            ),
+            RoundtableVoice(
+                role="加密",
+                viewpoint="第二則足夠長的觀點敘述用於測試 strict 分歧欄位檢查。",
+                disagreement="仍有分歧敘述。",
+                evidence_anchor="N/A",
+            ),
+        ],
+        consensus="短共識。",
+        dashboard_anchors=[],
+    )
+    report = base.model_copy(update={"current_affairs_roundtable": rt})
+    html = render_telegram_daily_brief(report, profile="full")
+    r = validate_report(html, profile="full", structured_report=report)
+    assert not r["valid"]
+    assert any("disagreement" in i for i in (r.get("issues") or []))
 
 
 @pytest.mark.smoke

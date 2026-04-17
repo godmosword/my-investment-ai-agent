@@ -2,7 +2,11 @@
 
 可選 **YAML** 覆寫內建 `PROFILES` 的區塊**順序**（與 `brief_profiles.profile_block_ids()` 對齊）。**不設** `BRIEF_LAYOUT_FILE` 或檔案不存在時，行為與 Phase 2 相同（僅內建 profile）。
 
-**重要（Phase 4d）：** 目前管線的 Telegram HTML 仍由 [`templates/profiles/`](../templates/profiles/) **靜態** Jinja 組裝；`profile_block_ids()` 的 merge 結果**不會**改變 `render_telegram_daily_brief` 輸出的區塊順序。YAML 適合營運／API 消費與未來「動態組版」接線；見根目錄 [`modularization_plan.md`](../modularization_plan.md#phase-4d)。
+**重要（Phase 4d）：** 預設下 Telegram HTML 仍由 [`templates/profiles/`](../templates/profiles/) **靜態** Jinja 組裝，`profile_block_ids()` 的 merge **不**改變輸出順序。
+
+**動態組版（可選）：** 設 **`BRIEF_DYNAMIC_RENDER=1`** 且 `BRIEF_LAYOUT_FILE` 造成 **`profile_block_ids("full")` 與內建 `PROFILES["full"]` 順序不同** 時，[`report_render.render_telegram_daily_brief`](../report_render.py) 會依 YAML **重排** `full` profile 的 macro 串接（仍須維持 smoke **byte-identical** 於「未開此旗標」之預設路徑）。範例：[`example_full_reorder_header_exec.yaml`](example_full_reorder_header_exec.yaml)；測試 [`test_dynamic_full_render.py`](../test_dynamic_full_render.py)。
+
+其餘說明見根目錄 [`modularization_plan.md`](../modularization_plan.md#phase-4d)。
 
 ## 環境變數
 

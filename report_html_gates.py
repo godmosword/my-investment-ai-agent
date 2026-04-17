@@ -15,7 +15,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from typing import TYPE_CHECKING
+
 from brief_profiles import get_active_profile
+
+if TYPE_CHECKING:
+    from schemas import DailyBriefReport
 from config import PROJECT_ID, RECOMMENDATIONS_TABLE
 from telegram_sender import strip_html
 from validation_rules import (
@@ -1986,6 +1991,62 @@ def _strict_current_affairs_roundtable_gate() -> bool:
     )
 
 
+def _strict_lite_exec_summary_pass6_gate() -> bool:
+    return os.getenv("STRICT_LITE_EXEC_SUMMARY_PASS6_GATE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def _lite_exec_summary_pass6_issues(text: str) -> list[str]:
+    """Optional lite Pass 6: ≤3 「→」要點行、每行 ≤40 字（不含前導 → 與空白）。"""
+    out: list[str] = []
+    if not _strict_lite_exec_summary_pass6_gate():
+        return out
+    if "【執行摘要】" not in text:
+        return out
+    idx = text.find("【執行摘要】")
+    rest = text[idx + len("【執行摘要】") : idx + 2500]
+    stop = rest.find("【今日市場模式】")
+    if stop >= 0:
+        rest = rest[:stop]
+    lines = [ln.strip() for ln in rest.splitlines() if ln.strip().startswith("→")]
+    if len(lines) > 3:
+        out.append(f"lite Pass6：執行摘要要點超過 3 條（當前 {len(lines)}）")
+    for i, ln in enumerate(lines[:3], start=1):
+        body = ln.lstrip("→").strip()
+        if len(body) > 40:
+            out.append(f"lite Pass6：執行摘要第 {i} 條超過 40 字（當前 {len(body)}）")
+    return out
+
+
+def _current_affairs_structured_strict_issues(
+    structured_report: "DailyBriefReport | None",
+) -> list[str]:
+    """PR-5d：STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE + 結構化交叉檢（需傳入 DailyBriefReport）。"""
+    out: list[str] = []
+    if not _strict_current_affairs_roundtable_gate():
+        return out
+    if structured_report is None:
+        out.append("STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1 時須傳入 structured_report=DailyBriefReport")
+        return out
+    rt = structured_report.current_affairs_roundtable
+    if rt is None:
+        out.append("結構化缺少 current_affairs_roundtable（strict 時須非空）")
+        return out
+    allowed = {str(x).strip() for x in rt.dashboard_anchors if str(x).strip()}
+    for i, v in enumerate(rt.voices, start=1):
+        if not (v.disagreement or "").strip():
+            out.append(f"時事多觀點 voice {i}：disagreement 不得為空（strict）")
+        ea = (v.evidence_anchor or "").strip()
+        if ea and ea.upper() != "N/A" and allowed and ea not in allowed:
+            out.append(
+                f"時事多觀點 voice {i}：evidence_anchor {ea!r} 不在結構化 dashboard_anchors 白名單"
+            )
+    return out
+
+
 def _current_affairs_roundtable_html_issues(text: str) -> list[str]:
     """When STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1 on full profile: require rendered block + voice count."""
     out: list[str] = []
@@ -2056,7 +2117,12 @@ def _check_profile_block_consistency(text: str, profile: str) -> tuple[bool, str
     return True, ""
 
 
-def validate_report(text: str, *, profile: str | None = None) -> dict:
+def validate_report(
+    text: str,
+    *,
+    profile: str | None = None,
+    structured_report: "DailyBriefReport | None" = None,
+) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。
 
     ``profile`` 對齊 ``REPORT_PROFILE`` / ``brief_profiles.get_active_profile``：
@@ -2314,6 +2380,11 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
     ):
         for _ca_err in _current_affairs_roundtable_html_issues(text):
             issues.append(_ca_err)
+        for _ca_s in _current_affairs_structured_strict_issues(structured_report):
+            issues.append(_ca_s)
+    if is_lite:
+        for _lx in _lite_exec_summary_pass6_issues(text):
+            issues.append(_lx)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if (not is_lite) and not has_rumor_grade:

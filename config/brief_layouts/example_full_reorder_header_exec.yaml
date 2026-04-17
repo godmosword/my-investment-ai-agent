@@ -1,0 +1,23 @@
+# 示範：`full` profile 僅交換 `header` 與 `exec_summary` 順序（其餘與內建相同）。
+# 須搭配 `BRIEF_DYNAMIC_RENDER=1` 才會影響 Telegram HTML；否則仍走靜態 `telegram_full.j2`（byte-identical）。
+applies_to_profile: full
+blocks:
+  - exec_summary
+  - header
+  - previous_recs
+  - market_mode
+  - macro_framework
+  - prediction_markets
+  - crypto_dashboard
+  - crypto_news
+  - crypto_chatter
+  - crypto_trades
+  - ai_bridge
+  - ai_dashboard
+  - ai_news
+  - ai_chatter
+  - ai_trades
+  - current_affairs_roundtable
+  - institutional_view
+  - source_health
+  - qsrec
