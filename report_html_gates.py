@@ -23,8 +23,11 @@ from validation_rules import (
     CODE_LEAK_RE,
     DATA_MISSING_FIELDS_RE,
     HAS_AI_SECTION_RE,
+    HAS_CRYPTO_DASHBOARD_BANNER_RE,
     HAS_CRYPTO_SECTION_RE,
     HAS_DASHBOARD_RE,
+    HAS_LITE_AI_TRADES_RE,
+    HAS_LITE_CRYPTO_TRADES_RE,
     HAS_DATA_MISSING_RE,
     HAS_EXPECTED_WIN_RATE_RE,
     HAS_LOW_CONFIDENCE_RE,
@@ -1982,12 +1985,16 @@ def _check_profile_block_consistency(text: str, profile: str) -> tuple[bool, str
     """
     p = (profile or "full").strip().lower()
     if p == "lite":
-        if "══════" in text and "📊 加密市場" in text:
+        if HAS_CRYPTO_DASHBOARD_BANNER_RE.search(text):
             return False, "lite 版型不應含完整「══════ … 加密市場」儀表板標題區"
-        if "🤖 AI 市場" in text:
-            return False, "lite 版型不應含「🤖 AI 市場」全段"
-        if "【機構速讀｜命題與情境】" in text:
-            return False, "lite 版型不應含【機構速讀｜命題與情境】"
+        if HAS_AI_SECTION_RE.search(text) or "🤖 AI 市場" in text:
+            return False, "lite 版型不應含「🤖 AI 市場」或 AI 全段新聞／儀表板標題"
+        if "【機構速讀｜命題與情境】" in text or "【機構速讀" in text:
+            return False, "lite 版型不應含【機構速讀】"
+        if "<b>上期</b>" in text:
+            return False, "lite 版型不應含「上期」昨日建議區"
+        if not (HAS_LITE_CRYPTO_TRADES_RE.search(text) and HAS_LITE_AI_TRADES_RE.search(text)):
+            return False, "lite 版型應同時含加密與美股區塊④標題（精準操作摘要）"
         return True, ""
     if p == "crypto-only":
         if HAS_AI_SECTION_RE.search(text) or "🤖 AI 市場" in text:
@@ -1996,6 +2003,10 @@ def _check_profile_block_consistency(text: str, profile: str) -> tuple[bool, str
             return False, "crypto-only 版型不應含【機構速讀】"
         if "<b>上期</b>" in text:
             return False, "crypto-only 版型不應含「上期」昨日建議區"
+        if not HAS_CRYPTO_DASHBOARD_BANNER_RE.search(text):
+            return False, "crypto-only 版型應含加密儀表板標題區（══════ … 加密市場）"
+        if HAS_LITE_AI_TRADES_RE.search(text):
+            return False, "crypto-only 版型不應含美股區塊④（AI 產業鏈精準操作）"
         return True, ""
     return True, ""
 

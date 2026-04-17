@@ -1017,6 +1017,14 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             logger.warning("LLM run log write failed (non-fatal): %s", _llm_log_err)
 
 
+def _validate_report_profile_env() -> None:
+    """Phase 4d: fail fast on invalid REPORT_PROFILE (avoid late ValueError after long crew run)."""
+    try:
+        get_active_profile()
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+
 def _validate_required_keys() -> None:
     """啟動前檢查必要 API 金鑰，提早回報缺失。"""
     required = {
@@ -1200,6 +1208,7 @@ if __name__ == "__main__":
     _install_runtime_noise_filters()
     logger.info("Initializing Q-Silicon Ultimate Agent...")
     _validate_required_keys()
+    _validate_report_profile_env()
     _validate_critical_env_strict()
     _validate_env_types()
     _log_api_key_inventory()
