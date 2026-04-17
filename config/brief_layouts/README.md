@@ -2,6 +2,8 @@
 
 可選 **YAML** 覆寫內建 `PROFILES` 的區塊**順序**（與 `brief_profiles.profile_block_ids()` 對齊）。**不設** `BRIEF_LAYOUT_FILE` 或檔案不存在時，行為與 Phase 2 相同（僅內建 profile）。
 
+**重要（Phase 4d）：** 目前管線的 Telegram HTML 仍由 [`templates/profiles/`](../templates/profiles/) **靜態** Jinja 組裝；`profile_block_ids()` 的 merge 結果**不會**改變 `render_telegram_daily_brief` 輸出的區塊順序。YAML 適合營運／API 消費與未來「動態組版」接線；見根目錄 [`modularization_plan.md`](../modularization_plan.md#phase-4d)。
+
 ## 環境變數
 
 | 變數 | 說明 |

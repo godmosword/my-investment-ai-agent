@@ -73,6 +73,9 @@
 
 ## 2026-04-14
 
+### Changed
+- **日報模組化 Phase 4d（Phase 1–4 補強）**：[`validation_rules.py`](validation_rules.py) 新增 **`HAS_CRYPTO_DASHBOARD_BANNER_RE`**、lite 雙邊區塊④標題錨點正則；[`report_html_gates.py`](report_html_gates.py) **`_check_profile_block_consistency`** 改以結構錨點檢查（lite：須同時含加密／美股 **區塊④** 標題、擋完整加密儀表板標題區／AI 全段／機構／上期；crypto-only：須含加密儀表板標題區、**不得**含 **AI 美股區塊④**），修正 **lite HTML 誤標 `profile=crypto-only` 仍通過** 之洞。[`main.py`](main.py) 新增 **`_validate_report_profile_env()`**（於 **`_validate_required_keys` 之後**）對非法 **`REPORT_PROFILE`** early-fail。[`config/brief_layouts/README.md`](config/brief_layouts/README.md) 明示 **`BRIEF_LAYOUT_FILE`／`profile_block_ids()` 目前不驅動** [`report_render.render_telegram_daily_brief`](report_render.py) 之 Jinja 區塊順序；動態組版見 [`modularization_plan.md`](modularization_plan.md) Phase 4d 後續項。[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql)、[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) 補 **`profile`** 欄首次寫入／手動 DDL 提醒。[`modularization_plan.md`](modularization_plan.md) 進度表與 Phase 4 納入 **4d**。[`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py)、[`test_critical_paths.py`](test_critical_paths.py)。
+
 ### Added
 - **日報品質代理（可選）**：[`report_quality_agent.py`](report_quality_agent.py) — `REPORT_QUALITY_AGENT=1` 時在 `validate_report` 乾淨通過或 warn-pass 交付後，以 LLM rubric（沿用 `llm_quality_judge`）與可選 `domain_quality_check` 計算複合分；低於 `REPORT_QUALITY_AGENT_COMPOSITE_MIN` 時將改善項寫入 [`TODOS.md`](TODOS.md) 內 `REPORT_QUALITY_AGENT_TODOS_*` 機器區塊；[`scratchpad.py`](scratchpad.py) 新增 `quality_agent_result` 事件；[`main.py`](main.py) 在三處成功交付路徑掛勾。可選 `REPORT_QUALITY_AGENT_GIT_PUSH` + `REPORT_QUALITY_AGENT_GIT_ALLOW` 於寫入後 `git commit`／`push`（預設關閉）。環境變數見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
 - **Symbol snapshot 價格對齊探測**：[`symbol_snapshot_service.py`](symbol_snapshot_service.py) 回應含 `price_alignment` 與 `data_provenance.price_alignment`（OHLC 尾端 vs `fetch_symbol_quote`）；[`api.py`](api.py) `SymbolSnapshot` 增欄位。

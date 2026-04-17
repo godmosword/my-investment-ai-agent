@@ -39,6 +39,7 @@
 
 - 管線：觀察當日是否收到 Telegram、BigQuery `market_data` 相關表是否有新列。  
 - Gate：`GATE_FAILURE_BQ_LOG=1` 時檢查 [`docs/SQL/gate_failure_weekly_summary.sql`](SQL/gate_failure_weekly_summary.sql) 同邏輯之查詢是否異常飆升。
+- **日報 `profile` 欄（Phase 4c／4d）**：`llm_run_log` 與 `gate_failure_log` 寫入含 **`profile`**（對齊 `REPORT_PROFILE`／`validate_report`）。若表為舊 schema 且尚未被管線 `update_table` 補欄，請於 BQ 執行 [`docs/SQL/bq_brief_profile_columns.sql`](SQL/bq_brief_profile_columns.sql) 之 `ALTER TABLE … ADD COLUMN profile STRING`（duplicate column 可略過）。
 
 ## 回滾
 

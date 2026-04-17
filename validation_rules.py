@@ -5,6 +5,16 @@ HAS_REGIME_RE = re.compile(r"risk[\s_\-]*on|risk[\s_\-]*off|neutral", re.IGNOREC
 HAS_DASHBOARD_RE = re.compile(r"DXY|BTC\s*OI|資金費率|模型排名|ML.*權重|RSI|Fear.*Greed|儀表板", re.IGNORECASE)
 HAS_AI_SECTION_RE = re.compile(r"AI\s*市場|AI\s*產業新聞|AI\s*數據儀表板", re.IGNORECASE)
 HAS_CRYPTO_SECTION_RE = re.compile(r"加密市場|核心新聞|數據儀表板", re.IGNORECASE)
+# Phase 4d: profile HTML consistency — stable anchors (not emoji-dependent).
+HAS_CRYPTO_DASHBOARD_BANNER_RE = re.compile(
+    r"══════\s*<b>\s*📊\s*加密市場\s*</b>\s*══════"
+)
+HAS_LITE_CRYPTO_TRADES_RE = re.compile(
+    r"<b>區塊④</b>【資金流向與精準操作\s*\(Crypto\)】"
+)
+HAS_LITE_AI_TRADES_RE = re.compile(
+    r"<b>區塊④</b>【AI\s*產業鏈精準操作\s*\(US\s*Equities\)】"
+)
 HAS_DATA_MISSING_RE = re.compile(r"\[DATA_MISSING:")
 DATA_MISSING_FIELDS_RE = re.compile(r"\[DATA_MISSING:([^\]]+)\]")
 # 以下字串仍保留，供 grep／文件對照；**語意判斷請用** `text_has_positive_trade_watch_mode` /

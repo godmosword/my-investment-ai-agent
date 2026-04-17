@@ -90,3 +90,14 @@ def test_crypto_only_profile_consistency_rejects_full_html():
     assert not r["valid"]
     issues = " ".join(r.get("issues") or [])
     assert "crypto-only 版型" in issues
+
+
+@pytest.mark.smoke
+def test_crypto_only_profile_consistency_rejects_lite_html():
+    """Phase 4d: lite body lacks crypto dashboard banner — must not pass as crypto-only."""
+    report = _minimal_report()
+    lite_html = render_telegram_daily_brief(report, profile="lite")
+    r = validate_report(lite_html, profile="crypto-only")
+    assert not r["valid"]
+    issues = " ".join(r.get("issues") or [])
+    assert "crypto-only 版型" in issues

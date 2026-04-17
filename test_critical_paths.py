@@ -11,6 +11,7 @@ from main import (
     _send_telegram_report,
     _validate_critical_env_strict,
     _validate_env_types,
+    _validate_report_profile_env,
     _validate_required_keys,
 )
 from tools import (
@@ -265,6 +266,16 @@ class TestEnvValidation(unittest.TestCase):
     def test_validate_required_keys_ok_when_present(self):
         # Should not raise
         _validate_required_keys()
+
+    @patch.dict(os.environ, {"REPORT_PROFILE": "not-a-profile"}, clear=False)
+    def test_validate_report_profile_env_raises_on_invalid(self):
+        with self.assertRaises(RuntimeError) as ctx:
+            _validate_report_profile_env()
+        self.assertIn("REPORT_PROFILE", str(ctx.exception))
+
+    @patch.dict(os.environ, {"REPORT_PROFILE": "full"}, clear=False)
+    def test_validate_report_profile_env_ok(self):
+        _validate_report_profile_env()
 
 
 # ── 6. Schema validation guards ───────────────────────────────────────

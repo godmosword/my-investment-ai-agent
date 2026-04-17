@@ -23,6 +23,7 @@
 | **4a** `crypto-only` | ✅ 已落地（2026-04-27） | [`templates/profiles/telegram_crypto_only.j2`](templates/profiles/telegram_crypto_only.j2)、`PROFILES["crypto-only"]`、Gate／一致性 |
 | **4b** YAML layout 覆寫 | ✅ 已落地（2026-04-27） | [`brief_profiles_layout.py`](brief_profiles_layout.py)、`profile_block_ids` merge、[`config/brief_layouts/`](config/brief_layouts/)、`BRIEF_LAYOUT_FILE` env、`PyYAML` |
 | **4c** BQ `profile` | ✅ 已落地（2026-04-16） | [`bigquery_writer.py`](bigquery_writer.py) `write_llm_run_log`／`write_gate_failure_log`、[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) |
+| **4d** Phase 1–4 補強 | ✅ 已落地（2026-04-14） | 見 [Phase 4d](#phase-4d) — 一致性錨點、非法 `REPORT_PROFILE` 啟動檢、YAML／BQ 文件對齊 |
 | **5** 時事多觀點區塊 | 🟡 **下一步** | 見 [Phase 5 執行計畫（Next Step）](#phase-5-執行計畫next-step) |
 
 > 預設仍 `REPORT_PROFILE=full`，與 Phase 0 凍結基線 **byte-identical**；生產行為零漂移。細節對應 [`CHANGELOG.md`](CHANGELOG.md)（2026-04-16／2026-04-26／2026-04-27）、[`TODOS.md`](TODOS.md) 「同步狀態」段。
@@ -60,7 +61,7 @@
 |------|------|
 | **`REPORT_PROFILE`**（`full`／`lite`／`crypto-only`） | 選擇讀本厚度與區塊集合。 |
 | **`BLOCK_REGISTRY`** + **`templates/blocks/*.j2`** | 區塊級責任邊界與替換，PR 範圍縮小。 |
-| **可選 `config/brief_layouts/*.yaml`**（白名單） | 覆寫內建 `PROFILES` 的 block 順序與開關。 |
+| **可選 `config/brief_layouts/*.yaml`**（白名單） | 覆寫內建 `PROFILES` 的粗粒度 block **順序**（`profile_block_ids()`，**同集合重排**）；**目前不驅動** Telegram Jinja 模板實際順序 — 見 [Phase 4d](#phase-4d)。 |
 | **`validate_report(..., profile=)`**（Phase 3） | 避免 `lite` 被僅適用 `full` 之機構 Gate 誤擋。 |
 | **BQ `profile` 欄位**（Phase 4） | 營運稽核各版型實際使用情形。 |
 
@@ -73,7 +74,7 @@
 | 時間軸 | 定義 | 目標 |
 |--------|------|------|
 | **短期** | Phase **1–2** 完成 | 模板切成可維護 macro；`REPORT_PROFILE` + `lite` 可跑；`full` 與重構前輸出 **等價**（byte-identical 或專案約定之 diff 收斂）；`BLOCK_REGISTRY` 與 `BLOCK_IDS` 一致可測。 |
-| **中期** | Phase **3–4** 完成 | Gate 依 profile 跳過機構 Phase A/B/C（lite 等）；profile 區塊一致性檢查；`crypto-only`；可選 **YAML layout** 覆寫；BQ run log 帶 `profile`。 |
+| **中期** | Phase **3–4** 完成 | Gate 依 profile 跳過機構 Phase A/B/C（lite 等）；profile 區塊一致性檢查；`crypto-only`；可選 **YAML layout** 覆寫（`profile_block_ids`）；BQ run log 帶 `profile`；**Phase 4d** 收斂 1–4 之文件／啟動／一致性缺口。 |
 | **長期** | Phase **5** + 後續產品項 | **時事多觀點**區塊上線；再評估租戶級 layout、雙訊息（`DAILY_BRIEF_V2` Phase C）、per-user tone（需設定儲存）、音訊／TTS、非 Telegram 通道。 |
 
 ---
@@ -85,7 +86,7 @@
 | **1** | 模板原子化 | `templates/blocks/*.j2` + 根模板僅組裝；行為不變 | 無 |
 | **2** | 版型與組裝器 | `brief_profiles.py`、`BLOCK_REGISTRY`、`profiles/`、`render_telegram_daily_brief(profile)`、`REPORT_PROFILE`、`lite` | Phase 1 |
 | **3** | Gate 與契約 | `validate_report(..., profile=)`、Phase A/B/C profile-aware、`_check_profile_block_consistency` | Phase 2 |
-| **4** | 擴充版型與配置 | `crypto-only`、可選 `config/brief_layouts/*.yaml`、BQ `profile` | Phase 2–3 |
+| **4** | 擴充版型與配置 | `crypto-only`、可選 `config/brief_layouts/*.yaml`、BQ `profile`、**4d** 補強（見下） | Phase 2–3 |
 | **5** | 時事多觀點區塊 | `schemas` + crew／graph 單一產物 + `_current_affairs_roundtable.j2`、可選 Gate、`DAILY_BRIEF_V2` 小改版 | Phase 1–2（macro 槽位） |
 
 ---
@@ -162,6 +163,36 @@ templates/
 | 4a | `templates/profiles/telegram_crypto_only.j2` + `PROFILES["crypto-only"]` | **已落地**（[`templates/profiles/telegram_crypto_only.j2`](templates/profiles/telegram_crypto_only.j2)、[`brief_profiles.py`](brief_profiles.py) `telegram_profile_template_relpath`；[`report_html_gates.py`](report_html_gates.py) `crypto-only` Gate／一致性；[`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py) smoke） |
 | 4b | `config/brief_layouts/README.md` + 範例 YAML；`BRIEF_LAYOUT_FILE=` 才 merge；block_id **白名單** | **已落地**（[`brief_profiles_layout.py`](brief_profiles_layout.py)、[`brief_profiles.py`](brief_profiles.py) `profile_block_ids`；[`config/brief_layouts/`](config/brief_layouts/)；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)；[`test_brief_profiles_layout.py`](test_brief_profiles_layout.py)；無 env／缺檔與 Phase 2 同） |
 | 4c | BQ run log（或既有表）新增 `profile` 欄位 | **已落地**（[`bigquery_writer.py`](bigquery_writer.py) `write_llm_run_log`／`write_gate_failure_log`；[`main.py`](main.py)；[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql)；`SKIP_BIGQUERY=1` 仍略過） |
+
+---
+
+<a id="phase-4d"></a>
+
+## Phase 4d（2026-04-14 補強）
+
+**目的：** 收斂 Phase **1–4** review 所列缺口 — **不改 `full` byte-identical 基線**、不新增第二條資料管線；以 **Gate 錨點穩定化**、**啟動 fail-fast**、**文件與營運對齊** 為主。
+
+**背景（問題陳述）：**
+
+1. **Phase 4b**：`profile_block_ids()` + `BRIEF_LAYOUT_FILE` 已可 merge 粗粒度 block 順序，但 [`report_render.render_telegram_daily_brief`](report_render.py) 仍由 **`templates/profiles/*.j2` 靜態**串 macro — YAML **不**改變 Telegram HTML 區塊順序；營運易誤解。
+2. **Phase 3／4a**：`_check_profile_block_consistency` 部分依賴易變字串；且曾出現 **lite 內容 + `profile=crypto-only` 仍通過** 之洞（crypto-only Gate 對 AI 全段放寬時）。
+3. **Phase 2**：非法 `REPORT_PROFILE` 原於 `get_active_profile()` 拋 `ValueError`，可能在長 run 後才失敗；應 **啟動早檢**。
+4. **Phase 1**：維護 `telegram_report_phase0_monolithic.j2` 與 `full` 等價時，需明確「改 macro／full 模板 = 預期動 baseline」之 PR 紀律（見下 **4d-維護**）。
+5. **Phase 4c**：BQ 表若無 `profile` 欄，首次寫入依賴程式 `update_table`；仍應在 runbook／SQL 註解中提醒手動 DDL 情境。
+
+**已落地切片（PR-4d）：**
+
+| 切片 | 內容 | 驗收 |
+|------|------|------|
+| **4d-a** | [`validation_rules.py`](validation_rules.py)：`HAS_CRYPTO_DASHBOARD_BANNER_RE`、`HAS_LITE_*_TRADES_RE`；[`report_html_gates.py`](report_html_gates.py) `_check_profile_block_consistency` 改用結構錨點（lite 必含雙邊區塊④標題；crypto-only 必含加密儀表板標題、不得含 AI 美股區塊④） | [`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py) `test_crypto_only_profile_consistency_rejects_lite_html`；既有 full／lite／crypto-only smoke 仍綠 |
+| **4d-b** | [`main.py`](main.py) `_validate_report_profile_env()`：啟動時 `get_active_profile()` early-fail | [`test_critical_paths.py`](test_critical_paths.py) |
+| **4d-c** | [`config/brief_layouts/README.md`](config/brief_layouts/README.md) 開宗明義：**YAML 不驅動** `render_telegram_daily_brief` 之 Jinja 順序；`profile_block_ids` 供 API／未來動態組版／營運稽核 | 文件 review |
+| **4d-d** | [`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) 註解補「API 自動補欄 vs 手動 ALTER」；[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) 補 **`profile`** 欄與 DDL 連結 | 文件 review |
+| **4d-維護** | 本檔與 CHANGELOG：**full** 變更須同步 **Phase 0 fixture** 或調整 macro 使 [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) 仍綠 | PR 範本／合併檢查清單 |
+
+**後續（非 4d 必含，可併 Phase 5 或獨立 PR）：**
+
+- **動態組版**：讓 `profile_block_ids()` 真正驅動 `telegram_*.j2` 的 macro 呼叫順序（或 codegen 自 `BLOCK_REGISTRY`），屬較大重構；須維持 **`full` byte-identical** 與 smoke 矩陣。
 
 ---
 
@@ -407,7 +438,7 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 | `test_brief_profiles.py` | 2 |
 | `config/brief_layouts/*.yaml` | 4 |
 | `report_render.py` | 1–2（`build_telegram_jinja_env`／`telegram_render_context`／`render_telegram_daily_brief(..., profile=)`） |
-| `report_html_gates.py` | 3（`validate_report(..., profile=)`、lite 放寬、`_check_profile_block_consistency`） |
+| `report_html_gates.py` | 3、**4d**（`validate_report(..., profile=)`、lite 放寬、`_check_profile_block_consistency` 錨點） |
 | `test_validate_report_profile_phase3.py` | 3 |
 | `main.py` | 2–3 |
 | `schemas.py` / `crew.py` / `graph/*` | 5 |
@@ -425,6 +456,7 @@ python3 -m pytest test_validate_report_profile_phase3.py -v   # Phase 3：profil
 REPORT_PROFILE=full SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py   # 與重構前等價檢查
 REPORT_PROFILE=lite SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py
 REPORT_PROFILE=lite STRICT_INSTITUTIONAL_PHASE_A_GATE=1 python3 -m pytest test_validate_report_profile_phase3.py -v
+python3 -m pytest test_critical_paths.py::TestEnvValidation::test_validate_report_profile_env_raises_on_invalid -v
 ```
 
 ---
