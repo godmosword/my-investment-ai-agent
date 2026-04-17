@@ -28,6 +28,7 @@ BLOCK_IDS: Final[tuple[str, ...]] = (
     "ai_news",
     "ai_chatter",
     "ai_trades",
+    "current_affairs_roundtable",
     "institutional_view",
     "source_health",
     "qsrec",
@@ -97,6 +98,9 @@ BLOCK_REGISTRY: Final[dict[str, BlockRegistryEntry]] = {
     "ai_news": BlockRegistryEntry("_ai_section.j2", "telegram_ai_section"),
     "ai_chatter": BlockRegistryEntry("_ai_section.j2", "telegram_ai_section"),
     "ai_trades": BlockRegistryEntry("_ai_trades_only.j2", "telegram_ai_trades_only"),
+    "current_affairs_roundtable": BlockRegistryEntry(
+        "_current_affairs_roundtable.j2", "telegram_current_affairs_roundtable"
+    ),
     "institutional_view": BlockRegistryEntry(
         "_institutional_view.j2", "telegram_institutional_view"
     ),

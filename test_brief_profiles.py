@@ -36,6 +36,7 @@ def test_block_ids_match_registry_keys():
 
 def test_profiles_stable_keys():
     assert tuple(PROFILES["full"]) == BLOCK_IDS
+    assert "current_affairs_roundtable" in PROFILES["full"]
     assert PROFILES["lite"] == (
         "header",
         "exec_summary",

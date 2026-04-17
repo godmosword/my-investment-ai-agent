@@ -1978,6 +1978,51 @@ def _persist_gate_validation_failure(report_text: str, validation: dict) -> Path
 # ── 主驗證函式 ────────────────────────────────────────────────────────
 
 
+def _strict_current_affairs_roundtable_gate() -> bool:
+    return os.getenv("STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def _current_affairs_roundtable_html_issues(text: str) -> list[str]:
+    """When STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1 on full profile: require rendered block + voice count."""
+    out: list[str] = []
+    if not _strict_current_affairs_roundtable_gate():
+        return out
+    if os.getenv("BRIEF_CURRENT_AFFAIRS", "").strip().lower() not in ("1", "true", "yes"):
+        out.append(
+            "STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1 時須同設 BRIEF_CURRENT_AFFAIRS=1，"
+            "否則 HTML 不會渲染〔時事多觀點〕"
+        )
+        return out
+    marker = "<b>〔時事多觀點〕"
+    if marker not in text:
+        out.append("缺少〔時事多觀點〕標題（STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1）")
+        return out
+    i = text.index(marker)
+    tail = text[i:]
+    qend = tail.find("[QSREC_START]")
+    chunk = tail if qend < 0 else tail[:qend]
+    n_bq = chunk.count("<blockquote>")
+    try:
+        mn = int(os.getenv("CURRENT_AFFAIRS_MIN_VOICES", "2").strip())
+    except ValueError:
+        mn = 2
+    try:
+        mx = int(os.getenv("CURRENT_AFFAIRS_MAX_VOICES", "4").strip())
+    except ValueError:
+        mx = 4
+    mn = max(2, min(mn, 4))
+    mx = max(mn, min(mx, 8))
+    if not (mn <= n_bq <= mx):
+        out.append(
+            f"〔時事多觀點〕blockquote 數須 {mn}–{mx}（當前 {n_bq}，STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1）"
+        )
+    return out
+
+
 def _check_profile_block_consistency(text: str, profile: str) -> tuple[bool, str]:
     """Lightweight sanity: lite / crypto-only 不應含與版型互斥的大段（防模板誤切）。
 
@@ -2262,6 +2307,13 @@ def validate_report(text: str, *, profile: str | None = None) -> dict:
         issues.append(phase_b_err)
     if not phase_c_ok:
         issues.append(phase_c_err)
+    if (
+        (not is_lite)
+        and (not is_crypto_only)
+        and active_profile == "full"
+    ):
+        for _ca_err in _current_affairs_roundtable_html_issues(text):
+            issues.append(_ca_err)
     if not has_signal_conflict:
         issues.append("缺少訊號衝突摘要（避免過度單邊敘事）")
     if (not is_lite) and not has_rumor_grade:

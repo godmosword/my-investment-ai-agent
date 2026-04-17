@@ -1,0 +1,20 @@
+{# Phase 5: optional 〔時事多觀點〕 — HTML 白名單內；預設關閉時由 report_render 不注入字串（等價）。 #}
+{% macro telegram_current_affairs_roundtable(r) -%}
+{%- if r and r.voices -%}
+
+<b>〔時事多觀點〕{{ r.topic|tg_escape }}</b>
+{%- for v in r.voices %}
+<blockquote>
+<b>{{ v.role|tg_escape }}</b>：{{ v.viewpoint|tg_escape }}
+{%- if v.evidence_anchor %}（錨點：<code>{{ v.evidence_anchor|tg_escape }}</code>）{%- endif %}
+{%- if v.disagreement %}<i>分歧：{{ v.disagreement|tg_escape }}</i>{%- endif %}
+</blockquote>
+{%- endfor %}
+{%- if r.consensus %}
+<b>共識</b>：{{ r.consensus|tg_escape }}
+{%- endif %}
+{%- if r.unresolved %}
+<b>未決</b>：{{ r.unresolved|join('；')|tg_escape }}
+{%- endif %}
+{%- endif -%}
+{%- endmacro %}

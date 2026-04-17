@@ -63,6 +63,10 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 # TELEGRAM_REPORT_HISTORY_URL=https://your-pwa.example/archive  # 非空時首則戰報附「查看歷史」inline 連結
 # REPORT_PROFILE=full   # 日報 Telegram 版型：`full`（預設，與 Phase 0 **byte-identical**）｜`lite`（精簡：無上期／宏觀／預測市場／儀表板與新聞／呢喃／機構速讀；僅市場模式 + 雙邊區塊④ + QSREC 尾段）｜`crypto-only`（僅加密前段 + 區塊①–④ + 尾段；無 AI 全段／機構速讀；Gate 見 `report_html_gates.py`）。亦驅動 `validate_report(..., profile=)`（`lite`／`crypto-only` 放寬四區塊／新聞與美股相關 Gate；機構 Phase A/B/C **HTML** 不檢；見 `report_html_gates.py`）。
+# BRIEF_CURRENT_AFFAIRS=0   # Phase 5：1=在 `full` 版型【機構速讀】與尾段之間插入可選〔時事多觀點〕（須 `DailyBriefReport.current_affairs_roundtable` 結構化非空；預設 0 **不渲染**，與 Phase 0 **byte-identical**）。
+# CURRENT_AFFAIRS_MIN_VOICES=2
+# CURRENT_AFFAIRS_MAX_VOICES=4
+# STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=0   # 1=在 `full` 且 `BRIEF_CURRENT_AFFAIRS=1` 時 HTML 強檢〔時事多觀點〕標題與 blockquote 數（見 `report_html_gates.py`）。
 # BRIEF_LAYOUT_FILE=   # 可選；指向 YAML，與內建 `PROFILES` merge 粗粒度 **block 順序**（白名單、同集合重排）。專案根相對或絕對路徑。見 `config/brief_layouts/README.md`。
 
 # ---------- GCP / BigQuery（選填，預設專案名見下）----------
