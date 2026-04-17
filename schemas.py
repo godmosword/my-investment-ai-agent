@@ -1119,6 +1119,64 @@ class AISection(BaseModel):
         return self
 
 
+def _current_affairs_min_voices() -> int:
+    raw = os.getenv("CURRENT_AFFAIRS_MIN_VOICES", "2").strip()
+    try:
+        v = int(raw)
+    except ValueError:
+        return 2
+    return max(2, min(v, 4))
+
+
+def _current_affairs_max_voices() -> int:
+    raw = os.getenv("CURRENT_AFFAIRS_MAX_VOICES", "4").strip()
+    try:
+        v = int(raw)
+    except ValueError:
+        return 4
+    return max(_current_affairs_min_voices(), min(v, 8))
+
+
+class RoundtableVoice(BaseModel):
+    """Phase 5 optional 〔時事多觀點〕 — 單一發言；數值敘述須對齊 tools／儀表板（由 crew 提示詞約束）。"""
+
+    role: Literal["宏觀", "加密", "股票策略", "風險"]
+    viewpoint: str = Field(min_length=1, max_length=4000)
+    evidence_anchor: str | None = Field(default=None, max_length=500)
+    disagreement: str | None = Field(default=None, max_length=2000)
+
+
+class CurrentAffairsRoundtable(BaseModel):
+    """Optional multi-voice block; rendered only when ``BRIEF_CURRENT_AFFAIRS=1`` and field is set."""
+
+    topic: str = Field(min_length=1, max_length=500)
+    voices: list[RoundtableVoice] = Field(default_factory=list)
+    consensus: str | None = Field(default=None, max_length=4000)
+    unresolved: list[str] = Field(default_factory=list)
+    dashboard_anchors: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _voice_and_summary_rules(self) -> "CurrentAffairsRoundtable":
+        mn, mx = _current_affairs_min_voices(), _current_affairs_max_voices()
+        n = len(self.voices)
+        if not (mn <= n <= mx):
+            raise ValueError(f"時事多觀點 voices 須 {mn}–{mx} 條（當前 {n}）")
+        if not any((v.disagreement or "").strip() for v in self.voices):
+            raise ValueError("時事多觀點：至少一則 voice 須填 disagreement（非空）")
+        has_consensus = bool((self.consensus or "").strip())
+        has_unresolved = any((u or "").strip() for u in self.unresolved)
+        if not has_consensus and not has_unresolved:
+            raise ValueError("時事多觀點：consensus 與 unresolved 須至少一項非空")
+        allowed = {str(x).strip() for x in self.dashboard_anchors if str(x).strip()}
+        for i, v in enumerate(self.voices, start=1):
+            ea = (v.evidence_anchor or "").strip()
+            if ea and allowed and ea not in allowed:
+                raise ValueError(
+                    f"時事多觀點 voice {i}：evidence_anchor 不在 dashboard_anchors 白名單內：{ea!r}"
+                )
+        return self
+
+
 def _structured_business_issues(report: "DailyBriefReport") -> list[str]:
     """Cross-field business rules formerly in report_validator.validate_structured_report."""
     issues: list[str] = []
@@ -1329,6 +1387,10 @@ class DailyBriefReport(BaseModel):
             "Plain-text block (escaped in Jinja) inserted before QSREC when N/A density exceeds Gate "
             "threshold; filled by assemble_daily_brief_report, not LLM."
         ),
+    )
+    current_affairs_roundtable: CurrentAffairsRoundtable | None = Field(
+        default=None,
+        description="Phase 5 optional 〔時事多觀點〕；預設 None。僅在 BRIEF_CURRENT_AFFAIRS=1 時渲染。",
     )
 
     @model_validator(mode="after")

@@ -1878,6 +1878,23 @@ def assemble_daily_brief_report(
     )
 
 
+def _current_affairs_block_html(report: DailyBriefReport) -> str:
+    """Phase 5: optional 〔時事多觀點〕；預設關閉回傳空字串（維持 `full` byte-identical）。"""
+    if os.getenv("BRIEF_CURRENT_AFFAIRS", "").strip().lower() not in ("1", "true", "yes"):
+        return ""
+    rt = report.current_affairs_roundtable
+    if rt is None or not rt.voices:
+        return ""
+    root = Path(__file__).resolve().parent
+    env = build_telegram_jinja_env(root / "templates")
+    frag = env.from_string(
+        '{% from "blocks/_current_affairs_roundtable.j2" import '
+        "telegram_current_affairs_roundtable %}"
+        "{{ telegram_current_affairs_roundtable(r) }}"
+    )
+    return frag.render(r=rt)
+
+
 def build_telegram_jinja_env(templates_dir: Path) -> Environment:
     """Jinja2 env for Telegram daily brief (shared by `render_telegram_daily_brief` and tests)."""
     env = Environment(
@@ -1914,6 +1931,7 @@ def telegram_render_context(report: DailyBriefReport) -> dict:
         "tagged_news_count": report.tagged_news_count(),
         "low_confidence_disclaimer": report.low_confidence_disclaimer or "",
         "qsrec_json": json.dumps(qsrec_list, ensure_ascii=False),
+        "current_affairs_block_html": _current_affairs_block_html(report),
     }
 
 

@@ -24,7 +24,7 @@
 | **4b** YAML layout 覆寫 | ✅ 已落地（2026-04-27） | [`brief_profiles_layout.py`](brief_profiles_layout.py)、`profile_block_ids` merge、[`config/brief_layouts/`](config/brief_layouts/)、`BRIEF_LAYOUT_FILE` env、`PyYAML` |
 | **4c** BQ `profile` | ✅ 已落地（2026-04-16） | [`bigquery_writer.py`](bigquery_writer.py) `write_llm_run_log`／`write_gate_failure_log`、[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) |
 | **4d** Phase 1–4 補強 | ✅ 已落地（2026-04-14） | 見 [Phase 4d](#phase-4d) — 一致性錨點、非法 `REPORT_PROFILE` 啟動檢、YAML／BQ 文件對齊 |
-| **5** 時事多觀點區塊 | 🟡 **下一步** | 見 [Phase 5 執行計畫（Next Step）](#phase-5-執行計畫next-step) |
+| **5** 時事多觀點區塊 | 🟡 **部分落地** | **5a／5c／5d（可選 Gate）** 已接線（預設關閉＝**byte-identical**）；**5b** Crew／Graph 產出仍待 — 見 [Phase 5](#phase-5時事多觀點區塊podcast-型態文字) |
 
 > 預設仍 `REPORT_PROFILE=full`，與 Phase 0 凍結基線 **byte-identical**；生產行為零漂移。細節對應 [`CHANGELOG.md`](CHANGELOG.md)（2026-04-16／2026-04-26／2026-04-27）、[`TODOS.md`](TODOS.md) 「同步狀態」段。
 
@@ -75,7 +75,7 @@
 |--------|------|------|
 | **短期** | Phase **1–2** 完成 | 模板切成可維護 macro；`REPORT_PROFILE` + `lite` 可跑；`full` 與重構前輸出 **等價**（byte-identical 或專案約定之 diff 收斂）；`BLOCK_REGISTRY` 與 `BLOCK_IDS` 一致可測。 |
 | **中期** | Phase **3–4** 完成 | Gate 依 profile 跳過機構 Phase A/B/C（lite 等）；profile 區塊一致性檢查；`crypto-only`；可選 **YAML layout** 覆寫（`profile_block_ids`）；BQ run log 帶 `profile`；**Phase 4d** 收斂 1–4 之文件／啟動／一致性缺口。 |
-| **長期** | Phase **5** + 後續產品項 | **時事多觀點**區塊上線；再評估租戶級 layout、雙訊息（`DAILY_BRIEF_V2` Phase C）、per-user tone（需設定儲存）、音訊／TTS、非 Telegram 通道。 |
+| **長期** | Phase **5** + 後續產品項 | **時事多觀點**區塊上線（結構化＋模板＋可選 Gate 已備；**Crew 產出**接上後方可營運啟用）；再評估租戶級 layout、雙訊息（`DAILY_BRIEF_V2` Phase C）、per-user tone（需設定儲存）、音訊／TTS、非 Telegram 通道。 |
 
 ---
 
@@ -204,10 +204,10 @@ templates/
 
 | 切片 | 內容 | 驗收 |
 |------|------|------|
-| 5a | `schemas.py` roundtable 結構；`BRIEF_CURRENT_AFFAIRS=1` 類開關 | Pydantic 測試 |
-| 5b | `crew.py` 或 `graph/` **單一 task／子節點**產出（不採「每區塊一 Agent」預設） | 管線 smoke |
-| 5c | `_current_affairs_roundtable.j2`；`BLOCK_REGISTRY` + `full` profile 選用；`assemble` 注入 | 數字與儀表板一致或 N/A |
-| 5d | 可選 strict Gate；更新 `docs/DAILY_BRIEF_V2.md` 順序一句 | 文件 PR |
+| 5a | `schemas.py` roundtable 結構；`BRIEF_CURRENT_AFFAIRS=1` 類開關 | **已落地**（[`schemas.py`](schemas.py) `RoundtableVoice`／`CurrentAffairsRoundtable`／`DailyBriefReport.current_affairs_roundtable`；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)；[`test_current_affairs_schema.py`](test_current_affairs_schema.py)） |
+| 5b | `crew.py` 或 `graph/` **單一 task／子節點**產出（不採「每區塊一 Agent」預設） | **仍待**（不接線則欄位維持 `None`，預設 **byte-identical**） |
+| 5c | `_current_affairs_roundtable.j2`；`BLOCK_REGISTRY` + `full` profile 選用；`assemble` 注入 | **已落地（安全版）** — 由 [`report_render.telegram_render_context`](report_render.py) 注入 **`current_affairs_block_html`**（`BRIEF_CURRENT_AFFAIRS=1` 且欄位非空才非空字串）；[`templates/profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)；**不改** [`assemble_daily_brief_report`](report_render.py) 預設回傳；[`test_current_affairs_render.py`](test_current_affairs_render.py) smoke |
+| 5d | 可選 strict Gate；更新 `docs/DAILY_BRIEF_V2.md` 順序一句 | **Gate 已落地**（`STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE`）；**文件** 見 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §1 補充步驟 |
 
 **紅線：** 對話內數字須對齊 tools／儀表板；HTML 僅白名單（見附錄 B）；**第 19 區塊**需與「18 區塊粗粒度」原則做一次設計取捨（ADR 可選）。
 
@@ -330,9 +330,9 @@ BLOCK_IDS = [
     "macro_framework", "prediction_markets",
     "crypto_dashboard", "crypto_news", "crypto_chatter", "crypto_trades",
     "ai_bridge", "ai_dashboard", "ai_news", "ai_chatter", "ai_trades",
-    "institutional_view", "source_health", "qsrec",
+    "institutional_view", "current_affairs_roundtable", "source_health", "qsrec",
 ]
-# Phase 5：可於 institutional_view 之後、source_health 前加入 "current_affairs_roundtable"
+# Phase 5：`current_affairs_roundtable` 已納入 `brief_profiles.BLOCK_IDS`（渲染由 `telegram_full.j2` + `current_affairs_block_html`）
 ```
 
 ```python
@@ -437,12 +437,14 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 | `brief_profiles.py`（可選 `brief/block_registry.py`） | 2 |
 | `test_brief_profiles.py` | 2 |
 | `config/brief_layouts/*.yaml` | 4 |
-| `report_render.py` | 1–2（`build_telegram_jinja_env`／`telegram_render_context`／`render_telegram_daily_brief(..., profile=)`） |
-| `report_html_gates.py` | 3、**4d**（`validate_report(..., profile=)`、lite 放寬、`_check_profile_block_consistency` 錨點） |
+| `report_render.py` | 1–2、**5c**（`build_telegram_jinja_env`／`telegram_render_context` 含 `current_affairs_block_html`／`render_telegram_daily_brief(..., profile=)`） |
+| `report_html_gates.py` | 3、**4d**、**5d**（`validate_report`；`STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE`） |
 | `test_validate_report_profile_phase3.py` | 3 |
 | `main.py` | 2–3 |
-| `schemas.py` / `crew.py` / `graph/*` | 5 |
-| `docs/DAILY_BRIEF_V2.md` | 5 |
+| `schemas.py` | **5a**（`RoundtableVoice`／`CurrentAffairsRoundtable`／`DailyBriefReport.current_affairs_roundtable`） |
+| `crew.py`／`graph/*` | **5b 仍待**（單一 task／子節點產出） |
+| `templates/blocks/_current_affairs_roundtable.j2` | **5c**（macro） |
+| `docs/DAILY_BRIEF_V2.md` | 5（§1 區塊順序補充） |
 
 ---
 

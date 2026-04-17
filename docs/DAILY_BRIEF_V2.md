@@ -15,6 +15,7 @@
 8. 📊 加密市場：區塊①～④（① 儀表板可含管線注入之分區小標：宏觀／衍生品／鏈上／技術；④ 開頭可有一行 **部位摘要**）
 9. 🤖 AI 市場：**🤖 區塊①**～④（讀者版抬頭與加密段「區塊①」區分；內容規則同儀表板／新聞／呢喃／精準操作）
 10. 【機構速讀｜命題與情境】— 投資命題、支持·反駁、假設、失效、組合框架、三情境、估值錨、事件日曆（**2–3 條**支持／反駁，投行速讀）
+10b. **〔時事多觀點〕**（**可選**，Phase 5）— 置於 **【機構速讀】之後**、**【SourceHealth】／QSREC 之前**；僅在 **`BRIEF_CURRENT_AFFAIRS=1`** 且結構化 `current_affairs_roundtable` 非空時由模板插入；預設關閉時與既有 **full** 輸出 **byte-identical**。可選 **`STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1`** 強檢 HTML（須同設 `BRIEF_CURRENT_AFFAIRS=1`）。
 11. （系統注入）【SourceHealth】等三行 — 置於 **QSREC 前**、`templates/telegram_report.j2`；**勿寫在儀表板內**
 12. `[QSREC_START]` …（與 AI 段 QSREC 合併為同一陣列時由 pipeline 拼接）
 
