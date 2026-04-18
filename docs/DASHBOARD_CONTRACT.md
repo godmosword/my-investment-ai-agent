@@ -1,7 +1,26 @@
 # 儀表板與 API 契約（BL-12）
 
 本檔描述 **Streamlit 戰情室**（[`dashboard.py`](../dashboard.py)）、**FastAPI**（[`api.py`](../api.py)）與 PWA（[`data-verification-ui/`](../data-verification-ui/)）對齊時應遵守的資料語意。欄位名以實作為準；缺憑證時行為為 **優雅降級（N/A／錯誤提示）**。  
-「Bloomberg Terminal 對齊」能力映射與驗收清單見 [`docs/BLOOMBERG_ALIGNMENT.md`](BLOOMBERG_ALIGNMENT.md)。
+「Bloomberg Terminal 對齊」能力映射與驗收清單見 [`docs/BLOOMBERG_ALIGNMENT.md`](BLOOMBERG_ALIGNMENT.md)。  
+**視覺化總覽與階段路線**（A–D）見根目錄 [`visualization_plan.md`](../visualization_plan.md)。
+
+## 視覺化與數字段語意（Terminal／PWA K 線與 KPI）
+
+下列欄位同時驅動 **lightweight-charts（`price_series`）**、**卡片 last（`/quote`）** 與 **儀表數字（`latest_metrics`）**。實作以 [`symbol_snapshot_service.py`](../symbol_snapshot_service.py) 為準。
+
+| 欄位／路由 | 主要用途 | 來源 | 預設更新／快取 |
+|------------|-----------|------|----------------|
+| `GET …/snapshot` → `price_series` | K 線 OHLC | **yfinance** 日線（`fetch_symbol_ohlc`） | 進程內 TTL **約 3 分鐘** |
+| `GET …/quote` → `last`、`change_pct_1d` | Terminal／Today **即時感 last** strip | **yfinance**（`fetch_symbol_quote`，無 BQ） | 進程內 TTL **約 45 秒** |
+| `latest_metrics`、`history`（結構欄位） | 結構評分、風險等 **與日報萃取同源之 BQ 列** | **BigQuery** `METRICS_TABLE` 等 | 依查詢；API 每次請求組裝 |
+| `price_alignment` | **同符號**下 OHLC **尾根 close** 與 **quote last** 是否一致（皆 yfinance，僅交叉驗證兩條 HTTP 路徑） | 計算欄位 | 與當次 snapshot 一併回傳 |
+| `data_provenance` | 前端可摺疊展示 **source／as_of／underlying_symbol** | 聚合自上述來源 | — |
+
+**讀圖規則（避免誤判）**：
+
+1. **K 線 close** 與 **`/quote` 的 last** 理論上應接近；若 `price_alignment.aligned === false`，多為 **快取 TTL 邊界** 或 **收盤時間差**，不代表 BQ 與 yfinance「對錯」二選一。  
+2. **`latest_metrics` 內數字**（如 MVRV、regime）**不**保證與 yfinance 價格同一時間戳；與 **價格線**並列時以 `data_provenance` 為準。  
+3. Playwright／staging 可用 **`PRICE_ALIGNMENT_E2E_OVERRIDES`** 強制不一致（見 [`ENV_TEMPLATE.txt`](../ENV_TEMPLATE.txt)），僅供測試 UI。
 
 ## Streamlit 區塊 ↔ 資料來源
 

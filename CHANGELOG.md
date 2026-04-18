@@ -100,6 +100,7 @@
 - [`TODOS.md`](TODOS.md)：新增 **Terminal／戰情室後中段路線（T1–T5）** — 每切片對應主要檔案與建議執行順序（持續 improve 規劃）；後續補 **主線／並線／交錯** 執行順序表。
 - 新增 [`docs/ADR_INDEX.md`](docs/ADR_INDEX.md)、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)（含 **T4b** 通知語意草案）；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4b 補條目 6／14 之 pytest／CI／**Playwright** 錨點與 **snapshot price_alignment**；**§4c** 補 snapshot vs quote 口徑表；[`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md)、[`docs/STAGING_THRESHOLD_EXPERIMENT.md`](docs/STAGING_THRESHOLD_EXPERIMENT.md)、[`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) 對齊 scratchpad／CI 觀測；[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 同步 Web Push／snapshot 欄位、`execution-intents` query、`API_HTTP_REQUEST_LOG`、`VITE_TERMINAL_QUERY_COALESCE`。
 - [`README.md`](README.md)：MIT／Python／CI **badges**（shields.io 靜態連結至 `.github/workflows/ci.yml`）、LICENSE 對齊一句、CI 小節註記 **npm cache**、PWA **`npm run test:e2e`**；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引增 ADR 索引與 PWA Web Push。
+- **視覺化階段 A**：新增根目錄 [`visualization_plan.md`](visualization_plan.md)（階段 A–D：契約／Terminal／Telegram 附圖／長線）；[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 新增「**視覺化與數字段語意**」— `price_series`（OHLC）、`/quote`、`latest_metrics`（BQ）、`price_alignment` 讀圖規則；[`dashboard.py`](dashboard.py) Symbol 快照 expander 內 **ℹ️ 數字口徑** 與載入成功後 **`price_alignment`** 提示；[`CLAUDE.md`](CLAUDE.md) `docs/` 索引列 `visualization_plan.md`。
 
 ### Tests
 - 新增 [`test_report_quality_agent.py`](test_report_quality_agent.py)（複合分、TODOS 區塊、整體流程 mock）。

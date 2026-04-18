@@ -111,6 +111,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`research/LAST30DAYS_SKILL.md`](docs/research/LAST30DAYS_SKILL.md) | 可選 [last30days-skill](https://github.com/mvanhorn/last30days-skill)：安裝、pilot、與日報管線信任邊界（預設 A+B，不進 `main.py`） |
 | [`ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) | Product directions |
 | [`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | Streamlit / API / PWA KPI contract |
+| [`visualization_plan.md`](visualization_plan.md) | 視覺化階段計畫（A–D）：契約、Terminal、Telegram 附圖、長線 K 線疊加 |
 | [`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) | Terminal-style capability map and acceptance checklist |
 | [`ADR_INDEX.md`](docs/ADR_INDEX.md) | ADR／架構決策與相鄰設計稿索引 |
 | [`PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) | Web Push 分階實作與環境變數 |
