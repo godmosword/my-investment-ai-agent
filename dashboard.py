@@ -419,7 +419,7 @@ def render_roundtable_tab() -> None:
 **Last／漲跌幅（`/api/symbols/{symbol}/quote`）**：另一條 yfinance 路徑，快取約 **45 秒** — 可能與 OHLC 尾根 **略有差**，payload 內 **`price_alignment`** 會標示是否對齊。  
 **結構欄位（`latest_metrics`／`history`）**：來自 **BigQuery**，與日報指標萃取同源；**時間戳不一定等同** yfinance 最後一根 bar。  
 
-詳見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)「視覺化與數字段語意」與 [`visualization_plan.md`](visualization_plan.md) 階段 A。
+詳見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)「視覺化與數字段語意」與 [`visualization_plan.md`](docs/architecture/visualization_plan.md) 階段 A。
             """.strip()
         )
     _def_sym = (os.getenv("DASHBOARD_SYMBOL_FOCUS") or "BTC").strip().upper()

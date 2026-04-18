@@ -6,7 +6,7 @@
 
 **動態組版（可選）：** 設 **`BRIEF_DYNAMIC_RENDER=1`** 且 `BRIEF_LAYOUT_FILE` 造成 **`profile_block_ids("full")` 與內建 `PROFILES["full"]` 順序不同** 時，[`report_render.render_telegram_daily_brief`](../report_render.py) 會依 YAML **重排** `full` profile 的 macro 串接（仍須維持 smoke **byte-identical** 於「未開此旗標」之預設路徑）。範例：[`example_full_reorder_header_exec.yaml`](example_full_reorder_header_exec.yaml)；測試 [`test_dynamic_full_render.py`](../test_dynamic_full_render.py)。
 
-其餘說明見根目錄 [`modularization_plan.md`](../modularization_plan.md#phase-4d)。
+其餘說明見 [`modularization_plan.md`](../../docs/architecture/modularization_plan.md#phase-4d)。
 
 ## 環境變數
 
@@ -29,5 +29,5 @@
 
 ## 營運注意
 
-- 建議先在 **staging** 或離線管線驗證；見根目錄 [`modularization_plan.md`](../../modularization_plan.md)「產品與交付原則」。
+- 建議先在 **staging** 或離線管線驗證；見 [`modularization_plan.md`](../../docs/architecture/modularization_plan.md)「產品與交付原則」。
 - 無效 YAML（解析錯誤）會在呼叫 `profile_block_ids()` 時 **`ValueError`**，請在部署前用單元測試或手動載入驗證。

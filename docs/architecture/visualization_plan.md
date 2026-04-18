@@ -1,12 +1,12 @@
 # 視覺化 UX/UI 計劃 — 剩餘工作與維護
 
-> **說明**：本檔保留 **原則**、**已封存至 CHANGELOG 之交付索引**，以及 **未完成 backlog**。完整已交付行為請以 **[`CHANGELOG.md`](CHANGELOG.md)** 為準（尤其 **`## 2026-04-18`** 之 `### Added`／`### Changed`／`### Docs`）。日報後端模組化 Phase 1–5 見 [`modularization_plan.md`](modularization_plan.md)（維護導覽）。
+> **說明**：本檔保留 **原則**、**已封存至 CHANGELOG 之交付索引**，以及 **未完成 backlog**。完整已交付行為請以 **[`CHANGELOG.md`](../../CHANGELOG.md)** 為準（尤其 **`## 2026-04-18`** 之 `### Added`／`### Changed`／`### Docs`）。日報後端模組化 Phase 1–5 見 [`modularization_plan.md`](modularization_plan.md)（維護導覽）。
 >
-> **長線願景對照**：[`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) 方向 1（穩定視覺化）、演進藍圖 Phase 4（須產品拍板）。階段 A–D **速覽**見本檔 [附錄](#appendix-stages-abcd)。
+> **長線願景對照**：[`ROADMAP_VISION.md`](../ROADMAP_VISION.md) 方向 1（穩定視覺化）、演進藍圖 Phase 4（須產品拍板）。階段 A–D **速覽**見本檔 [附錄](#appendix-stages-abcd)。
 >
-> **三條產出線**：Telegram HTML 日報、Streamlit War Room（[`dashboard.py`](dashboard.py)）、PWA Terminal（[`data-verification-ui/`](data-verification-ui/)）。
+> **三條產出線**：Telegram HTML 日報、Streamlit War Room（[`dashboard.py`](../../dashboard.py)）、PWA Terminal（[`data-verification-ui/`](../../data-verification-ui/)）。
 >
-> 關聯：[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)、[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)、[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)、[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)、[`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md)。
+> 關聯：[`DASHBOARD_CONTRACT.md`](../DASHBOARD_CONTRACT.md)、[`BLOOMBERG_ALIGNMENT.md`](../BLOOMBERG_ALIGNMENT.md)、[`TERMINAL_MID_TIER_ROADMAP.md`](../TERMINAL_MID_TIER_ROADMAP.md)、[`DAILY_BRIEF_V2.md`](../DAILY_BRIEF_V2.md)、[`PWA_WEB_PUSH.md`](../PWA_WEB_PUSH.md)、[`PWA_OFFLINE.md`](../PWA_OFFLINE.md)。
 
 ---
 
@@ -26,11 +26,11 @@
 | 標籤 | 摘要 | 出處 |
 |------|------|------|
 | **V1** Design Foundation | `tokens.js`、`DESIGN.md`、共用元件（AsOfChip、ProvenancePopover、ProfileBadge、GateStatusBadge 等）、Tailwind extend、dev `/design` | CHANGELOG **2026-04-18** `### Added` |
-| **V2** 結構化 Report 主線 | `GET /api/reports/{date}/structured`、`StructuredReportView`、`structuredBlockContent`／`legacyBlockContent`、Gate 橫幅與區塊級 badge | CHANGELOG **2026-04-18**；[`api.py`](api.py)；[`test_report_structured_api.py`](test_report_structured_api.py) |
-| **V3** 局部 | `?profile=`、`BriefProfileBar`、`GET /api/reports?profile=`（Archive 列表）、`GET /api/brief-layouts`、`GET /api/reports/profile-stats` | [`api.py`](api.py)；[`test_reports_profile_api.py`](test_reports_profile_api.py) |
+| **V2** 結構化 Report 主線 | `GET /api/reports/{date}/structured`、`StructuredReportView`、`structuredBlockContent`／`legacyBlockContent`、Gate 橫幅與區塊級 badge | CHANGELOG **2026-04-18**；[`api.py`](../../api.py)；[`test_report_structured_api.py`](../../test_report_structured_api.py) |
+| **V3** 局部 | `?profile=`、`BriefProfileBar`、`GET /api/reports?profile=`（Archive 列表）、`GET /api/brief-layouts`、`GET /api/reports/profile-stats` | [`api.py`](../../api.py)；[`test_reports_profile_api.py`](../../test_reports_profile_api.py) |
 | **V4** 局部 | `GateIssuesDrawer`／`GateIssuesNavigator`、`SymbolCandleChart` markers、`CurrentAffairsRoundtableBlock.jsx` | `data-verification-ui/src/components/` |
 | **原 V6 主線** | **`dashboard/theme.py`**、**`st.tabs`**（Overview／Profile／Gate／Roundtable）、**`DASHBOARD_AUTO_REFRESH_SEC`** | CHANGELOG **2026-04-18** `### Added` |
-| **離線** | Workbox：**API NetworkOnly**；[`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md) | CHANGELOG **2026-04-18** |
+| **離線** | Workbox：**API NetworkOnly**；[`PWA_OFFLINE.md`](../PWA_OFFLINE.md) | CHANGELOG **2026-04-18** |
 
 以下「痛點」僅列出 **仍待 backlog 補齊** 者（已解決者已自舊版刪除，避免與現況矛盾）。
 
@@ -57,8 +57,8 @@
 ### V5 — 即時化與通知
 
 - [x] **SSE 全頁**：`/api/stream/war-room` → **`metrics`／`report`／`positions.open`／`war-room`** 等 **invalidate**（`VITE_SSE_ENABLED=1`）；意圖 PATCH 成功時同步。
-- [x] **Web Push 深連結**：`service-worker.js` **`notificationclick`** → **`report_date` + `block_id`** 深連結；與 [`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) 契約一致。
-- [ ] **離線**：可選 **預快取** `/today`／最新報告、**as_of** 離線提示（現為保守 **NetworkOnly API**，見 [`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md)）。
+- [x] **Web Push 深連結**：`service-worker.js` **`notificationclick`** → **`report_date` + `block_id`** 深連結；與 [`PWA_WEB_PUSH.md`](../PWA_WEB_PUSH.md) 契約一致。
+- [ ] **離線**：可選 **預快取** `/today`／最新報告、**as_of** 離線提示（現為保守 **NetworkOnly API**，見 [`PWA_OFFLINE.md`](../PWA_OFFLINE.md)）。
 - [x] **`/settings`**：**`/settings`** 路由 + BottomNav；**VAPID／Register／API URL**、**SW**、**`qsilicon_push_prefs`**；測試推送仍以 **`POST /api/push/test-send`**（管理金鑰）為準。
 
 ### V6 — 戰情室與 PWA 視覺對齊（剩餘）
@@ -72,7 +72,7 @@
 
 | 契約 | 屬於 |
 |------|------|
-| 新 API 同步 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | V2／V3／V5 |
+| 新 API 同步 [`DASHBOARD_CONTRACT.md`](../DASHBOARD_CONTRACT.md) | V2／V3／V5 |
 | Gate／profile UI：**pytest（API）** + 前端測試／E2E 視需要 | V2 起 |
 | Telegram HTML 白名單不擴 | 全部 |
 
@@ -91,8 +91,8 @@
 ## 6) 延伸閱讀
 
 - 日報模組化（Phase 1–5）：[`modularization_plan.md`](modularization_plan.md)
-- Bloomberg 對齊：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)
-- Terminal 中段：[`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)
+- Bloomberg 對齊：[`BLOOMBERG_ALIGNMENT.md`](../BLOOMBERG_ALIGNMENT.md)
+- Terminal 中段：[`TERMINAL_MID_TIER_ROADMAP.md`](../TERMINAL_MID_TIER_ROADMAP.md)
 
 ---
 
@@ -100,7 +100,7 @@
 
 ## 附錄：階段 A–D 路線速覽
 
-**目的**：把「圖表／Terminal／Telegram 附圖」與 **資料信任邊界**（工具層、BQ、已選公開 API）對齊。**契約主檔**：[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。
+**目的**：把「圖表／Terminal／Telegram 附圖」與 **資料信任邊界**（工具層、BQ、已選公開 API）對齊。**契約主檔**：[`DASHBOARD_CONTRACT.md`](../DASHBOARD_CONTRACT.md)。
 
 ### 紅線（全階段共通）
 
@@ -119,7 +119,7 @@
 
 ### 階段 C — Telegram `visualizer.py`（可選強化）
 
-**現況**：[`visualizer.py`](visualizer.py) `generate_quant_chart()` — Matplotlib 四面板；**目標（漸進）**：可選只吃管線已驗證序列；以 **flag** 保留現行 fallback。
+**現況**：[`visualizer.py`](../../visualizer.py) `generate_quant_chart()` — Matplotlib 四面板；**目標（漸進）**：可選只吃管線已驗證序列；以 **flag** 保留現行 fallback。
 
 ### 階段 D — 長線（產品拍板後）
 

@@ -1,6 +1,6 @@
 # Q-Silicon PWA — 設計語言（Design Foundation）
 
-本文件對齊 [`visualization_plan.md`](visualization_plan.md) Phase **V1**：在視覺改版與新元件開發前，統一 **品牌語氣**、**深色機構風**、與 **implementation 真相來源**（避免文件與程式不一致）。
+本文件對齊 [`visualization_plan.md`](docs/architecture/visualization_plan.md) Phase **V1**：在視覺改版與新元件開發前，統一 **品牌語氣**、**深色機構風**、與 **implementation 真相來源**（避免文件與程式不一致）。
 
 ## 品牌與語氣
 
@@ -25,4 +25,4 @@
 
 ## Streamlit
 
-戰情室 [`dashboard.py`](dashboard.py) 與本 token **視覺對齊**排入 [`visualization_plan.md`](visualization_plan.md) Phase **V6**，避免首階混拆後端戦情室。
+戰情室 [`dashboard.py`](dashboard.py) 與本 token **視覺對齊**排入 [`visualization_plan.md`](docs/architecture/visualization_plan.md) Phase **V6**，避免首階混拆後端戦情室。

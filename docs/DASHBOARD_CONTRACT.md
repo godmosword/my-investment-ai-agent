@@ -2,7 +2,7 @@
 
 本檔描述 **Streamlit 戰情室**（[`dashboard.py`](../dashboard.py)）、**FastAPI**（[`api.py`](../api.py)）與 PWA（[`data-verification-ui/`](../data-verification-ui/)）對齊時應遵守的資料語意。欄位名以實作為準；缺憑證時行為為 **優雅降級（N/A／錯誤提示）**。  
 「Bloomberg Terminal 對齊」能力映射與驗收清單見 [`docs/BLOOMBERG_ALIGNMENT.md`](BLOOMBERG_ALIGNMENT.md)。  
-**視覺化總覽與階段路線**（A–D）見根目錄 [`visualization_plan.md`](../visualization_plan.md)。
+**視覺化總覽與階段路線**（A–D）見 [`architecture/visualization_plan.md`](architecture/visualization_plan.md)。
 
 ## 視覺化與數字段語意（Terminal／PWA K 線與 KPI）
 
@@ -74,7 +74,7 @@ Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol
 
 審計用共用元件：`AsOfChip`（as-of + 來源）、`ProvenancePopover`（`GET /api/symbols/…/snapshot` 之 **`data_provenance`**）、`ProfileBadge`、`GateStatusBadge` 等見 [`data-verification-ui/src/components/common/`](../data-verification-ui/src/components/common/)。
 
-開發環境（`npm run dev`）可開 **`/design`** 預覽上述元件（[`data-verification-ui/src/pages/DesignShowcase.jsx`](../data-verification-ui/src/pages/DesignShowcase.jsx)；production build 仍為標準路由，不含 Storybook）。品牌語氣與 token 總覽見 repo 根 [`DESIGN.md`](../DESIGN.md)。路線圖見 [`visualization_plan.md`](../visualization_plan.md) Phase **V1**；Streamlit `dashboard.py` 與 token **視覺對齊**排入同檔 Phase **V6**，避免首階混拆後端戦情室。
+開發環境（`npm run dev`）可開 **`/design`** 預覽上述元件（[`data-verification-ui/src/pages/DesignShowcase.jsx`](../data-verification-ui/src/pages/DesignShowcase.jsx)；production build 仍為標準路由，不含 Storybook）。品牌語氣與 token 總覽見 repo 根 [`DESIGN.md`](../DESIGN.md)。路線圖見 [`architecture/visualization_plan.md`](architecture/visualization_plan.md) Phase **V1**；Streamlit `dashboard.py` 與 token **視覺對齊**排入同檔 Phase **V6**，避免首階混拆後端戦情室。
 
 ## 變更流程
 

@@ -75,7 +75,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | Path | Contents |
 |------|----------|
 | [`core/`](core/) | Reserved package root (`__init__.py`); compare path uses `main._validate_report_candidate` → `report_html_gates.validate_report` |
-| [`templates/`](templates/) | `telegram_report.j2`（`include` → [`profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)）；**Phase 1** macro [`templates/blocks/`](templates/blocks/)；**Phase 2** [`brief_profiles.py`](brief_profiles.py) + `REPORT_PROFILE`（`full`／`lite`／`crypto-only`；**Phase 4d** 啟動時 [`main.py`](main.py) `_validate_report_profile_env`）；**Phase 5** 可選〔時事多觀點〕：`BRIEF_CURRENT_AFFAIRS`（預設關閉＝等價）、[`templates/blocks/_current_affairs_roundtable.j2`](templates/blocks/_current_affairs_roundtable.j2)、`report_render.telegram_render_context` 之 `current_affairs_block_html`；**Phase 4b** 可選 [`brief_profiles_layout.py`](brief_profiles_layout.py) + `BRIEF_LAYOUT_FILE` + [`config/brief_layouts/`](config/brief_layouts/)（`profile_block_ids` merge；**不驅動** Jinja 靜態模板順序 — [`modularization_plan.md#phase-4d`](modularization_plan.md#phase-4d)）；合併門檻：`pytest -m smoke` [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) + [`test_brief_profiles.py`](test_brief_profiles.py) vs [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2)（`full` **byte-identical**） |
+| [`templates/`](templates/) | `telegram_report.j2`（`include` → [`profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)）；**Phase 1** macro [`templates/blocks/`](templates/blocks/)；**Phase 2** [`brief_profiles.py`](brief_profiles.py) + `REPORT_PROFILE`（`full`／`lite`／`crypto-only`；**Phase 4d** 啟動時 [`main.py`](main.py) `_validate_report_profile_env`）；**Phase 5** 可選〔時事多觀點〕：`BRIEF_CURRENT_AFFAIRS`（預設關閉＝等價）、[`templates/blocks/_current_affairs_roundtable.j2`](templates/blocks/_current_affairs_roundtable.j2)、`report_render.telegram_render_context` 之 `current_affairs_block_html`；**Phase 4b** 可選 [`brief_profiles_layout.py`](brief_profiles_layout.py) + `BRIEF_LAYOUT_FILE` + [`config/brief_layouts/`](config/brief_layouts/)（`profile_block_ids` merge；**不驅動** Jinja 靜態模板順序 — [`modularization_plan.md#phase-4d`](docs/architecture/modularization_plan.md#phase-4d)）；合併門檻：`pytest -m smoke` [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) + [`test_brief_profiles.py`](test_brief_profiles.py) vs [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2)（`full` **byte-identical**） |
 | [`docs/`](docs/) | Design docs, runbooks, SQL samples (see §5) |
 | [`scripts/`](scripts/) | `bench_autoresearch.sh`, `oss_scout_candidates.py`, `write_ml_weights.py`, `inject_test_data.py` |
 | [`data-verification-ui/`](data-verification-ui/) | Vite + React PWA |
@@ -114,7 +114,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`architecture/REVIEWER_LOOP_DESIGN.md`](docs/architecture/REVIEWER_LOOP_DESIGN.md) | **`trade_picker` → `reviewer_node`**：Python 先擋、LLM 只查邏輯矛盾；Hard cap、降級、BQ `reviewer_log`、實作驗收清單 |
 | [`architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) | **`data-verification-ui` 模組化目錄**、FastAPI 路由分層、master key、五模組 MVP 與開發順序 |
 
-與現有文件中 [`TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)、[`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)、[`visualization_plan.md`](visualization_plan.md) 並用：前者偏 **中段產品路線**，這三份偏 **實作骨架與 Graph 設計**。
+與現有文件中 [`TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)、[`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)、[`visualization_plan.md`](docs/architecture/visualization_plan.md) 並用：前者偏 **中段產品路線**，這三份偏 **實作骨架與 Graph 設計**。
 
 | Doc | Purpose |
 |-----|---------|
@@ -123,7 +123,7 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 | [`research/LAST30DAYS_SKILL.md`](docs/research/LAST30DAYS_SKILL.md) | 可選 [last30days-skill](https://github.com/mvanhorn/last30days-skill)：安裝、pilot、與日報管線信任邊界（預設 A+B，不進 `main.py`） |
 | [`ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) | Product directions |
 | [`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | Streamlit / API / PWA KPI contract |
-| [`visualization_plan.md`](visualization_plan.md) | 視覺化階段計畫（A–D）：契約、Terminal、Telegram 附圖、長線 K 線疊加 |
+| [`visualization_plan.md`](docs/architecture/visualization_plan.md) | 視覺化階段計畫（A–D）：契約、Terminal、Telegram 附圖、長線 K 線疊加 |
 | [`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) | Terminal-style capability map and acceptance checklist |
 | [`ADR_INDEX.md`](docs/ADR_INDEX.md) | ADR／架構決策與相鄰設計稿索引 |
 | [`PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) | Web Push 分階實作與環境變數 |
@@ -189,7 +189,7 @@ See [`gstack.md`](gstack.md) if present for repo-local gstack notes.
 ## Git / ship（本 repo 覆寫）
 
 - 使用者要 **ship／deploy／上線** 時：預設 **直推 `main`**（`git push origin main`）；**勿**自動開 PR，除非使用者要求或 `main` 受保護無法直推。
-- **自動 Deploy**（[`deploy.yml`](.github/workflows/deploy.yml)）僅在 `push` 變更落在 **`paths`** 內時觸發（例如 `**/*.py`、`Dockerfile`、`requirements*.txt`、`assets_config.json`、相關 workflow 檔等）；**純文件**（`README.md`、`CHANGELOG.md`、`TODOS.md`、`modularization_plan.md` 等）**不會**觸發，以免無謂 Docker build。若要在此情況下仍部署 Cloud Run：GitHub → **Actions** → **Deploy — Cloud Run Job** → **Run workflow**（`workflow_dispatch`）。
+- **自動 Deploy**（[`deploy.yml`](.github/workflows/deploy.yml)）僅在 `push` 變更落在 **`paths`** 內時觸發（例如 `**/*.py`、`Dockerfile`、`requirements*.txt`、`assets_config.json`、相關 workflow 檔等）；**純文件**（`README.md`、`CHANGELOG.md`、`TODOS.md`、`docs/architecture/modularization_plan.md` 等）**不會**觸發，以免無謂 Docker build。若要在此情況下仍部署 Cloud Run：GitHub → **Actions** → **Deploy — Cloud Run Job** → **Run workflow**（`workflow_dispatch`）。
 - gstack `/ship` 技能若預設開 PR，在此 repo **改為** 上述直推流程（仍須先跑 `ruff` + `pytest -m smoke` 等約定檢查）。
 
 ## Skill routing
