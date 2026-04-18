@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   useExecutionIntents,
   useExecutionIntentAllowedStatuses,
@@ -25,7 +24,6 @@ function statusLabel(s) {
 }
 
 export default function ExecutionIntentsBlotter() {
-  const qc = useQueryClient();
   const pollMs = getTerminalRefetchIntervalMs();
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -51,29 +49,6 @@ export default function ExecutionIntentsBlotter() {
   const clientPatchable = Array.isArray(allowedPayload?.client_patchable)
     ? allowedPayload.client_patchable
     : ["PENDING_REVIEW", "APPROVED_FOR_PAPER", "REJECTED", "SUPERSEDED"];
-
-  useEffect(() => {
-    if (!SSE_ENABLED || !BASE) return undefined;
-    const q = SSE_KEY ? `?stream_key=${encodeURIComponent(SSE_KEY)}` : "";
-    const url = `${BASE}/api/stream/war-room${q}`;
-    let es;
-    try {
-      es = new EventSource(url);
-    } catch {
-      return undefined;
-    }
-    es.onmessage = () => {
-      qc.invalidateQueries({ queryKey: ["execution-intents"] });
-      qc.invalidateQueries({ queryKey: ["war-room", "latest"] });
-    };
-    es.onerror = () => {
-      /* 瀏覽器會自動重連；仍觸發一次 refetch 避免長時間空白 */
-      qc.invalidateQueries({ queryKey: ["execution-intents"] });
-    };
-    return () => {
-      es.close();
-    };
-  }, [qc]);
 
   const setRefField = (signalId, field, value) => {
     setRefs((prev) => ({

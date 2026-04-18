@@ -6,6 +6,7 @@ const TABS = [
   { to: "/trades",   icon: "💼", label: "交易" },
   { to: "/terminal", icon: "🖥️", label: "終端" },
   { to: "/archive",  icon: "🗄",  label: "存檔" },
+  { to: "/settings", icon: "⚙️", label: "設定" },
 ];
 
 export default function BottomNav() {

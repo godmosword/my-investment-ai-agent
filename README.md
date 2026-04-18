@@ -37,7 +37,7 @@
 
 | 目標 | 指令或步驟 | 需要金鑰？ |
 |------|------------|------------|
-| 戰情室 UI | `streamlit run dashboard.py --server.port 8501 --server.headless true` | 否（BQ 區塊降級） |
+| 戰情室 UI | `streamlit run dashboard.py --server.port 8501 --server.headless true` — 可選 **`DASHBOARD_AUTO_REFRESH_SEC`**（秒，預設 **300**）；頂層 **`st.tabs`**：`Overview`、`Profile / LLM`、`Gate（7 日）`、`Roundtable`（細節見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-18** `### Added`） | 否（BQ 區塊降級） |
 | PWA 版型 | `cd data-verification-ui && npm install && VITE_GLASSBOX_MOCK=1 npm run dev` | 否 |
 | PWA Terminal（代號快照／K 線） | 同上；開啟 **`/terminal`**。接實盤 API 時設 **`VITE_API_URL`**（例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`） | 否（mock）；是（讀 BQ 需本機 `uvicorn` + GCP） |
 | PWA E2E（Playwright） | `cd data-verification-ui && npm run test:e2e`（內建 mock API + `VITE_E2E=1` 建置；Bloomberg §6 Today vs `/terminal` BTC 價） | 否（需下載 Chromium） |
@@ -261,6 +261,7 @@ BQ／排除 context → 雙軌研究 → assemble／render →（可選 editor�
 | Critical env | [`docs/CRITICAL_ENV_POLICY.md`](docs/CRITICAL_ENV_POLICY.md) |
 | Gate 人審 | [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) |
 | 儀表契約 | [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) |
+| PWA 離線策略（Workbox） | [`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md) |
 | Bloomberg 對齊（工作流藍圖） | [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) |
 | 選幣輪動 | [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md) |
 | 邊界測試 | [`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md) |
@@ -288,6 +289,8 @@ BQ／排除 context → 雙軌研究 → assemble／render →（可選 editor�
 Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。  
 本機後端：`uvicorn api:app --reload --port 8000`（需 GCP 讀 BQ）。細節見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。
 
+- **離線／快取**：生產用 Service Worker 以 Workbox 註冊路由 — **`/api` NetworkOnly**（不快取 API），導覽／同源靜態 **NetworkFirst**。說明見 [`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md)（CHANGELOG **2026-04-18**）。
+
 - **路由**：底部導覽「終端」→ **`/terminal`**（watchlist 存 `localStorage`；代號卡呼叫 `GET /api/symbols/{symbol}/snapshot` 與輕量 **`GET /api/symbols/{symbol}/quote`**（最新日線收盤／1D%，僅 yfinance））。
 - **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（適合 PWA 與 API 同網域反代）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。
 - **`VITE_TERMINAL_POLL_MS`**（可選）：**`/terminal`** 內 snapshot／意圖列表／War Room 輪詢間隔（毫秒），預設 **45000**；本機除錯可設 `15000`。見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)。
@@ -295,6 +298,10 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 - **產品對齊說明**：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（能力映射與驗收；非外觀複製 Terminal）。
 - **實盤價格觀測（BQ vs yfinance）**：`python scripts/symbol_price_probe.py BTC`（stdout JSON）；可選 `PRICE_PROBE_WRITE_BQ=1` + `PRICE_PROBE_LOG_TABLE=…` 寫入 BQ（建表 [`docs/SQL/price_probe_log.sql`](docs/SQL/price_probe_log.sql)）。
 - **Web Push（T4a）**：[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) — `WEB_PUSH_REDIS_URL`、`WEB_PUSH_VAPID_*`、`POST /api/push/test-send`（`WEB_PUSH_ADMIN_KEY`）；產鑰 `python scripts/vapid_generate.py`。
+
+### Streamlit 戰情室（v4）
+
+`streamlit run dashboard.py`（與上表「戰情室 UI」同）。主題與 Plotly 樣式抽至 [`dashboard/theme.py`](dashboard/theme.py)。可選環境變數 **`DASHBOARD_AUTO_REFRESH_SEC`**（預設 **300**）驅動頁面自動刷新；分頁資料源含 BQ **`llm_run_log`**／**`gate_failure_log`** 與本機日報 JSON（**`DAILY_BRIEF_JSON_DIR`**／**`.qsilicon`**／**`logs/run_*`** 之 **`current_affairs_roundtable`**）。完整條目見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-18** `### Added`。
 
 ### 結構化日報（戰報區塊視圖，可選）
 

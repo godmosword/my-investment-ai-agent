@@ -229,6 +229,18 @@ def _bq_audit_row(
         logger.warning("Web Push BQ audit failed: %s", exc)
 
 
+def _push_pref_fields(body: dict[str, Any]) -> dict[str, str]:
+    """Optional subscribe metadata for deep-link prefs (stored alongside endpoint/keys)."""
+    out: dict[str, str] = {}
+    rd = body.get("report_date")
+    if isinstance(rd, str) and rd.strip():
+        out["report_date"] = rd.strip()
+    bid = body.get("block_id")
+    if isinstance(bid, str) and bid.strip():
+        out["block_id"] = bid.strip()
+    return out
+
+
 def _redis_store_subscription(fp: str, body: dict[str, Any], client_ip: str) -> tuple[bool, int]:
     r = _get_redis()
     if not r:
@@ -242,10 +254,14 @@ def _redis_store_subscription(fp: str, body: dict[str, Any], client_ip: str) -> 
     try:
         existed = bool(r.hexists(key_hash, fp))
         if _redis_store_full_json():
-            val = json.dumps(
-                {"endpoint": endpoint, "keys": keys, "updated_at": now, "last_ip": client_ip},
-                ensure_ascii=False,
-            )
+            row: dict[str, Any] = {
+                "endpoint": endpoint,
+                "keys": keys,
+                "updated_at": now,
+                "last_ip": client_ip,
+            }
+            row.update(_push_pref_fields(body))
+            val = json.dumps(row, ensure_ascii=False)
         else:
             val = json.dumps(
                 {
@@ -314,7 +330,9 @@ def record_subscription(body: dict[str, Any], *, client_ip: str = "") -> dict[st
         }
 
     if _get_redis():
-        deduped, n = _redis_store_subscription(fp, {"endpoint": endpoint, "keys": keys or {}}, ip)
+        store_body: dict[str, Any] = {"endpoint": endpoint, "keys": keys or {}}
+        store_body.update(_push_pref_fields(body))
+        deduped, n = _redis_store_subscription(fp, store_body, ip)
         _bq_persist_row(fp, endpoint, keys, ip)
         _bq_audit_row(fp, client_ip=ip, stored=True, deduped=deduped, rate_limited=False, detail="redis")
         logger.info("Web Push Redis (fp=%s, n=%s, deduped=%s)", fp, n, deduped)
@@ -327,6 +345,7 @@ def record_subscription(body: dict[str, Any], *, client_ip: str = "") -> dict[st
             "last_ip": ip,
             "updated_at": time.time(),
         }
+        row.update(_push_pref_fields(body))
         if _truthy("WEB_PUSH_STORE_FULL_SUBSCRIPTION"):
             row["endpoint"] = endpoint
             row["keys"] = keys

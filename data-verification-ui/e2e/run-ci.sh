@@ -26,6 +26,7 @@ done
 export VITE_API_URL="${API_URL}"
 export VITE_GLASSBOX_MOCK=0
 export VITE_E2E=1
+export VITE_STRUCTURED_REPORT=1
 
 npm run build
 

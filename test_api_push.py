@@ -26,6 +26,35 @@ def test_push_subscribe_returns_501_when_disabled(client):
     assert r.status_code == 501
 
 
+def test_push_subscribe_accepts_optional_report_date_block_id(client, monkeypatch):
+    monkeypatch.setenv("WEB_PUSH_ENABLED", "1")
+    monkeypatch.delenv("WEB_PUSH_STORE", raising=False)
+    r = client.post(
+        "/api/push/subscribe",
+        json={
+            "endpoint": "https://example.com/push/meta",
+            "keys": {"p256dh": "x", "auth": "y"},
+            "report_date": "2026-04-18",
+            "block_id": "gate_summary",
+        },
+    )
+    assert r.status_code == 200
+    assert r.json().get("ok") is True
+
+
+def test_push_subscribe_rejects_bad_report_date(client, monkeypatch):
+    monkeypatch.setenv("WEB_PUSH_ENABLED", "1")
+    r = client.post(
+        "/api/push/subscribe",
+        json={
+            "endpoint": "https://example.com/push/bad-date",
+            "keys": {"p256dh": "x", "auth": "y"},
+            "report_date": "not-a-date",
+        },
+    )
+    assert r.status_code == 422
+
+
 def test_push_subscribe_accepts_when_enabled(client, monkeypatch):
     monkeypatch.setenv("WEB_PUSH_ENABLED", "1")
     monkeypatch.delenv("WEB_PUSH_STORE", raising=False)

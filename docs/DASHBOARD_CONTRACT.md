@@ -50,14 +50,14 @@
 | `PATCH /api/execution-intents/{signal_id}` | 意圖狀態轉移（append-only；**不下單**） | body：`status`、`note`、可選 **`reference_entry_price`／`reference_target_price`／`reference_stop_price`**（紙上模擬錨點） |
 | `GET /api/stream/war-room` | **SSE**：`data:` 為 `GET /api/war-room/latest` 同源 JSON | 預設 **404**；設 **`TERMINAL_SSE_ENABLED=1`** 啟用；可選 **`API_STREAM_AUTH_KEY`**（`X-QS-Stream-Key` 或 `?stream_key=`） |
 | `POST /api/paper/execution-tick` | 紙上模擬 **一輪**（`run_paper_execution_tick`） | 預設 **404**；設 **`PAPER_TICK_HTTP_ENABLED=1`**；可選 **`PAPER_TICK_API_KEY`**（`X-Paper-Tick-Key`）；CLI 見 `scripts/paper_execution_tick.py` |
-| `GET /api/reports` | 報告列表 | 分頁參數見實作 |
+| `GET /api/reports` | 報告列表 | query：`limit`（1–90，預設 30）、可選 **`profile`**（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；帶入 `profile` 時後端以 `LLM_RUN_LOG_TABLE` **INNER JOIN** `METRICS_TABLE`，只列該 profile 有產出的日期（共用 `resolved_profile` 解析，與 `GET /api/reports/{date}/structured` 一致） |
 | `GET /api/reports/{report_date}` | 單日報告內容 | BigQuery legacy 列 + `recommendations` |
 | `GET /api/reports/{report_date}/structured` | V2 區塊化報告封套 | query：`profile`（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；回傳 **`block_ids`**、**`block_registry`**、**`legacy`**、**`daily_brief_report`**（見下 **`DAILY_BRIEF_JSON_DIR`**／本機 archive／`logs/run_*`）、**`structured_body_available`**、**`structured_source`**（有結構化本文時之相對路徑或絕對路徑）、**`gate_summary`**（`validate_structured_report` + 可選 **`.qsilicon/last_gate_failure`**；含 **`issues_by_block`**／**`issues_unmapped`**） |
-| `GET /api/brief-layouts` | 列 `config/brief_layouts/*.yaml` 檔名與相對路徑（唯讀；V3 layout UX） | 回傳 **`layouts`**: `{ filename, path }[]` |
+| `GET /api/brief-layouts` | 列 `config/brief_layouts/*.yaml`（唯讀；V3 layout UX）；後端會 **safe_load** 並附預覽 | 回傳 **`layouts`**: `{ filename, path, applies_to_profile?, blocks?, parse_error? }[]` |
 | `GET /api/trades` | 交易列表 | |
 | `GET /api/trades/performance` | 績效彙總 | |
 | `GET /healthz` | 存活探測 | |
-| `POST /api/push/subscribe` | Web Push 訂閱 | 預設 **501**；`WEB_PUSH_ENABLED=1` 時：可設 **`WEB_PUSH_REDIS_URL`**（分散式儲存 + **Redis** rate limit）、或 **`WEB_PUSH_STORE=1`**（程序內）；可選 **`WEB_PUSH_BQ_PERSIST`**／**`WEB_PUSH_BQ_AUDIT`**。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
+| `POST /api/push/subscribe` | Web Push 訂閱 | 預設 **501**；`WEB_PUSH_ENABLED=1` 時：可設 **`WEB_PUSH_REDIS_URL`**（分散式儲存 + **Redis** rate limit）、或 **`WEB_PUSH_STORE=1`**（程序內）；可選 **`WEB_PUSH_BQ_PERSIST`**／**`WEB_PUSH_BQ_AUDIT`**。推送 payload 目前以 `title`／`body`／`url` 為主；**預留擴充**：`report_date`（`YYYY-MM-DD`）與 `block_id`（對應 `block_registry`），供 SW `notificationclick` 深連結至 `/report/:date#block=<block_id>`（**實作中／待 PR**，見 Phase 5）。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
 | `POST /api/push/test-send` | 管理端 **測試推送**（`pywebpush`） | 預設 **404**；須 **`WEB_PUSH_ADMIN_KEY`** + Header **`X-Web-Push-Admin-Key`** + **`WEB_PUSH_VAPID_PRIVATE_KEY`** + 已存完整訂閱 |
 
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  

@@ -1009,3 +1009,173 @@ html, body, #root {
   from { opacity: 0.45; }
   to { opacity: 0.75; }
 }
+
+/* Gate 問題滑層（StructuredReportView） */
+.gate-drawer-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  pointer-events: none;
+}
+
+.gate-drawer-root > * {
+  pointer-events: auto;
+}
+
+.gate-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: rgba(2, 6, 23, 0.62);
+  cursor: pointer;
+}
+
+.gate-drawer-panel {
+  position: relative;
+  width: min(440px, 100vw);
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #0f172a);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
+}
+
+.gate-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.gate-drawer-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.gate-drawer-close {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gate-drawer-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.gate-drawer-body {
+  padding: 12px 16px 24px;
+  overflow-y: auto;
+  flex: 1;
+  font-size: 12px;
+}
+
+.gate-drawer-section {
+  margin-bottom: 20px;
+}
+
+.gate-drawer-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.gate-drawer-muted {
+  margin: 0;
+  color: var(--muted);
+}
+
+.gate-drawer-issues-flat {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.gate-drawer-issues-flat li {
+  margin-bottom: 6px;
+}
+
+.gate-drawer-block-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gate-drawer-block-item {
+  margin-bottom: 14px;
+}
+
+.gate-drawer-anchor {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: rgb(167 243 208);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.gate-drawer-count {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.gate-drawer-lines {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.gate-drawer-lines li {
+  margin-bottom: 4px;
+}
+
+/* Gate issue severity (heuristic from gateIssueSeverity.js) */
+.gate-issue-li {
+  list-style-position: outside;
+  border-left: 3px solid transparent;
+  padding-left: 8px;
+  margin-left: -4px;
+}
+
+.gate-issue-li--critical {
+  border-left-color: rgb(248 113 113);
+}
+
+.gate-issue-li--warn {
+  border-left-color: rgb(251 191 36);
+}
+
+.gate-issue-li--info {
+  border-left-color: rgb(100 116 139);
+}
+
+.brief-layouts-ref {
+  border-color: rgba(120, 160, 200, 0.22);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.brief-layouts-ref__summary {
+  list-style-position: outside;
+  padding-left: 1.75rem;
+  color: var(--muted);
+}

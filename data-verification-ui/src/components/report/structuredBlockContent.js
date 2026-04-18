@@ -16,7 +16,7 @@ function regimeLabel(regime) {
 }
 
 /** Parse first numeric token from dashboard / leg strings (e.g. "95,000 (+2%)"). */
-export function parseLeadingNumber(raw) {
+function parseLeadingNumber(raw) {
   if (raw == null || raw === "") return null;
   const m = String(raw).match(/-?\d[\d,.]*/);
   if (!m) return null;
@@ -25,7 +25,7 @@ export function parseLeadingNumber(raw) {
 }
 
 /** QSREC TradeRecommendation (entry/target/stop) → TradeCard shape (entry_price / …). */
-export function normalizeTradeRecommendation(t) {
+function normalizeTradeRecommendation(t) {
   if (!t || typeof t !== "object") return t;
   const out = { ...t };
   if (out.entry_price == null && out.entry != null) out.entry_price = out.entry;
@@ -35,7 +35,7 @@ export function normalizeTradeRecommendation(t) {
 }
 
 /** ExecutableTradeLeg → TradeCard-compatible object (prices best-effort parsed). */
-export function executableLegToTradeShape(leg) {
+function executableLegToTradeShape(leg) {
   if (!leg || typeof leg !== "object") return {};
   return {
     asset: leg.asset,
@@ -77,8 +77,9 @@ export function unwrapTradesPayload(payload) {
  * has nothing to show from DailyBriefReport (caller may fall back to legacy).
  *
  * Kinds: skip | text | news | trades | news_items | metrics | html | roundtable
+ *         | exec_summary | market_mode | …
  */
-export function structuredContentForBlock(blockId, dbr) {
+function structuredContentForBlock(blockId, dbr) {
   if (!dbr || typeof dbr !== "object") return { kind: "skip" };
 
   const crypto = dbr.crypto || {};
@@ -91,13 +92,15 @@ export function structuredContentForBlock(blockId, dbr) {
       return { kind: "text", payload: `Q-Silicon 日報 · ${date}` };
     }
     case "exec_summary": {
-      const bullets = Array.isArray(crypto.exec_summary) ? crypto.exec_summary.filter(Boolean) : [];
-      const one = String(crypto.investment_thesis_one_liner || "").trim();
-      const parts = [];
-      if (one) parts.push(`【投資命題】${one}`);
-      if (bullets.length) parts.push(bullets.map((b) => `• ${b}`).join("\n"));
-      const payload = parts.join("\n\n").trim();
-      return payload ? { kind: "text", payload } : { kind: "skip" };
+      const bullets = Array.isArray(crypto.exec_summary)
+        ? crypto.exec_summary.map((b) => String(b ?? "").trim()).filter(Boolean)
+        : [];
+      const oneLiner = String(crypto.investment_thesis_one_liner || "").trim();
+      if (!oneLiner && !bullets.length) return { kind: "skip" };
+      return {
+        kind: "exec_summary",
+        payload: { oneLiner, bullets },
+      };
     }
     case "previous_recs": {
       const html = String(dbr.previous_recs_html || "").trim();
@@ -105,17 +108,23 @@ export function structuredContentForBlock(blockId, dbr) {
     }
     case "market_mode": {
       const m = crypto.market || {};
-      const regime = regimeLabel(m.regime);
-      const sfx = String(m.score_suffix || "").trim();
-      const scoreLines = joinLines(m.scorecard_lines);
-      const nod = String(crypto.narrative_of_day || "").trim();
-      const bits = [
-        nod && `【今日主敘事】${nod}`,
-        regime && `【制度】${regime}${sfx ? ` ${sfx}` : ""}`,
-        scoreLines && `【評分卡】\n${scoreLines}`,
-      ].filter(Boolean);
-      const payload = bits.join("\n\n");
-      return payload ? { kind: "text", payload } : { kind: "skip" };
+      const regimeKey = String(m.regime ?? "").trim();
+      const regimeZh = regimeLabel(m.regime);
+      const scoreSuffix = String(m.score_suffix || "").trim();
+      const rawLines = Array.isArray(m.scorecard_lines) ? m.scorecard_lines : [];
+      const scoreLines = rawLines.map((x) => String(x ?? "").trim()).filter(Boolean);
+      const narrative = String(crypto.narrative_of_day || "").trim();
+      if (!regimeKey && !regimeZh && !narrative && !scoreSuffix && !scoreLines.length) return { kind: "skip" };
+      return {
+        kind: "market_mode",
+        payload: {
+          regimeKey,
+          regimeLabel: regimeZh,
+          narrative,
+          scoreSuffix,
+          scoreLines,
+        },
+      };
     }
     case "macro_framework": {
       const lines = joinLines(crypto.macro_framework_lines);

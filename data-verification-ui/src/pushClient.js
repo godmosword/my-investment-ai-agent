@@ -41,10 +41,27 @@ export async function tryRegisterWebPush() {
       console.warn("[push] VITE_API_URL unset — skip POST /api/push/subscribe");
       return;
     }
+    const extra = {};
+    const envDate = (import.meta.env.VITE_PUSH_SUBSCRIBE_REPORT_DATE || "").trim();
+    const envBlock = (import.meta.env.VITE_PUSH_SUBSCRIBE_BLOCK_ID || "").trim();
+    if (envDate) extra.report_date = envDate;
+    if (envBlock) extra.block_id = envBlock;
+    try {
+      const raw = sessionStorage.getItem("qsilicon_push_prefs");
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p && typeof p === "object") {
+          if (p.report_date && !extra.report_date) extra.report_date = String(p.report_date).trim();
+          if (p.block_id && !extra.block_id) extra.block_id = String(p.block_id).trim();
+        }
+      }
+    } catch (_) {
+      /* ignore */
+    }
     const r = await fetch(`${base}/api/push/subscribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }),
+      body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys, ...extra }),
     });
     if (!r.ok) {
       const t = await r.text().catch(() => "");

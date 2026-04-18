@@ -1,13 +1,30 @@
 import { useEffect, useMemo, useRef } from "react";
 import { CandlestickSeries, createChart, createSeriesMarkers } from "lightweight-charts";
 
+function markerColor(item) {
+  const d = String(item.direction ?? "").toUpperCase();
+  if (d.includes("LONG") || d === "BUY") return "#34d399";
+  if (d.includes("SHORT") || d === "SELL") return "#f87171";
+  return item.type === "signal" ? "#2ee6be" : "#8b9cb3";
+}
+
 function toMarker(item) {
+  const isShort =
+    String(item.direction ?? "")
+      .toUpperCase()
+      .includes("SHORT") || String(item.direction ?? "").toUpperCase() === "SELL";
+  const sid = item.signal_id != null ? String(item.signal_id) : "";
+  /** K 線標記旁短字（hover 同源）；過長時截斷以利可讀。 */
+  const markerText =
+    sid.length > 0
+      ? `${item.label ?? "evt"} · ${sid.length > 28 ? `${sid.slice(0, 14)}…${sid.slice(-10)}` : sid}`
+      : item.label ?? "event";
   return {
     time: item.time,
-    position: "aboveBar",
-    color: item.type === "signal" ? "#2ee6be" : "#8b9cb3",
+    position: isShort ? "belowBar" : "aboveBar",
+    color: markerColor(item),
     shape: "circle",
-    text: item.label ?? "event",
+    text: markerText,
   };
 }
 

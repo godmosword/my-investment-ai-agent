@@ -22,7 +22,7 @@ function isAiRec(r) {
 /**
  * @param {string} blockId
  * @param {Record<string, unknown>} legacy
- * @returns {{ kind: "text" | "news" | "trades" | "skip"; payload?: unknown }}
+ * @returns {{ kind: "text" | "news" | "trades" | "exec_summary" | "market_mode" | "skip"; payload?: unknown }}
  */
 export function legacyContentForBlock(blockId, legacy) {
   if (!legacy) return { kind: "skip" };
@@ -34,9 +34,8 @@ export function legacyContentForBlock(blockId, legacy) {
       return { kind: "skip" };
     case "exec_summary": {
       const parts = [legacy.grok_summary, legacy.gpt_summary].filter(Boolean);
-      return parts.length
-        ? { kind: "text", payload: parts.join("\n\n—\n\n") }
-        : { kind: "skip" };
+      const fallbackText = parts.join("\n\n—\n\n").trim();
+      return fallbackText ? { kind: "exec_summary", payload: { fallbackText } } : { kind: "skip" };
     }
     case "market_mode": {
       const bits = [];
@@ -44,7 +43,8 @@ export function legacyContentForBlock(blockId, legacy) {
       if (legacy.sentiment_score != null) bits.push(`情緒：${Number(legacy.sentiment_score).toFixed(2)}`);
       if (legacy.sopr != null) bits.push(`SOPR：${legacy.sopr}`);
       if (legacy.exchange_netflow != null) bits.push(`交易所淨流：${legacy.exchange_netflow}`);
-      return bits.length ? { kind: "text", payload: bits.join(" · ") } : { kind: "skip" };
+      const fallbackText = bits.join(" · ").trim();
+      return fallbackText ? { kind: "market_mode", payload: { fallbackText } } : { kind: "skip" };
     }
     case "macro_framework":
     case "prediction_markets":

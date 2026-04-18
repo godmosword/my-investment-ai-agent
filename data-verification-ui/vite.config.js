@@ -12,6 +12,12 @@ export default defineConfig({
       : [
           VitePWA({
             registerType: "autoUpdate",
+            strategies: "injectManifest",
+            srcDir: "src",
+            filename: "service-worker.js",
+            injectManifest: {
+              globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+            },
             manifest: {
               name: "Q-Silicon War Room",
               short_name: "Q-Silicon",
@@ -25,9 +31,6 @@ export default defineConfig({
                 { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
                 { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
               ],
-            },
-            workbox: {
-              globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
             },
           }),
         ]),

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMetricsLatest, useReport, useOpenPositions, useWarRoomLatest } from "../hooks/useApi";
 import MetricCard from "../components/MetricCard";
 import TradeCard from "../components/TradeCard";
@@ -14,9 +15,27 @@ import {
 import SymbolFocusBar from "../components/SymbolFocusBar";
 import TodayBtcSnapshotStrip from "../components/TodayBtcSnapshotStrip";
 import AsOfChip from "../components/common/AsOfChip";
+import BriefProfileBar from "../components/report/BriefProfileBar";
+import { normalizeReportProfile } from "../components/report/reportProfiles";
+
+const STRUCTURED_FLAG = import.meta.env.VITE_STRUCTURED_REPORT === "1";
 
 export default function Today() {
   const [warRoomIntentFilter, setWarRoomIntentFilter] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawProfile = searchParams.get("profile");
+  const profile = normalizeReportProfile(rawProfile);
+
+  useEffect(() => {
+    const cur = searchParams.get("profile");
+    const n = normalizeReportProfile(cur);
+    if (cur != null && cur !== "" && n !== cur) {
+      const next = new URLSearchParams(searchParams);
+      next.set("profile", n);
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const today = new Date().toISOString().slice(0, 10);
   const {
     data: metrics,
@@ -96,6 +115,34 @@ export default function Today() {
 
       <div className="page-header">
         <div className="page-title">今日戰情室</div>
+        <div
+          className="page-subtitle"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "8px 12px",
+            marginTop: 6,
+          }}
+        >
+          <BriefProfileBar
+            value={profile}
+            onChange={(next) => {
+              const n = normalizeReportProfile(next);
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.set("profile", n);
+              setSearchParams(nextParams, { replace: true });
+            }}
+          />
+          {STRUCTURED_FLAG ? (
+            <Link
+              to={`/report/${today}?profile=${encodeURIComponent(profile)}`}
+              style={{ fontSize: 13, color: "var(--accent)", textDecoration: "none" }}
+            >
+              開啟今日區塊視圖 →
+            </Link>
+          ) : null}
+        </div>
         {showMetricsBlock && effectiveMetrics ? (
           <div style={{ marginTop: 8 }}>
             <AsOfChip

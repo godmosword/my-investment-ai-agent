@@ -122,6 +122,140 @@ const nvdaMisaligned = {
   e2e_override: true,
 };
 
+/** Align with `brief_profiles.PROFILES` / `BLOCK_REGISTRY` (minimal mock for structured envelope). */
+const PROFILE_BLOCK_IDS = {
+  full: [
+    "header",
+    "exec_summary",
+    "previous_recs",
+    "market_mode",
+    "macro_framework",
+    "prediction_markets",
+    "crypto_dashboard",
+    "crypto_news",
+    "crypto_chatter",
+    "crypto_trades",
+    "ai_bridge",
+    "ai_dashboard",
+    "ai_news",
+    "ai_chatter",
+    "ai_trades",
+    "current_affairs_roundtable",
+    "institutional_view",
+    "source_health",
+    "qsrec",
+  ],
+  lite: ["header", "exec_summary", "market_mode", "crypto_trades", "ai_trades", "qsrec"],
+  "crypto-only": [
+    "header",
+    "exec_summary",
+    "market_mode",
+    "macro_framework",
+    "prediction_markets",
+    "crypto_dashboard",
+    "crypto_news",
+    "crypto_chatter",
+    "crypto_trades",
+    "source_health",
+    "qsrec",
+  ],
+};
+
+const BLOCK_REGISTRY_MOCK = {
+  header: { template_subpath: "_header.j2", macro_name: "telegram_header", empty_behavior: "omit_if_empty" },
+  exec_summary: { template_subpath: "_exec_summary.j2", macro_name: "telegram_exec_summary", empty_behavior: "omit_if_empty" },
+  previous_recs: { template_subpath: "_previous_recs.j2", macro_name: "telegram_previous_recs", empty_behavior: "omit_if_empty" },
+  market_mode: { template_subpath: "_market_mode.j2", macro_name: "telegram_market_mode", empty_behavior: "omit_if_empty" },
+  macro_framework: { template_subpath: "_macro_framework.j2", macro_name: "telegram_macro_framework", empty_behavior: "omit_if_empty" },
+  prediction_markets: { template_subpath: "_prediction_markets.j2", macro_name: "telegram_prediction_markets", empty_behavior: "omit_if_empty" },
+  crypto_dashboard: { template_subpath: "_crypto_section.j2", macro_name: "telegram_crypto_section", empty_behavior: "omit_if_empty" },
+  crypto_news: { template_subpath: "_crypto_section.j2", macro_name: "telegram_crypto_section", empty_behavior: "omit_if_empty" },
+  crypto_chatter: { template_subpath: "_crypto_section.j2", macro_name: "telegram_crypto_section", empty_behavior: "omit_if_empty" },
+  crypto_trades: { template_subpath: "_crypto_trades_only.j2", macro_name: "telegram_crypto_trades_only", empty_behavior: "omit_if_empty" },
+  ai_bridge: { template_subpath: "_ai_section.j2", macro_name: "telegram_ai_section", empty_behavior: "omit_if_empty" },
+  ai_dashboard: { template_subpath: "_ai_section.j2", macro_name: "telegram_ai_section", empty_behavior: "omit_if_empty" },
+  ai_news: { template_subpath: "_ai_section.j2", macro_name: "telegram_ai_section", empty_behavior: "omit_if_empty" },
+  ai_chatter: { template_subpath: "_ai_section.j2", macro_name: "telegram_ai_section", empty_behavior: "omit_if_empty" },
+  ai_trades: { template_subpath: "_ai_trades_only.j2", macro_name: "telegram_ai_trades_only", empty_behavior: "omit_if_empty" },
+  current_affairs_roundtable: {
+    template_subpath: "_current_affairs_roundtable.j2",
+    macro_name: "telegram_current_affairs_roundtable",
+    empty_behavior: "omit_if_empty",
+  },
+  institutional_view: { template_subpath: "_institutional_view.j2", macro_name: "telegram_institutional_view", empty_behavior: "omit_if_empty" },
+  source_health: { template_subpath: "_footer_tail.j2", macro_name: "telegram_footer_tail", empty_behavior: "omit_if_empty" },
+  qsrec: { template_subpath: "_footer_tail.j2", macro_name: "telegram_footer_tail", empty_behavior: "omit_if_empty" },
+};
+
+function validateReportDateParam(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T12:00:00Z`);
+  return !Number.isNaN(d.getTime());
+}
+
+function legacyReportBody(reportDate) {
+  return {
+    report_date: reportDate,
+    timestamp: "2026-04-14T00:00:00Z",
+    dxy: 100,
+    etf_flow_millions: 1,
+    mvrv_z_score: 1,
+    avg_risk_score: 2.5,
+    sentiment_score: 0.1,
+    sopr: 1,
+    exchange_netflow: -1,
+    grok_summary: "e2e grok",
+    gpt_summary: "e2e gpt",
+    recommendations: [],
+  };
+}
+
+/** 最小 DailyBriefReport 形狀：讓 `structured_body_available` 路徑涵蓋 exec_summary／market_mode 專用區塊（與 `structuredBlockContent.js` 對齊）。 */
+const E2E_MINIMAL_DAILY_BRIEF_REPORT = {
+  crypto: {
+    report_title_date: "2026-04-14",
+    investment_thesis_one_liner: "e2e structured thesis",
+    exec_summary: ["e2e structured bullet"],
+    narrative_of_day: "e2e narrative of day",
+    market: {
+      regime: "risk_on",
+      score_suffix: "· e2e score suffix",
+      scorecard_lines: ["e2e scorecard line A", "e2e scorecard line B"],
+    },
+  },
+  ai: {},
+};
+
+function structuredEnvelope(reportDate, profileResolved) {
+  const blockIds = PROFILE_BLOCK_IDS[profileResolved];
+  const block_registry = {};
+  for (const bid of blockIds) {
+    if (BLOCK_REGISTRY_MOCK[bid]) block_registry[bid] = { ...BLOCK_REGISTRY_MOCK[bid] };
+  }
+  const legacy = legacyReportBody(reportDate);
+  return {
+    report_date: reportDate,
+    profile: profileResolved,
+    block_ids: blockIds,
+    block_registry,
+    daily_brief_report: E2E_MINIMAL_DAILY_BRIEF_REPORT,
+    structured_body_available: true,
+    structured_source: "e2e_mock",
+    gate_summary: {
+      available: false,
+      ok: null,
+      issue_count: 0,
+      issues: [],
+      issues_by_block: {},
+      issues_unmapped: [],
+      structured_validation: null,
+      last_gate_artifact_dir: null,
+      last_gate_issues_path: null,
+    },
+    legacy,
+  };
+}
+
 const snapshotBtc = baseSnapshot("BTC", BTC_LAST, btcAligned);
 const snapshotBtcMisaligned = baseSnapshot("BTC", BTC_OHLC_LAST_MIS, btcMisaligned);
 const snapshotSpy = baseSnapshot("SPY", SPY_OHLC_LAST, spyMisaligned);
@@ -279,8 +413,38 @@ const server = http.createServer((req, res) => {
     ]);
     return;
   }
-  if (url.pathname === "/api/reports/" + url.pathname.slice("/api/reports/".length)) {
-    sendJson(res, 200, { report_date: "2026-04-14", recommendations: [] });
+  if (url.pathname === "/api/brief-layouts") {
+    sendJson(res, 200, { layouts: [] });
+    return;
+  }
+  if (url.pathname === "/api/reports/profile-stats" || url.pathname.startsWith("/api/reports/profile-stats")) {
+    const days = Number(url.searchParams.get("days") || "30") || 30;
+    sendJson(res, 200, {
+      window_days: days,
+      total_reports: 0,
+      breakdown: [
+        { profile: "full", report_count: 0, latest_date: null },
+        { profile: "lite", report_count: 0, latest_date: null },
+        { profile: "crypto-only", report_count: 0, latest_date: null },
+      ],
+    });
+    return;
+  }
+  const structuredMatch = url.pathname.match(/^\/api\/reports\/(\d{4}-\d{2}-\d{2})\/structured$/);
+  if (structuredMatch) {
+    const reportDate = structuredMatch[1];
+    if (!validateReportDateParam(reportDate)) {
+      sendJson(res, 400, { detail: "invalid date" });
+      return;
+    }
+    const rawProfile = (url.searchParams.get("profile") || "full").trim().toLowerCase();
+    const normalized =
+      rawProfile === "crypto_only" ? "crypto-only" : rawProfile === "cryptoonly" ? "crypto-only" : rawProfile;
+    if (!Object.prototype.hasOwnProperty.call(PROFILE_BLOCK_IDS, normalized)) {
+      sendJson(res, 400, { detail: `invalid profile: ${rawProfile}` });
+      return;
+    }
+    sendJson(res, 200, structuredEnvelope(reportDate, normalized));
     return;
   }
   const reportsListMatch = url.pathname.match(/^\/api\/reports\/?$/);
@@ -290,11 +454,12 @@ const server = http.createServer((req, res) => {
   }
   const reportDayMatch = url.pathname.match(/^\/api\/reports\/(\d{4}-\d{2}-\d{2})$/);
   if (reportDayMatch) {
-    sendJson(res, 200, {
-      report_date: reportDayMatch[1],
-      timestamp: "2026-04-14T00:00:00Z",
-      recommendations: [],
-    });
+    const d = reportDayMatch[1];
+    if (!validateReportDateParam(d)) {
+      sendJson(res, 400, { detail: "invalid date" });
+      return;
+    }
+    sendJson(res, 200, legacyReportBody(d));
     return;
   }
   if (url.pathname === "/api/positions/open" || url.pathname.startsWith("/api/positions/open")) {

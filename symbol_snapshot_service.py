@@ -366,18 +366,23 @@ def build_symbol_snapshot(
     event_markers: list[dict[str, Any]] = []
     for rec in recommendations:
         report_date = rec.get("report_date")
+        direction_raw = rec.get("direction")
+        direction_key = (
+            str(direction_raw).strip().upper() if direction_raw is not None else None
+        )
+        rd_str = str(report_date) if report_date is not None else ""
+        marker_core = {
+            "type": "signal",
+            "label": f"{rec.get('direction', 'N/A')} {rec.get('status', 'N/A')}",
+            "direction": direction_key or None,
+            "signal_id": f"{normalized_symbol}|{rd_str}",
+            "entry_price": rec.get("entry_price"),
+            "target_price": rec.get("target_price"),
+            "stop_price": rec.get("stop_price"),
+        }
         if not report_date or report_date in seen_dates:
             if report_date:
-                event_markers.append(
-                    {
-                        "time": report_date,
-                        "type": "signal",
-                        "label": f"{rec.get('direction', 'N/A')} {rec.get('status', 'N/A')}",
-                        "entry_price": rec.get("entry_price"),
-                        "target_price": rec.get("target_price"),
-                        "stop_price": rec.get("stop_price"),
-                    }
-                )
+                event_markers.append({"time": report_date, **marker_core})
             continue
         seen_dates.add(report_date)
         report_links.append(
@@ -387,16 +392,7 @@ def build_symbol_snapshot(
                 "api_href": f"/api/reports/{report_date}",
             }
         )
-        event_markers.append(
-            {
-                "time": report_date,
-                "type": "signal",
-                "label": f"{rec.get('direction', 'N/A')} {rec.get('status', 'N/A')}",
-                "entry_price": rec.get("entry_price"),
-                "target_price": rec.get("target_price"),
-                "stop_price": rec.get("stop_price"),
-            }
-        )
+        event_markers.append({"time": report_date, **marker_core})
     event_markers.sort(key=lambda m: str(m.get("time", "")))
 
     ohlc_as_of = str(price_series[-1]["time"]) if price_series else ""

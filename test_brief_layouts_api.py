@@ -21,3 +21,8 @@ def test_brief_layouts_returns_yaml_inventory(client):
     names = {item["filename"] for item in body["layouts"]}
     assert "example_lite_reorder.yaml" in names
     assert all("path" in item for item in body["layouts"])
+    example = next(i for i in body["layouts"] if i["filename"] == "example_lite_reorder.yaml")
+    assert example.get("applies_to_profile") == "lite"
+    assert isinstance(example.get("blocks"), list)
+    assert "header" in example["blocks"]
+    assert "exec_summary" in example["blocks"]

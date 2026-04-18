@@ -30,14 +30,14 @@ export function getTerminalRefetchIntervalMs() {
 }
 
 /** 同頁多卡共用 snapshot 時，避免每卡獨立 refetchInterval（T3c）。 */
-export function getTerminalQueryCoalesce() {
+function getTerminalQueryCoalesce() {
   const raw = import.meta.env.VITE_TERMINAL_QUERY_COALESCE;
   if (raw === "" || raw === undefined || raw === null) return true;
   return String(raw).trim() !== "0";
 }
 
 /** 同 ticker 多 hook 實例共用 staleTime（與輪詢間隔對齊，減少重複請求）。 */
-export function getTerminalSharedStaleTimeMs() {
+function getTerminalSharedStaleTimeMs() {
   const interval = getTerminalRefetchIntervalMs();
   return Math.min(interval, 120_000);
 }
@@ -98,10 +98,20 @@ export function useMetricsHistory(days = 30) {
   });
 }
 
-export function useReports(limit = 30) {
+/**
+ * @param {number} [limit]
+ * @param {string | null | undefined} [profile] — 與 `GET /api/reports?profile=` 對齊（full / lite / crypto-only）；省略則不篩選。
+ */
+export function useReports(limit = 30, profile = null) {
+  const qs = new URLSearchParams();
+  qs.set("limit", String(limit));
+  if (profile != null && String(profile).trim() !== "") {
+    qs.set("profile", String(profile).trim());
+  }
+  const qstr = qs.toString();
   return useQuery({
-    queryKey: ["reports", limit],
-    queryFn: () => apiFetch(`/api/reports?limit=${limit}`),
+    queryKey: ["reports", limit, profile ?? ""],
+    queryFn: () => apiFetch(`/api/reports?${qstr}`),
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });
@@ -116,6 +126,19 @@ export function useReport(date, queryOptions = {}) {
     queryFn: () => apiFetch(`/api/reports/${date}`),
     enabled,
     staleTime: 30 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/**
+ * Phase 1：`GET /api/reports/profile-stats` — per-profile report counts for Archive 小圖。
+ * @param {number} [days]
+ */
+export function useReportProfileStats(days = 30) {
+  return useQuery({
+    queryKey: ["reports", "profile-stats", days],
+    queryFn: () => apiFetch(`/api/reports/profile-stats?days=${days}`),
+    staleTime: 10 * 60 * 1000,
     retry: 1,
   });
 }
@@ -315,7 +338,10 @@ export function usePatchExecutionIntent() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["execution-intents"] });
-      qc.invalidateQueries({ queryKey: ["war-room", "latest"] });
+      qc.invalidateQueries({ queryKey: ["war-room"] });
+      qc.invalidateQueries({ queryKey: ["metrics", "latest"] });
+      qc.invalidateQueries({ queryKey: ["report"] });
+      qc.invalidateQueries({ queryKey: ["positions", "open"] });
     },
   });
 }

@@ -2,12 +2,14 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BottomNav from "./components/BottomNav";
+import WarRoomSseBridge from "./components/WarRoomSseBridge";
 import { SymbolFocusProvider } from "./context/SymbolFocusContext";
 import Today   from "./pages/Today";
 import Charts  from "./pages/Charts";
 import Trades  from "./pages/Trades";
 import Archive from "./pages/Archive";
 import Report  from "./pages/Report";
+import Settings from "./pages/Settings";
 
 const Terminal = lazy(() => import("./pages/Terminal"));
 const DesignShowcase = import.meta.env.DEV ? lazy(() => import("./pages/DesignShowcase")) : null;
@@ -21,6 +23,7 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <WarRoomSseBridge />
       <SymbolFocusProvider>
         <BrowserRouter>
           <div className="app-shell">
@@ -38,6 +41,7 @@ export default function App() {
                   }
                 />
                 <Route path="/archive" element={<Archive />} />
+                <Route path="/settings" element={<Settings />} />
                 <Route path="/report/:date" element={<Report />} />
                 {import.meta.env.DEV && DesignShowcase ? (
                   <Route

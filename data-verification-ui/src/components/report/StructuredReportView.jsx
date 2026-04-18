@@ -1,321 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import MetricCard from "../MetricCard";
-import TradeCard from "../TradeCard";
 import SymbolFocusBar from "../SymbolFocusBar";
 import AsOfChip from "../common/AsOfChip";
-import GateStatusBadge from "../common/GateStatusBadge";
 import BriefProfileBar from "./BriefProfileBar";
-import { blockSectionTitle } from "./legacyBlockContent";
-import { blockContentForBlock, unwrapTradesPayload } from "./structuredBlockContent";
-
-/** Stable DOM id for ``#block-*`` deep links (visualization_plan V2). */
-export function blockSectionDomId(blockId) {
-  const s = String(blockId ?? "unknown");
-  return `block-${s.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
-}
-
-function BlockSection({
-  blockId,
-  registryEntry,
-  legacy,
-  dailyBriefReport,
-  structuredOk,
-  blockGateIssues,
-  asOf,
-}) {
-  const title = blockSectionTitle(blockId, registryEntry);
-  const content = blockContentForBlock(blockId, {
-    dbr: dailyBriefReport,
-    legacy,
-    structuredOk,
-  });
-
-  if (content.kind === "skip") return null;
-
-  const anchor = blockSectionDomId(blockId);
-  const gateCount = Array.isArray(blockGateIssues) ? blockGateIssues.length : 0;
-
-  const headerExtras = (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: "8px 10px",
-        marginTop: 4,
-      }}
-    >
-      {gateCount > 0 ? (
-        <span title={blockGateIssues.join("\n")}>
-          <GateStatusBadge variant="critical">
-            Gate {gateCount}
-          </GateStatusBadge>
-        </span>
-      ) : null}
-      {asOf ? (
-        <AsOfChip
-          label="截至"
-          asOf={asOf}
-          source="BigQuery · daily_metrics"
-          className="!py-0.5 !text-[10px]"
-        />
-      ) : null}
-    </div>
-  );
-
-  if (content.kind === "text") {
-    return (
-      <section id={anchor} className="structured-report-block">
-        <div className="section-header">
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span>{title}</span>
-            {headerExtras}
-          </div>
-        </div>
-        <div className="summary-block">{content.payload}</div>
-      </section>
-    );
-  }
-
-  if (content.kind === "news") {
-    const raw = String(content.payload ?? "");
-    return (
-      <section id={anchor} className="structured-report-block">
-        <div className="section-header">
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span>{title}</span>
-            {headerExtras}
-          </div>
-        </div>
-        <div className="card">
-          {raw.split("\n").map((line, i) => (
-            <div
-              key={i}
-              style={{
-                fontSize: 12,
-                color: "var(--muted)",
-                padding: "3px 0",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              {line}
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  if (content.kind === "trades") {
-    const { rows, introHtml, disclaimer } = unwrapTradesPayload(content.payload);
-    return (
-      <section id={anchor} className="structured-report-block">
-        <div className="section-header">
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span>
-              {title} ({rows.length})
-            </span>
-            {headerExtras}
-          </div>
-        </div>
-        {disclaimer ? (
-          <div
-            className="card"
-            style={{
-              marginBottom: 10,
-              fontSize: 12,
-              color: "var(--muted)",
-              borderColor: "rgba(251,191,36,0.35)",
-              background: "rgba(251,191,36,0.06)",
-            }}
-          >
-            {disclaimer}
-          </div>
-        ) : null}
-        {introHtml ? (
-          /* Pipeline-generated HTML (whitelist); same trust boundary as Telegram template */
-          <div
-            className="summary-block mb-3"
-            dangerouslySetInnerHTML={{ __html: introHtml }}
-          />
-        ) : null}
-        {rows.map((t, i) => (
-          <TradeCard key={i} trade={t} />
-        ))}
-      </section>
-    );
-  }
-
-  if (content.kind === "metrics") {
-    const lines = Array.isArray(content.payload) ? content.payload : [];
-    return (
-      <section id={anchor} className="structured-report-block">
-        <div className="section-header">
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span>{title}</span>
-            {headerExtras}
-          </div>
-        </div>
-        <div className="card" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <tbody>
-              {lines.map((row, i) => (
-                <tr
-                  key={i}
-                  style={{
-                    borderBottom: "1px solid var(--border)",
-                    fontWeight: row.is_section_header ? 600 : 400,
-                    background: row.is_section_header ? "rgba(255,255,255,0.03)" : undefined,
-                  }}
-                >
-                  <td style={{ padding: "8px 6px", verticalAlign: "top", color: "var(--muted)" }}>
-                    {row.status_emoji ? `${row.status_emoji} ` : ""}
-                    {row.label}
-                  </td>
-                  <td style={{ padding: "8px 6px", textAlign: "right", fontFamily: "ui-monospace, monospace" }}>
-                    {row.value}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    );
-  }
-
-  if (content.kind === "news_items") {
-    const items = Array.isArray(content.payload) ? content.payload : [];
-    return (
-      <section id={anchor} className="structured-report-block">
-        <div className="section-header">
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span>
-              {title} ({items.length})
-            </span>
-            {headerExtras}
-          </div>
-        </div>
-        {items.map((n, i) => (
-          <div key={i} className="card" style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
-              {n.timestamp_line} · #{n.index}
-            </div>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>{n.title}</div>
-            <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 6 }}>{n.source_and_nature}</div>
-            <div style={{ fontSize: 13, lineHeight: 1.45 }}>{n.summary}</div>
-            <div style={{ fontSize: 13, marginTop: 8, color: "rgb(167 243 208)" }}>{n.investment_takeaway}</div>
-            <div style={{ fontSize: 11, marginTop: 6, color: "var(--muted)" }}>
-              編輯共識：{n.editor_consensus}
-              {n.pricing_note ? ` · 定價：${n.pricing_note}` : ""}
-            </div>
-          </div>
-        ))}
-      </section>
-    );
-  }
-
-  if (content.kind === "html") {
-    /* Assembled / BQ-injected HTML (previous_recs, source_observability, etc.) — trusted pipeline output only */
-    return (
-      <section id={anchor} className="structured-report-block">
-        <div className="section-header">
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span>{title}</span>
-            {headerExtras}
-          </div>
-        </div>
-        <div className="summary-block" dangerouslySetInnerHTML={{ __html: String(content.payload ?? "") }} />
-      </section>
-    );
-  }
-
-  if (content.kind === "roundtable") {
-    const rt = content.payload ?? {};
-    const voices = Array.isArray(rt.voices) ? rt.voices : [];
-    const unresolved = Array.isArray(rt.unresolved) ? rt.unresolved : [];
-    return (
-      <section id={anchor} className="structured-report-block">
-        <div className="section-header">
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span>{title}</span>
-            {headerExtras}
-          </div>
-        </div>
-        <div className="card" style={{ marginBottom: 10 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>{rt.topic}</div>
-          {voices.map((v, i) => (
-            <div
-              key={i}
-              style={{
-                borderTop: i === 0 ? undefined : "1px solid var(--border)",
-                paddingTop: i === 0 ? 0 : 10,
-                marginTop: i === 0 ? 0 : 10,
-              }}
-            >
-              <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>{v.role}</div>
-              <div style={{ fontSize: 13, lineHeight: 1.5 }}>{v.viewpoint}</div>
-              {v.evidence_anchor ? (
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>錨點：{v.evidence_anchor}</div>
-              ) : null}
-              {v.disagreement ? (
-                <div style={{ fontSize: 12, marginTop: 4, color: "rgb(254 202 202)" }}>分歧：{v.disagreement}</div>
-              ) : null}
-            </div>
-          ))}
-          {rt.consensus ? (
-            <div style={{ marginTop: 12, fontSize: 13, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
-              <span style={{ color: "var(--muted)", fontSize: 11 }}>共識</span>
-              <div style={{ marginTop: 4 }}>{rt.consensus}</div>
-            </div>
-          ) : null}
-          {unresolved.filter(Boolean).length > 0 ? (
-            <div style={{ marginTop: 10, fontSize: 12 }}>
-              <span style={{ color: "var(--muted)", fontSize: 11 }}>未解問題</span>
-              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-                {unresolved.filter(Boolean).map((u, j) => (
-                  <li key={j} style={{ marginBottom: 4 }}>
-                    {u}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      </section>
-    );
-  }
-
-  if (content.kind === "institutional_split") {
-    const { thesisText, disclaimerHtml } = content.payload ?? {};
-    return (
-      <section id={anchor} className="structured-report-block">
-        <div className="section-header">
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span>{title}</span>
-            {headerExtras}
-          </div>
-        </div>
-        {thesisText ? (
-          <div className="summary-block" style={{ whiteSpace: "pre-wrap" }}>
-            {thesisText}
-          </div>
-        ) : null}
-        {disclaimerHtml ? (
-          <div
-            className="summary-block"
-            style={{ marginTop: thesisText ? 10 : 0 }}
-            /* Fixed whitelist HTML from assemble, not LLM raw */
-            dangerouslySetInnerHTML={{ __html: String(disclaimerHtml) }}
-          />
-        ) : null}
-      </section>
-    );
-  }
-
-  return null;
-}
+import BlockSection from "./BlockSection";
+import GateIssuesNavigator from "./GateIssuesNavigator";
+import GateIssuesDrawer from "./GateIssuesDrawer";
+import BriefLayoutsReference from "./BriefLayoutsReference";
+import { gateIssueLiClass } from "./gateIssueSeverity";
 
 /**
  * @param {{
@@ -353,8 +46,16 @@ export default function StructuredReportView({
   const asOf = legacy?.timestamp;
   const gateSummary = payload?.gate_summary ?? {};
   const issuesByBlock = gateSummary?.issues_by_block ?? {};
+  const issuesUnmapped = gateSummary?.issues_unmapped ?? [];
   const gateBanner =
     gateSummary?.available === true && gateSummary?.ok === false && Array.isArray(gateSummary?.issues);
+  const showGateNavigator =
+    Object.keys(issuesByBlock).some((k) => Array.isArray(issuesByBlock[k]) && issuesByBlock[k].length > 0) ||
+    (Array.isArray(issuesUnmapped) && issuesUnmapped.length > 0);
+  const gateIssueLines = Array.isArray(gateSummary?.issues) ? gateSummary.issues : [];
+  const canOpenGateDrawer = gateIssueLines.length > 0 || showGateNavigator;
+
+  const [gateDrawerOpen, setGateDrawerOpen] = useState(false);
 
   useEffect(() => {
     const scrollToHash = () => {
@@ -372,7 +73,7 @@ export default function StructuredReportView({
   return (
     <>
       <SymbolFocusBar compact />
-      <div className="page-header">
+      <div className="page-header" data-testid="structured-report-view">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <Link to="/archive" style={{ color: "var(--muted)", textDecoration: "none", fontSize: 14 }}>
             ← 返回
@@ -398,6 +99,8 @@ export default function StructuredReportView({
         </div>
       </div>
 
+      <BriefLayoutsReference />
+
       {gateBanner ? (
         <div
           className="card"
@@ -410,7 +113,7 @@ export default function StructuredReportView({
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Gate 未通過（摘要）</div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--muted)" }}>
             {(gateSummary.issues ?? []).slice(0, 12).map((line, i) => (
-              <li key={i} style={{ marginBottom: 4 }}>
+              <li key={i} className={gateIssueLiClass(line)} style={{ marginBottom: 4 }}>
                 {line}
               </li>
             ))}
@@ -421,6 +124,32 @@ export default function StructuredReportView({
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {canOpenGateDrawer ? (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            className="terminal-btn terminal-btn--small"
+            onClick={() => setGateDrawerOpen(true)}
+          >
+            開啟 Gate 詳情（滑層）
+          </button>
+        </div>
+      ) : null}
+
+      {showGateNavigator ? (
+        <GateIssuesNavigator issuesByBlock={issuesByBlock} issuesUnmapped={issuesUnmapped} />
+      ) : null}
+
+      {canOpenGateDrawer ? (
+        <GateIssuesDrawer
+          open={gateDrawerOpen}
+          onClose={() => setGateDrawerOpen(false)}
+          issuesByBlock={issuesByBlock}
+          issuesUnmapped={issuesUnmapped}
+          allIssues={gateIssueLines}
+        />
       ) : null}
 
       <div className="metrics-grid">

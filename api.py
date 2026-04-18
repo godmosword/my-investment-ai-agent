@@ -13,6 +13,8 @@ import logging
 import os
 import re
 import time
+
+import yaml
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -21,9 +23,9 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from google.cloud import bigquery
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
+from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE
 from execution_intents import (
     ALLOWED_INTENT_STATUSES,
     CLIENT_PATCHABLE_STATUSES,
@@ -203,6 +205,13 @@ def get_metrics_history(
 @app.get("/api/reports")
 def list_reports(
     limit: int = Query(default=30, ge=1, le=90),
+    profile: str | None = Query(
+        default=None,
+        description=(
+            "Optional brief profile (full, lite, crypto-only). When set, only report "
+            "dates that appear in llm_run_log with this profile are listed."
+        ),
+    ),
 ) -> list[dict[str, Any]]:
     """List recent daily reports (summary cards).
 
@@ -211,30 +220,146 @@ def list_reports(
     accessible via Telegram; this endpoint provides the structured
     data layer for the PWA archive view.
     """
+    resolved_profile: str | None = None
+    if profile is not None and str(profile).strip() != "":
+        try:
+            from brief_profiles import get_active_profile
+        except ImportError as exc:
+            logger.error("brief_profiles import failed: %s", exc)
+            raise HTTPException(
+                status_code=500, detail="Server configuration error"
+            ) from exc
+        try:
+            resolved_profile = get_active_profile(profile)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    base_select = f"""
+            SELECT
+                DATE(m.timestamp) AS report_date,
+                m.timestamp,
+                m.dxy,
+                m.etf_flow_millions,
+                m.avg_risk_score,
+                m.mvrv_z_score,
+                m.regime_score,
+                m.sentiment_score,
+                m.grok_summary,
+                m.gpt_summary,
+                m.news_titles
+            FROM `{METRICS_TABLE}` m
+    """
     try:
         client = _get_bq_client()
-        rows = client.query(f"""
-            SELECT
-                DATE(timestamp) AS report_date,
-                timestamp,
-                dxy,
-                etf_flow_millions,
-                avg_risk_score,
-                mvrv_z_score,
-                regime_score,
-                sentiment_score,
-                grok_summary,
-                gpt_summary,
-                news_titles
-            FROM `{METRICS_TABLE}`
-            ORDER BY timestamp DESC
+        if resolved_profile is None:
+            rows = client.query(
+                base_select
+                + f"""
+            ORDER BY m.timestamp DESC
             LIMIT {limit}
-        """).result()
+        """
+            ).result()
+        else:
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("profile", "STRING", resolved_profile),
+                    bigquery.ScalarQueryParameter("lim", "INT64", int(limit)),
+                ]
+            )
+            rows = client.query(
+                base_select
+                + f"""
+            INNER JOIN (
+                SELECT DISTINCT DATE(timestamp) AS d
+                FROM `{LLM_RUN_LOG_TABLE}`
+                WHERE profile = @profile
+            ) filt ON DATE(m.timestamp) = filt.d
+            ORDER BY m.timestamp DESC
+            LIMIT @lim
+        """,
+                job_config=job_config,
+            ).result()
     except Exception as exc:
         logger.error("BigQuery reports list failed: %s", exc)
         raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
 
     return _rows_to_dicts(rows)
+
+
+@app.get("/api/reports/profile-stats")
+def get_report_profile_stats(
+    days: int = Query(default=30, ge=1, le=365),
+) -> dict[str, Any]:
+    """Aggregate daily-brief report counts grouped by profile.
+
+    Queries ``llm_run_log`` within the past ``days`` window and returns a
+    breakdown of distinct report dates per profile, so the Archive page can
+    render a distribution bar chart. Profiles with zero reports in the window
+    are still returned (count=0) to keep the chart axis stable.
+    """
+    try:
+        from brief_profiles import PROFILES
+    except ImportError as exc:  # pragma: no cover - defensive
+        logger.error("brief_profiles import failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Server configuration error") from exc
+
+    known_profiles = list(PROFILES.keys())
+    try:
+        client = _get_bq_client()
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("days", "INT64", int(days)),
+            ]
+        )
+        rows = client.query(
+            f"""
+            SELECT
+                COALESCE(profile, 'full') AS profile,
+                COUNT(DISTINCT DATE(timestamp)) AS report_count,
+                MAX(DATE(timestamp)) AS latest_date
+            FROM `{LLM_RUN_LOG_TABLE}`
+            WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @days DAY)
+            GROUP BY profile
+            """,
+            job_config=job_config,
+        ).result()
+    except Exception as exc:
+        logger.error("BigQuery profile-stats query failed: %s", exc)
+        raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
+
+    raw = {row["profile"]: row for row in _rows_to_dicts(rows)}
+    breakdown: list[dict[str, Any]] = []
+    total = 0
+    for name in known_profiles:
+        row = raw.get(name)
+        count = int(row["report_count"]) if row else 0
+        breakdown.append(
+            {
+                "profile": name,
+                "report_count": count,
+                "latest_date": row.get("latest_date") if row else None,
+            }
+        )
+        total += count
+    # Include any unexpected profiles that appear in the log but aren't in PROFILES
+    for name, row in raw.items():
+        if name in known_profiles:
+            continue
+        count = int(row["report_count"])
+        breakdown.append(
+            {
+                "profile": name,
+                "report_count": count,
+                "latest_date": row.get("latest_date"),
+            }
+        )
+        total += count
+
+    return {
+        "window_days": int(days),
+        "total_reports": total,
+        "breakdown": breakdown,
+    }
 
 
 def _validate_report_date(report_date: str) -> None:
@@ -403,18 +528,40 @@ def list_brief_layout_yaml_files() -> dict[str, Any]:
     if not layouts_dir.is_dir():
         return {"layouts": []}
 
-    layouts: list[dict[str, str]] = []
+    layouts: list[dict[str, Any]] = []
     for path in sorted(layouts_dir.glob("*.yaml")):
         try:
             rel = path.relative_to(_REPO_ROOT)
         except ValueError:
             rel = path
-        layouts.append(
-            {
-                "filename": path.name,
-                "path": str(rel).replace("\\", "/"),
-            }
-        )
+        entry: dict[str, Any] = {
+            "filename": path.name,
+            "path": str(rel).replace("\\", "/"),
+        }
+        try:
+            with path.open(encoding="utf-8") as fh:
+                data = yaml.safe_load(fh)
+        except OSError as exc:
+            entry["parse_error"] = f"read failed: {exc}"[:500]
+            layouts.append(entry)
+            continue
+        except yaml.YAMLError as exc:
+            entry["parse_error"] = str(exc)[:500]
+            layouts.append(entry)
+            continue
+
+        if data is None:
+            entry["parse_error"] = "empty or null YAML"
+        elif not isinstance(data, dict):
+            entry["parse_error"] = "YAML root must be a mapping"
+        else:
+            applies = data.get("applies_to_profile")
+            if applies is not None:
+                entry["applies_to_profile"] = str(applies).strip()
+            blocks_raw = data.get("blocks")
+            if isinstance(blocks_raw, list):
+                entry["blocks"] = [str(b).strip() for b in blocks_raw if b is not None and str(b).strip()]
+        layouts.append(entry)
     return {"layouts": layouts}
 
 
@@ -587,6 +734,32 @@ class WebPushSubscribeBody(BaseModel):
 
     endpoint: str = Field(..., max_length=4096)
     keys: dict[str, str] | None = None
+    report_date: str | None = Field(default=None, max_length=32)
+    block_id: str | None = Field(default=None, max_length=128)
+
+    @field_validator("report_date")
+    @classmethod
+    def _validate_report_date(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = str(v).strip()
+        if not s:
+            return None
+        parts = s.split("-")
+        if len(parts) != 3 or len(s) != 10:
+            raise ValueError("report_date must be YYYY-MM-DD")
+        y, mo, d = int(parts[0]), int(parts[1]), int(parts[2])
+        if not (2000 <= y <= 2100 and 1 <= mo <= 12 and 1 <= d <= 31):
+            raise ValueError("report_date out of range")
+        return s
+
+    @field_validator("block_id")
+    @classmethod
+    def _validate_block_id(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s if s else None
 
 
 class WebPushTestSendBody(BaseModel):

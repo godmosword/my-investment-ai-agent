@@ -1,444 +1,92 @@
-# Plan: 日報區塊模組化 (Brief Section Modularization)
+# Plan: 日報區塊模組化 — 維護導覽
 
-## 閱讀地圖（建議順序）
-
-1. **[目標：短／中／長期](#目標短期--中期--長期)** — 交付節奏與願景  
-2. **[產品與交付原則](#產品與交付原則)** — 過渡期不影響日報產出、完成後組織級客製  
-3. **[五個 Phase 總覽](#五個-phase-總覽)** — 實作主軸一頁表  
-4. **[Phase 1–5 詳情與可切片任務](#phase-1模板原子化)** — 開發與 PR 切法  
-5. **[架構三層與 Registry](#架構三層與-registry)** — Jinja2／程式／Gate  
-6. **[版型與區塊行為](#版型與區塊行為)** — Profile、互動、Lite 版面、Gate 設計  
-7. **[決策附錄](#附錄-a外部方案對照grok)** — Grok、一區塊一 Agent、時事多觀點  
-8. **[Critical Files](#critical-files)**、**[Verification](#verification)**、**[NOT in Scope](#not-in-scope)**
+> **狀態（2026-04）**：**Phase 1–5**（含 **4d**、**5** 〔時事多觀點〕，預設 `BRIEF_CURRENT_AFFAIRS=0`）**已全數落地**。歷史切片、測試與逐日變更以 **[`CHANGELOG.md`](CHANGELOG.md)** 為準，**不要**在本檔重複抄寫全文。權威條目：**2026-04-14**（Phase 4d）、**2026-04-16**（Phase 4c）、**2026-04-26**（Phase 1）、**2026-04-27**（Phase 2–5／4a–4b／Gate Phase 3）。計畫文件與 CHANGELOG 的收斂說明見 **CHANGELOG `## 2026-04-18` → `### Docs`**。
 
 ---
 
-## 當前進度快照（2026-04-27）
+## 閱讀地圖
 
-| Phase | 狀態 | 關鍵交付 |
-|:-----:|:----:|----------|
-| **1** 模板原子化 | ✅ 已落地（2026-04-26） | `templates/blocks/*.j2`；[`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2) **byte-identical** smoke |
-| **2** 版型與組裝器 | ✅ 已落地（2026-04-27） | [`brief_profiles.py`](brief_profiles.py)（`BLOCK_IDS`／`PROFILES`／`BLOCK_REGISTRY`）、`templates/profiles/telegram_{full,lite}.j2`、`REPORT_PROFILE` env、`render_telegram_daily_brief(..., profile=)` |
-| **3** Gate 與契約 | ✅ 已落地（2026-04-27） | [`report_html_gates.py`](report_html_gates.py) `validate_report(..., profile=)`、Phase A/B/C profile-aware、`_check_profile_block_consistency`、[`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py) |
-| **4a** `crypto-only` | ✅ 已落地（2026-04-27） | [`templates/profiles/telegram_crypto_only.j2`](templates/profiles/telegram_crypto_only.j2)、`PROFILES["crypto-only"]`、Gate／一致性 |
-| **4b** YAML layout 覆寫 | ✅ 已落地（2026-04-27） | [`brief_profiles_layout.py`](brief_profiles_layout.py)、`profile_block_ids` merge、[`config/brief_layouts/`](config/brief_layouts/)、`BRIEF_LAYOUT_FILE` env、`PyYAML` |
-| **4c** BQ `profile` | ✅ 已落地（2026-04-16） | [`bigquery_writer.py`](bigquery_writer.py) `write_llm_run_log`／`write_gate_failure_log`、[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) |
-| **4d** Phase 1–4 補強 | ✅ 已落地（2026-04-14） | 見 [Phase 4d](#phase-4d) — 一致性錨點、非法 `REPORT_PROFILE` 啟動檢、YAML／BQ 文件對齊 |
-| **5** 時事多觀點區塊 | ✅ **已落地（預設關閉）** | **5a–5d + 5b**：[`current_affairs_crew.py`](current_affairs_crew.py)、`main._run_pipeline_once` 並行、`assemble` 注入、`validate_report(..., structured_report=)` strict 擴充；**LangGraph** 路徑同邏輯（不修改 `graph/` 節點圖）— 見 [Phase 5](#phase-5時事多觀點區塊podcast-型態文字) |
-
-> 預設仍 `REPORT_PROFILE=full`，與 Phase 0 凍結基線 **byte-identical**；生產行為零漂移。細節對應 [`CHANGELOG.md`](CHANGELOG.md)（2026-04-16／2026-04-26／2026-04-27）、[`TODOS.md`](TODOS.md) 「同步狀態」段。
+1. 下表 **Phase 與 CHANGELOG 錨點**（狀態一覽）  
+2. **產品與交付原則**（過渡期零漂移、完成後組織客製）  
+3. **維護紀律**（byte-identical、`REPORT_PROFILE`、YAML 語意）  
+4. **長期／非本 plan 預設交付**、**NOT in Scope**、**Verification**、**Critical Files**
 
 ---
 
-## 背景與意圖
+## Phase 與 CHANGELOG 錨點
 
-**Why:** 日報目前由單一 `telegram_report.j2`（約 263 行）+ 固定 `DailyBriefReport` schema 驅動；加區塊或改順序易牽動全檔，且每次 run 只有固定版面。
+| Phase | 狀態 | 關鍵交付 | 變更日誌 |
+|:-----:|:----:|----------|----------|
+| **1** 模板原子化 | ✅ | `templates/blocks/*.j2`；與 [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2) **byte-identical** | 2026-04-26、27 |
+| **2** 版型與組裝器 | ✅ | [`brief_profiles.py`](brief_profiles.py)、`templates/profiles/telegram_{full,lite}.j2`、`REPORT_PROFILE`、`render_telegram_daily_brief(..., profile=)` | 2026-04-27 |
+| **3** Gate 與契約 | ✅ | `validate_report(..., profile=)`、profile-aware Phase A/B/C、[`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py) | 2026-04-27 |
+| **4a** `crypto-only` | ✅ | [`templates/profiles/telegram_crypto_only.j2`](templates/profiles/telegram_crypto_only.j2) 等 | 2026-04-27 |
+| **4b** YAML layout | ✅ | [`brief_profiles_layout.py`](brief_profiles_layout.py)、[`config/brief_layouts/`](config/brief_layouts/)、`BRIEF_LAYOUT_FILE` | 2026-04-27 |
+| **4c** BQ `profile` | ✅ | [`bigquery_writer.py`](bigquery_writer.py)、[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) | 2026-04-16 |
+| **4d** 1–4 補強 | ✅ | 非法 `REPORT_PROFILE` 啟動檢、文件／一致性 | 2026-04-14 |
+| **5** 時事多觀點 | ✅（預設關閉） | [`current_affairs_crew.py`](current_affairs_crew.py)、schemas、`assemble` 注入、strict Gate；LangGraph 路徑同 main 鉤子 | 2026-04-27 |
 
-**產品動機:** 讀者與內部對**區塊組合、順序、主編 tone** 需求不同 → 模組化支援**客製差異化**，並讓**小組可擁有單一區塊**（PR 範圍縮小、討論與修改不必整份日報重構）。
+> 預設 **`REPORT_PROFILE=full`** 與 Phase 0 凍結基線 **byte-identical**；生產行為零漂移。
 
-**Intended outcome:** 以 **named profile**（`full` / `lite` / `crypto-only` 等）驅動有序 **block_id** 列表；每區塊獨立 Jinja2 macro；`validate_report` **profile-aware**；資料仍由既有 `assemble`／tools 注入（首階段不在區塊內第二套抓數）。語氣差異首階段靠 **Crew 提示詞 + profile 可見區塊**；每使用者即時選 tone 見 [NOT in Scope](#not-in-scope)。
+---
 
-**設計成熟度（內部評分）：** 概念由約 4/10 收斂至 **8/10**（區塊粒度、profile 開關、lite 內容、Gate 策略、掃讀 hint 已定）。
+## 背景與意圖（摘要）
+
+**Why：** 單一巨型 `telegram_report.j2` 難維護；需 **named profile** + **有序 block_id** + **profile-aware `validate_report`**，讓組織可差異化版型而不分叉資料管線。
+
+**Intended outcome：** `BLOCK_REGISTRY`／`templates/blocks/*.j2`／`PROFILES`；資料仍由既有 assemble／tools 注入（首階不在區塊內第二套抓數）。
 
 ---
 
 ## 產品與交付原則
 
-本節為 **產品／工程對齊用** 的成功定義：模組化 **過程中** 預設讀者無感；**完成後** 同一套引擎可支援 **組織級** 版型與區塊組合（非第二條獨立資料管線，除非另做產品決策）。
+### 過渡期 — 不影響日報產出
 
-### 過渡期（模組化進行中）— 不影響日報產出
+1. **`full` 等價**為合併門檻；production 固定或非必要不切離 `full`。  
+2. **單一資料管線**：差異落在模板／profile／組裝順序。  
+3. 新版型僅 **staging／手動**驗證後再綁 cron。
 
-1. **預設路徑鎖定現行行為**：在 Phase 1 與 Phase 2 的 **`full` 等價**驗收通過前，**正式環境**只走與今日管線等價之組裝。若已引入 `REPORT_PROFILE`，**production 固定 `full`**（或由程式內預設 `full`，非必要不切換）。
-2. **等價為合併門檻**：Phase 1 拆 macro 後須通過計畫內 **golden／byte-identical 或專案約定之 diff 收斂**，並搭配 `pytest -m smoke` 與 `validate_report`，避免空白、條件分支或縮排差異造成 Gate 或 Telegram 呈現漂移。
-3. **新版型僅先離線驗證**：`lite`、`crypto-only`、可選 YAML layout、新區塊等，**不**在未驗證前綁定 production cron；僅 **staging／手動**或明確試驗排程啟用。
-4. **單一資料管線**：模組化過程 **不** 改變既有 `assemble`／tools 注入契約；組織差異先落在 **模板／profile／組裝順序**，避免客觀數字與敘事來源與現行分叉（對齊專案「無數據幻覺」紅線）。
-
-### 完成後 — 日報產出可組織級客製
-
-於 Phase 2–4 落地並驗收後，組織可依下列機制差異化（細節見 [五個 Phase 總覽](#五個-phase-總覽)、[Phase 4](#phase-4擴充版型與配置驅動)）：
+### 完成後 — 組織級客製
 
 | 機制 | 作用 |
 |------|------|
-| **`REPORT_PROFILE`**（`full`／`lite`／`crypto-only`） | 選擇讀本厚度與區塊集合。 |
-| **`BLOCK_REGISTRY`** + **`templates/blocks/*.j2`** | 區塊級責任邊界與替換，PR 範圍縮小。 |
-| **可選 `config/brief_layouts/*.yaml`**（白名單） | 覆寫內建 `PROFILES` 的粗粒度 block **順序**（`profile_block_ids()`，**同集合重排**）；**目前不驅動** Telegram Jinja 模板實際順序 — 見 [Phase 4d](#phase-4d)。 |
-| **`validate_report(..., profile=)`**（Phase 3） | 避免 `lite` 被僅適用 `full` 之機構 Gate 誤擋。 |
-| **BQ `profile` 欄位**（Phase 4） | 營運稽核各版型實際使用情形。 |
-
-**仍非本計畫預設交付**：每使用者即時 tone、run 中切 profile、未經產品決策即擴充超過三個內建 profile 等 — 見 [NOT in Scope](#not-in-scope)。
+| `REPORT_PROFILE` | 讀本厚度與區塊集合 |
+| `BLOCK_REGISTRY` + `templates/blocks/*.j2` | 區塊級責任邊界 |
+| 可選 `config/brief_layouts/*.yaml` | **同集合** block **順序**覆寫（`profile_block_ids()`）；預設 **不**驅動 Telegram Jinja 實際 macro 順序，除非 **`BRIEF_DYNAMIC_RENDER=1`** |
+| `validate_report(..., profile=)` | 避免 lite 被 full 專用 Gate 誤擋 |
+| BQ `profile` | 營運稽核版型使用 |
 
 ---
 
-## 目標：短期 / 中期 / 長期
+## 維護紀律（必守）
 
-| 時間軸 | 定義 | 目標 |
-|--------|------|------|
-| **短期** | Phase **1–2** 完成 | 模板切成可維護 macro；`REPORT_PROFILE` + `lite` 可跑；`full` 與重構前輸出 **等價**（byte-identical 或專案約定之 diff 收斂）；`BLOCK_REGISTRY` 與 `BLOCK_IDS` 一致可測。 |
-| **中期** | Phase **3–4** 完成 | Gate 依 profile 跳過機構 Phase A/B/C（lite 等）；profile 區塊一致性檢查；`crypto-only`；可選 **YAML layout** 覆寫（`profile_block_ids`）；BQ run log 帶 `profile`；**Phase 4d** 收斂 1–4 之文件／啟動／一致性缺口。 |
-| **長期** | Phase **5** + 後續產品項 | **時事多觀點**已可營運啟用（`BRIEF_CURRENT_AFFAIRS=1`）；再評估租戶級 layout、雙訊息（`DAILY_BRIEF_V2` Phase C）、per-user tone（需設定儲存）、音訊／TTS、非 Telegram 通道。 |
+1. **`full` 輸出**與 [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2) **byte-identical**（[`test_telegram_template_modularization.py`](test_telegram_template_modularization.py)，`pytest -m smoke`）。  
+2. **非法 `REPORT_PROFILE`**：啟動時 [`main._validate_report_profile_env`](main.py) 應擋。  
+3. **`BRIEF_LAYOUT_FILE`**：僅允許內建 profile 之 **同集合重排**；語意見 [`config/brief_layouts/README.md`](config/brief_layouts/README.md)。
 
 ---
 
-## 五個 Phase 總覽
+## 長期／後續產品項（非本 plan 預設交付）
 
-| Phase | 名稱 | 核心交付 | 依賴 |
-|:-----:|------|----------|------|
-| **1** | 模板原子化 | `templates/blocks/*.j2` + 根模板僅組裝；行為不變 | 無 |
-| **2** | 版型與組裝器 | `brief_profiles.py`、`BLOCK_REGISTRY`、`profiles/`、`render_telegram_daily_brief(profile)`、`REPORT_PROFILE`、`lite` | Phase 1 |
-| **3** | Gate 與契約 | `validate_report(..., profile=)`、Phase A/B/C profile-aware、`_check_profile_block_consistency` | Phase 2 |
-| **4** | 擴充版型與配置 | `crypto-only`、可選 `config/brief_layouts/*.yaml`、BQ `profile`、**4d** 補強（見下） | Phase 2–3 |
-| **5** | 時事多觀點區塊 | `schemas` + 單 task crew + macro + Gate + `DAILY_BRIEF_V2`；**LangGraph 同 main 鉤子**（不改 `graph/` 圖） | Phase 1–2（macro 槽位） |
-
----
-
-## Phase 1：模板原子化
-
-**目的：** 把 `telegram_report.j2` 拆成 **block macro 檔**，不改 HTML 語意、不改 assemble；利於小組平行改某一區。
-
-**可切片 PR（範例順序，每片可獨立 review）：**
-
-| 切片 | 內容 | 驗收 |
-|------|------|------|
-| 1a | 建立 `templates/blocks/`；抽 `_header.j2`、`_exec_summary.j2`；根模板 `import` 呼叫 | `pytest -m smoke` |
-| 1b | 抽 `_market_mode.j2`、`_macro_framework.j2`、`_prediction_markets.j2` | 同上 |
-| 1c | 抽 crypto 四段（dashboard／news／chatter／trades） | 同上 |
-| 1d | 抽 AI 五段（bridge／dashboard／news／chatter／trades） | 同上 |
-| 1e | 抽 `_institutional_view.j2`、`_previous_recs.j2`；**尾段**（partial tier／low_confidence／source health／QSREC）以 **`_footer_tail.j2`** 單一 macro **逐字複製**凍結基線（見下節「合併門檻」） | 同上 |
-| 1f | 根 `telegram_report.j2`：**單行**匯入並依現順序呼叫 macro；全 CI smoke | **`REPORT_PROFILE` 尚未分流時，輸出與拆前等價**（見下節 **byte-identical** 測試） |
-
-**合併門檻（Phase 1，已落地）：** [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2) 為凍結之 **Phase 0 單檔** Jinja（與拆 macro **前**之 `telegram_report.j2` 一致）；[`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) 以相同 `telegram_render_context` 渲染 **modular 根模板** 與 **fixture**，斷言 **`==`（byte-identical）**；標記 **`pytest -m smoke`**。變更尾段空白語意時須**同步更新 fixture** 或調整 macro 使測試仍綠。
-
-**目錄參考：**
-
-```
-templates/
-  blocks/
-    _header.j2 … _institutional_view.j2、_footer_tail.j2（尾段 verbatim）
-    _current_affairs_roundtable.j2   # Phase 5 才接線；Phase 1 可建空壳或略過
-```
+| 項目 | 說明 |
+|------|------|
+| 時事區塊營運預設開啟 | staging 驗收後將 `BRIEF_CURRENT_AFFAIRS=1` 納入營運決策 |
+| 租戶級 layout | 需產品決策 |
+| 雙訊息／`DAILY_BRIEF_V2` Phase C | 見 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) |
+| per-user tone、音訊／TTS | 見 NOT in Scope |
 
 ---
 
-## Phase 2：版型與組裝器
-
-**目的：** **程式選模板** + 內建 **PROFILES** + **BLOCK_REGISTRY**（與 Gemini 對齊）；先支援 **`lite`** 與 **`full`**。
-
-**可切片任務：**
-
-| 切片 | 內容 | 驗收 |
-|------|------|------|
-| 2a | 新增 `brief_profiles.py`：`BLOCK_IDS`、`PROFILES`、`get_active_profile()` | 單元測試鍵名穩定（**已落地**，見 [`brief_profiles.py`](brief_profiles.py)、[`test_brief_profiles.py`](test_brief_profiles.py)） |
-| 2b | `BLOCK_REGISTRY`：`block_id` → 模板路徑、macro 名、`empty_behavior`；**handler 不呼叫 LLM** | `BLOCK_IDS` 與 registry keys 一致測試（**已落地**） |
-| 2c | `templates/profiles/telegram_full.j2`（= 現 full 組裝）與 `telegram_lite.j2` | lite 輸出行數顯著低於 full（**已落地**；`full` 仍 **byte-identical** 至 Phase 0 fixture） |
-| 2d | `report_render.render_telegram_daily_brief(..., profile=)`；**`REPORT_PROFILE`** env | 預設 `full`；`lite` 可渲染（**已落地**；`main.py` 透過 env 傳遞即可） |
-| 2e | `test_brief_profiles.py`：full vs lite 結構／長度／必要區塊 | smoke + 新測（**已落地**） |
-
-**環境變數：** `REPORT_PROFILE=lite|full|crypto-only`（`crypto-only` 模板與 Gate 於 **Phase 4a** 啟用；registry 見 [`brief_profiles.py`](brief_profiles.py)）。
-
----
-
-## Phase 3：Gate 與契約
-
-**目的：** `validate_report` 認得 **profile**；機構 Phase A/B/C **僅在需要的 profile** 上生效；避免 lite 誤套 full 的 HTML 強檢。
-
-**可切片任務：**
-
-| 切片 | 內容 | 驗收 |
-|------|------|------|
-| 3a | `validate_report(text, *, profile="full")`；lite 時跳過機構 Phase A/B/C HTML 檢查 | **已落地**（[`report_html_gates.py`](report_html_gates.py)；回傳含 **`profile`**） |
-| 3b | `main.py` 傳 `profile` 進 `validate_report`／`render_telegram_daily_brief`；`_validate_report_candidate` 同步 | **已落地**（[`main.py`](main.py)） |
-| 3c | `_check_profile_block_consistency(text, profile)` | **已落地**（lite 誤用 full HTML 時 blocking） |
-| 3d | 測試：`REPORT_PROFILE=lite` + `STRICT_INSTITUTIONAL_PHASE_A/B/C_GATE=1` 不誤擋 | **已落地**（[`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py)，`pytest -m smoke`） |
-
----
-
-## Phase 4：擴充版型與配置驅動
-
-**目的：** **`crypto-only`** profile；營運可選 **YAML layout** 覆寫（與內建 `PROFILES` merge）；**BQ** 記錄 `profile`。
-
-**可切片任務：**
-
-| 切片 | 內容 | 驗收 |
-|------|------|------|
-| 4a | `templates/profiles/telegram_crypto_only.j2` + `PROFILES["crypto-only"]` | **已落地**（[`templates/profiles/telegram_crypto_only.j2`](templates/profiles/telegram_crypto_only.j2)、[`brief_profiles.py`](brief_profiles.py) `telegram_profile_template_relpath`；[`report_html_gates.py`](report_html_gates.py) `crypto-only` Gate／一致性；[`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py) smoke） |
-| 4b | `config/brief_layouts/README.md` + 範例 YAML；`BRIEF_LAYOUT_FILE=` 才 merge；block_id **白名單** | **已落地**（[`brief_profiles_layout.py`](brief_profiles_layout.py)、[`brief_profiles.py`](brief_profiles.py) `profile_block_ids`；[`config/brief_layouts/`](config/brief_layouts/)；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)；[`test_brief_profiles_layout.py`](test_brief_profiles_layout.py)；無 env／缺檔與 Phase 2 同） |
-| 4c | BQ run log（或既有表）新增 `profile` 欄位 | **已落地**（[`bigquery_writer.py`](bigquery_writer.py) `write_llm_run_log`／`write_gate_failure_log`；[`main.py`](main.py)；[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql)；`SKIP_BIGQUERY=1` 仍略過） |
-
----
-
-<a id="phase-4d"></a>
-
-## Phase 4d（2026-04-14 補強）
-
-**目的：** 收斂 Phase **1–4** review 所列缺口 — **不改 `full` byte-identical 基線**、不新增第二條資料管線；以 **Gate 錨點穩定化**、**啟動 fail-fast**、**文件與營運對齊** 為主。
-
-**背景（問題陳述）：**
-
-1. **Phase 4b**：`profile_block_ids()` + `BRIEF_LAYOUT_FILE` 已可 merge 粗粒度 block 順序，但 [`report_render.render_telegram_daily_brief`](report_render.py) 仍由 **`templates/profiles/*.j2` 靜態**串 macro — YAML **不**改變 Telegram HTML 區塊順序；營運易誤解。
-2. **Phase 3／4a**：`_check_profile_block_consistency` 部分依賴易變字串；且曾出現 **lite 內容 + `profile=crypto-only` 仍通過** 之洞（crypto-only Gate 對 AI 全段放寬時）。
-3. **Phase 2**：非法 `REPORT_PROFILE` 原於 `get_active_profile()` 拋 `ValueError`，可能在長 run 後才失敗；應 **啟動早檢**。
-4. **Phase 1**：維護 `telegram_report_phase0_monolithic.j2` 與 `full` 等價時，需明確「改 macro／full 模板 = 預期動 baseline」之 PR 紀律（見下 **4d-維護**）。
-5. **Phase 4c**：BQ 表若無 `profile` 欄，首次寫入依賴程式 `update_table`；仍應在 runbook／SQL 註解中提醒手動 DDL 情境。
-
-**已落地切片（PR-4d）：**
-
-| 切片 | 內容 | 驗收 |
-|------|------|------|
-| **4d-a** | [`validation_rules.py`](validation_rules.py)：`HAS_CRYPTO_DASHBOARD_BANNER_RE`、`HAS_LITE_*_TRADES_RE`；[`report_html_gates.py`](report_html_gates.py) `_check_profile_block_consistency` 改用結構錨點（lite 必含雙邊區塊④標題；crypto-only 必含加密儀表板標題、不得含 AI 美股區塊④） | [`test_validate_report_profile_phase3.py`](test_validate_report_profile_phase3.py) `test_crypto_only_profile_consistency_rejects_lite_html`；既有 full／lite／crypto-only smoke 仍綠 |
-| **4d-b** | [`main.py`](main.py) `_validate_report_profile_env()`：啟動時 `get_active_profile()` early-fail | [`test_critical_paths.py`](test_critical_paths.py) |
-| **4d-c** | [`config/brief_layouts/README.md`](config/brief_layouts/README.md) 開宗明義：**YAML 不驅動** `render_telegram_daily_brief` 之 Jinja 順序；`profile_block_ids` 供 API／未來動態組版／營運稽核 | 文件 review |
-| **4d-d** | [`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) 註解補「API 自動補欄 vs 手動 ALTER」；[`docs/DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) 補 **`profile`** 欄與 DDL 連結 | 文件 review |
-| **4d-維護** | 本檔與 CHANGELOG：**full** 變更須同步 **Phase 0 fixture** 或調整 macro 使 [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) 仍綠 | PR 範本／合併檢查清單 |
-
-**動態組版（已落地，預設關閉）：** `BRIEF_DYNAMIC_RENDER=1` 且 YAML 使 `profile_block_ids("full")` ≠ 內建順序時，[`report_render.render_telegram_daily_brief`](report_render.py) 走 macro 串接；預設關閉維持 **byte-identical**。範例 [`config/brief_layouts/example_full_reorder_header_exec.yaml`](config/brief_layouts/example_full_reorder_header_exec.yaml)；測試 [`test_dynamic_full_render.py`](test_dynamic_full_render.py)。
-
----
-
-## Phase 5：【時事多觀點】區塊（Podcast 型態文字）
-
-**目的：** 新增可選區塊 **多角色文字對談**（非預設音訊）；結構化進 `DailyBriefReport`，經 macro 渲染。
-
-**可切片任務：**
-
-| 切片 | 內容 | 驗收 |
-|------|------|------|
-| 5a | `schemas.py` roundtable 結構；`BRIEF_CURRENT_AFFAIRS=1` 類開關 | **已落地**（[`schemas.py`](schemas.py) `RoundtableVoice`／`CurrentAffairsRoundtable`／`DailyBriefReport.current_affairs_roundtable`；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)；[`test_current_affairs_schema.py`](test_current_affairs_schema.py)） |
-| 5b | `crew.py` 或 `graph/` **單一 task／子節點**產出（不採「每區塊一 Agent」預設） | **已落地** — [`current_affairs_crew.py`](current_affairs_crew.py)（無 tools 單 task）；[`main.py`](main.py) 雙軌完成後與 `source_observability_lines` **並行**；可選 **`BRIEF_CURRENT_AFFAIRS_JSON`** 覆寫；**不**改 `graph/` 編譯圖 |
-| 5c | `_current_affairs_roundtable.j2`；`BLOCK_REGISTRY` + `full` profile 選用；`assemble` 注入 | **已落地（安全版）** — 由 [`report_render.telegram_render_context`](report_render.py) 注入 **`current_affairs_block_html`**（`BRIEF_CURRENT_AFFAIRS=1` 且欄位非空才非空字串）；[`templates/profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)；**不改** [`assemble_daily_brief_report`](report_render.py) 預設回傳；[`test_current_affairs_render.py`](test_current_affairs_render.py) smoke |
-| 5d | 可選 strict Gate；更新 `docs/DAILY_BRIEF_V2.md` 順序一句 | **已落地** — `STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE` + `validate_report(..., structured_report=)` 結構化交叉檢；**Lite Pass6** `STRICT_LITE_EXEC_SUMMARY_PASS6_GATE`；ADR [`docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)；[`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §1 |
-
-**紅線：** 對話內數字須對齊 tools／儀表板；HTML 僅白名單（見附錄 B）；**第 19 區塊**需與「18 區塊粗粒度」原則做一次設計取捨（ADR 可選）。
-
----
-
-### Phase 5 執行計畫（Next Step）
-
-> 目標：**不破壞 `full` byte-identical 基線**的前提下，新增可選 **〔時事多觀點〕** 區塊；預設 `BRIEF_CURRENT_AFFAIRS=0`（關閉），開啟時插入 **【機構速讀】之後**、尾段 **【SourceHealth】／QSREC 之前**（與 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) §1 **10b** 一致）。
-
-#### PR 切片與檔案地圖
-
-**PR-5a｜Schema + Feature Flag（純新增，零行為變更）**
-
-- 新增 `schemas.py` 內：
-  - `RoundtableVoice`（`role: Literal["宏觀", "加密", "股票策略", "風險"]`、`viewpoint: str`、`evidence_anchor: str | None`、`disagreement: str | None`）。
-  - `CurrentAffairsRoundtable`（`topic: str`、`voices: list[RoundtableVoice]`（**2–4 條**）、`consensus: str | None`、`unresolved: list[str]`、`dashboard_anchors: list[str]`（對應區塊① `<code>` 讀值 key，如 `"VIX"`、`"BTC_RSI14_1d"`））。
-  - `DailyBriefReport.current_affairs_roundtable: CurrentAffairsRoundtable | None = None`（Optional，預設 `None`）。
-- `ENV_TEMPLATE.txt` 新增 `BRIEF_CURRENT_AFFAIRS=0`（0/1）、`CURRENT_AFFAIRS_MAX_VOICES=4`、`CURRENT_AFFAIRS_MIN_VOICES=2`。
-- 驗收：`python3 -m pytest -m smoke` 綠；新增 `test_current_affairs_schema.py`（**PR-5a 必含 TDD**）。
-
-**PR-5b｜Crew/Graph 產出節點（單一 task，不新增 Agent）** — **已落地（安全版）**
-
-- **實作**：[`current_affairs_crew.py`](current_affairs_crew.py) — 單 Agent、**無 tools**、`output_pydantic=CurrentAffairsRoundtable`；[`crew_output_parse.kickoff_to_pydantic`](crew_output_parse.py) 解析。
-- **掛載點**：[`main._run_pipeline_once`](main.py) — **Crypto／AI 雙軌完成後**與 `source_observability_lines()` **同一 `ThreadPoolExecutor(max_workers=2)` 並行**；結果經 [`assemble_daily_brief_report(..., current_affairs_roundtable=)`](report_render.py) 注入（**不**內嵌 `CryptoSection`）。
-- **LangGraph**：同一 `main` 鉤子（**不**新增 `graph_nodes` 節點，避免改狀態機圖）。
-- **可選覆寫**：`BRIEF_CURRENT_AFFAIRS_JSON`（單行 JSON）於 crew 失敗時手動／測試注入。
-- **驗收**：`pytest -m smoke`；啟用 env 之乾跑見下「驗收指令速查」。
-
-**PR-5c｜Block Macro + Registry 掛載**
-
-- 新增 `templates/blocks/_current_affairs_roundtable.j2`：
-  ```jinja
-  {% macro render_current_affairs_roundtable(r) %}
-  {% if r and r.voices %}
-  <b>〔時事多觀點〕{{ r.topic | e }}</b>
-  {% for v in r.voices %}
-  <blockquote>
-    <b>{{ v.role | e }}</b>：{{ v.viewpoint | e }}
-    {% if v.evidence_anchor %}（錨點：<code>{{ v.evidence_anchor | e }}</code>）{% endif %}
-    {% if v.disagreement %}<i>分歧：{{ v.disagreement | e }}</i>{% endif %}
-  </blockquote>
-  {% endfor %}
-  {% if r.consensus %}<b>共識</b>：{{ r.consensus | e }}{% endif %}
-  {% if r.unresolved %}<b>未決</b>：{{ r.unresolved | join("；") | e }}{% endif %}
-  {% endif %}
-  {% endmacro %}
-  ```
-- `brief_profiles.py`：
-  - `BLOCK_IDS` 新增 `"current_affairs_roundtable"`。
-  - `BLOCK_REGISTRY["current_affairs_roundtable"] = _current_affairs_roundtable.j2:render_current_affairs_roundtable`。
-  - `PROFILES["full"].block_ids` 尾段（**機構速讀前**）條件加入：`if os.getenv("BRIEF_CURRENT_AFFAIRS") == "1"`。
-  - `lite` 與 `crypto-only` **不** 納入（維持瘦身精神）。
-- `report_render.py`：`assemble_daily_brief_report(..., current_affairs_roundtable=...)`（**已落地**）。
-- 驗收：
-  - `BRIEF_CURRENT_AFFAIRS=0` 時 **full profile byte-identical** 與 Phase 0 fixture（smoke 必測）。
-  - `BRIEF_CURRENT_AFFAIRS=1` 時模板渲染非空、HTML 標籤僅用白名單（`<b>`／`<i>`／`<code>`／`<blockquote>`）。
-
-**PR-5d｜可選 Strict Gate + 文件** — **已落地**
-
-- `STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1`：HTML blockquote 數 + 建議 **`validate_report(..., structured_report=DailyBriefReport)`**（[`main.py`](main.py) 管線已傳）以做 **disagreement／evidence_anchor 白名單** 結構化交叉檢。
-- **`STRICT_LITE_EXEC_SUMMARY_PASS6_GATE=1`**：`lite` 執行摘要「→」要點 ≤3 條、每條 ≤40 字。
-- 文件：`docs/DAILY_BRIEF_V2.md` §1、`CLAUDE.md` §6、`CHANGELOG`／`TODOS`、`README`、本檔；ADR [`docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)。
-- 驗收：`ruff check .` + `pytest -m smoke`（CI）；`pytest -m boundary` 見 nightly。
-
-#### 紅線重申（`.cursorrules` §1、§2；本檔附錄 B）
-
-1. **數字對齊**：每個 voice 若引用客觀值必須來自 `tools.py` 儀表板 context（`evidence_anchor` 白名單），**嚴禁** LLM 自行推導。
-2. **HTML 白名單**：僅 `<b>`／`<i>`／`<u>`／`<s>`／`<code>`／`<blockquote>`／`<a>`；`telegram_sender.py` sanitization 已涵蓋，新 macro 禁用其他標籤。
-3. **Thread safety**：新 crew task 沿用既有 `ThreadPoolExecutor` 語意，**不** 引入共享可變狀態。
-4. **不擴張成「每區塊一 Agent」**：維持 Phase 5 原則——**單一 task／子節點**產出整個 roundtable；維持 18 區塊粗粒度。
-
-#### 風險與決策點（建議開 ADR：`docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`）
-
-- **Token 成本**：+1 task；預估 <10% 成本漂移 — 靠 `COST_PER_MODEL.md` 實測複核。
-- **LLM 幻覺風險**：以 `evidence_anchor` 白名單 + strict gate 收斂；gate 預設關閉，分階啟用。
-- **Podcast 音訊**：**不在** Phase 5 範圍（仍是文字型態對談）；音訊生成留給後續 RFC。
-
-#### 驗收指令速查
-
-```bash
-# 基線（關閉新區塊）— 必須 byte-identical
-BRIEF_CURRENT_AFFAIRS=0 REPORT_PROFILE=full \
-  python3 -m pytest -m smoke test_telegram_template_modularization.py -v
-
-# 啟用新區塊乾跑
-BRIEF_CURRENT_AFFAIRS=1 SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py
-
-# Strict gate 回歸（結構化需由 main 傳入；單測見 test_current_affairs_render.py）
-STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1 BRIEF_CURRENT_AFFAIRS=1 \
-  python3 -m pytest test_current_affairs_render.py -v
-
-# 動態 full 組版（YAML 重排 + BRIEF_DYNAMIC_RENDER=1）
-BRIEF_LAYOUT_FILE=config/brief_layouts/example_full_reorder_header_exec.yaml BRIEF_DYNAMIC_RENDER=1 \
-  python3 -m pytest -m smoke test_dynamic_full_render.py -v
-```
-
----
-
-## 架構三層與 Registry
-
-| Layer | 內容 |
-|-------|------|
-| **1** | `templates/blocks/_*.j2` — `{% macro %}`，同一 context |
-| **2** | `brief_profiles.py`：`PROFILES`、`get_active_profile()`、`BLOCK_REGISTRY`；`templates/profiles/*.j2` |
-| **3** | `report_html_gates.validate_report(..., profile=)`；profile-aware Phase A/B/C；區塊一致性 |
-
-**Atomic Design 對應（Gemini）：** Atoms = macro 檔；Molecules = `include` 子切片；Organisms = `profiles/*.j2`。
-
-**BLOCK_REGISTRY 鍵值範例意義：** `block_id` → `template_path`、`macro_name`、可選 **schema 綁定說明**（供除錯／Gate 擴充）、`empty_behavior`。Registry 可文件化 **CODEOWNERS／負責小組**。
-
-**BLOCK_IDS（現行基線；Phase 5 再插入 roundtable）：**
-
-```python
-BLOCK_IDS = [
-    "header", "exec_summary", "previous_recs", "market_mode",
-    "macro_framework", "prediction_markets",
-    "crypto_dashboard", "crypto_news", "crypto_chatter", "crypto_trades",
-    "ai_bridge", "ai_dashboard", "ai_news", "ai_chatter", "ai_trades",
-    "institutional_view", "current_affairs_roundtable", "source_health", "qsrec",
-]
-# Phase 5：`current_affairs_roundtable` 已納入 `brief_profiles.BLOCK_IDS`（渲染由 `telegram_full.j2` + `current_affairs_block_html`）
-```
-
-```python
-PROFILES = {
-    "full": BLOCK_IDS,
-    "lite": ["header", "exec_summary", "market_mode", "crypto_trades", "ai_trades", "qsrec"],
-    "crypto-only": [
-        "header", "exec_summary", "market_mode", "macro_framework",
-        "prediction_markets", "crypto_dashboard", "crypto_news",
-        "crypto_chatter", "crypto_trades", "source_health", "qsrec",
-    ],
-}
-```
-
----
-
-## 版型與區塊行為
-
-### Profiles（IA）
-
-| Profile | 用途 |
-|---------|------|
-| `full` | 完整機構讀本 |
-| `lite` | 約 40 行：header、exec_summary、market_mode、雙邊 trades、qsrec |
-| `crypto-only` | Crypto desk（Phase 4 模板） |
-
-### 掃讀順序 hint（per-profile）
-
-- `full`：市場模式 → 儀表板 → 命題 → 交易  
-- `lite`：市場模式 → 交易（跳儀表板／新聞）  
-- `crypto-only`：市場模式 → 儀表板 → 新聞 → 交易  
-
-### 區塊空狀態（節選）
-
-| Block | 行為 |
-|-------|------|
-| exec_summary | 無則 omit |
-| prediction_markets | 環境關閉或無資料則 omit |
-| crypto_dashboard | 缺資料用占位列，不整段刪 |
-| crypto_news | 符合既有 PARTIAL_NEWS 規則 |
-| current_affairs_roundtable | env 關閉或無 schema 則 omit；lite 預設不載 |
-
-### Lite 版面（Pass 6）
-
-- 總行數 ≤ ~40；macro 支援 `mobile_compact`；exec_summary ≤3 點、每點 ≤40 字；交易敘事截斷 ≤60 字。
-- **讀者節奏（lite）：** 開啟 → 立即判斷 risk on/off → 三點摘要 → 直跳交易卡（Bloomberg 式短報）。
-
-### 風險控管（設計審查已納入）
-
-1. **Over-modularization：** 基線 **18** 個粗粒度 block；`crypto_news` 與 `crypto_chatter` 版面仍相鄰；`current_affairs_roundtable` 為可選 **第 19** 塊，併區與否需 ADR。  
-2. **Profile proliferation：** 上線先 **3** 種 profile；新增需產品與 Gate 影響評估。  
-3. **分隔線：** `────────────` 維持 **≤4** 條／profile 模板。
-
-### Gate 設計（程式片段意圖）
-
-```python
-def _phase_a_gate_required(profile: str) -> bool:
-    return profile in ("full", "institutional") and _strict_institutional_phase_a()
-# B/C 類推
-```
-
-```python
-def validate_report(text: str, *, profile: str = "full") -> dict: ...
-```
-
----
-
-## 附錄 A：外部方案對照（Grok）
-
-| 對齊點 | 本計畫 |
-|--------|--------|
-| Composer | `render_telegram_daily_brief` + `profiles/*.j2` |
-| 多版型 | `PROFILES` + `REPORT_PROFILE` |
-
-**糾偏：** 不用 `<pre>`；區塊內不重跑 tools（Phase 1–4）；Python class-per-section 不取代 Jinja 主路徑（長期可選實驗）。
-
----
-
-## 附錄 B：一區塊一 Agent？
-
-**定案：** 不預設每 macro 一 Agent；高創意區塊用 **單一結構化 task** 或 **小 subgraph**。擴 roleplay 須過：成本、延遲、`validate_report`、tools 契約。
-
----
-
-## 附錄 C：時事多觀點（Podcast 型態文字）
-
-- Block id：`current_affairs_roundtable`  
-- 文字多觀點、白名單 HTML；音訊／TTS 不在本 plan  
-- 見 [Phase 5](#phase-5時事多觀點區塊podcast-型態文字)
-
----
-
-## Critical Files
-
-| File | Phase |
-|------|-------|
-| `templates/telegram_report.j2` | 1 → 2（改為 profile 入口或 re-export） |
-| `templates/blocks/*.j2` | 1 |
-| `tests/fixtures/telegram_report_phase0_monolithic.j2` | 1（**等價凍結基線**；與 macro 化前單檔一致） |
-| `test_telegram_template_modularization.py` | 1（**smoke** byte-identical gate） |
-| `templates/profiles/telegram_*.j2` | 2、4 |
-| `brief_profiles.py`（可選 `brief/block_registry.py`） | 2 |
-| `test_brief_profiles.py` | 2 |
-| `config/brief_layouts/*.yaml` | 4 |
-| `report_render.py` | 1–2、**5c**（`build_telegram_jinja_env`／`telegram_render_context` 含 `current_affairs_block_html`／`render_telegram_daily_brief(..., profile=)`） |
-| `report_html_gates.py` | 3、**4d**、**5d**（`validate_report`；`STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE`） |
-| `test_validate_report_profile_phase3.py` | 3 |
-| `main.py` | 2–3、**5**（雙軌完成後與 `source_observability_lines` **並行** [`current_affairs_crew.py`](current_affairs_crew.py)、`assemble` 注入、`validate_report(..., structured_report=)`；**不**改 [`graph/`](graph/) 編譯圖） |
-| `schemas.py` | **5a**（`RoundtableVoice`／`CurrentAffairsRoundtable`／`DailyBriefReport.current_affairs_roundtable`） |
-| [`current_affairs_crew.py`](current_affairs_crew.py) | **5b**（無 tools 單 task；`output_pydantic=CurrentAffairsRoundtable`；可選 `BRIEF_CURRENT_AFFAIRS_JSON`） |
-| `templates/blocks/_current_affairs_roundtable.j2` | **5c**（macro；[`templates/profiles/telegram_full.j2`](templates/profiles/telegram_full.j2) 掛載；[`report_render.telegram_render_context`](report_render.py) 注入 `current_affairs_block_html`） |
-| [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | **5d**（§1 區塊順序含〔時事多觀點〕**10b**；CHANGELOG **2026-04-27**） |
+## Critical Files（速查）
+
+| File | 用途 |
+|------|------|
+| [`templates/telegram_report.j2`](templates/telegram_report.j2)、[`templates/profiles/telegram_*.j2`](templates/profiles/) | Profile 入口與組裝 |
+| [`templates/blocks/*.j2`](templates/blocks/) | Block macro |
+| [`brief_profiles.py`](brief_profiles.py)、[`brief_profiles_layout.py`](brief_profiles_layout.py) | Registry、YAML merge |
+| [`report_render.py`](report_render.py)、[`report_html_gates.py`](report_html_gates.py) | 渲染與 Gate |
+| [`main.py`](main.py)、[`current_affairs_crew.py`](current_affairs_crew.py)、[`schemas.py`](schemas.py) | Phase 5 管線 |
+| [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | 區塊順序與寫作契約 |
 
 ---
 
@@ -447,11 +95,10 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 ```bash
 ruff check .
 python3 -m pytest -m smoke -v
-python3 -m pytest test_brief_profiles.py -v   # Phase 2：full byte-identical + lite 精簡斷言
-python3 -m pytest test_validate_report_profile_phase3.py -v   # Phase 3：profile Gate + full 等價
-REPORT_PROFILE=full SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py   # 與重構前等價檢查
+python3 -m pytest test_brief_profiles.py -v
+python3 -m pytest test_validate_report_profile_phase3.py -v
+REPORT_PROFILE=full SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py
 REPORT_PROFILE=lite SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python3 main.py
-REPORT_PROFILE=lite STRICT_INSTITUTIONAL_PHASE_A_GATE=1 python3 -m pytest test_validate_report_profile_phase3.py -v
 python3 -m pytest test_critical_paths.py::TestEnvValidation::test_validate_report_profile_env_raises_on_invalid -v
 ```
 
@@ -459,29 +106,26 @@ python3 -m pytest test_critical_paths.py::TestEnvValidation::test_validate_repor
 
 ## NOT in Scope
 
-- Per-user profile／**即時主編 tone**（無設定儲存前）
+- Per-user profile／即時 tone（無設定儲存前）
 - 每靜態區塊各一專屬 LLM Agent（預設架構）
-- Email／web 同套模板（escape 規則不同）
+- Email／web 同套模板（escape 不同）
 - run 中切 profile
 - 區塊級快取（與 tools cache 分開）
-- launch 超過 **3** 個內建 profile（再擴需產品決策）
+- 超過 **3** 個內建 profile 再擴（需產品決策）
 - 真實音訊 podcast 託管／TTS
 
 ---
 
-## What Already Exists (Reuse)
+## 延伸閱讀
 
-- 條件渲染：`{% if crypto.exec_summary %}`、`PREDICTION_MARKETS_IN_BRIEF` 等  
-- `tg_soft_wrap_mobile`（`report_render.py`）  
-- `REPORT_TIER_PARTIAL_NEWS`  
-- `_flatten_brief_text_for_na_gate()`（`report_render.py`）
+- PWA／戰情室 **剩餘視覺化 backlog**：[`visualization_plan.md`](visualization_plan.md)
+- 決策附錄（Grok、一區塊一 Agent、時事多觀點文字形態）若需完整論述，可查 git 歷史版 `modularization_plan.md` 或對齊 **CHANGELOG 2026-04-27** 正文。
 
 ---
 
-## Optional：Pre-step（與模組化無硬依賴）
+## Optional：repo 體積維護（與模組化無硬依賴）
 
 ```bash
-# 僅在維護策略要收斂 repo 體積時執行
 git rm -r .claude/skills/gstack/
 echo '.claude/skills/gstack/' >> .gitignore
 ```
