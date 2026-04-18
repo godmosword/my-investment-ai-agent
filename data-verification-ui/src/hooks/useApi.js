@@ -107,12 +107,41 @@ export function useReports(limit = 30) {
   });
 }
 
-export function useReport(date) {
+/** @param {{ enabled?: boolean }} [queryOptions] — merge with react-query options pattern (enabled only). */
+export function useReport(date, queryOptions = {}) {
+  const enabled =
+    queryOptions.enabled !== undefined ? !!date && queryOptions.enabled : !!date;
   return useQuery({
     queryKey: ["report", date],
     queryFn: () => apiFetch(`/api/reports/${date}`),
-    enabled: !!date,
+    enabled,
     staleTime: 30 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** V2 block-based report envelope (`GET /api/reports/{date}/structured`). */
+export function useStructuredReport(date, profile = "full", queryOptions = {}) {
+  const q = encodeURIComponent(profile);
+  const enabled =
+    queryOptions.enabled !== undefined ? !!date && queryOptions.enabled : !!date;
+  return useQuery({
+    queryKey: ["report", "structured", date, profile],
+    queryFn: () => apiFetch(`/api/reports/${date}/structured?profile=${q}`),
+    enabled,
+    staleTime: 30 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** Inventory of ``config/brief_layouts/*.yaml`` (visualization_plan V3). */
+export function useBriefLayouts(queryOptions = {}) {
+  const enabled = queryOptions.enabled !== false;
+  return useQuery({
+    queryKey: ["brief-layouts"],
+    queryFn: () => apiFetch("/api/brief-layouts"),
+    enabled,
+    staleTime: 60 * 60 * 1000,
     retry: 1,
   });
 }

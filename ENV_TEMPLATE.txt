@@ -71,6 +71,7 @@ TELEGRAM_CHAT_ID=
 # BRIEF_DYNAMIC_RENDER=0   # 1=當 `BRIEF_LAYOUT_FILE` 使 `profile_block_ids("full")` 與內建順序不同時，`full` 走 macro 動態串接（預設 0 維持 Phase 0 **byte-identical**）。
 # STRICT_LITE_EXEC_SUMMARY_PASS6_GATE=0   # 1=`lite` 執行摘要「→」要點 ≤3 條、每條 ≤40 字（見 `report_html_gates.py`）。
 # BRIEF_LAYOUT_FILE=   # 可選；指向 YAML，與內建 `PROFILES` merge 粗粒度 **block 順序**（白名單、同集合重排）。專案根相對或絕對路徑。見 `config/brief_layouts/README.md`。
+# DAILY_BRIEF_JSON_DIR=   # 可選；目錄內放 `YYYY-MM-DD.json`（`DailyBriefReport` 之 JSON，與管線 `model_dump_json` 同形），供 `GET /api/reports/{date}/structured` 填充 **`daily_brief_report`**。亦會嘗試 **`.qsilicon/daily_brief_reports/{date}.json`** 與 **`logs/run_YYYYMMDD_*/raw_data.json`**（與 `main.py` 寫入之結構化快照一致）。見根目錄 `DESIGN.md`、`docs/DASHBOARD_CONTRACT.md`。
 
 # ---------- GCP / BigQuery（選填，預設專案名見下）----------
 GCP_PROJECT_ID=my-investment-ai-agent
@@ -223,6 +224,8 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # PRICE_PROBE_BQ_METRIC=      # 可選：echo latest_metrics 某欄位名（float），與 yfinance 並列於 stdout JSON
 # （PWA）VITE_TERMINAL_POLL_MS=45000   # Terminal 輪詢間隔（毫秒；見 docs/DASHBOARD_CONTRACT.md）
 # （PWA）VITE_TERMINAL_QUERY_COALESCE=1   # 1=多卡同頁時 snapshot/quote/intents 輪詢時間錯開，減少 burst（設 0 關閉）
+# （PWA）VITE_STRUCTURED_REPORT=0   # 1=報告頁使用 GET /api/reports/{date}/structured 區塊視圖（見 docs/DASHBOARD_CONTRACT.md；預設 0）
+# 結構化報告頁可選 URL ?profile=full|lite|crypto-only；後端 GET /api/brief-layouts 列 config/brief_layouts/*.yaml（無 env 開關）
 
 # TERMINAL_SSE_ENABLED=0       # 1=啟用 GET /api/stream/war-room（SSE；見 docs/TERMINAL_MID_TIER_ROADMAP.md M4）
 # API_STREAM_AUTH_KEY=         # 非空時 SSE 須 Header X-QS-Stream-Key 或 query stream_key

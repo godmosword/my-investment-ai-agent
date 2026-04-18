@@ -41,6 +41,8 @@ from symbol_snapshot_service import (
 
 logger = logging.getLogger(__name__)
 
+_REPO_ROOT = Path(__file__).resolve().parent
+
 app = FastAPI(
     title="Q-Silicon Investment API",
     description="Daily crypto/AI investment report data API",
@@ -235,18 +237,22 @@ def list_reports(
     return _rows_to_dicts(rows)
 
 
-@app.get("/api/reports/{report_date}")
-def get_report(report_date: str) -> dict[str, Any]:
-    """Return the report summary for a specific date (YYYY-MM-DD)."""
-    # Validate date format
+def _validate_report_date(report_date: str) -> None:
     try:
         datetime.strptime(report_date, "%Y-%m-%d")
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid date format; use YYYY-MM-DD") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid date format; use YYYY-MM-DD"
+        ) from exc
 
+
+def _load_report_legacy(report_date: str) -> dict[str, Any]:
+    """Load metrics row + recommendations from BigQuery (legacy PWA shape)."""
     try:
         client = _get_bq_client()
-        rows = list(client.query(f"""
+        rows = list(
+            client.query(
+                f"""
             SELECT
                 DATE(timestamp) AS report_date,
                 timestamp,
@@ -265,7 +271,9 @@ def get_report(report_date: str) -> dict[str, Any]:
             WHERE DATE(timestamp) = '{report_date}'
             ORDER BY timestamp DESC
             LIMIT 1
-        """).result())
+        """
+            ).result()
+        )
     except Exception as exc:
         logger.error("BigQuery report/%s failed: %s", report_date, exc)
         raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
@@ -275,9 +283,9 @@ def get_report(report_date: str) -> dict[str, Any]:
 
     report = _rows_to_dicts(rows)[0]
 
-    # Attach that day's trade recommendations
     try:
-        rec_rows = client.query(f"""
+        rec_rows = client.query(
+            f"""
             SELECT
                 asset, direction, entry_price, target_price, stop_price,
                 confidence, narrative, trigger, invalidation,
@@ -286,13 +294,135 @@ def get_report(report_date: str) -> dict[str, Any]:
             FROM `{RECOMMENDATIONS_TABLE}`
             WHERE report_date = '{report_date}'
             ORDER BY confidence DESC, asset ASC
-        """).result()
+        """
+        ).result()
         report["recommendations"] = _rows_to_dicts(rec_rows)
     except Exception as exc:
         logger.warning("Could not attach recommendations for %s: %s", report_date, exc)
         report["recommendations"] = []
 
     return report
+
+
+@app.get("/api/reports/{report_date}/structured")
+def get_report_structured(
+    report_date: str,
+    profile: str = Query(
+        default="full",
+        description="Telegram brief profile: full, lite, crypto-only",
+    ),
+) -> dict[str, Any]:
+    """Structured report envelope for block-based PWA (V2 visualization).
+
+    When ``daily_brief_report`` is not persisted yet, ``legacy`` carries the same
+    payload as ``GET /api/reports/{report_date}`` for UI fallback.
+    """
+    _validate_report_date(report_date)
+    try:
+        from brief_profiles import BLOCK_REGISTRY, get_active_profile, profile_block_ids
+    except ImportError as exc:
+        logger.error("brief_profiles import failed: %s", exc)
+        raise HTTPException(
+            status_code=500, detail="Server configuration error"
+        ) from exc
+
+    try:
+        resolved_profile = get_active_profile(profile)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    block_ids = list(profile_block_ids(resolved_profile))
+    block_registry = {
+        bid: {
+            "template_subpath": BLOCK_REGISTRY[bid].template_subpath,
+            "macro_name": BLOCK_REGISTRY[bid].macro_name,
+            "empty_behavior": BLOCK_REGISTRY[bid].empty_behavior,
+        }
+        for bid in block_ids
+        if bid in BLOCK_REGISTRY
+    }
+
+    legacy = _load_report_legacy(report_date)
+
+    daily_brief_report: dict[str, Any] | None = None
+    structured_body_available = False
+    structured_validation_result: dict[str, Any] | None = None
+    structured_source: str | None = None
+    parse_error: str | None = None
+
+    raw_dict, raw_src = _try_load_daily_brief_raw_dict(report_date)
+    if raw_dict:
+        try:
+            from schemas import DailyBriefReport, validate_structured_report
+
+            model = DailyBriefReport.model_validate(raw_dict)
+            daily_brief_report = model.model_dump(mode="json")
+            structured_body_available = True
+            structured_source = raw_src
+            structured_validation_result = validate_structured_report(model)
+        except Exception as exc:
+            logger.warning(
+                "DailyBriefReport validation failed for %s (source=%s): %s",
+                report_date,
+                raw_src,
+                exc,
+            )
+            parse_error = str(exc)
+            daily_brief_report = None
+            structured_body_available = False
+
+    gate_failure = _latest_gate_failure_summary()
+    gate_summary = _compose_gate_summary_for_structured(
+        structured_validation=structured_validation_result,
+        gate_failure=gate_failure,
+        parse_error=parse_error,
+    )
+
+    return {
+        "report_date": report_date,
+        "profile": resolved_profile,
+        "block_ids": block_ids,
+        "block_registry": block_registry,
+        "daily_brief_report": daily_brief_report,
+        "structured_body_available": structured_body_available,
+        "structured_source": structured_source,
+        "gate_summary": gate_summary,
+        "legacy": legacy,
+    }
+
+
+@app.get("/api/brief-layouts")
+def list_brief_layout_yaml_files() -> dict[str, Any]:
+    """List ``*.yaml`` under ``config/brief_layouts/`` (modularization Phase 4b).
+
+    Read-only inventory for PWA layout UX (``visualization_plan`` V3). Filenames are
+    examples or operator-supplied layouts; merging still happens server-side via
+    ``BRIEF_LAYOUT_FILE``.
+    """
+    layouts_dir = _REPO_ROOT / "config" / "brief_layouts"
+    if not layouts_dir.is_dir():
+        return {"layouts": []}
+
+    layouts: list[dict[str, str]] = []
+    for path in sorted(layouts_dir.glob("*.yaml")):
+        try:
+            rel = path.relative_to(_REPO_ROOT)
+        except ValueError:
+            rel = path
+        layouts.append(
+            {
+                "filename": path.name,
+                "path": str(rel).replace("\\", "/"),
+            }
+        )
+    return {"layouts": layouts}
+
+
+@app.get("/api/reports/{report_date}")
+def get_report(report_date: str) -> dict[str, Any]:
+    """Return the report summary for a specific date (YYYY-MM-DD)."""
+    _validate_report_date(report_date)
+    return _load_report_legacy(report_date)
 
 
 # ── /api/trades ──────────────────────────────────────────────────────────────
@@ -522,6 +652,184 @@ def _read_json_if_exists(path: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         logger.warning("Could not read JSON file %s: %s", path, exc)
         return None
+
+
+def _compact_yyyymmdd(report_date: str) -> str:
+    """``YYYY-MM-DD`` → ``YYYYMMDD`` for matching ``logs/run_YYYYMMDD_*`` folders."""
+    return report_date.replace("-", "")
+
+
+def _daily_brief_explicit_json_paths(report_date: str) -> list[Path]:
+    paths: list[Path] = []
+    env_dir = (os.getenv("DAILY_BRIEF_JSON_DIR") or "").strip()
+    if env_dir:
+        paths.append(Path(env_dir).expanduser().resolve() / f"{report_date}.json")
+    paths.append(_REPO_ROOT / ".qsilicon" / "daily_brief_reports" / f"{report_date}.json")
+    return paths
+
+
+def _load_daily_brief_json_from_logs_run_folder(report_date: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Match ``logs/run_YYYYMMDD_* / raw_data.json`` (same convention as ``main._persist_pipeline_raw_report``)."""
+    logs_dir = _REPO_ROOT / "logs"
+    if not logs_dir.is_dir():
+        return None, None
+    compact = _compact_yyyymmdd(report_date)
+    for folder in sorted(logs_dir.glob("run_*"), reverse=True):
+        m = re.match(r"run_(\d{8})_", folder.name)
+        if not m or m.group(1) != compact:
+            continue
+        path = folder / "raw_data.json"
+        data = _read_json_if_exists(path)
+        if data:
+            try:
+                rel = path.relative_to(_REPO_ROOT)
+            except ValueError:
+                rel = path
+            return data, str(rel).replace("\\", "/")
+    return None, None
+
+
+def _try_load_daily_brief_raw_dict(report_date: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Return ``(json_dict, provenance_path)`` for optional ``DailyBriefReport`` JSON on disk."""
+    for path in _daily_brief_explicit_json_paths(report_date):
+        data = _read_json_if_exists(path)
+        if data:
+            try:
+                rel = path.resolve().relative_to(_REPO_ROOT.resolve())
+                src = str(rel).replace("\\", "/")
+            except ValueError:
+                src = str(path)
+            return data, src
+    return _load_daily_brief_json_from_logs_run_folder(report_date)
+
+
+def _unique_str_preserve(seq: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for x in seq:
+        if x in seen:
+            continue
+        seen.add(x)
+        out.append(x)
+    return out
+
+
+def _classify_gate_line_to_blocks(line: str) -> list[str]:
+    """Heuristic mapping of ``validate_report`` / structured issue strings to ``brief_profiles`` block ids."""
+    s = line.strip()
+    if not s:
+        return []
+    hits: list[str] = []
+
+    def add(bid: str) -> None:
+        if bid not in hits:
+            hits.append(bid)
+
+    if any(k in s for k in ("執行摘要", "【執行摘要】", "lite Pass6", "Pass6：執行摘要")):
+        add("exec_summary")
+    if any(k in s for k in ("市場模式", "【今日市場模式】", "制度／波動", "制度/波動")):
+        add("market_mode")
+    if any(k in s for k in ("總經", "【總經", "Macro", "macro_framework")):
+        add("macro_framework")
+    if any(k in s for k in ("預測市場", "Polymarket", "prediction_markets")):
+        add("prediction_markets")
+    if any(k in s for k in ("幣圈儀表", "加密儀表")):
+        add("crypto_dashboard")
+    if "幣圈新聞" in s or ("crypto" in s.lower() and "news" in s.lower()):
+        add("crypto_news")
+    if any(k in s for k in ("幣圈社群", "呢喃", "chatter")):
+        add("crypto_chatter")
+    if any(k in s for k in ("加密", "crypto")) and any(k in s for k in ("交易", "trade", "QSREC")):
+        add("crypto_trades")
+    if any(k in s for k in ("AI 儀表", "科技儀表", "ai_dashboard")):
+        add("ai_dashboard")
+    if "AI" in s and "新聞" in s:
+        add("ai_news")
+    if any(k in s for k in ("時事", "Roundtable", "roundtable", "多觀點", "current_affairs")):
+        add("current_affairs_roundtable")
+    if any(k in s for k in ("機構速讀", "機構", "institutional")):
+        add("institutional_view")
+    if any(k in s for k in ("上期", "前次建議", "previous_recs")):
+        add("previous_recs")
+    if any(k in s for k in ("來源健康", "source_health", "footer")):
+        add("source_health")
+    if any(k in s for k in ("QSREC", "交易建議")):
+        add("qsrec")
+
+    return hits
+
+
+def _partition_issues_by_block(issues: list[str]) -> tuple[dict[str, list[str]], list[str]]:
+    by_block: dict[str, list[str]] = {}
+    unmapped: list[str] = []
+    for line in issues:
+        bids = _classify_gate_line_to_blocks(line)
+        if not bids:
+            unmapped.append(line)
+            continue
+        for bid in bids:
+            by_block.setdefault(bid, []).append(line)
+    return by_block, unmapped
+
+
+def _compose_gate_summary_for_structured(
+    *,
+    structured_validation: dict[str, Any] | None,
+    gate_failure: dict[str, Any] | None,
+    parse_error: str | None,
+) -> dict[str, Any]:
+    """Merge structured ``validate_structured_report`` output with optional last gate failure artifacts."""
+    issues_struct: list[str] = []
+    if structured_validation is not None:
+        issues_struct = _unique_str_preserve(
+            list(structured_validation.get("blocking_issues") or [])
+            + list(structured_validation.get("issues") or [])
+        )
+    gf_issues: list[str] = []
+    if gate_failure:
+        gf_issues = [
+            str(x).strip() for x in (gate_failure.get("issues") or []) if str(x).strip()
+        ]
+    merged = _unique_str_preserve(issues_struct + gf_issues)
+    if parse_error:
+        merged = _unique_str_preserve([f"[daily_brief JSON] {parse_error}"] + merged)
+
+    by_block, unmapped = _partition_issues_by_block(merged)
+
+    ok_struct = structured_validation.get("valid") if structured_validation else None
+    ok_gate = gate_failure.get("valid") if gate_failure else None
+
+    overall_ok: bool | None
+    if structured_validation is not None and gate_failure is not None:
+        overall_ok = bool(ok_struct) and (ok_gate is not False)
+    elif structured_validation is not None:
+        overall_ok = bool(ok_struct)
+    elif gate_failure is not None:
+        overall_ok = ok_gate is not False
+    else:
+        overall_ok = None if not parse_error else False
+
+    if parse_error and overall_ok is None:
+        overall_ok = False
+
+    available = bool(
+        structured_validation is not None
+        or gate_failure is not None
+        or parse_error
+        or merged
+    )
+
+    return {
+        "available": available,
+        "ok": overall_ok,
+        "issue_count": len(merged),
+        "issues": merged,
+        "issues_by_block": by_block,
+        "issues_unmapped": unmapped,
+        "structured_validation": structured_validation,
+        "last_gate_artifact_dir": (gate_failure or {}).get("artifact_dir"),
+        "last_gate_issues_path": (gate_failure or {}).get("issues_path"),
+    }
 
 
 def _latest_scratchpad_summary() -> dict[str, Any] | None:

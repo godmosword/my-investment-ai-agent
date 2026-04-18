@@ -13,6 +13,7 @@ import {
 } from "../utils/mockToday";
 import SymbolFocusBar from "../components/SymbolFocusBar";
 import TodayBtcSnapshotStrip from "../components/TodayBtcSnapshotStrip";
+import AsOfChip from "../components/common/AsOfChip";
 
 export default function Today() {
   const [warRoomIntentFilter, setWarRoomIntentFilter] = useState("all");
@@ -62,14 +63,6 @@ export default function Today() {
     effectiveOpen?.filter((t) => t.direction?.toUpperCase() === "SHORT").length ?? 0;
 
   const regime = regimeInfo(effectiveMetrics?.avg_risk_score);
-  const ts = effectiveMetrics?.timestamp
-    ? new Date(effectiveMetrics.timestamp).toLocaleString("zh-TW", {
-        month: "numeric",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
 
   const showMetricsBlock =
     useDemo || (!mLoading && !mError && metrics);
@@ -103,7 +96,16 @@ export default function Today() {
 
       <div className="page-header">
         <div className="page-title">今日戰情室</div>
-        {ts && <div className="page-subtitle">更新：{ts}</div>}
+        {showMetricsBlock && effectiveMetrics ? (
+          <div style={{ marginTop: 8 }}>
+            <AsOfChip
+              asOf={effectiveMetrics.timestamp}
+              source={useDemo ? "mock · Glassbox" : "BigQuery · daily_metrics"}
+              label="指標更新"
+              polling={!useDemo && Boolean(mFetching)}
+            />
+          </div>
+        ) : null}
       </div>
 
       <SymbolFocusBar compact />

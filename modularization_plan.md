@@ -434,11 +434,11 @@ def validate_report(text: str, *, profile: str = "full") -> dict: ...
 | `report_render.py` | 1–2、**5c**（`build_telegram_jinja_env`／`telegram_render_context` 含 `current_affairs_block_html`／`render_telegram_daily_brief(..., profile=)`） |
 | `report_html_gates.py` | 3、**4d**、**5d**（`validate_report`；`STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE`） |
 | `test_validate_report_profile_phase3.py` | 3 |
-| `main.py` | 2–3 |
+| `main.py` | 2–3、**5**（雙軌完成後與 `source_observability_lines` **並行** [`current_affairs_crew.py`](current_affairs_crew.py)、`assemble` 注入、`validate_report(..., structured_report=)`；**不**改 [`graph/`](graph/) 編譯圖） |
 | `schemas.py` | **5a**（`RoundtableVoice`／`CurrentAffairsRoundtable`／`DailyBriefReport.current_affairs_roundtable`） |
-| `crew.py`／`graph/*` | **5b 仍待**（單一 task／子節點產出） |
-| `templates/blocks/_current_affairs_roundtable.j2` | **5c**（macro） |
-| `docs/DAILY_BRIEF_V2.md` | 5（§1 區塊順序補充） |
+| [`current_affairs_crew.py`](current_affairs_crew.py) | **5b**（無 tools 單 task；`output_pydantic=CurrentAffairsRoundtable`；可選 `BRIEF_CURRENT_AFFAIRS_JSON`） |
+| `templates/blocks/_current_affairs_roundtable.j2` | **5c**（macro；[`templates/profiles/telegram_full.j2`](templates/profiles/telegram_full.j2) 掛載；[`report_render.telegram_render_context`](report_render.py) 注入 `current_affairs_block_html`） |
+| [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | **5d**（§1 區塊順序含〔時事多觀點〕**10b**；CHANGELOG **2026-04-27**） |
 
 ---
 

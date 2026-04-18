@@ -296,6 +296,11 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 - **實盤價格觀測（BQ vs yfinance）**：`python scripts/symbol_price_probe.py BTC`（stdout JSON）；可選 `PRICE_PROBE_WRITE_BQ=1` + `PRICE_PROBE_LOG_TABLE=…` 寫入 BQ（建表 [`docs/SQL/price_probe_log.sql`](docs/SQL/price_probe_log.sql)）。
 - **Web Push（T4a）**：[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) — `WEB_PUSH_REDIS_URL`、`WEB_PUSH_VAPID_*`、`POST /api/push/test-send`（`WEB_PUSH_ADMIN_KEY`）；產鑰 `python scripts/vapid_generate.py`。
 
+### 結構化日報（戰報區塊視圖，可選）
+
+- **前端**：`cd data-verification-ui && VITE_STRUCTURED_REPORT=1 npm run dev` — 單日戰報改走 **`GET /api/reports/{date}/structured`**；當回應 **`structured_body_available`** 且含 **`daily_brief_report`** 時，以 [`structuredBlockContent.js`](data-verification-ui/src/components/report/structuredBlockContent.js) 對 **`DailyBriefReport`** 做逐區塊渲染（否則 legacy 摘要）。詳見 [`visualization_plan.md`](visualization_plan.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。
+- **後端**：環境 **`DAILY_BRIEF_JSON_DIR`**（[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）；另會嘗試 **`.qsilicon/daily_brief_reports/{date}.json`** 與 **`logs/run_YYYYMMDD_*/raw_data.json`**（見 [`api.py`](api.py)）。
+
 ---
 
 ## gstack（選用）

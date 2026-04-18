@@ -1,3 +1,5 @@
+import { tailwindThemeExtend } from "./src/design/tokens.js";
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
@@ -5,7 +7,9 @@ export default {
     preflight: false,
   },
   theme: {
-    extend: {},
+    extend: {
+      ...tailwindThemeExtend,
+    },
   },
   plugins: [],
 };

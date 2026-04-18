@@ -51,9 +51,9 @@ jobs:
         run: pytest -m smoke -q --tb=short
 
       - name: Set up Node.js (PWA / Terminal contract)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: data-verification-ui/package.json
 
@@ -108,9 +108,9 @@ jobs:
           fi
 
       - name: Set up Node.js (PWA / Terminal contract)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: data-verification-ui/package.json
 
