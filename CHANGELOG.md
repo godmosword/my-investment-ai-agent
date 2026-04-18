@@ -8,6 +8,9 @@
 ### Added
 - **PWA 視覺化 V1（Design Foundation）**：依 [`visualization_plan.md`](visualization_plan.md) Phase V1／§5 — [`data-verification-ui/src/design/tokens.js`](data-verification-ui/src/design/tokens.js)（`palette`、`tailwindThemeExtend` → [`tailwind.config.js`](data-verification-ui/tailwind.config.js) `theme.extend`：`regime.*`、`qs.*`）；共用元件 [`AsOfChip`](data-verification-ui/src/components/common/AsOfChip.jsx)、[`ProvenancePopover`](data-verification-ui/src/components/common/ProvenancePopover.jsx)（自 [`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx) 抽出）、[`ProfileBadge`](data-verification-ui/src/components/common/ProfileBadge.jsx)、[`GateStatusBadge`](data-verification-ui/src/components/common/GateStatusBadge.jsx)、[`SourceLink`](data-verification-ui/src/components/common/SourceLink.jsx)、[`MockBanner`](data-verification-ui/src/components/common/MockBanner.jsx)；[`formatAsOfZh.js`](data-verification-ui/src/utils/formatAsOfZh.js)。[`Today.jsx`](data-verification-ui/src/pages/Today.jsx) 頁首指標更新改 **`AsOfChip`**（來源：`BigQuery · daily_metrics`／mock）；Terminal 卡 **as-of／資料溯源** 改共用元件。開發專用 **`/design`**（[`DesignShowcase.jsx`](data-verification-ui/src/pages/DesignShowcase.jsx)、[`App.jsx`](data-verification-ui/src/App.jsx) 僅 `import.meta.env.DEV`）。契約補述見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)「PWA 設計 tokens」。
 
+### Changed
+- **CI：`setup-node` v5／Node.js 24**：[`.github/workflows/ci.yml`](.github/workflows/ci.yml)、[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml) — `actions/setup-node@v5`、`node-version: "24"`，對齊 GitHub Actions 將 **Node 20** 自 runner 移除之時程（官方建議升級 action／執行環境）；消除 `setup-node@v4` 仍以 Node 20 執行 action 本體之棄用警示。
+
 ## 2026-04-16
 
 ### Changed
