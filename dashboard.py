@@ -469,6 +469,16 @@ with st.expander("📊 Symbol 快照（Terminal API 對齊 · 唯讀）", expand
         "與 FastAPI ``GET /api/symbols/{symbol}/snapshot``（`api.py` + `symbol_snapshot_service.py`）同一 JSON 形狀。"
         "預設走 **本程序 BigQuery**；若設 **`SYMBOL_SNAPSHOT_HTTP_BASE`** 則改打已啟動的 API 服務。"
     )
+    with st.expander("ℹ️ 數字口徑（OHLC／quote／BQ）", expanded=False):
+        st.markdown(
+            """
+**K 線（`price_series`）**：yfinance 日線 OHLC，供 Terminal 圖表；進程快取約 **3 分鐘**。  
+**Last／漲跌幅（`/api/symbols/{symbol}/quote`）**：另一條 yfinance 路徑，快取約 **45 秒** — 可能與 OHLC 尾根 **略有差**，payload 內 **`price_alignment`** 會標示是否對齊。  
+**結構欄位（`latest_metrics`／`history`）**：來自 **BigQuery**，與日報指標萃取同源；**時間戳不一定等同** yfinance 最後一根 bar。  
+
+詳見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)「視覺化與數字段語意」與 [`visualization_plan.md`](visualization_plan.md) 階段 A。
+            """.strip()
+        )
     _def_sym = (os.getenv("DASHBOARD_SYMBOL_FOCUS") or "BTC").strip().upper()
     _c1, _c2 = st.columns([1, 1])
     with _c1:
@@ -489,6 +499,16 @@ with st.expander("📊 Symbol 快照（Terminal API 對齊 · 唯讀）", expand
                 f"report_links **{len(_pl.get('report_links') or [])}**"
             )
             _lm = _pl.get("latest_metrics") or {}
+            _pa = _pl.get("price_alignment") if isinstance(_pl.get("price_alignment"), dict) else {}
+            if _pa:
+                _al = _pa.get("aligned")
+                if _al is False:
+                    st.warning(
+                        "**price_alignment**：OHLC 尾端 close 與 `/quote` last 不一致（皆 yfinance，可能為快取邊界）。"
+                        f" 尾端 close `{_pa.get('ohlc_last_close')}` vs quote `{_pa.get('quote_last')}`。"
+                    )
+                elif _al is True:
+                    st.caption("price_alignment：OHLC 尾端與 quote last 一致（yfinance 交叉檢）。")
             m1, m2, m3, m4 = st.columns(4)
             with m1:
                 st.metric("Risk /5", f"{_lm.get('avg_risk_score', '—')}")
