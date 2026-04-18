@@ -84,8 +84,8 @@
 - Tailwind config 擴充：將 token 對應 `theme.extend.colors.regime.*`。
 
 **可驗收**：
-- Storybook 或 `/design` 路由（dev-only）可以看到全部組件；`AsOfChip` 支援 `timestamp + source`；`ProvenancePopover` 支援 `data_provenance` JSON 結構。
-- Streamlit 端：`dashboard.py` 的 `COLORS` dict 重構為 import 自 token 檔（Python 端複寫 JSON／dict；單一來源）。
+- **`/design` 路由（dev-only）** 或後續 Storybook 可以看到全部組件；`AsOfChip` 支援 **`asOf` + `source`**；`ProvenancePopover` 支援 **`data_provenance`** JSON 結構。
+- Streamlit 端 token 對齊：**移至 [V6](#v6--戰情室重塑streamlit--共用-token)**（首階僅 PWA + Tailwind，避免混拆 `dashboard.py`）。
 
 **風險**：低。純前端／樣式重構。
 

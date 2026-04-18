@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-18
+
+### Added
+- **PWA 視覺化 V1（Design Foundation）**：依 [`visualization_plan.md`](visualization_plan.md) Phase V1／§5 — [`data-verification-ui/src/design/tokens.js`](data-verification-ui/src/design/tokens.js)（`palette`、`tailwindThemeExtend` → [`tailwind.config.js`](data-verification-ui/tailwind.config.js) `theme.extend`：`regime.*`、`qs.*`）；共用元件 [`AsOfChip`](data-verification-ui/src/components/common/AsOfChip.jsx)、[`ProvenancePopover`](data-verification-ui/src/components/common/ProvenancePopover.jsx)（自 [`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx) 抽出）、[`ProfileBadge`](data-verification-ui/src/components/common/ProfileBadge.jsx)、[`GateStatusBadge`](data-verification-ui/src/components/common/GateStatusBadge.jsx)、[`SourceLink`](data-verification-ui/src/components/common/SourceLink.jsx)、[`MockBanner`](data-verification-ui/src/components/common/MockBanner.jsx)；[`formatAsOfZh.js`](data-verification-ui/src/utils/formatAsOfZh.js)。[`Today.jsx`](data-verification-ui/src/pages/Today.jsx) 頁首指標更新改 **`AsOfChip`**（來源：`BigQuery · daily_metrics`／mock）；Terminal 卡 **as-of／資料溯源** 改共用元件。開發專用 **`/design`**（[`DesignShowcase.jsx`](data-verification-ui/src/pages/DesignShowcase.jsx)、[`App.jsx`](data-verification-ui/src/App.jsx) 僅 `import.meta.env.DEV`）。契約補述見 [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)「PWA 設計 tokens」。
+
 ## 2026-04-16
 
 ### Changed

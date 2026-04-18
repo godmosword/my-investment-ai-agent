@@ -46,6 +46,14 @@ Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol
 可選 **`VITE_WEB_PUSH_REGISTER=1`** + **`VITE_WEB_PUSH_VAPID_PUBLIC_KEY`**（URL-safe base64）在 SW 就緒後嘗試 `pushManager.subscribe` 並 `POST /api/push/subscribe`（後端須 `WEB_PUSH_ENABLED=1`）；預設關閉。  
 可選 **`VITE_SSE_ENABLED=1`** + **`VITE_SSE_STREAM_KEY`**（與後端 `API_STREAM_AUTH_KEY` 對齊）以 **EventSource** 訂閱 `/api/stream/war-room` 並 invalidate React Query（後端須 `TERMINAL_SSE_ENABLED=1`）。
 
+### PWA 設計 tokens（Visualization V1）
+
+機構深色儀表板之 **色票**、`regime`（on／neutral／off）與 **`qs`**（accent、danger …）語意見 [`data-verification-ui/src/design/tokens.js`](../data-verification-ui/src/design/tokens.js)，並經 [`data-verification-ui/tailwind.config.js`](../data-verification-ui/tailwind.config.js) **`theme.extend`** 暴露為 Tailwind class（例如 `text-regime-on`、`text-qs-accent`）。
+
+審計用共用元件：`AsOfChip`（as-of + 來源）、`ProvenancePopover`（`GET /api/symbols/…/snapshot` 之 **`data_provenance`**）、`ProfileBadge`、`GateStatusBadge` 等見 [`data-verification-ui/src/components/common/`](../data-verification-ui/src/components/common/)。
+
+開發環境（`npm run dev`）可開 **`/design`** 預覽上述元件（[`data-verification-ui/src/pages/DesignShowcase.jsx`](../data-verification-ui/src/pages/DesignShowcase.jsx)；production build 仍為標準路由，不含 Storybook）。路線圖見 [`visualization_plan.md`](../visualization_plan.md) Phase **V1**；Streamlit `dashboard.py` 與 token **視覺對齊**排入同檔 Phase **V6**，避免首階混拆後端戦情室。
+
 ## 變更流程
 
 1. 修改 `dashboard.py` / `api.py` 時，同步更新本檔與（若對外）OpenAPI。  

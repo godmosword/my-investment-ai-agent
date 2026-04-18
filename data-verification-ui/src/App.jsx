@@ -10,6 +10,7 @@ import Archive from "./pages/Archive";
 import Report  from "./pages/Report";
 
 const Terminal = lazy(() => import("./pages/Terminal"));
+const DesignShowcase = import.meta.env.DEV ? lazy(() => import("./pages/DesignShowcase")) : null;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +39,16 @@ export default function App() {
                 />
                 <Route path="/archive" element={<Archive />} />
                 <Route path="/report/:date" element={<Report />} />
+                {import.meta.env.DEV && DesignShowcase ? (
+                  <Route
+                    path="/design"
+                    element={
+                      <Suspense fallback={<div className="loading">載入設計預覽…</div>}>
+                        <DesignShowcase />
+                      </Suspense>
+                    }
+                  />
+                ) : null}
               </Routes>
             </main>
             <BottomNav />
