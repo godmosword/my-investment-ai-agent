@@ -11,6 +11,7 @@
 | [CRITICAL_ENV_POLICY.md](CRITICAL_ENV_POLICY.md) | `PIPELINE_STRICT_ENV` 與啟動契約 |
 | [STAGING_THRESHOLD_EXPERIMENT.md](STAGING_THRESHOLD_EXPERIMENT.md) | 選標／rotation 閾值 staging 實驗 |
 | [TERMINAL_MID_TIER_ROADMAP.md](TERMINAL_MID_TIER_ROADMAP.md) | Terminal 中段 M1–M5 |
+| [`architecture/`](architecture/) | Q-Silicon Terminal 長線規劃目錄：[`AI_CONTEXT.md`](architecture/AI_CONTEXT.md)、[`REVIEWER_LOOP_DESIGN.md`](architecture/REVIEWER_LOOP_DESIGN.md)、[`TERMINAL_FRONTEND_PLAN.md`](architecture/TERMINAL_FRONTEND_PLAN.md)；摘要見根目錄 [`CLAUDE.md`](../CLAUDE.md) §5 |
 | [PWA_WEB_PUSH.md](PWA_WEB_PUSH.md) | Web Push（Redis、VAPID、`pywebpush`、可選 BQ） |
 | [SQL/price_probe_log.sql](SQL/price_probe_log.sql) | 實盤 BQ vs yfinance 觀測表（`scripts/symbol_price_probe.py`） |
 | [BLOOMBERG_ALIGNMENT.md](BLOOMBERG_ALIGNMENT.md) | Terminal 對齊 Phase 0 驗收 |
@@ -21,3 +22,4 @@
 - **2026-04-14**：初版索引（G-7：集中 ADR／設計稿連結；不含自動生成內容）。
 - **2026-04-14（二）**：補 [`PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md)。
 - **2026-04-27**：補 [`ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)。
+- **2026-04-18**：補 [`architecture/`](architecture/)（Terminal 長線規劃三檔；索引摘要 [`CLAUDE.md`](../CLAUDE.md) §5）。

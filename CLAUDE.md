@@ -104,6 +104,18 @@ Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DA
 
 ## 5. Documentation Index (`docs/`)
 
+### Q-Silicon Terminal — AI / Cursor 長線規劃（Claude Code）
+
+當任務涉及 **Terminal Portal**、**Reviewer 閉環**、**LangGraph Phase 3.5**、或 **PWA 模組化重構** 時，先讀這三份（依主題選讀即可）：
+
+| Doc | Purpose |
+|-----|---------|
+| [`architecture/AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md) | 與 AI 協作時的行為準則、工程紅線、現況快照、**五模組 Terminal** 願景與 `qsilicon/` 組織原則 |
+| [`architecture/REVIEWER_LOOP_DESIGN.md`](docs/architecture/REVIEWER_LOOP_DESIGN.md) | **`trade_picker` → `reviewer_node`**：Python 先擋、LLM 只查邏輯矛盾；Hard cap、降級、BQ `reviewer_log`、實作驗收清單 |
+| [`architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) | **`data-verification-ui` 模組化目錄**、FastAPI 路由分層、master key、五模組 MVP 與開發順序 |
+
+與現有文件中 [`TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)、[`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)、[`visualization_plan.md`](visualization_plan.md) 並用：前者偏 **中段產品路線**，這三份偏 **實作骨架與 Graph 設計**。
+
 | Doc | Purpose |
 |-----|---------|
 | [`DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | Brief format / Telegram rules |

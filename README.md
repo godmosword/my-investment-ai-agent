@@ -10,6 +10,7 @@
 |------|------|
 | 授權 | [`LICENSE`](LICENSE)（MIT）·[`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
 | 待辦 | [`TODOS.md`](TODOS.md) |
+| Terminal 總表（中段 M1–M5 + Portal 長線 + 架構看法） | [`docs/Terminal_Master_Plan.md`](docs/Terminal_Master_Plan.md) |
 | 變更紀錄 | [`CHANGELOG.md`](CHANGELOG.md) |
 | 執行路線圖 | [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) |
 | 開發導覽 | [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) |
