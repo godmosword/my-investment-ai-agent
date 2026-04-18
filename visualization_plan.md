@@ -78,9 +78,9 @@
 **目標**：在任何視覺改版前，先把「設計語言」落成一份可引用的 token 與共用組件。
 
 **可交付**：
-- `data-verification-ui/src/design/tokens.ts` — 顏色（regime ON/中性/OFF、grid、surface、accent）、字級、間距、radius、shadow。
+- `data-verification-ui/src/design/tokens.js` — 顏色（regime ON/中性/OFF、grid、surface、accent）、字級、間距、radius、shadow（與既有 Vite 專案一致；計畫稿若寫 `tokens.ts` 以本檔為準）。
+- `DESIGN.md`（repo 根）— 品牌 tone、深色為主、禁用 emoji 敘事（對齊 `docs/DAILY_BRIEF_V2.md` §寫作規則）。
 - `data-verification-ui/src/components/common/` — `AsOfChip`、`ProvenancePopover`、`ProfileBadge`、`GateStatusBadge`、`SourceLink`、`MockBanner`。
-- `DESIGN.md`（repo 根）— 記錄品牌 tone（機構／簡報）、深色為主、禁用 emoji 敘事（對齊 `docs/DAILY_BRIEF_V2.md` §寫作規則）。
 - Tailwind config 擴充：將 token 對應 `theme.extend.colors.regime.*`。
 
 **可驗收**：
@@ -109,7 +109,7 @@
 
 **風險**：中。需確保後端序列化契約與 Pydantic schema 同步；需有 smoke test 對比「structured render 的文字節點集合 ⊆ HTML 文字節點」。
 
-**進度（2026-04-18）**：已交付 **`GET /api/reports/{date}/structured`** 封套（`profile`、`block_ids`、`block_registry`、`legacy`、`daily_brief_report: null`、`structured_body_available: false`）、pytest smoke；PWA **`VITE_STRUCTURED_REPORT=1`** + `StructuredReportView` 以 legacy 欄位映射區塊占位（見 `CHANGELOG.md` **2026-04-18**）。**尚缺**：BQ／scratchpad 持續 **`DailyBriefReport`**、`gate_summary`、逐區塊專用元件、`<AsOfChip/>`／`<GateStatusBadge/>` 逐 block、錨點 `#block-*`。
+**進度（2026-04-18）**：已交付 **`GET /api/reports/{date}/structured`** 封套（`profile`、`block_ids`、`block_registry`、`legacy`）；後端可自 **`DAILY_BRIEF_JSON_DIR`／`.qsilicon/daily_brief_reports/{date}.json`／`logs/run_YYYYMMDD_*/raw_data.json`** 載入 **`DailyBriefReport`**，並合併 **`validate_structured_report`** 與 **`.qsilicon/last_gate_failure`** 為 **`gate_summary`**（`issues_by_block`、`issues_unmapped`）；pytest 見 [`test_report_structured_api.py`](test_report_structured_api.py)。PWA **`VITE_STRUCTURED_REPORT=1`** + `StructuredReportView`：頁級／區塊級 **`AsOfChip`**、**`GateStatusBadge`**（依 `gate_summary.issues_by_block`）、Gate 失敗橫幅；legacy 欄位仍作占位。**尚缺**：逐 block 專用元件（`DashboardBlock`、…）與 BQ 持久化 JSON（營運可先用本機 JSON／管線 `raw_data`）。
 
 ---
 
@@ -119,7 +119,7 @@
 
 **可交付**：
 - **URL / State**：`/report/:date?profile=lite`、`/today?profile=crypto-only`；React Query 依 profile key 快取。
-- **Profile Switcher**：在 `SymbolFocusBar`（或新 `BriefProfileBar`）加下拉選單；選 `full`／`lite`／`crypto-only` 與目前 YAML layout 列表（讀 `GET /api/layouts` — 新端點，列 `config/brief_layouts/*.yaml`）。
+- **Profile Switcher**：在 `SymbolFocusBar`（或新 `BriefProfileBar`）加下拉選單；選 `full`／`lite`／`crypto-only`；YAML 檔案清單走 **`GET /api/brief-layouts`**（列 `config/brief_layouts/*.yaml`；PWA 可選 [`useBriefLayouts`](data-verification-ui/src/hooks/useApi.js)）。
 - **Layout Preview**：內部 staging 可上傳 YAML 預覽 block 順序（唯讀，不寫回）。
 - **Archive 篩選**：`Archive.jsx` 依 profile tag 篩；BQ `llm_run_log.profile`（Phase 4c）為資料源。
 - **Streamlit**：War Room 頂部加 profile tab（依 `gate_failure_log.profile` 分面）。

@@ -1,16 +1,32 @@
-import { useParams, Link } from "react-router-dom";
+import { useEffect } from "react";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { useReport, useStructuredReport } from "../hooks/useApi";
 import MetricCard from "../components/MetricCard";
 import TradeCard from "../components/TradeCard";
 import SymbolFocusBar from "../components/SymbolFocusBar";
 import StructuredReportView from "../components/report/StructuredReportView";
+import { normalizeReportProfile } from "../components/report/reportProfiles";
 
 const STRUCTURED_FLAG = import.meta.env.VITE_STRUCTURED_REPORT === "1";
 
 export default function Report() {
   const { date } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawProfile = searchParams.get("profile");
+  const profile = normalizeReportProfile(rawProfile);
+
+  useEffect(() => {
+    const cur = searchParams.get("profile");
+    const n = normalizeReportProfile(cur);
+    if (cur != null && cur !== "" && n !== cur) {
+      const next = new URLSearchParams(searchParams);
+      next.set("profile", n);
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const legacy = useReport(date, { enabled: !STRUCTURED_FLAG });
-  const structured = useStructuredReport(date, "full", { enabled: STRUCTURED_FLAG });
+  const structured = useStructuredReport(date, profile, { enabled: STRUCTURED_FLAG });
   const active = STRUCTURED_FLAG ? structured : legacy;
   const { data: report, isLoading, error } = active;
 
@@ -39,8 +55,20 @@ export default function Report() {
     );
   }
 
-  if (useStructured) {
-    return <StructuredReportView reportDate={date} payload={report} />;
+  if (STRUCTURED_FLAG) {
+    return (
+      <StructuredReportView
+        reportDate={date}
+        payload={report}
+        profile={profile}
+        onProfileChange={(next) => {
+          const n = normalizeReportProfile(next);
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.set("profile", n);
+          setSearchParams(nextParams, { replace: true });
+        }}
+      />
+    );
   }
 
   return (

@@ -134,6 +134,18 @@ export function useStructuredReport(date, profile = "full", queryOptions = {}) {
   });
 }
 
+/** Inventory of ``config/brief_layouts/*.yaml`` (visualization_plan V3). */
+export function useBriefLayouts(queryOptions = {}) {
+  const enabled = queryOptions.enabled !== false;
+  return useQuery({
+    queryKey: ["brief-layouts"],
+    queryFn: () => apiFetch("/api/brief-layouts"),
+    enabled,
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useTrades(status, days = 60) {
   const params = new URLSearchParams({ days });
   if (status) params.set("status", status);

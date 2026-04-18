@@ -33,7 +33,8 @@
 | `POST /api/paper/execution-tick` | 紙上模擬 **一輪**（`run_paper_execution_tick`） | 預設 **404**；設 **`PAPER_TICK_HTTP_ENABLED=1`**；可選 **`PAPER_TICK_API_KEY`**（`X-Paper-Tick-Key`）；CLI 見 `scripts/paper_execution_tick.py` |
 | `GET /api/reports` | 報告列表 | 分頁參數見實作 |
 | `GET /api/reports/{report_date}` | 單日報告內容 | BigQuery legacy 列 + `recommendations` |
-| `GET /api/reports/{report_date}/structured` | V2 區塊化報告封套 | query：`profile`（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；回傳 **`block_ids`**、**`block_registry`**（template／macro 元資料）、**`legacy`**（與上一列同源）、**`daily_brief_report`**（尚未入庫時 **`null`**）、**`structured_body_available`** |
+| `GET /api/reports/{report_date}/structured` | V2 區塊化報告封套 | query：`profile`（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；回傳 **`block_ids`**、**`block_registry`**、**`legacy`**、**`daily_brief_report`**（見下 **`DAILY_BRIEF_JSON_DIR`**／本機 archive／`logs/run_*`）、**`structured_body_available`**、**`structured_source`**（有結構化本文時之相對路徑或絕對路徑）、**`gate_summary`**（`validate_structured_report` + 可選 **`.qsilicon/last_gate_failure`**；含 **`issues_by_block`**／**`issues_unmapped`**） |
+| `GET /api/brief-layouts` | 列 `config/brief_layouts/*.yaml` 檔名與相對路徑（唯讀；V3 layout UX） | 回傳 **`layouts`**: `{ filename, path }[]` |
 | `GET /api/trades` | 交易列表 | |
 | `GET /api/trades/performance` | 績效彙總 | |
 | `GET /healthz` | 存活探測 | |
@@ -46,7 +47,7 @@ Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol
 **PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/terminal`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。可選 **`VITE_TERMINAL_QUERY_COALESCE=1`**（預設）讓同頁多卡之 `snapshot`／`quote`／`intents` 輪詢 **微錯開**，降低 burst（設 **`0`** 關閉）。  
 可選 **`VITE_WEB_PUSH_REGISTER=1`** + **`VITE_WEB_PUSH_VAPID_PUBLIC_KEY`**（URL-safe base64）在 SW 就緒後嘗試 `pushManager.subscribe` 並 `POST /api/push/subscribe`（後端須 `WEB_PUSH_ENABLED=1`）；預設關閉。  
 可選 **`VITE_SSE_ENABLED=1`** + **`VITE_SSE_STREAM_KEY`**（與後端 `API_STREAM_AUTH_KEY` 對齊）以 **EventSource** 訂閱 `/api/stream/war-room` 並 invalidate React Query（後端須 `TERMINAL_SSE_ENABLED=1`）。  
-可選 **`VITE_STRUCTURED_REPORT=1`**：`/report/:date` 改載 **`GET /api/reports/{date}/structured`** 並以區塊順序渲染（結構化本文未入庫時以 **`legacy`** 欄位填 placeholder）；預設關閉時維持僅 **`GET /api/reports/{date}`**。
+可選 **`VITE_STRUCTURED_REPORT=1`**：`/report/:date` 改載 **`GET /api/reports/{date}/structured`** 並以區塊順序渲染（結構化本文未入庫時以 **`legacy`** 欄位填 placeholder）；預設關閉時維持僅 **`GET /api/reports/{date}`**。結構化模式下可選 query **`?profile=`**（`full`｜`lite`｜`crypto-only`）切換前端版型（與 structured 端點之 `profile` 對齊）；無效值正規化為 **`full`**。
 
 ### PWA 設計 tokens（Visualization V1）
 
@@ -54,7 +55,7 @@ Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol
 
 審計用共用元件：`AsOfChip`（as-of + 來源）、`ProvenancePopover`（`GET /api/symbols/…/snapshot` 之 **`data_provenance`**）、`ProfileBadge`、`GateStatusBadge` 等見 [`data-verification-ui/src/components/common/`](../data-verification-ui/src/components/common/)。
 
-開發環境（`npm run dev`）可開 **`/design`** 預覽上述元件（[`data-verification-ui/src/pages/DesignShowcase.jsx`](../data-verification-ui/src/pages/DesignShowcase.jsx)；production build 仍為標準路由，不含 Storybook）。路線圖見 [`visualization_plan.md`](../visualization_plan.md) Phase **V1**；Streamlit `dashboard.py` 與 token **視覺對齊**排入同檔 Phase **V6**，避免首階混拆後端戦情室。
+開發環境（`npm run dev`）可開 **`/design`** 預覽上述元件（[`data-verification-ui/src/pages/DesignShowcase.jsx`](../data-verification-ui/src/pages/DesignShowcase.jsx)；production build 仍為標準路由，不含 Storybook）。品牌語氣與 token 總覽見 repo 根 [`DESIGN.md`](../DESIGN.md)。路線圖見 [`visualization_plan.md`](../visualization_plan.md) Phase **V1**；Streamlit `dashboard.py` 與 token **視覺對齊**排入同檔 Phase **V6**，避免首階混拆後端戦情室。
 
 ## 變更流程
 
