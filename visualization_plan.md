@@ -109,6 +109,8 @@
 
 **風險**：中。需確保後端序列化契約與 Pydantic schema 同步；需有 smoke test 對比「structured render 的文字節點集合 ⊆ HTML 文字節點」。
 
+**進度（2026-04-18）**：已交付 **`GET /api/reports/{date}/structured`** 封套（`profile`、`block_ids`、`block_registry`、`legacy`、`daily_brief_report: null`、`structured_body_available: false`）、pytest smoke；PWA **`VITE_STRUCTURED_REPORT=1`** + `StructuredReportView` 以 legacy 欄位映射區塊占位（見 `CHANGELOG.md` **2026-04-18**）。**尚缺**：BQ／scratchpad 持續 **`DailyBriefReport`**、`gate_summary`、逐區塊專用元件、`<AsOfChip/>`／`<GateStatusBadge/>` 逐 block、錨點 `#block-*`。
+
 ---
 
 ### V3 — Profile／Layout UX

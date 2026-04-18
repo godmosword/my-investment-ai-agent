@@ -223,6 +223,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # PRICE_PROBE_BQ_METRIC=      # 可選：echo latest_metrics 某欄位名（float），與 yfinance 並列於 stdout JSON
 # （PWA）VITE_TERMINAL_POLL_MS=45000   # Terminal 輪詢間隔（毫秒；見 docs/DASHBOARD_CONTRACT.md）
 # （PWA）VITE_TERMINAL_QUERY_COALESCE=1   # 1=多卡同頁時 snapshot/quote/intents 輪詢時間錯開，減少 burst（設 0 關閉）
+# （PWA）VITE_STRUCTURED_REPORT=0   # 1=報告頁使用 GET /api/reports/{date}/structured 區塊視圖（見 docs/DASHBOARD_CONTRACT.md；預設 0）
 
 # TERMINAL_SSE_ENABLED=0       # 1=啟用 GET /api/stream/war-room（SSE；見 docs/TERMINAL_MID_TIER_ROADMAP.md M4）
 # API_STREAM_AUTH_KEY=         # 非空時 SSE 須 Header X-QS-Stream-Key 或 query stream_key

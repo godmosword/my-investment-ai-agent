@@ -235,18 +235,22 @@ def list_reports(
     return _rows_to_dicts(rows)
 
 
-@app.get("/api/reports/{report_date}")
-def get_report(report_date: str) -> dict[str, Any]:
-    """Return the report summary for a specific date (YYYY-MM-DD)."""
-    # Validate date format
+def _validate_report_date(report_date: str) -> None:
     try:
         datetime.strptime(report_date, "%Y-%m-%d")
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid date format; use YYYY-MM-DD") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid date format; use YYYY-MM-DD"
+        ) from exc
 
+
+def _load_report_legacy(report_date: str) -> dict[str, Any]:
+    """Load metrics row + recommendations from BigQuery (legacy PWA shape)."""
     try:
         client = _get_bq_client()
-        rows = list(client.query(f"""
+        rows = list(
+            client.query(
+                f"""
             SELECT
                 DATE(timestamp) AS report_date,
                 timestamp,
@@ -265,7 +269,9 @@ def get_report(report_date: str) -> dict[str, Any]:
             WHERE DATE(timestamp) = '{report_date}'
             ORDER BY timestamp DESC
             LIMIT 1
-        """).result())
+        """
+            ).result()
+        )
     except Exception as exc:
         logger.error("BigQuery report/%s failed: %s", report_date, exc)
         raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
@@ -275,9 +281,9 @@ def get_report(report_date: str) -> dict[str, Any]:
 
     report = _rows_to_dicts(rows)[0]
 
-    # Attach that day's trade recommendations
     try:
-        rec_rows = client.query(f"""
+        rec_rows = client.query(
+            f"""
             SELECT
                 asset, direction, entry_price, target_price, stop_price,
                 confidence, narrative, trigger, invalidation,
@@ -286,13 +292,73 @@ def get_report(report_date: str) -> dict[str, Any]:
             FROM `{RECOMMENDATIONS_TABLE}`
             WHERE report_date = '{report_date}'
             ORDER BY confidence DESC, asset ASC
-        """).result()
+        """
+        ).result()
         report["recommendations"] = _rows_to_dicts(rec_rows)
     except Exception as exc:
         logger.warning("Could not attach recommendations for %s: %s", report_date, exc)
         report["recommendations"] = []
 
     return report
+
+
+@app.get("/api/reports/{report_date}/structured")
+def get_report_structured(
+    report_date: str,
+    profile: str = Query(
+        default="full",
+        description="Telegram brief profile: full, lite, crypto-only",
+    ),
+) -> dict[str, Any]:
+    """Structured report envelope for block-based PWA (V2 visualization).
+
+    When ``daily_brief_report`` is not persisted yet, ``legacy`` carries the same
+    payload as ``GET /api/reports/{report_date}`` for UI fallback.
+    """
+    _validate_report_date(report_date)
+    try:
+        from brief_profiles import BLOCK_REGISTRY, get_active_profile, profile_block_ids
+    except ImportError as exc:
+        logger.error("brief_profiles import failed: %s", exc)
+        raise HTTPException(
+            status_code=500, detail="Server configuration error"
+        ) from exc
+
+    try:
+        resolved_profile = get_active_profile(profile)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    block_ids = list(profile_block_ids(resolved_profile))
+    block_registry = {
+        bid: {
+            "template_subpath": BLOCK_REGISTRY[bid].template_subpath,
+            "macro_name": BLOCK_REGISTRY[bid].macro_name,
+            "empty_behavior": BLOCK_REGISTRY[bid].empty_behavior,
+        }
+        for bid in block_ids
+        if bid in BLOCK_REGISTRY
+    }
+
+    legacy = _load_report_legacy(report_date)
+
+    return {
+        "report_date": report_date,
+        "profile": resolved_profile,
+        "block_ids": block_ids,
+        "block_registry": block_registry,
+        "daily_brief_report": None,
+        "structured_body_available": False,
+        "gate_summary": {"available": False, "ok": None, "issues": []},
+        "legacy": legacy,
+    }
+
+
+@app.get("/api/reports/{report_date}")
+def get_report(report_date: str) -> dict[str, Any]:
+    """Return the report summary for a specific date (YYYY-MM-DD)."""
+    _validate_report_date(report_date)
+    return _load_report_legacy(report_date)
 
 
 # ── /api/trades ──────────────────────────────────────────────────────────────

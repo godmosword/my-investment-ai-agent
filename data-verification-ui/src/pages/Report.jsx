@@ -1,12 +1,18 @@
 import { useParams, Link } from "react-router-dom";
-import { useReport } from "../hooks/useApi";
+import { useReport, useStructuredReport } from "../hooks/useApi";
 import MetricCard from "../components/MetricCard";
 import TradeCard from "../components/TradeCard";
 import SymbolFocusBar from "../components/SymbolFocusBar";
+import StructuredReportView from "../components/report/StructuredReportView";
+
+const STRUCTURED_FLAG = import.meta.env.VITE_STRUCTURED_REPORT === "1";
 
 export default function Report() {
   const { date } = useParams();
-  const { data: report, isLoading, error } = useReport(date);
+  const legacy = useReport(date, { enabled: !STRUCTURED_FLAG });
+  const structured = useStructuredReport(date, "full", { enabled: STRUCTURED_FLAG });
+  const active = STRUCTURED_FLAG ? structured : legacy;
+  const { data: report, isLoading, error } = active;
 
   if (isLoading) {
     return (
@@ -31,6 +37,10 @@ export default function Report() {
         <div className="loading">查無此報告</div>
       </>
     );
+  }
+
+  if (useStructured) {
+    return <StructuredReportView reportDate={date} payload={report} />;
   }
 
   return (

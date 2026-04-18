@@ -32,7 +32,8 @@
 | `GET /api/stream/war-room` | **SSE**：`data:` 為 `GET /api/war-room/latest` 同源 JSON | 預設 **404**；設 **`TERMINAL_SSE_ENABLED=1`** 啟用；可選 **`API_STREAM_AUTH_KEY`**（`X-QS-Stream-Key` 或 `?stream_key=`） |
 | `POST /api/paper/execution-tick` | 紙上模擬 **一輪**（`run_paper_execution_tick`） | 預設 **404**；設 **`PAPER_TICK_HTTP_ENABLED=1`**；可選 **`PAPER_TICK_API_KEY`**（`X-Paper-Tick-Key`）；CLI 見 `scripts/paper_execution_tick.py` |
 | `GET /api/reports` | 報告列表 | 分頁參數見實作 |
-| `GET /api/reports/{report_date}` | 單日報告內容 | |
+| `GET /api/reports/{report_date}` | 單日報告內容 | BigQuery legacy 列 + `recommendations` |
+| `GET /api/reports/{report_date}/structured` | V2 區塊化報告封套 | query：`profile`（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；回傳 **`block_ids`**、**`block_registry`**（template／macro 元資料）、**`legacy`**（與上一列同源）、**`daily_brief_report`**（尚未入庫時 **`null`**）、**`structured_body_available`** |
 | `GET /api/trades` | 交易列表 | |
 | `GET /api/trades/performance` | 績效彙總 | |
 | `GET /healthz` | 存活探測 | |
@@ -44,7 +45,8 @@ Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol
 
 **PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/terminal`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。可選 **`VITE_TERMINAL_QUERY_COALESCE=1`**（預設）讓同頁多卡之 `snapshot`／`quote`／`intents` 輪詢 **微錯開**，降低 burst（設 **`0`** 關閉）。  
 可選 **`VITE_WEB_PUSH_REGISTER=1`** + **`VITE_WEB_PUSH_VAPID_PUBLIC_KEY`**（URL-safe base64）在 SW 就緒後嘗試 `pushManager.subscribe` 並 `POST /api/push/subscribe`（後端須 `WEB_PUSH_ENABLED=1`）；預設關閉。  
-可選 **`VITE_SSE_ENABLED=1`** + **`VITE_SSE_STREAM_KEY`**（與後端 `API_STREAM_AUTH_KEY` 對齊）以 **EventSource** 訂閱 `/api/stream/war-room` 並 invalidate React Query（後端須 `TERMINAL_SSE_ENABLED=1`）。
+可選 **`VITE_SSE_ENABLED=1`** + **`VITE_SSE_STREAM_KEY`**（與後端 `API_STREAM_AUTH_KEY` 對齊）以 **EventSource** 訂閱 `/api/stream/war-room` 並 invalidate React Query（後端須 `TERMINAL_SSE_ENABLED=1`）。  
+可選 **`VITE_STRUCTURED_REPORT=1`**：`/report/:date` 改載 **`GET /api/reports/{date}/structured`** 並以區塊順序渲染（結構化本文未入庫時以 **`legacy`** 欄位填 placeholder）；預設關閉時維持僅 **`GET /api/reports/{date}`**。
 
 ### PWA 設計 tokens（Visualization V1）
 
