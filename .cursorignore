@@ -1,51 +1,222 @@
-# ==========================================
-# Q-Silicon 專案專用 .cursorignore
-# ==========================================
 
-# 1. 環境變數與機密憑證 (最高資安風險，絕對禁止 AI 讀取)
-.env
-.env.*
-upload_secrets.sh
-secrets/
-*-credentials.json
-service-account*.json
-gcp-key*.json
-*.pem
+# =============================================================================
+# .cursorignore — Universal Context Budget Guard
+# 目的：嚴控 Cursor Agent 的 context token 消耗，適用所有專案類型
+# 原則：只讓 AI 看「需要改動的程式碼」，其餘一律排除
+# =============================================================================
 
-# 2. JSON 設定檔與巨量資料 (防止誤讀數萬行的 GCP 金鑰或 API 回傳快取)
-*.json
-# 如果你未來沒有要用 Node.js，這行其實可以不用，但保留以防萬一
-!package.json 
 
-# 3. 專案生成的回測報告與日誌 (Token 殺手！)
-# 你的 backtest.py 會生成這個檔案，裡面全是 HTML 與報表數據，對 AI 寫 code 毫無幫助
-backtest_report.html
-*.log
-logs/
-agent_traces/
+# ── 版本控制 ─────────────────────────────────────────────────────────────────
+.git/
+.hg/
+.svn/
+.github/
+.gitlab/
+
+
+# ── 依賴目錄（最大 token 殺手）──────────────────────────────────────────────
+node_modules/
+bower_components/
+.pnp/
+.venv/
+venv/
+env/
+ENV/
+site-packages/
+*.egg-info/
+vendor/
+vendor/bundle/
+.bundle/
+target/
+.gradle/
+.mvn/
+
+
+# ── Lock 檔（單檔可達數萬行，AI 絕對不該動）─────────────────────────────────
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+Pipfile.lock
+Gemfile.lock
+Cargo.lock
+composer.lock
+go.sum
+
+
+# ── 建置產物 ─────────────────────────────────────────────────────────────────
+dist/
+build/
+out/
 output/
+bin/
+obj/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+.turbo/
+.parcel-cache/
+.cache/
+.serverless/
+.vercel/
+.terraform/
+storybook-static/
+*.min.js
+*.min.css
+*.bundle.js
+*.chunk.js
 
-# 4. Python 虛擬環境與編譯快取 (無意義的二進制與依賴庫)
+
+# ── 編譯 / 快取檔 ────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.egg-info/
-.venv/
-venv/
-env/
-dist/
-build/
+*.class
+*.jar
+*.war
+*.tfstate
+*.tfstate.backup
+
+
+# ── 測試 / 覆蓋率報告 ────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+htmlcov/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+test-results/
+junit*.xml
+*.lcov
 
-# 5. IDE 與作業系統暫存檔
-.idea/
-.vscode/
-.DS_Store
-__MACOSX/
 
-# 6. 本地暫存的歷史回測數據 (預防未來你把 BigQuery 倒出成本地 CSV 檔)
+# ── 環境變數 / 密鑰 ──────────────────────────────────────────────────────────
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+*.pub
+*.p12
+*.pfx
+secrets/
+credentials/
+
+
+# ── Log / 暫存 ──────────────────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+.temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+~$*
+
+
+# ── 資料檔（量化資料與 Agent Log）──────────────────────────────────────────
 *.csv
 *.tsv
+*.jsonl
 *.parquet
+*.feather
+*.sqlite
 *.sqlite3
+*.db
+*.h5
+*.hdf5
+*.pkl
+data/
+datasets/
+raw_data/
+
+
+# ── 媒體 / 二進位 ────────────────────────────────────────────────────────────
+# 圖片
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.webp
+*.bmp
+*.tiff
+
+# 影音
+*.mp4
+*.mp3
+*.mov
+*.avi
+*.wav
+
+# 字型
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.otf
+
+# 文件 / 壓縮
+*.pdf
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg
+*.exe
+*.dll
+*.so
+*.dylib
+
+
+# ── Notebook（output cell 是 token 炸彈）────────────────────────────────────
+*.ipynb
+
+
+# ── IDE / 工具快取 ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.cursor/
+*.iml
+.DS_Store
+Thumbs.db
+*.suo
+*.user
+
+
+# ── 半導體 / EDA 專案（Chipbond 環境）───────────────────────────────────────
+# 光罩 / 版圖
+*.gds
+*.gds2
+*.oas
+*.oasis
+*.lef
+*.def
+
+# 模擬 / 驗證輸出
+*.sim
+simulations/
+results/
+*.rdb
+*.svdb
+drc_results/
+lvs_results/
+
+
+# ── AI / ML 模型權重 ────────────────────────────────────────────────────────
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.gguf
+*.bin
+models/
+checkpoints/
+weights/

@@ -228,6 +228,12 @@
 
 ## 新建議 backlog（精簡，與腳本對照）
 
+<!-- CEO Review 2026-04-19: Q-Silicon Terminal plan -->
+8. **Phase 0：`USE_LANGGRAPH_ENGINE` 預設改為 `1`** — 在 Reviewer Loop（Phase 2）落地前翻轉預設，使 reviewer gate 對主線管線生效。`main.py` + `ENV_TEMPLATE.txt`；`pytest -m smoke USE_LANGGRAPH_ENGINE=1` 必須全綠。P1 / S。
+9. **api.py 端點合約測試** — Phase 3 APIRouter 拆分前，先為所有現有 `/api/*` 路由寫合約測試（request/response schema 斷言），確保 Streamlit 與 PWA 呼叫端在拆分後無靜默回歸。P2 / S。
+10. **BQ `(date, profile)` composite index** — `llm_run_log` + `gate_failure_log` 的儀表板查詢熱路徑加複合索引；DDL 見 [`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql)。P3 / S。
+11. **Terminal portal httpOnly cookie 認證升級** — 目前 `QSILICON_MASTER_KEY` 存 localStorage（XSS 可讀），自用場景可接受；待多用戶部署決策後改為 httpOnly session cookie + `/api/auth/login`。P3 / M。依賴：多用戶產品決策。
+
 1. Gate 內部儀表 — [`docs/GATE_INTERNAL_DASHBOARD.md`](docs/GATE_INTERNAL_DASHBOARD.md)  
 2. 結構化 dry-run — [`scripts/validate_report_dry_run.py`](scripts/validate_report_dry_run.py)、[`scripts/report_skeleton_validate.py`](scripts/report_skeleton_validate.py)  
 3. 美股備援觀測 — `EQUITY_BACKFILL_SCRATCHPAD_LOG`（見 CHANGELOG／`report_render`）  

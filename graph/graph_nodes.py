@@ -1,4 +1,35 @@
-"""LangGraph node implementations for Phase 3 research pipeline."""
+"""LangGraph node implementations for Phase 3 research pipeline.
+
+State machine flow (USE_LANGGRAPH_ENGINE=1):
+
+    ┌─────────────┐
+    │  GatherNode │  fetch raw data via RESEARCH_TOOLS
+    └──────┬──────┘
+           │ ResearchGraphState.raw_data
+     ┌─────┴──────┐
+     │            │  parallel fan-out
+  ┌──▼──┐      ┌──▼──┐
+  │ Bull│      │ Bear│  independent LLM analysis
+  └──┬──┘      └──┬──┘
+     └─────┬───────┘
+           │ bull_analysis + bear_analysis
+    ┌──────▼──────┐
+    │ ArbiterNode │  decide if deep-dive needed
+    └──────┬──────┘
+           │
+     ┌─────┴─────────────────┐
+     │                       │
+  [skip]               ┌─────▼────┐
+     │                 │ DeepNode │  additional tool calls
+     │                 └─────┬────┘
+     └─────────┬─────────────┘
+               │
+       ┌───────▼────────┐
+       │ FormatterNode  │  assemble → DailyBriefReport schema
+       └───────┬────────┘
+               │
+           graph output
+"""
 
 from __future__ import annotations
 

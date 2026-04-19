@@ -66,6 +66,20 @@
 
 ---
 
+## 新增區塊 Checklist
+
+新增一個 Telegram 報告區塊時，依序完成：
+
+1. 在 [`templates/blocks/`](../../templates/blocks/) 建立 `_<block_id>.j2` macro
+2. 在 [`brief_profiles.py`](../../brief_profiles.py) 的 `BLOCK_REGISTRY` 登記 `block_id`
+3. 加入至少一個 profile 的 `block_ids` 清單（`PROFILES` dict）
+4. 若有結構化資料：在 [`schemas.py`](../../schemas.py) 新增對應欄位
+5. 若需驗證：在 [`report_html_gates.py`](../../report_html_gates.py) 加入 Gate 規則
+6. 若 `full` profile 包含此區塊：更新 [`tests/fixtures/telegram_report_phase0_monolithic.j2`](../../tests/fixtures/telegram_report_phase0_monolithic.j2) 基線
+7. 跑 `pytest -m smoke` 確認 `full` profile byte-identical
+
+---
+
 ## 長期／後續產品項（非本 plan 預設交付）
 
 | 項目 | 說明 |
