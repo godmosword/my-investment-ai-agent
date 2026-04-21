@@ -208,6 +208,12 @@
 > **2026-04-14 進度備註（非 exhaustive）**：T1a／T1b／T1c、T2a／T2b／T2c、T3a／T3b／T3c 已有**可 review 初版**（見上「已交付摘要」列與 CHANGELOG）；**T4a 程式碼**已齊（**2026-04-15** CHANGELOG）；**T4b** 仍為事件語意草案（digest／排程須產品拍板）；**mock** 下已補 **NVDA** E2E；**2026-04-16** 補 **Today BTC `price_alignment` 分歧** Playwright（`today-btc-mismatch-banner`）；**實盤** 對照請跑 [`scripts/symbol_price_probe.py`](scripts/symbol_price_probe.py) 並可選 **`PRICE_PROBE_WRITE_BQ`** 寫入觀測表。
 >
 > **2026-04-21 更新**：**T1a** 已補齊「首次失敗 vs 背景 refetch 失敗」差異行為，Today／War Room／Terminal／ExecutionIntents 皆改為**已有成功資料時保留內容、只加 degraded banner + retry**；**T1c** mock API／Playwright 已擴到 **snapshot fail**／**quote fail**／**`aligned=null`**／**多 ticker 單卡失敗**；**T2b** Today BTC strip 與 Terminal 卡的 **`price_alignment`** 文案已收斂為 **一致 / mismatch / N/A（後端未確認）** 三態。後續主線集中在 **T1b / T2a / T2c** 的觀測與契約補齊。
+>
+> **同日補充**：`T1b` 已補 `/api/*` request log、`elapsed_ms`、`price_alignment` 三態與 `data_provenance` 的觀測說明；`T2a/T2c` 已補 **Streamlit ↔ PWA 同形約束**，並新增 `dashboard/snapshot_payload.py` + [`test_dashboard_snapshot_payload.py`](test_dashboard_snapshot_payload.py) 作為 `SYMBOL_SNAPSHOT_HTTP_BASE` / `build_symbol_snapshot` 雙路徑回歸錨點。下一步主線可往 **T2c 實盤對照** 或 **T3b 意圖表欄位契約** 繼續推。
+>
+> **同日再補**：`T3b` 已補 execution-intents **欄位契約**：後端 list / patch 皆固定回傳 blotter shape（含 `status_updated_at`、`thesis_one_liner`、`reference_*`、`paper_*`、`gate_issue_hints` 空陣列預設），前端 [`ExecutionIntentsBlotter.jsx`](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx) 也已顯示 **category / regime / updated_at / thesis / paper fill/exit**。
+>
+> **T3c 續補（2026-04-21）**：輪詢 / 快取已進一步收斂到 **query sync policy**：[`useApi.js`](data-verification-ui/src/hooks/useApi.js) 將 Terminal live query 的 `staleTime`／`refetchInterval`／retry 策略抽成共用 helper；`PATCH /api/execution-intents/{signal_id}` 成功時先寫回 react-query cache，再只讓**活躍**的 `execution-intents`／`war-room` 即時 refetch，`metrics/latest`／`report`／`positions/open` 改為 **mark stale only**。[`useWarRoomSse.js`](data-verification-ui/src/hooks/useWarRoomSse.js) 則改成 **message 節流刷新、error 不觸發全頁 invalidate**，避免 SSE 斷線或 burst 事件造成 Today / Terminal 重複重抓。下一步主線可往 **T5b gate × intent 讀向索引** 前進。
 
 ---
 

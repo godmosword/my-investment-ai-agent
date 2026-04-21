@@ -77,6 +77,95 @@ function getTerminalSharedStaleTimeMs() {
   return Math.min(interval, 120_000);
 }
 
+function terminalRetryPolicy(failureCount, err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (isServerErrorMessage(msg)) return failureCount < 2;
+  return failureCount < 1;
+}
+
+function terminalRetryDelay(attempt) {
+  return Math.min(30_000, 1500 * 2 ** attempt);
+}
+
+function terminalLiveQueryOptions({
+  livePoll,
+  coalesceMultiplier,
+  liveStaleTime,
+  staticStaleTime,
+}) {
+  const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
+  const coalesce = getTerminalQueryCoalesce();
+  return {
+    staleTime: livePoll ? liveStaleTime(interval || getTerminalRefetchIntervalMs()) : staticStaleTime,
+    refetchInterval: coalesce && livePoll ? interval * coalesceMultiplier : interval,
+    retry: terminalRetryPolicy,
+    retryDelay: terminalRetryDelay,
+  };
+}
+
+function mergeExecutionIntentRow(existing, next) {
+  if (!existing) return next;
+  return { ...existing, ...next };
+}
+
+function updateExecutionIntentRows(oldRows, nextRow) {
+  if (!Array.isArray(oldRows)) return oldRows;
+  let found = false;
+  const updated = oldRows.map((row) => {
+    if (row?.signal_id !== nextRow?.signal_id) return row;
+    found = true;
+    return mergeExecutionIntentRow(row, nextRow);
+  });
+  return found ? updated : oldRows;
+}
+
+function updateWarRoomPayload(oldPayload, nextRow) {
+  if (!oldPayload || typeof oldPayload !== "object") return oldPayload;
+  if (!Array.isArray(oldPayload.execution_intents)) return oldPayload;
+  return {
+    ...oldPayload,
+    execution_intents: updateExecutionIntentRows(oldPayload.execution_intents, nextRow),
+  };
+}
+
+/**
+ * Terminal / Today query sync policy:
+ * - `execution-intents` + `war-room` are user-visible and may refetch immediately when active.
+ * - `metrics/latest` + `report` + `positions/open` are marked stale only, then picked up by the
+ *   next poll / navigation / manual refresh to avoid bursty full-page refetches.
+ */
+export function syncWarRoomRelatedQueries(
+  queryClient,
+  {
+    executionIntentsRefetchType = "active",
+    warRoomRefetchType = "active",
+    metricsRefetchType = "none",
+    reportRefetchType = "none",
+    positionsRefetchType = "none",
+  } = {},
+) {
+  queryClient.invalidateQueries({
+    queryKey: ["execution-intents"],
+    refetchType: executionIntentsRefetchType,
+  });
+  queryClient.invalidateQueries({
+    queryKey: ["war-room"],
+    refetchType: warRoomRefetchType,
+  });
+  queryClient.invalidateQueries({
+    queryKey: ["metrics", "latest"],
+    refetchType: metricsRefetchType,
+  });
+  queryClient.invalidateQueries({
+    queryKey: ["report"],
+    refetchType: reportRefetchType,
+  });
+  queryClient.invalidateQueries({
+    queryKey: ["positions", "open"],
+    refetchType: positionsRefetchType,
+  });
+}
+
 async function apiFetch(path) {
   let res;
   try {
@@ -235,20 +324,15 @@ export function useOpenPositions(days = 90) {
 
 export function useWarRoomLatest(options = {}) {
   const livePoll = Boolean(options.livePoll);
-  const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
-  const coalesce = getTerminalQueryCoalesce();
-  const refetchInterval = coalesce && livePoll ? interval * 1.05 : interval;
   return useQuery({
     queryKey: ["war-room", "latest", livePoll ? "live" : "static"],
     queryFn: () => apiFetch("/api/war-room/latest"),
-    staleTime: livePoll ? Math.min(interval || 45_000, 60_000) : 60 * 1000,
-    refetchInterval,
-    retry: (failureCount, err) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (isServerErrorMessage(msg)) return failureCount < 2;
-      return failureCount < 1;
-    },
-    retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
+    ...terminalLiveQueryOptions({
+      livePoll,
+      coalesceMultiplier: 1.05,
+      liveStaleTime: (interval) => Math.min(interval, 60_000),
+      staticStaleTime: 60 * 1000,
+    }),
   });
 }
 
@@ -263,34 +347,24 @@ export function useWarRoomLatest(options = {}) {
  */
 export function useSymbolQuote(symbol, options = {}) {
   const livePoll = Boolean(options.livePoll);
-  const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
-  const coalesce = getTerminalQueryCoalesce();
-  const refetchInterval = coalesce && livePoll ? interval * 1.1 : interval;
   const normalized = (symbol ?? "").trim().toUpperCase();
-  const sharedStale = getTerminalSharedStaleTimeMs();
   const quoteSuffix = e2eSymbolQuery(normalized, "quote");
   return useQuery({
     queryKey: ["symbol", "quote", normalized, quoteSuffix || "default", livePoll ? "live" : "static"],
     queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/quote${quoteSuffix}`),
     enabled: !!normalized,
-    staleTime: livePoll ? sharedStale : 60 * 1000,
-    refetchInterval,
-    retry: (failureCount, err) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (isServerErrorMessage(msg)) return failureCount < 2;
-      return failureCount < 1;
-    },
-    retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
+    ...terminalLiveQueryOptions({
+      livePoll,
+      coalesceMultiplier: 1.1,
+      liveStaleTime: () => getTerminalSharedStaleTimeMs(),
+      staticStaleTime: 60 * 1000,
+    }),
   });
 }
 
 export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, options = {}) {
   const livePoll = Boolean(options.livePoll);
-  const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
-  const coalesce = getTerminalQueryCoalesce();
-  const refetchInterval = coalesce && livePoll ? interval * 1.15 : interval;
   const normalized = (symbol ?? "").trim().toUpperCase();
-  const sharedStale = getTerminalSharedStaleTimeMs();
   const snapSuffix = e2eSymbolQuery(normalized, "snapshot");
   const snapQs = `days=${days}&recommendation_limit=${recommendationLimit}${snapSuffix ? `&${snapSuffix.slice(1)}` : ""}`;
   return useQuery({
@@ -305,22 +379,17 @@ export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, o
     ],
     queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/snapshot?${snapQs}`),
     enabled: !!normalized,
-    staleTime: livePoll ? sharedStale : 3 * 60 * 1000,
-    refetchInterval,
-    retry: (failureCount, err) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (isServerErrorMessage(msg)) return failureCount < 2;
-      return failureCount < 1;
-    },
-    retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
+    ...terminalLiveQueryOptions({
+      livePoll,
+      coalesceMultiplier: 1.15,
+      liveStaleTime: () => getTerminalSharedStaleTimeMs(),
+      staticStaleTime: 3 * 60 * 1000,
+    }),
   });
 }
 
 export function useExecutionIntents(limit = 50, options = {}) {
   const livePoll = Boolean(options.livePoll);
-  const interval = livePoll ? getTerminalRefetchIntervalMs() : false;
-  const coalesce = getTerminalQueryCoalesce();
-  const refetchInterval = coalesce && livePoll ? interval * 1.08 : interval;
   const status = options.statusFilter && options.statusFilter !== "all" ? String(options.statusFilter) : "";
   const category = options.categoryFilter && options.categoryFilter !== "all" ? String(options.categoryFilter) : "";
   const sortBy = options.sortBy || "updated_desc";
@@ -330,14 +399,12 @@ export function useExecutionIntents(limit = 50, options = {}) {
   return useQuery({
     queryKey: ["execution-intents", limit, sortBy, status || "all", category || "all", livePoll ? "live" : "static"],
     queryFn: () => apiFetch(`/api/execution-intents?${params}`),
-    staleTime: livePoll ? Math.min(interval || 45_000, 60_000) : 2 * 60 * 1000,
-    refetchInterval,
-    retry: (failureCount, err) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (isServerErrorMessage(msg)) return failureCount < 2;
-      return failureCount < 1;
-    },
-    retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
+    ...terminalLiveQueryOptions({
+      livePoll,
+      coalesceMultiplier: 1.08,
+      liveStaleTime: (interval) => Math.min(interval, 60_000),
+      staticStaleTime: 2 * 60 * 1000,
+    }),
   });
 }
 
@@ -370,12 +437,14 @@ export function usePatchExecutionIntent() {
         reference_stop_price: reference_stop_price ?? null,
       });
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["execution-intents"] });
-      qc.invalidateQueries({ queryKey: ["war-room"] });
-      qc.invalidateQueries({ queryKey: ["metrics", "latest"] });
-      qc.invalidateQueries({ queryKey: ["report"] });
-      qc.invalidateQueries({ queryKey: ["positions", "open"] });
+    onSuccess: (updatedRow) => {
+      qc.setQueriesData({ queryKey: ["execution-intents"] }, (old) =>
+        updateExecutionIntentRows(old, updatedRow),
+      );
+      qc.setQueriesData({ queryKey: ["war-room"] }, (old) =>
+        updateWarRoomPayload(old, updatedRow),
+      );
+      syncWarRoomRelatedQueries(qc);
     },
   });
 }

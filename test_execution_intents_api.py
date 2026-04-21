@@ -213,6 +213,71 @@ def test_execution_intents_filter_sort(tmp_path, monkeypatch):
     assert r3.status_code == 400
 
 
+def test_execution_intents_list_normalizes_legacy_shape(tmp_path, monkeypatch):
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "legacy-1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "crypto",
+                "asset": "$btc",
+                "direction": "long",
+                "star_rating": "9",
+                "status": "pending_review",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    monkeypatch.setattr("api._latest_gate_failure_summary", lambda: None)
+
+    client = TestClient(app)
+    r = client.get("/api/execution-intents?limit=10")
+    assert r.status_code == 200
+    row = r.json()[0]
+    assert row["asset"] == "BTC"
+    assert row["category"] == "CRYPTO"
+    assert row["direction"] == "LONG"
+    assert row["star_rating"] == 2
+    assert row["status"] == "PENDING_REVIEW"
+    assert row["status_updated_at"] == "2026-04-10T00:00:00Z"
+    assert row["gate_issue_hints"] == []
+    assert row["thesis_one_liner"] == ""
+
+
+def test_patch_execution_intent_returns_blotter_shape(tmp_path, monkeypatch):
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "paper-1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "CRYPTO",
+                "asset": "BTC",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "PENDING_REVIEW",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    client = TestClient(app)
+    r = client.patch(
+        "/api/execution-intents/paper-1",
+        json={"status": "APPROVED_FOR_PAPER", "note": "paper ready"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "APPROVED_FOR_PAPER"
+    assert body["status_note"] == "paper ready"
+    assert body["gate_issue_hints"] == []
+    assert "status_updated_at" in body
+
+
 def test_execution_intents_gate_issue_hints(tmp_path, monkeypatch):
     store = tmp_path / "intents.jsonl"
     store.write_text(
@@ -271,7 +336,7 @@ def test_gate_issue_hints_no_false_positive_substring(tmp_path, monkeypatch):
     r = client.get("/api/execution-intents?limit=10")
     assert r.status_code == 200
     row = r.json()[0]
-    assert "gate_issue_hints" not in row
+    assert row["gate_issue_hints"] == []
 
 
 def test_war_room_enriches_intents_with_gate_hints(tmp_path, monkeypatch):

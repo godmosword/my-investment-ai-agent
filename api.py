@@ -813,6 +813,26 @@ class ExecutionIntentStatusBody(BaseModel):
     reference_stop_price: float | None = None
 
 
+class ExecutionIntentRow(BaseModel):
+    signal_id: str
+    created_at: str
+    category: str
+    regime: str = ""
+    asset: str
+    direction: str
+    star_rating: int
+    thesis_one_liner: str = ""
+    status: str
+    status_updated_at: str = ""
+    status_note: str = ""
+    reference_entry_price: float | None = None
+    reference_target_price: float | None = None
+    reference_stop_price: float | None = None
+    paper_fill_price: float | None = None
+    paper_exit_price: float | None = None
+    gate_issue_hints: list[str] = Field(default_factory=list)
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent
 
@@ -1124,7 +1144,7 @@ def _validate_symbol(symbol: str) -> str:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.get("/api/execution-intents")
+@app.get("/api/execution-intents", response_model=list[ExecutionIntentRow])
 def list_execution_intents(
     limit: int = Query(default=50, ge=1, le=200),
     status: str | None = Query(
@@ -1166,7 +1186,7 @@ def execution_intent_allowed_statuses() -> dict[str, Any]:
     }
 
 
-@app.patch("/api/execution-intents/{signal_id}")
+@app.patch("/api/execution-intents/{signal_id}", response_model=ExecutionIntentRow)
 def patch_execution_intent_status(
     signal_id: str,
     body: ExecutionIntentStatusBody,

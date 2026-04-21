@@ -7,8 +7,6 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from google.cloud import bigquery
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, datetime, timedelta, timezone
@@ -22,6 +20,7 @@ from config import (
 )
 
 from dashboard.theme import COLORS, PLOTLY_TEMPLATE, dashboard_inline_css
+from dashboard.snapshot_payload import load_dashboard_symbol_snapshot_payload
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -127,34 +126,17 @@ def _dashboard_symbol_snapshot_payload(
     FastAPI process over HTTP so Streamlit can split from the API container. Otherwise
     uses ``symbol_snapshot_service.build_symbol_snapshot`` with this process's BQ client.
     """
-    from symbol_snapshot_service import (  # noqa: PLC0415
-        build_symbol_snapshot,
-        validate_symbol_for_snapshot,
-    )
-
-    sym = validate_symbol_for_snapshot(symbol.strip())
-    base = (os.getenv("SYMBOL_SNAPSHOT_HTTP_BASE") or "").strip().rstrip("/")
-    if base:
-        from urllib import parse  # noqa: PLC0415
-
-        q = parse.urlencode(
-            {"days": int(days), "recommendation_limit": int(recommendation_limit)}
-        )
-        url = f"{base}/api/symbols/{parse.quote(sym, safe='')}/snapshot?{q}"
-        try:
-            req = Request(url, headers={"Accept": "application/json"})
-            with urlopen(req, timeout=90) as resp:
-                return json.loads(resp.read().decode())
-        except (HTTPError, URLError, ValueError, OSError, json.JSONDecodeError) as exc:
-            return {"_error": f"HTTP snapshot failed: {exc}"}
+    from symbol_snapshot_service import build_symbol_snapshot, validate_symbol_for_snapshot  # noqa: PLC0415
 
     try:
-        client = _get_bq_client()
-        return build_symbol_snapshot(
-            client,
-            sym,
-            days=int(days),
-            recommendation_limit=int(recommendation_limit),
+        return load_dashboard_symbol_snapshot_payload(
+            symbol=symbol,
+            days=days,
+            recommendation_limit=recommendation_limit,
+            http_base=os.getenv("SYMBOL_SNAPSHOT_HTTP_BASE") or "",
+            validate_symbol=validate_symbol_for_snapshot,
+            build_snapshot=build_symbol_snapshot,
+            client_factory=_get_bq_client,
         )
     except Exception as exc:  # pragma: no cover - network / BQ env dependent
         logger.warning("dashboard symbol snapshot (direct BQ) failed: %s", exc)

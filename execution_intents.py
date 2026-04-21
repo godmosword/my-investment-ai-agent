@@ -64,6 +64,47 @@ class ExecutionIntent(BaseModel):
     paper_exit_price: float | None = Field(default=None, description="Simulated exit at stop/target (M5).")
 
 
+def _normalize_int(value: Any, *, default: int = 1, minimum: int = 1, maximum: int = 2) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(minimum, min(maximum, parsed))
+
+
+def _normalize_float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_execution_intent_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Coerce legacy / partial JSONL rows into the public blotter contract shape."""
+    created_at = str(row.get("created_at") or "").strip()
+    normalized = {
+        "signal_id": str(row.get("signal_id") or "").strip(),
+        "created_at": created_at,
+        "category": str(row.get("category") or "").strip().upper(),
+        "regime": str(row.get("regime") or "").strip(),
+        "asset": str(row.get("asset") or "").strip().upper().lstrip("$"),
+        "direction": str(row.get("direction") or "").strip().upper(),
+        "star_rating": _normalize_int(row.get("star_rating")),
+        "thesis_one_liner": str(row.get("thesis_one_liner") or "").strip(),
+        "status": str(row.get("status") or "PENDING_REVIEW").strip().upper(),
+        "status_updated_at": str(row.get("status_updated_at") or created_at or "").strip(),
+        "status_note": str(row.get("status_note") or "").strip(),
+        "reference_entry_price": _normalize_float_or_none(row.get("reference_entry_price")),
+        "reference_target_price": _normalize_float_or_none(row.get("reference_target_price")),
+        "reference_stop_price": _normalize_float_or_none(row.get("reference_stop_price")),
+        "paper_fill_price": _normalize_float_or_none(row.get("paper_fill_price")),
+        "paper_exit_price": _normalize_float_or_none(row.get("paper_exit_price")),
+    }
+    return normalized
+
+
 def _store_path() -> Path:
     raw = (os.getenv("EXECUTION_INTENT_STORE") or ".qsilicon/execution_intents.jsonl").strip()
     return Path(__file__).resolve().parent / raw
@@ -187,14 +228,15 @@ def latest_execution_intents(
         return []
     if not dedupe:
         tail = rows[-limit:]
-        return _filter_and_sort_intents(tail, status=status, category=category, sort_by=sort_by)[:limit]
+        normalized_tail = [normalize_execution_intent_row(r) for r in tail]
+        return _filter_and_sort_intents(normalized_tail, status=status, category=category, sort_by=sort_by)[:limit]
 
     # Last JSONL line per signal_id wins (append-only updates).
     by_id: dict[str, dict[str, Any]] = {}
     for row in rows:
         sid = str(row.get("signal_id") or "").strip()
         if sid:
-            by_id[sid] = row
+            by_id[sid] = normalize_execution_intent_row(row)
     merged = list(by_id.values())
     merged = _filter_and_sort_intents(merged, status=status, category=category, sort_by=sort_by)
     return merged[:limit]

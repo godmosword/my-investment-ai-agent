@@ -51,6 +51,8 @@
 
 **常見狀況**：`main.py` 單次 **15–30+ 分鐘**屬正常；Gate 擋報看終端 `issues`，可開 `GATE_FAILURE_ARTIFACTS=1`；CoinGlass `401`／`Upgrade plan` 多為方案不含端點（見 [CoinGlass](#coinglass-api-v4)）。
 
+**Terminal / Streamlit 口徑提醒**：`/terminal` 與 Streamlit Symbol 快照都以 [`symbol_snapshot_service.py`](symbol_snapshot_service.py) 為 payload 真相來源；若設 **`SYMBOL_SNAPSHOT_HTTP_BASE`**，Streamlit 會改打同一條 FastAPI snapshot 路徑。`latest_metrics`（BigQuery）與 `quote`（yfinance）**不是同一來源**，畫面需以 `data_provenance` / `price_alignment` 為準。
+
 ---
 
 ## 快速開始

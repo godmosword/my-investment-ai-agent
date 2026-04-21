@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { syncWarRoomRelatedQueries } from "./useApi";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 const SSE_ENABLED = import.meta.env.VITE_SSE_ENABLED === "1";
@@ -24,18 +25,32 @@ export function useWarRoomSse() {
       return undefined;
     }
 
-    const refreshWarRoomRelated = () => {
-      qc.invalidateQueries({ queryKey: ["execution-intents"] });
-      qc.invalidateQueries({ queryKey: ["war-room"] });
-      qc.invalidateQueries({ queryKey: ["metrics", "latest"] });
-      qc.invalidateQueries({ queryKey: ["report"] });
-      qc.invalidateQueries({ queryKey: ["positions", "open"] });
+    let refreshTimer = null;
+    let lastRefreshAt = 0;
+
+    const flushRefresh = () => {
+      refreshTimer = null;
+      lastRefreshAt = Date.now();
+      syncWarRoomRelatedQueries(qc);
     };
 
-    es.onmessage = refreshWarRoomRelated;
-    es.onerror = refreshWarRoomRelated;
+    const scheduleRefresh = () => {
+      const sinceLastRefresh = Date.now() - lastRefreshAt;
+      if (sinceLastRefresh >= 1_000) {
+        flushRefresh();
+        return;
+      }
+      if (refreshTimer != null) return;
+      refreshTimer = globalThis.setTimeout(flushRefresh, 1_000 - sinceLastRefresh);
+    };
+
+    es.onmessage = scheduleRefresh;
+    es.onerror = () => {};
 
     return () => {
+      if (refreshTimer != null) {
+        globalThis.clearTimeout(refreshTimer);
+      }
       es.close();
     };
   }, [qc]);

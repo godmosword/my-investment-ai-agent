@@ -23,6 +23,15 @@ function statusLabel(s) {
   return map[s] ?? s;
 }
 
+function formatTs(ts) {
+  return ts ? new Date(ts).toLocaleString("zh-TW") : "—";
+}
+
+function formatPrice(v) {
+  if (v == null || Number.isNaN(Number(v))) return "—";
+  return Number(v).toLocaleString("en-US", { maximumFractionDigits: 6 });
+}
+
 export default function ExecutionIntentsBlotter() {
   const pollMs = getTerminalRefetchIntervalMs();
   const [statusFilter, setStatusFilter] = useState("all");
@@ -170,9 +179,12 @@ export default function ExecutionIntentsBlotter() {
             <thead>
               <tr>
                 <th>資產</th>
+                <th>分類</th>
                 <th>方向</th>
                 <th>狀態</th>
+                <th>更新</th>
                 <th>建立</th>
+                <th>Thesis / Gate</th>
                 <th>參考價（紙上）</th>
                 <th>操作</th>
                 <th>備註</th>
@@ -184,12 +196,13 @@ export default function ExecutionIntentsBlotter() {
                   <td>
                     <strong>{row.asset}</strong>
                     <div className="terminal-blotter-id">{row.signal_id}</div>
-                    {Array.isArray(row.gate_issue_hints) && row.gate_issue_hints.length > 0 ? (
-                      <div className="terminal-blotter-note-read" style={{ marginTop: 4, fontSize: 11 }}>
-                        Gate 關聯：{row.gate_issue_hints[0]}
-                        {row.gate_issue_hints.length > 1 ? `（+${row.gate_issue_hints.length - 1}）` : ""}
-                      </div>
-                    ) : null}
+                    <div className="terminal-blotter-note-read">
+                      {row.star_rating}★ {row.direction === "LONG" ? "偏多" : row.direction === "SHORT" ? "偏空" : "—"}
+                    </div>
+                  </td>
+                  <td>
+                    <div><strong>{row.category || "—"}</strong></div>
+                    <div className="terminal-blotter-note-read">{row.regime || "regime: —"}</div>
                   </td>
                   <td>{row.direction}</td>
                   <td>
@@ -199,7 +212,25 @@ export default function ExecutionIntentsBlotter() {
                     ) : null}
                   </td>
                   <td className="terminal-blotter-date">
-                    {row.created_at ? new Date(row.created_at).toLocaleString("zh-TW") : "—"}
+                    {formatTs(row.status_updated_at)}
+                  </td>
+                  <td className="terminal-blotter-date">
+                    {formatTs(row.created_at)}
+                  </td>
+                  <td>
+                    {row.thesis_one_liner ? (
+                      <div className="terminal-blotter-note-read" style={{ color: "var(--text)" }}>
+                        {row.thesis_one_liner}
+                      </div>
+                    ) : (
+                      <div className="terminal-blotter-note-read">thesis: —</div>
+                    )}
+                    {Array.isArray(row.gate_issue_hints) && row.gate_issue_hints.length > 0 ? (
+                      <div className="terminal-blotter-note-read" style={{ marginTop: 4, fontSize: 11 }}>
+                        Gate 關聯：{row.gate_issue_hints[0]}
+                        {row.gate_issue_hints.length > 1 ? `（+${row.gate_issue_hints.length - 1}）` : ""}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="terminal-blotter-refs">
                     <div className="terminal-blotter-ref-grid">
@@ -247,6 +278,11 @@ export default function ExecutionIntentsBlotter() {
                       </label>
                     </div>
                     <div className="terminal-blotter-ref-hint">核准紙上時一併送出，供紙上 tick 比對</div>
+                    {(row.paper_fill_price != null || row.paper_exit_price != null) ? (
+                      <div className="terminal-blotter-ref-hint" style={{ marginTop: 6 }}>
+                        paper fill {formatPrice(row.paper_fill_price)} / exit {formatPrice(row.paper_exit_price)}
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     <div className="terminal-blotter-actions">

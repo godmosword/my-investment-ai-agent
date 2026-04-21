@@ -13,6 +13,18 @@
 2. **Top `issues_preview`** 或 fingerprint 聚合（與 [`docs/SQL/gate_failure_weekly_summary.sql`](SQL/gate_failure_weekly_summary.sql) 類似）。
 3. **環境維度**（若表未存 env，可在排程註解或獨立維度表手動標註 staging／prod）。
 
+## 與 Terminal / PWA 觀測對齊（T1b）
+
+- `api.py` 已有可選 **`API_HTTP_REQUEST_LOG=1`** middleware，對 `/api/*` 記錄 `path`、`method`、`status`、`elapsed_ms`；可先用 log 做輕量觀測，再決定是否升級成 BQ / Looker 指標。
+- 若要對齊前端 `WarRoom` / `Terminal` 的錯誤態，至少要能回答三件事：
+  1. 是 **5xx / exception**，還是 **4xx / schema / invalid JSON**。
+  2. 是 **整體端點失敗**，還是 **局部來源漂移**（例如 `snapshot` 仍可顯示，但 `quote` / `price_alignment` 為 `N/A`）。
+  3. 問題是 **延遲升高** 還是 **資料來源變更**。
+- 內部儀表第一版不必新增表；先把以下欄位在 log / 查詢層能看見即可：
+  - `/api/symbols/{symbol}/snapshot`、`/api/symbols/{symbol}/quote`、`/api/war-room/latest` 的 `status` 與 `elapsed_ms`
+  - `price_alignment.aligned` 的 `true / false / null` 三態分佈（可由 staging / probe 另行抽樣）
+  - `data_provenance` 與 UI 文案是否仍一致（見 [`docs/DASHBOARD_CONTRACT.md`](DASHBOARD_CONTRACT.md)）
+
 ## CLI 草稿輸出
 
 本機有憑證時可跑：
