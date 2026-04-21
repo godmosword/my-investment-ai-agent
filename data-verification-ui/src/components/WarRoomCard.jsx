@@ -5,6 +5,7 @@
 export default function WarRoomCard({
   warRoom,
   loading,
+  retrying = false,
   error,
   intentStatusFilter = "all",
   onIntentStatusChange,
@@ -13,7 +14,7 @@ export default function WarRoomCard({
   if (loading) {
     return <div className="loading">載入 War Room 快照中…</div>;
   }
-  if (error) {
+  if (error && !warRoom) {
     return (
       <div className="error-msg" style={{ marginBottom: 12 }}>
         無法載入 War Room 快照（<code>/api/war-room/latest</code>）：{error.message}
@@ -54,6 +55,14 @@ export default function WarRoomCard({
 
   return (
     <div className="card" style={{ marginBottom: 14 }}>
+      {error ? (
+        <div className="error-msg" style={{ marginBottom: 10 }} role="status">
+          <strong>War Room 快照暫時未更新。</strong> 目前保留上一筆成功資料顯示。
+          <div style={{ marginTop: 6 }}>
+            <code>/api/war-room/latest</code>：{error.message}
+          </div>
+        </div>
+      ) : null}
       <div
         style={{
           display: "flex",
@@ -79,10 +88,10 @@ export default function WarRoomCard({
               border: "1px solid var(--border)",
               background: "var(--panel)",
               color: "var(--muted)",
-              cursor: loading ? "not-allowed" : "pointer",
+              cursor: retrying ? "not-allowed" : "pointer",
             }}
           >
-            重新整理
+            {retrying ? "重試中…" : "重新整理"}
           </button>
         )}
       </div>

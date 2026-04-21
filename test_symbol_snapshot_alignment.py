@@ -96,3 +96,21 @@ def test_price_alignment_e2e_override_json(monkeypatch: pytest.MonkeyPatch) -> N
     assert a.get("quote_last") == 110.0
     assert a.get("ohlc_last_close") == 100.0
     assert a.get("aligned") is False
+
+
+def test_align_snapshot_price_returns_quote_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sss,
+        "fetch_symbol_quote",
+        lambda _s: {"last": None, "error": "no_price_data"},
+    )
+    out = sss._align_snapshot_price("BTC", [{"time": "2026-04-10", "close": 100.0}])
+    assert out.get("aligned") is None
+    assert out.get("quote_error") == "no_price_data"
+    assert out.get("ohlc_last_close") == 100.0
+
+
+def test_align_snapshot_price_handles_missing_ohlc() -> None:
+    out = sss._align_snapshot_price("BTC", [])
+    assert out.get("aligned") is None
+    assert out.get("quote_error") == "no_ohlc_close"

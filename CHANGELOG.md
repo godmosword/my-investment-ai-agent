@@ -3,6 +3,18 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-21
+
+### Changed
+- **Terminal T1/T2 狀態矩陣收斂**：[`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js) 新增 **`isHardApiError`** 與 E2E flag query 組裝，將 **`snapshot`／`quote`** 的 mock 風險分支統一到前端 hook；[`data-verification-ui/src/components/TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx)、[`TodayBtcSnapshotStrip.jsx`](data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx)、[`WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx)、[`ExecutionIntentsBlotter.jsx`](data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)、[`Today.jsx`](data-verification-ui/src/pages/Today.jsx) 收斂 **首次失敗 vs 背景 refetch 失敗** 行為：已有成功資料時保留內容，只加 degraded banner 與統一 retry 文案；`quote` 失敗不再讓整張 Terminal 卡降成空白；Today BTC strip 與 Terminal 卡在 **`aligned=true / false / null`** 三態下文案一致，並明示 **N/A / 後端未確認**。
+- **Playwright T1/T2 擴面**：[`data-verification-ui/e2e/mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 支援 **`e2e_snapshot_fail`**、**`e2e_quote_fail`**、**`e2e_btc_alignment_na`**；新增 [`terminal-state-matrix.spec.js`](data-verification-ui/e2e/terminal-state-matrix.spec.js) 覆蓋 **單卡 quote fail 仍保留 snapshot**、**單卡 snapshot fail 不影響其他卡**、**`aligned=null` 顯示 N/A**；[`today-btc-mismatch-banner.spec.js`](data-verification-ui/e2e/today-btc-mismatch-banner.spec.js) 增 **N/A** 路徑。
+
+### Docs
+- [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)：新增 **Terminal / Today 顯示規則（T1/T2 收斂）**，明定 `snapshot`／`quote`／`price_alignment` 的顯示優先序、degraded 行為，以及 **BigQuery KPI 不得與 yfinance quote 混寫成同一來源**。
+
+### Tests
+- [`test_symbol_snapshot_alignment.py`](test_symbol_snapshot_alignment.py)：新增 `price_alignment` 對 **`quote_error`** 與 **missing OHLC** 分支的後端測試，補齊前端新使用的 `aligned=null` / `quote_error` 語意錨點。
+
 ## 2026-04-18
 
 ### Changed

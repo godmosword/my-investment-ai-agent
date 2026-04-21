@@ -49,6 +49,7 @@ export default function ExecutionIntentsBlotter() {
   const clientPatchable = Array.isArray(allowedPayload?.client_patchable)
     ? allowedPayload.client_patchable
     : ["PENDING_REVIEW", "APPROVED_FOR_PAPER", "REJECTED", "SUPERSEDED"];
+  const hasRows = rows.length > 0;
 
   const setRefField = (signalId, field, value) => {
     setRefs((prev) => ({
@@ -80,8 +81,8 @@ export default function ExecutionIntentsBlotter() {
         {isFetching && !isLoading ? <span className="terminal-blotter-sync">更新中…</span> : null}
       </div>
 
-      {isLoading && <div className="loading">載入意圖列表…</div>}
-      {error && (
+      {isLoading && !hasRows && <div className="loading">載入意圖列表…</div>}
+      {error && !hasRows && (
         <div className="error-msg">
           無法載入 <code>/api/execution-intents</code>：{error.message}
           <div style={{ marginTop: 10 }}>
@@ -96,8 +97,26 @@ export default function ExecutionIntentsBlotter() {
           </div>
         </div>
       )}
+      {error && hasRows ? (
+        <div className="error-msg" role="status" style={{ marginBottom: 10 }}>
+          <strong>執行意圖暫時未更新。</strong> 目前保留上一筆成功資料顯示。
+          <div style={{ marginTop: 6 }}>
+            <code>/api/execution-intents</code>：{error.message}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="terminal-btn terminal-btn--small"
+              disabled={isFetching}
+              onClick={() => refetch()}
+            >
+              {isFetching ? "重試中…" : "重試載入"}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
-      {!isLoading && !error ? (
+      {!isLoading && (hasRows || !error) ? (
         <div className="terminal-blotter-filters" style={{ marginBottom: 12, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <label className="page-subtitle" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             狀態
@@ -145,7 +164,7 @@ export default function ExecutionIntentsBlotter() {
         <div className="page-subtitle">目前無執行意圖（或 JSONL 為空）。管線寫入後將顯示於此。</div>
       ) : null}
 
-      {!isLoading && !error && rows.length > 0 ? (
+      {!isLoading && hasRows ? (
         <div className="terminal-blotter-table-wrap">
           <table className="terminal-blotter-table">
             <thead>

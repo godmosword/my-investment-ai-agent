@@ -17,4 +17,18 @@ test.describe("Bloomberg §6 — Today BTC price_alignment banner", () => {
     const quoteText = await page.getByTestId("today-btc-quote-last").innerText();
     expect(quoteText.replace(/\s/g, "")).toMatch(/50,150\.25/);
   });
+
+  test("shows N/A state when backend cannot confirm price_alignment", async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem("e2e_btc_alignment_na", "1");
+      } catch {
+        /* ignore */
+      }
+    });
+    await page.goto("/", { waitUntil: "load" });
+    await expect(page.getByTestId("today-btc-price-aligned")).toContainText(/對齊狀態：N\/A/);
+    await expect(page.getByTestId("today-btc-price-alignment-na-banner")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("today-btc-quote-last")).toContainText(/50,000\.125/);
+  });
 });

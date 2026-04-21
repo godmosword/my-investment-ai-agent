@@ -2,22 +2,57 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
-/**
- * E2E only：Playwright `addInitScript` 設 `localStorage.e2e_btc_misaligned=1` 時，對 BTC snapshot／quote
- * 附加 query，讓 mock-api-server 回傳 `price_alignment.aligned=false`（Bloomberg §6 Today 橫幅迴歸）。
- */
-function e2eBtcMisalignedQuery(symbol) {
+function isServerErrorMessage(message) {
+  return /^5\d\d:/.test(String(message ?? ""));
+}
+
+export function isHardApiError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (message.startsWith("Invalid JSON")) return true;
+  if (/^4\d\d:/.test(message)) return true;
+  return !isServerErrorMessage(message);
+}
+
+function getE2eFlag(key) {
+  if (import.meta.env.VITE_E2E !== "1") return "";
+  try {
+    return String(globalThis.localStorage?.getItem(key) ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function symbolInCsvFlag(raw, symbol) {
+  const sym = String(symbol ?? "").trim().toUpperCase();
+  if (!raw || !sym) return false;
+  return raw
+    .split(",")
+    .map((part) => part.trim().toUpperCase())
+    .filter(Boolean)
+    .includes(sym);
+}
+
+function e2eSymbolQuery(symbol, endpoint) {
   if (import.meta.env.VITE_E2E !== "1") return "";
   const sym = String(symbol ?? "").trim().toUpperCase();
-  if (sym !== "BTC") return "";
-  try {
-    if (globalThis.localStorage?.getItem("e2e_btc_misaligned") === "1") {
-      return "e2e_btc_misaligned=1";
-    }
-  } catch {
-    /* ignore */
+  const params = new URLSearchParams();
+
+  if (sym === "BTC" && getE2eFlag("e2e_btc_misaligned") === "1") {
+    params.set("e2e_btc_misaligned", "1");
   }
-  return "";
+  if (sym === "BTC" && getE2eFlag("e2e_btc_alignment_na") === "1") {
+    params.set("e2e_btc_alignment_na", "1");
+  }
+
+  if (endpoint === "snapshot" && symbolInCsvFlag(getE2eFlag("e2e_snapshot_fail_symbols"), sym)) {
+    params.set("e2e_snapshot_fail", "1");
+  }
+  if (endpoint === "quote" && symbolInCsvFlag(getE2eFlag("e2e_quote_fail_symbols"), sym)) {
+    params.set("e2e_quote_fail", "1");
+  }
+
+  const qstr = params.toString();
+  return qstr ? `?${qstr}` : "";
 }
 
 /** Terminal `/terminal` 輪詢間隔（ms）；可由 `VITE_TERMINAL_POLL_MS` 覆寫，預設 45s，最小 5s、最大 5min。 */
@@ -210,7 +245,7 @@ export function useWarRoomLatest(options = {}) {
     refetchInterval,
     retry: (failureCount, err) => {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/^5\d\d:/.test(msg)) return failureCount < 2;
+      if (isServerErrorMessage(msg)) return failureCount < 2;
       return failureCount < 1;
     },
     retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
@@ -233,17 +268,16 @@ export function useSymbolQuote(symbol, options = {}) {
   const refetchInterval = coalesce && livePoll ? interval * 1.1 : interval;
   const normalized = (symbol ?? "").trim().toUpperCase();
   const sharedStale = getTerminalSharedStaleTimeMs();
-  const e2eMisQ = e2eBtcMisalignedQuery(normalized);
-  const quoteSuffix = e2eMisQ ? `?${e2eMisQ}` : "";
+  const quoteSuffix = e2eSymbolQuery(normalized, "quote");
   return useQuery({
-    queryKey: ["symbol", "quote", normalized, e2eMisQ ? "e2e_btc_mis" : "e2e_btc_ok", livePoll ? "live" : "static"],
+    queryKey: ["symbol", "quote", normalized, quoteSuffix || "default", livePoll ? "live" : "static"],
     queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/quote${quoteSuffix}`),
     enabled: !!normalized,
     staleTime: livePoll ? sharedStale : 60 * 1000,
     refetchInterval,
     retry: (failureCount, err) => {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/^5\d\d:/.test(msg)) return failureCount < 2;
+      if (isServerErrorMessage(msg)) return failureCount < 2;
       return failureCount < 1;
     },
     retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
@@ -257,8 +291,8 @@ export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, o
   const refetchInterval = coalesce && livePoll ? interval * 1.15 : interval;
   const normalized = (symbol ?? "").trim().toUpperCase();
   const sharedStale = getTerminalSharedStaleTimeMs();
-  const e2eMisQ = e2eBtcMisalignedQuery(normalized);
-  const snapQs = `days=${days}&recommendation_limit=${recommendationLimit}${e2eMisQ ? `&${e2eMisQ}` : ""}`;
+  const snapSuffix = e2eSymbolQuery(normalized, "snapshot");
+  const snapQs = `days=${days}&recommendation_limit=${recommendationLimit}${snapSuffix ? `&${snapSuffix.slice(1)}` : ""}`;
   return useQuery({
     queryKey: [
       "symbol",
@@ -266,7 +300,7 @@ export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, o
       normalized,
       days,
       recommendationLimit,
-      e2eMisQ ? "e2e_btc_mis" : "e2e_btc_ok",
+      snapSuffix || "default",
       livePoll ? "live" : "static",
     ],
     queryFn: () => apiFetch(`/api/symbols/${encodeURIComponent(normalized)}/snapshot?${snapQs}`),
@@ -275,7 +309,7 @@ export function useSymbolSnapshot(symbol, days = 30, recommendationLimit = 12, o
     refetchInterval,
     retry: (failureCount, err) => {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/^5\d\d:/.test(msg)) return failureCount < 2;
+      if (isServerErrorMessage(msg)) return failureCount < 2;
       return failureCount < 1;
     },
     retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),
@@ -300,7 +334,7 @@ export function useExecutionIntents(limit = 50, options = {}) {
     refetchInterval,
     retry: (failureCount, err) => {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/^5\d\d:/.test(msg)) return failureCount < 2;
+      if (isServerErrorMessage(msg)) return failureCount < 2;
       return failureCount < 1;
     },
     retryDelay: (attempt) => Math.min(30_000, 1500 * 2 ** attempt),

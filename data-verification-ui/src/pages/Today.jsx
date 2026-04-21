@@ -71,9 +71,9 @@ export default function Today() {
   const apiAllFailed = allSettled && Boolean(mError && rError && oError);
   const useDemo = forceDemo || apiAllFailed;
 
-  const effectiveMetrics = useDemo ? MOCK_METRICS_LATEST : mError ? null : metrics;
-  const effectiveOpen = useDemo ? MOCK_OPEN_POSITIONS : oError ? null : openPos;
-  const effectiveReport = useDemo ? mockReportForDate(today) : rError ? null : report;
+  const effectiveMetrics = useDemo ? MOCK_METRICS_LATEST : metrics ?? null;
+  const effectiveOpen = useDemo ? MOCK_OPEN_POSITIONS : openPos ?? null;
+  const effectiveReport = useDemo ? mockReportForDate(today) : report ?? null;
 
   const openCount = Array.isArray(effectiveOpen) ? effectiveOpen.length : 0;
   const longCount =
@@ -163,6 +163,7 @@ export default function Today() {
       <WarRoomCard
         warRoom={warRoom}
         loading={useDemo ? false : wLoading}
+        retrying={useDemo ? false : wFetching}
         error={useDemo ? null : wError}
         intentStatusFilter={warRoomIntentFilter}
         onIntentStatusChange={setWarRoomIntentFilter}
@@ -171,7 +172,10 @@ export default function Today() {
 
       {!useDemo && mError && (
         <div className="error-msg" style={{ marginBottom: 12 }}>
-          無法載入最新指標（<code>/api/metrics/latest</code>）：{mError.message}
+          {effectiveMetrics ? "最新指標暫時未更新，保留上一筆成功資料顯示。" : "無法載入最新指標（首次載入失敗）。"}
+          <div style={{ marginTop: 6 }}>
+            <code>/api/metrics/latest</code>：{mError.message}
+          </div>
           <div style={{ marginTop: 8, fontSize: 12, opacity: 0.9 }}>
             請確認 FastAPI 已啟動、BigQuery 憑證就緒，並檢查 <code>VITE_API_URL</code>。
             若僅預覽 UI，可設 <code>VITE_GLASSBOX_MOCK=1</code>。
@@ -281,7 +285,7 @@ export default function Today() {
       )}
 
       <div className="section-header subtle">多空結構（OPEN）</div>
-      {(useDemo || (!oLoading && !oError)) && Array.isArray(effectiveOpen) && (
+      {(useDemo || (!oLoading && effectiveOpen)) && Array.isArray(effectiveOpen) && (
         <div
           style={{
             display: "flex",
@@ -308,10 +312,38 @@ export default function Today() {
           )}
         </div>
       )}
+      {!useDemo && oError ? (
+        <div className="error-msg" style={{ marginBottom: 12 }}>
+          {effectiveOpen ? "OPEN 部位暫時未更新，保留上一筆成功資料顯示。" : "無法載入 OPEN 部位。"}
+          <div style={{ marginTop: 6 }}>
+            <code>/api/positions/open</code>：{oError.message}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="war-room-retry"
+              disabled={oFetching}
+              onClick={() => oRefetch()}
+              style={{
+                fontSize: 12,
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--border)",
+                background: "var(--panel)",
+                color: "var(--text)",
+                cursor: oFetching ? "not-allowed" : "pointer",
+              }}
+            >
+              {oFetching ? "重試中…" : "重試持倉"}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {!useDemo && rError && (
         <div className="error-msg" style={{ marginBottom: 12 }}>
-          無法載入今日報告：{rError.message}
+          {effectiveReport ? "今日報告暫時未更新，保留上一筆成功資料顯示。" : "無法載入今日報告。"}
+          <div style={{ marginTop: 6 }}>{rError.message}</div>
           <div style={{ marginTop: 10 }}>
             <button
               type="button"
@@ -334,11 +366,11 @@ export default function Today() {
         </div>
       )}
 
-      {((!useDemo && !rLoading && !rError && report?.recommendations?.length > 0) ||
+      {((!useDemo && !rLoading && effectiveReport?.recommendations?.length > 0) ||
         (useDemo && effectiveReport?.recommendations?.length > 0)) && (
         <>
           <div className="section-header">💼 今日建議（QSREC）</div>
-          {(useDemo ? effectiveReport : report).recommendations.map((t, i) => (
+          {(useDemo ? effectiveReport : effectiveReport).recommendations.map((t, i) => (
             <TradeCard key={i} trade={t} />
           ))}
         </>
@@ -346,8 +378,7 @@ export default function Today() {
 
       {!useDemo &&
         !rLoading &&
-        !rError &&
-        (!report?.recommendations?.length || report.recommendations.length === 0) && (
+        !effectiveReport?.recommendations?.length && (
         <p className="page-subtitle" style={{ opacity: 0.75, marginTop: 8 }}>
           今日尚無 QSREC 建議或報告尚未寫入。
         </p>

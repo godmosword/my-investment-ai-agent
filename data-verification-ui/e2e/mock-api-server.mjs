@@ -1,6 +1,6 @@
 /**
  * Minimal mock API for Playwright (Bloomberg §6 cross-route price alignment).
- * BTC：預設 aligned；`?e2e_btc_misaligned=1`（與 snapshot／quote 同源）→ misaligned，供 Today 橫幅 E2E。
+ * BTC：預設 aligned；`?e2e_btc_misaligned=1` → misaligned；`?e2e_btc_alignment_na=1` → aligned=null。
  * SPY／NVDA：刻意 misaligned 供 Terminal 警告 E2E。
  */
 import http from "node:http";
@@ -101,6 +101,15 @@ const btcMisaligned = {
   rel_diff: Math.abs(BTC_QUOTE_LAST_MIS - BTC_OHLC_LAST_MIS) / BTC_OHLC_LAST_MIS,
   aligned: false,
   quote_error: null,
+};
+
+const btcAlignmentNa = {
+  ohlc_last_close: BTC_LAST,
+  quote_last: BTC_LAST,
+  abs_diff: null,
+  rel_diff: null,
+  aligned: null,
+  quote_error: "backend_unconfirmed",
 };
 
 const spyMisaligned = {
@@ -258,6 +267,7 @@ function structuredEnvelope(reportDate, profileResolved) {
 
 const snapshotBtc = baseSnapshot("BTC", BTC_LAST, btcAligned);
 const snapshotBtcMisaligned = baseSnapshot("BTC", BTC_OHLC_LAST_MIS, btcMisaligned);
+const snapshotBtcAlignmentNa = baseSnapshot("BTC", BTC_LAST, btcAlignmentNa);
 const snapshotSpy = baseSnapshot("SPY", SPY_OHLC_LAST, spyMisaligned);
 const snapshotNvda = baseSnapshot("NVDA", NVDA_OHLC_LAST, nvdaMisaligned);
 
@@ -329,9 +339,14 @@ const server = http.createServer((req, res) => {
   const snapMatch = url.pathname.match(/^\/api\/symbols\/([^/]+)\/snapshot$/);
   if (snapMatch) {
     const sym = snapMatch[1].toUpperCase();
+    if (url.searchParams.get("e2e_snapshot_fail") === "1") {
+      sendJson(res, 503, { detail: `snapshot unavailable for ${sym}` });
+      return;
+    }
     if (sym === "BTC") {
       const mis = url.searchParams.get("e2e_btc_misaligned") === "1";
-      sendJson(res, 200, mis ? snapshotBtcMisaligned : snapshotBtc);
+      const na = url.searchParams.get("e2e_btc_alignment_na") === "1";
+      sendJson(res, 200, na ? snapshotBtcAlignmentNa : mis ? snapshotBtcMisaligned : snapshotBtc);
       return;
     }
     if (sym === "SPY") {
@@ -348,6 +363,10 @@ const server = http.createServer((req, res) => {
   const quoteMatch = url.pathname.match(/^\/api\/symbols\/([^/]+)\/quote$/);
   if (quoteMatch) {
     const sym = quoteMatch[1].toUpperCase();
+    if (url.searchParams.get("e2e_quote_fail") === "1") {
+      sendJson(res, 503, { detail: `quote unavailable for ${sym}` });
+      return;
+    }
     if (sym === "BTC") {
       const mis = url.searchParams.get("e2e_btc_misaligned") === "1";
       sendJson(res, 200, quoteBody("BTC", mis ? BTC_QUOTE_LAST_MIS : BTC_LAST));

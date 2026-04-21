@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useSymbolQuote, useSymbolSnapshot } from "../hooks/useApi";
+import { isHardApiError, useSymbolQuote, useSymbolSnapshot } from "../hooks/useApi";
 import SymbolCandleChart from "./SymbolCandleChart";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 import AsOfChip from "./common/AsOfChip";
@@ -8,6 +8,18 @@ import ProvenancePopover from "./common/ProvenancePopover";
 function numberOrDash(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return "N/A";
   return Number(v).toFixed(digits);
+}
+
+function alignmentTone(alignment) {
+  if (!alignment) return { label: "對齊狀態：N/A", tone: "muted" };
+  if (alignment.aligned === true) return { label: "對齊狀態：一致", tone: "ok" };
+  if (alignment.aligned === false) return { label: "對齊警告：OHLC 與 quote 不一致", tone: "warn" };
+  return {
+    label: alignment.quote_error
+      ? `對齊狀態：N/A（${alignment.quote_error}）`
+      : "對齊狀態：N/A（後端未確認）",
+    tone: "muted",
+  };
 }
 
 export default function TerminalSymbolCard({
@@ -33,6 +45,13 @@ export default function TerminalSymbolCard({
   } = useSymbolQuote(symbol, { livePoll: true });
   const { symbol: focusSymbol, setSymbol: setGlobalFocus } = useSymbolFocus();
   const isFocused = focusSymbol === symbol.toUpperCase();
+  const hasSnapshot = Boolean(data);
+  const blockingSnapshotError = Boolean(error && !hasSnapshot);
+  const snapshotDegraded = Boolean(error && hasSnapshot);
+  const quoteDegraded = Boolean(quoteError);
+  const alignment = data?.price_alignment ?? null;
+  const alignmentUi = alignmentTone(alignment);
+  const quoteHardError = isHardApiError(quoteError);
 
   return (
     <div className="card terminal-card">
@@ -65,9 +84,9 @@ export default function TerminalSymbolCard({
         </div>
       </div>
 
-      {isLoading && <div className="loading">載入 {symbol} 快照中…</div>}
-      {error && (
-        <div className="error-msg">
+      {isLoading && !hasSnapshot && <div className="loading">載入 {symbol} 快照中…</div>}
+      {blockingSnapshotError && (
+        <div className="error-msg" data-testid={`terminal-snapshot-error-${symbol}`}>
           {symbol} 載入失敗（<code>/api/symbols/{symbol}/snapshot</code>）：{error.message}
           <div style={{ marginTop: 10 }}>
             <button
@@ -81,8 +100,31 @@ export default function TerminalSymbolCard({
           </div>
         </div>
       )}
+      {snapshotDegraded && (
+        <div
+          className="error-msg"
+          style={{ marginBottom: 10 }}
+          role="status"
+          data-testid={`terminal-snapshot-degraded-${symbol}`}
+        >
+          <strong>{symbol} 快照暫時未更新。</strong> 保留上一筆成功資料顯示；請以最新重試結果為準。
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.95 }}>
+            <code>/api/symbols/{symbol}/snapshot</code>：{error.message}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              className="terminal-btn terminal-btn--small"
+              disabled={isFetching}
+              onClick={() => refetchSnapshot()}
+            >
+              {isFetching ? "重試中…" : "重試快照"}
+            </button>
+          </div>
+        </div>
+      )}
 
-      {!isLoading && !error && data && (
+      {hasSnapshot && (
         <>
           <div style={{ marginBottom: 8 }}>
             <AsOfChip
@@ -93,7 +135,7 @@ export default function TerminalSymbolCard({
             />
           </div>
 
-          {data.price_alignment && data.price_alignment.aligned === false ? (
+          {alignment?.aligned === false ? (
             <div
               className="error-msg"
               style={{ marginBottom: 10, fontSize: 12 }}
@@ -101,11 +143,11 @@ export default function TerminalSymbolCard({
               data-testid={`terminal-price-mismatch-banner-${symbol}`}
             >
               <strong>價格對齊警告</strong>：日線 OHLC 尾端與 <code>/quote</code> 最新收盤不一致（相對差{" "}
-              {data.price_alignment.rel_diff != null
-                ? `${(Number(data.price_alignment.rel_diff) * 100).toFixed(3)}%`
+              {alignment.rel_diff != null
+                ? `${(Number(alignment.rel_diff) * 100).toFixed(3)}%`
                 : "N/A"}
               ）。請以「資料溯源」與後端 <code>price_alignment</code> 為準；圖表與 headline 數字可能不同步。
-              {data.price_alignment?.e2e_override ? (
+              {alignment?.e2e_override ? (
                 <span>
                   {" "}
                   （<code>E2E</code> 覆寫）
@@ -126,6 +168,36 @@ export default function TerminalSymbolCard({
                   </button>
                 </div>
               ) : null}
+            </div>
+          ) : null}
+          {alignment?.aligned !== false ? (
+            <div
+              className={alignmentUi.tone === "ok" ? "page-subtitle" : "page-subtitle"}
+              style={{
+                marginBottom: 10,
+                fontSize: 12,
+                color:
+                  alignmentUi.tone === "ok"
+                    ? "var(--green, #4ade80)"
+                    : "var(--muted)",
+              }}
+              data-testid={`terminal-price-alignment-status-${symbol}`}
+            >
+              {alignmentUi.label}。請以「資料溯源」與後端欄位為準。
+            </div>
+          ) : null}
+          {quoteDegraded ? (
+            <div
+              className="error-msg"
+              style={{ marginBottom: 10, fontSize: 12 }}
+              role="status"
+              data-testid={`terminal-quote-degraded-${symbol}`}
+            >
+              <strong>{symbol} quote 暫時未更新。</strong>{" "}
+              {quoteHardError ? "目前視為 hard error。" : "保留快照內容，稍後可再重試。"}
+              <div style={{ marginTop: 6 }}>
+                <code>/api/symbols/{symbol}/quote</code>：{quoteError.message}
+              </div>
             </div>
           ) : null}
 

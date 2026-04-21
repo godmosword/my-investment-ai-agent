@@ -22,6 +22,16 @@
 2. **`latest_metrics` 內數字**（如 MVRV、regime）**不**保證與 yfinance 價格同一時間戳；與 **價格線**並列時以 `data_provenance` 為準。  
 3. Playwright／staging 可用 **`PRICE_ALIGNMENT_E2E_OVERRIDES`** 強制不一致（見 [`ENV_TEMPLATE.txt`](../ENV_TEMPLATE.txt)），僅供測試 UI。
 
+### Terminal / Today 顯示規則（T1/T2 收斂）
+
+1. `TodayBtcSnapshotStrip` 與 `TerminalSymbolCard` 對 **`price_alignment`** 的判讀必須一致，且以前端自行推算為禁用：
+   - `aligned === true`：顯示「一致」。
+   - `aligned === false`：顯示 **mismatch banner**；不可靜默略過。
+   - `aligned === null` 或 `quote_error` 非空：顯示 **N/A / 後端未確認**；不可假定為一致。
+2. `GET …/quote` 失敗但 `snapshot` 成功時，前端必須保留既有快照內容（OHLC、事件、report links、provenance），只將 quote strip 標示為暫時失敗並提供 retry。
+3. `GET …/snapshot` 首次失敗可顯示 blocking error；若為背景 refetch 失敗且已有上一筆成功資料，前端應保留內容並顯示 degraded banner。
+4. **BigQuery KPI**（`latest_metrics`）與 **yfinance quote**（`/quote`）不可混寫成同一來源；若畫面同時展示，必須保留來源語意與 `data_provenance` 提示。
+
 ## Streamlit 區塊 ↔ 資料來源
 
 | UI 區塊 | 主要來源 | 更新頻率（預設） | 缺資料 |

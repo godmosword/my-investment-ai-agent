@@ -26,10 +26,19 @@ export default function TodayBtcSnapshotStrip() {
   } = useSymbolQuote("BTC", { livePoll: false });
 
   const loading = sLoading || qLoading;
-  const err = sErr || qErr;
+  const err = !snap && !quote ? (sErr || qErr) : null;
   const line = formatQuoteLast(quote);
   const aligned = snap?.price_alignment?.aligned === true;
   const misaligned = snap?.price_alignment?.aligned === false;
+  const alignmentUnknown = !aligned && !misaligned;
+  const alignmentLabel = misaligned
+    ? "對齊警告：OHLC 與 quote 不一致"
+    : aligned
+      ? "與 snapshot OHLC 尾端一致"
+      : snap?.price_alignment?.quote_error
+        ? `對齊狀態：N/A（${snap.price_alignment.quote_error}）`
+        : "對齊狀態：N/A（後端未確認）";
+  const hasAnyData = Boolean(snap || quote);
 
   return (
     <div
@@ -72,31 +81,29 @@ export default function TodayBtcSnapshotStrip() {
           </div>
         </div>
       )}
-      {!loading && !err && line && (
+      {!loading && hasAnyData && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "baseline" }}>
           <span style={{ color: "var(--muted)" }}>最新收盤（日線）</span>
           <span
             data-testid="today-btc-quote-last"
             style={{ fontFamily: "ui-monospace, monospace", fontWeight: 600, color: "var(--text)" }}
           >
-            {line}
+            {line ?? "N/A"}
           </span>
-          {aligned ? (
-            <span data-testid="today-btc-price-aligned" style={{ fontSize: 12, color: "var(--green, #4ade80)" }}>
-              與 snapshot OHLC 尾端一致
-            </span>
-          ) : misaligned ? (
-            <span
-              data-testid="today-btc-price-aligned"
-              style={{ fontSize: 12, color: "var(--red, #f87171)", fontWeight: 600 }}
-            >
-              對齊警告：OHLC 與 quote 不一致
-            </span>
-          ) : (
-            <span data-testid="today-btc-price-aligned" style={{ fontSize: 12, color: "var(--muted)" }}>
-              對齊狀態：N/A
-            </span>
-          )}
+          <span
+            data-testid="today-btc-price-aligned"
+            style={{
+              fontSize: 12,
+              color: misaligned
+                ? "var(--red, #f87171)"
+                : aligned
+                  ? "var(--green, #4ade80)"
+                  : "var(--muted)",
+              fontWeight: misaligned ? 600 : 400,
+            }}
+          >
+            {alignmentLabel}
+          </span>
           <button
             type="button"
             className="war-room-retry"
@@ -119,6 +126,16 @@ export default function TodayBtcSnapshotStrip() {
           </button>
         </div>
       )}
+      {!loading && hasAnyData && (sErr || qErr) ? (
+        <div
+          className="error-msg"
+          style={{ marginTop: 10, fontSize: 12 }}
+          role="status"
+          data-testid="today-btc-partial-data-banner"
+        >
+          BTC 即時對照暫時為局部資料：保留上一筆成功內容顯示，請以手動重試與後端欄位為準。
+        </div>
+      ) : null}
       {!loading && !err && misaligned ? (
         <div
           data-testid="today-btc-price-mismatch-banner"
@@ -127,6 +144,16 @@ export default function TodayBtcSnapshotStrip() {
           role="alert"
         >
           後端回報 <code>price_alignment.aligned=false</code>：請以 Terminal「資料溯源」與後端欄位為準，勿將 headline 數字與圖表尾端視為已自動對齊。
+        </div>
+      ) : null}
+      {!loading && !err && alignmentUnknown ? (
+        <div
+          data-testid="today-btc-price-alignment-na-banner"
+          className="error-msg"
+          style={{ marginTop: 10, fontSize: 12 }}
+          role="status"
+        >
+          後端尚未確認 <code>price_alignment</code>；目前僅能顯示 N/A，不應假定 Today headline 與 snapshot OHLC 已對齊。
         </div>
       ) : null}
     </div>

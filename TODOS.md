@@ -206,6 +206,8 @@
 **一句話**：先 **穩 UI／觀測（T1）**，再 **定口徑與測試（T2）**，再做 **互動與效能（T3）**；**推送（T4）** 規格早開、實作晚合；**日報閉環（T5）** 對齊契約後交錯落地。
 
 > **2026-04-14 進度備註（非 exhaustive）**：T1a／T1b／T1c、T2a／T2b／T2c、T3a／T3b／T3c 已有**可 review 初版**（見上「已交付摘要」列與 CHANGELOG）；**T4a 程式碼**已齊（**2026-04-15** CHANGELOG）；**T4b** 仍為事件語意草案（digest／排程須產品拍板）；**mock** 下已補 **NVDA** E2E；**2026-04-16** 補 **Today BTC `price_alignment` 分歧** Playwright（`today-btc-mismatch-banner`）；**實盤** 對照請跑 [`scripts/symbol_price_probe.py`](scripts/symbol_price_probe.py) 並可選 **`PRICE_PROBE_WRITE_BQ`** 寫入觀測表。
+>
+> **2026-04-21 更新**：**T1a** 已補齊「首次失敗 vs 背景 refetch 失敗」差異行為，Today／War Room／Terminal／ExecutionIntents 皆改為**已有成功資料時保留內容、只加 degraded banner + retry**；**T1c** mock API／Playwright 已擴到 **snapshot fail**／**quote fail**／**`aligned=null`**／**多 ticker 單卡失敗**；**T2b** Today BTC strip 與 Terminal 卡的 **`price_alignment`** 文案已收斂為 **一致 / mismatch / N/A（後端未確認）** 三態。後續主線集中在 **T1b / T2a / T2c** 的觀測與契約補齊。
 
 ---
 
