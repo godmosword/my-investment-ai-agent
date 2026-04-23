@@ -901,6 +901,45 @@ class CryptoSection(BaseModel):
         default_factory=list,
         description="CRYPTO category recommendations for QSREC JSON block.",
     )
+
+    @field_validator("qsrec", mode="before")
+    @classmethod
+    def _coerce_qsrec_category_to_crypto(cls, v: object) -> object:
+        """LLM occasionally assigns category=EQUITY inside the crypto section.
+
+        Auto-correct to CRYPTO and emit a warning so the gate never hard-blocks
+        due to this cross-section contamination. The correction is logged so
+        operators can identify prompt drift.
+        Handles both raw dicts (from JSON/LLM) and already-constructed TradeRecommendation objects.
+        """
+        if not isinstance(v, list):
+            return v
+        out: list[object] = []
+        for i, item in enumerate(v, start=1):
+            if isinstance(item, dict):
+                cat = str(item.get("category", "CRYPTO")).upper()
+                if cat != "CRYPTO":
+                    logger.warning(
+                        "CryptoSection.qsrec 第 %d 筆 category=%r 已自動修正為 CRYPTO",
+                        i,
+                        item.get("category"),
+                    )
+                    item = {**item, "category": "CRYPTO"}
+            elif hasattr(item, "model_dump"):
+                # Already a TradeRecommendation (or similar Pydantic model)
+                raw = item.model_dump()  # type: ignore[union-attr]
+                cat = str(raw.get("category", "CRYPTO")).upper()
+                if cat != "CRYPTO":
+                    logger.warning(
+                        "CryptoSection.qsrec 第 %d 筆 category=%r 已自動修正為 CRYPTO",
+                        i,
+                        raw.get("category"),
+                    )
+                    raw["category"] = "CRYPTO"
+                    item = raw
+            out.append(item)
+        return out
+
     crypto_block4_recommendation_line: str = Field(
         default="",
         description=(
@@ -1093,6 +1132,43 @@ class AISection(BaseModel):
         default_factory=list,
         description="EQUITY category rows for QSREC.",
     )
+
+    @field_validator("qsrec", mode="before")
+    @classmethod
+    def _coerce_qsrec_category_to_equity(cls, v: object) -> object:
+        """LLM occasionally assigns category=CRYPTO inside the AI/equity section.
+
+        Auto-correct to EQUITY and emit a warning so the gate never hard-blocks
+        due to this cross-section contamination.
+        Handles both raw dicts (from JSON/LLM) and already-constructed TradeRecommendation objects.
+        """
+        if not isinstance(v, list):
+            return v
+        out: list[object] = []
+        for i, item in enumerate(v, start=1):
+            if isinstance(item, dict):
+                cat = str(item.get("category", "EQUITY")).upper()
+                if cat != "EQUITY":
+                    logger.warning(
+                        "AISection.qsrec 第 %d 筆 category=%r 已自動修正為 EQUITY",
+                        i,
+                        item.get("category"),
+                    )
+                    item = {**item, "category": "EQUITY"}
+            elif hasattr(item, "model_dump"):
+                # Already a TradeRecommendation (or similar Pydantic model)
+                raw = item.model_dump()  # type: ignore[union-attr]
+                cat = str(raw.get("category", "EQUITY")).upper()
+                if cat != "EQUITY":
+                    logger.warning(
+                        "AISection.qsrec 第 %d 筆 category=%r 已自動修正為 EQUITY",
+                        i,
+                        raw.get("category"),
+                    )
+                    raw["category"] = "EQUITY"
+                    item = raw
+            out.append(item)
+        return out
 
     @model_validator(mode="after")
     def _warn_consensus_direction_mismatch(self) -> "AISection":

@@ -270,6 +270,75 @@ def _trade_rec_with_scores(
 
 
 @pytest.mark.smoke
+def test_crypto_section_qsrec_auto_coerces_equity_category_to_crypto():
+    """CryptoSection.qsrec 中 category=EQUITY 的條目應自動被修正為 CRYPTO（不崩潰）。"""
+    def _ni(idx: int) -> NewsItem:
+        return NewsItem(
+            index=idx,
+            timestamp_line="[04/23 09:00 UTC+8]",
+            title="h",
+            source_and_nature="s confirmed",
+            summary="s",
+            investment_takeaway="BTC 1%",
+            editor_consensus="BTC",
+        )
+
+    crypto = CryptoSection(
+        report_title_date="2026-04-23",
+        market=MarketRegimeBlock(regime="neutral"),
+        narrative_of_day="測試主敘事",
+        dashboard=[MetricLine(label="BTC", value="93000")],
+        news=[_ni(1), _ni(2), _ni(3)],
+        pick_reason="本日選擇理由測試字串長度需達三十四字以上才通過結構驗證門檻",
+        risk_budget_summary="neutral 模式下總風險預算百分之四十測試敘述",
+        signal_conflict_summary="多空平衡",
+        qsrec=[
+            # 第一筆正確 CRYPTO
+            _trade_rec_with_scores(asset="BTC", category="CRYPTO", regime="neutral"),
+            # 第二筆錯誤 EQUITY — 應被自動修正
+            _trade_rec_with_scores(asset="ETH", category="EQUITY", regime="neutral"),
+        ],
+    )
+    # 兩筆均應被修正為 CRYPTO
+    assert crypto.qsrec[0].category == "CRYPTO"
+    assert crypto.qsrec[1].category == "CRYPTO", (
+        "CryptoSection.qsrec 第 2 筆 category 應自動修正為 CRYPTO"
+    )
+
+
+@pytest.mark.smoke
+def test_ai_section_qsrec_auto_coerces_crypto_category_to_equity():
+    """AISection.qsrec 中 category=CRYPTO 的條目應自動被修正為 EQUITY（不崩潰）。"""
+    def _ni(idx: int) -> NewsItem:
+        return NewsItem(
+            index=idx,
+            timestamp_line="[04/23 10:00 UTC+8]",
+            title="h",
+            source_and_nature="s confirmed",
+            summary="s",
+            investment_takeaway="NVDA 2%",
+            editor_consensus="NVDA",
+        )
+
+    ai = AISection(
+        dashboard=[MetricLine(label="NVDA", value="800")],
+        news=[_ni(4), _ni(5), _ni(6)],
+        pick_reason="AI 本日選擇理由測試字串長度需達三十八個字元以上結構門檻驗證用",
+        signal_conflict_summary="多空平衡",
+        qsrec=[
+            # 正確 EQUITY
+            _trade_rec_with_scores(asset="NVDA", category="EQUITY", regime="neutral"),
+            # 錯誤 CRYPTO — 應被自動修正為 EQUITY
+            _trade_rec_with_scores(asset="MSFT", category="CRYPTO", regime="neutral"),
+        ],
+    )
+    assert ai.qsrec[0].category == "EQUITY"
+    assert ai.qsrec[1].category == "EQUITY", (
+        "AISection.qsrec 第 2 筆 category 應自動修正為 EQUITY"
+    )
+
+
+@pytest.mark.smoke
 def test_assemble_coerces_qsrec_regime_to_market_and_fixes_us_equity_note():
     long_crypto_reason = (
         "本日選擇理由測試字串長度需達三十四字以上才通過結構驗證門檻，"
