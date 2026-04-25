@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import bigquery
 
-from config import GATE_FAILURE_LOG_TABLE, PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE
+from config import GATE_FAILURE_LOG_TABLE, PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE, REVIEWER_LOG_TABLE
 from telegram_sender import strip_html
 
 logger = logging.getLogger(__name__)
@@ -737,3 +737,84 @@ def write_gate_failure_log(
         logger.warning("BigQuery credentials not configured (gate_failure_log skipped): %s", e)
     except Exception as e:
         logger.error("Failed to write gate_failure_log to BigQuery: %s", e)
+
+
+def write_reviewer_log(
+    *,
+    run_id: str,
+    profile: str | None,
+    track: str,
+    revision_count: int,
+    python_fail_reasons: list[str],
+    llm_fail_reasons: list[str],
+    degraded: bool,
+    final_trade_count: int,
+    total_latency_ms: int,
+    project_id: str = PROJECT_ID,
+) -> None:
+    """Write LangGraph reviewer loop outcome to BigQuery reviewer_log table.
+
+    Called by degrade_node (degraded=True) and optionally by llm_reviewer_node
+    on success (degraded=False) for quality trend monitoring.
+    Respects SKIP_BIGQUERY; silently skips on missing credentials.
+    """
+    if SKIP_BIGQUERY:
+        logger.info("SKIP_BIGQUERY=1 — skipping reviewer_log write.")
+        return
+
+    try:
+        active_profile = _resolve_profile_for_bq(explicit=profile)
+        client = bigquery.Client(project=project_id)
+        schema = [
+            bigquery.SchemaField("run_id", "STRING"),
+            bigquery.SchemaField("profile", "STRING"),
+            bigquery.SchemaField("track", "STRING"),
+            bigquery.SchemaField("revision_count", "INTEGER"),
+            bigquery.SchemaField("python_fail_reasons", "STRING"),
+            bigquery.SchemaField("llm_fail_reasons", "STRING"),
+            bigquery.SchemaField("degraded", "BOOL"),
+            bigquery.SchemaField("final_trade_count", "INTEGER"),
+            bigquery.SchemaField("total_latency_ms", "INTEGER"),
+            bigquery.SchemaField("created_at", "TIMESTAMP"),
+        ]
+        table_ref = bigquery.Table(REVIEWER_LOG_TABLE, schema=schema)
+        client.create_table(table_ref, exists_ok=True)
+
+        table = client.get_table(REVIEWER_LOG_TABLE)
+        existing_columns = {field.name for field in table.schema}
+        missing_fields = [f for f in schema if f.name not in existing_columns]
+        if missing_fields:
+            table.schema = list(table.schema) + missing_fields
+            client.update_table(table, ["schema"])
+            logger.info(
+                "Added missing reviewer_log columns: %s",
+                ", ".join(f.name for f in missing_fields),
+            )
+
+        row = {
+            "run_id": (run_id or "")[:64],
+            "profile": active_profile,
+            "track": (track or "")[:16],
+            "revision_count": int(revision_count),
+            "python_fail_reasons": json.dumps(python_fail_reasons or [], ensure_ascii=False)[:1024],
+            "llm_fail_reasons": json.dumps(llm_fail_reasons or [], ensure_ascii=False)[:1024],
+            "degraded": bool(degraded),
+            "final_trade_count": int(final_trade_count),
+            "total_latency_ms": int(total_latency_ms),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        errors = client.insert_rows_json(REVIEWER_LOG_TABLE, [row])
+        if errors:
+            logger.error("BigQuery reviewer_log insert errors: %s", errors)
+        else:
+            logger.info(
+                "reviewer_log written (run_id=%s, track=%s, revision=%d, degraded=%s).",
+                run_id,
+                track,
+                revision_count,
+                degraded,
+            )
+    except DefaultCredentialsError as e:
+        logger.warning("BigQuery credentials not configured (reviewer_log skipped): %s", e)
+    except Exception as e:
+        logger.error("Failed to write reviewer_log to BigQuery: %s", e)
