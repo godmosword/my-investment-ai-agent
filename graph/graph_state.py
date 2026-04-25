@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, NotRequired, TypedDict
 
 
 def merge_raw_data(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
@@ -35,3 +35,13 @@ class ResearchGraphState(TypedDict):
     needs_deep_dive: bool
     deep_dive_query: str
     final_report: dict[str, Any] | None
+
+    # ── Reviewer Loop (Phase 3.5) ─────────────────────────────────────────
+    # All fields are NotRequired for backward compatibility with existing tests.
+    graph_run_id: NotRequired[str]            # UUID per graph invocation; used in reviewer_log BQ
+    trade_candidates: NotRequired[list[dict[str, Any]]]   # snapshot of picker output pre-review
+    review_issues: NotRequired[list[dict[str, Any]]]      # current round failure reasons
+    revision_count: NotRequired[int]          # how many times picker was retried with feedback
+    review_history: NotRequired[list[dict[str, Any]]]     # per-round audit trail for BQ
+    trade_watch_final: NotRequired[list[dict[str, Any]]]  # approved trade list after review
+    degraded: NotRequired[bool]               # True if hard cap hit; trades retained with warning

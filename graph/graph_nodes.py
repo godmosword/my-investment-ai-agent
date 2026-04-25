@@ -136,6 +136,23 @@ class TradePickerOutput(BaseModel):
     intents: list[TradeIntent] = Field(default_factory=list)
 
 
+class ReviewerIssue(BaseModel):
+    """Single issue found by reviewer (slim schema — field + one-line reason)."""
+
+    field: str = Field(..., description="The trade field or dimension that failed, e.g. 'asset', 'direction'.")
+    reason: str = Field(..., description="One-line explanation of the failure.")
+
+
+class ReviewerVerdict(BaseModel):
+    """Slim reviewer verdict — only verdict + issues list, never a full rewrite."""
+
+    passed: bool = Field(..., description="True if no logical contradictions found.")
+    issues: list[ReviewerIssue] = Field(
+        default_factory=list,
+        description="Empty when passed=True; otherwise list of specific issues.",
+    )
+
+
 # ==========================================
 # LLM factory helpers (lazy import to avoid module-load side effects)
 # ==========================================
@@ -196,6 +213,47 @@ def _get_trade_picker_llm() -> Any:
 
 def _trade_picker_enabled() -> bool:
     return os.getenv("GRAPH_LLM_TRADE_PICKER", "0").lower() in ("1", "true", "yes")
+
+
+def _reviewer_enabled() -> bool:
+    """When GRAPH_LLM_REVIEWER=1, trade_picker output is validated before formatter."""
+    return os.getenv("GRAPH_LLM_REVIEWER", "0").lower() in ("1", "true", "yes")
+
+
+@lru_cache(maxsize=1)
+def _get_reviewer_llm() -> Any:
+    """Low-temperature LLM for strict reviewer verdict (singleton per process)."""
+    from langchain_openai import ChatOpenAI
+    from config import MODEL_GPT
+
+    return ChatOpenAI(
+        model=_strip_provider_prefix(MODEL_GPT),
+        temperature=0.1,
+        max_retries=2,
+    )
+
+
+# Well-known crypto tickers for tier-1 ticker existence check (no API required).
+_KNOWN_CRYPTO_TICKERS: frozenset[str] = frozenset({
+    "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK",
+    "MATIC", "POL", "UNI", "AAVE", "LTC", "BCH", "ATOM", "FIL", "ARB", "OP",
+    "INJ", "SUI", "APT", "NEAR", "FTM", "ALGO", "VET", "MANA", "SAND", "AXS",
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "WBTC", "STETH", "TON", "PEPE", "WIF",
+})
+
+
+def _is_known_ticker(asset: str) -> bool:
+    """True if ticker is in crypto whitelist OR equity universe (fail-open on import error)."""
+    ticker = asset.upper().strip().lstrip("$")
+    if not ticker:
+        return False
+    if ticker in _KNOWN_CRYPTO_TICKERS:
+        return True
+    try:
+        from assets_universe import equity_universe_merged
+        return ticker in equity_universe_merged()
+    except Exception:
+        return True  # fail-open: never block pipeline on universe import error
 
 
 def _safe_tool_run(tool_obj: Any, *args: Any, **kwargs: Any) -> Any:
@@ -810,15 +868,19 @@ def news_scraper_node(state: ResearchGraphState) -> dict[str, Any]:
 
 
 def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
-    """Use structured LLM output for trade intents; prices are materialized later."""
+    """Use structured LLM output for trade intents; prices are materialized later.
+
+    When called as a retry (review_issues non-empty), injects reviewer feedback
+    into the prompt so the LLM can self-correct.
+    """
     if not _trade_picker_enabled():
-        return {"proposed_trades": []}
+        return {"proposed_trades": [], "review_issues": []}
 
     agreed_regime = str(state.get("agreed_regime") or "")
     arbiter_summary = str(state.get("arbiter_summary") or "")
     regime_hint = f"{agreed_regime}\n{arbiter_summary}".lower().replace("-", "_")
     if "risk_off" in regime_hint:
-        return {"proposed_trades": []}
+        return {"proposed_trades": [], "review_issues": []}
 
     category = state.get("category", "CRYPTO")
     price_context = state.get("price_context", "")
@@ -826,8 +888,25 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
     news_titles = [str(item.get("title", "")).strip() for item in raw_news[:5] if str(item.get("title", "")).strip()]
     news_blob = "\n".join(f"- {title}" for title in news_titles) or "（無）"
 
+    # Inject reviewer feedback when retrying after validation failure.
+    prior_issues: list[dict[str, Any]] = list(state.get("review_issues") or [])
+    feedback_block = ""
+    if prior_issues:
+        lines = [f"  - [{i.get('field', '?')}] {i.get('reason', '?')}" for i in prior_issues[:5]]
+        feedback_block = "\n審查員反饋（請修正後重新輸出）：\n" + "\n".join(lines) + "\n"
+        revision_count = int(state.get("revision_count") or 0)
+        logger.info("trade_picker_node: retry revision_count=%d with feedback", revision_count)
+
     llm = _get_trade_picker_llm()
     structured_llm = llm.with_structured_output(TradePickerOutput)
+    human_template = (
+        "板塊：{category}\n"
+        "主編共識：{arbiter_summary}\n"
+        "市場模式：{agreed_regime}\n"
+        "系統報價上下文（僅供參考，禁止輸出價格）：\n{price_context}\n"
+        "新聞標題：\n{news_blob}\n"
+        "{feedback_block}"
+    )
     prompt = ChatPromptTemplate.from_messages(
         [
             (
@@ -837,14 +916,7 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
                 "star_rating 只能是 1 或 2。若訊號不足，回傳空陣列。"
                 + _GRAPH_CONTEXT_PRUNING_RULE,
             ),
-            (
-                "human",
-                "板塊：{category}\n"
-                "主編共識：{arbiter_summary}\n"
-                "市場模式：{agreed_regime}\n"
-                "系統報價上下文（僅供參考，禁止輸出價格）：\n{price_context}\n"
-                "新聞標題：\n{news_blob}\n",
-            ),
+            ("human", human_template),
         ]
     )
     try:
@@ -855,11 +927,12 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
                 "agreed_regime": agreed_regime or "neutral",
                 "price_context": price_context or "（無）",
                 "news_blob": news_blob,
+                "feedback_block": feedback_block,
             }
         )
     except Exception as exc:
         logger.warning("trade_picker_node failed, fallback to empty: %s", exc)
-        return {"proposed_trades": []}
+        return {"proposed_trades": [], "review_issues": []}
 
     intents = [intent.model_dump(mode="json") for intent in out.intents]
     append_execution_intents(
@@ -867,7 +940,204 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
         regime=agreed_regime,
         proposed_trades=intents,
     )
-    return {"proposed_trades": intents}
+    # Clear prior review_issues so routing starts fresh for this new picker output.
+    return {"proposed_trades": intents, "review_issues": []}
+
+
+def python_validate_node(state: ResearchGraphState) -> dict[str, Any]:
+    """Layer-1 deterministic validator for trade_picker output (no LLM, no token cost).
+
+    Five checks:
+      1. Required fields non-empty (asset, direction, star_rating, thesis_one_liner)
+      2. direction in {LONG, SHORT}
+      3. star_rating in {1, 2}
+      4. No duplicate tickers within the same trade_watch
+      5. Ticker existence in crypto whitelist or equity universe
+
+    When GRAPH_LLM_REVIEWER=0 (default), this node is a transparent pass-through.
+    """
+    proposed = list(state.get("proposed_trades") or [])
+    revision_count = int(state.get("revision_count") or 0)
+
+    if not _reviewer_enabled():
+        return {
+            "trade_candidates": proposed,
+            "review_issues": [],
+            "trade_watch_final": proposed,
+        }
+
+    if not proposed:
+        return {"trade_candidates": [], "review_issues": [], "trade_watch_final": []}
+
+    issues: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for trade in proposed:
+        asset = str(trade.get("asset", "")).upper().strip().lstrip("$")
+        direction = str(trade.get("direction", ""))
+        star_rating = trade.get("star_rating")
+        thesis = str(trade.get("thesis_one_liner", "")).strip()
+
+        if not asset:
+            issues.append({"field": "asset", "reason": "asset 欄位為空"})
+        if not thesis:
+            issues.append({"field": "thesis_one_liner", "reason": "thesis_one_liner 為空"})
+        if direction not in ("LONG", "SHORT"):
+            issues.append({"field": "direction", "reason": f"direction 無效：{direction!r}（須為 LONG 或 SHORT）"})
+        if not isinstance(star_rating, int) or star_rating not in (1, 2):
+            issues.append({"field": "star_rating", "reason": f"star_rating 須為 1 或 2，得到 {star_rating!r}"})
+        if asset:
+            if asset in seen:
+                issues.append({"field": "asset", "reason": f"重複標的 {asset!r}（trade_watch 不允許重複）"})
+            seen.add(asset)
+            if not _is_known_ticker(asset):
+                issues.append({"field": "asset", "reason": f"ticker {asset!r} 不在 crypto/equity universe 中（疑似幻覺）"})
+
+    if issues:
+        logger.warning(
+            "python_validate_node: %d issue(s) at revision_count=%d — %s",
+            len(issues),
+            revision_count,
+            issues[:3],
+        )
+        return {
+            "trade_candidates": proposed,
+            "review_issues": issues,
+            "revision_count": revision_count + 1,
+        }
+
+    logger.info("python_validate_node: all checks passed (revision_count=%d)", revision_count)
+    return {"trade_candidates": proposed, "review_issues": [], "trade_watch_final": proposed}
+
+
+def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
+    """Layer-2 LLM reviewer: catches narrative/logic contradictions Python cannot detect.
+
+    Checks:
+      1. thesis_one_liner direction vs trade direction consistency
+         (e.g. 「看空」thesis with LONG direction is a contradiction)
+      2. asset anti-hallucination: ticker should appear in news or raw_data context
+
+    When GRAPH_LLM_REVIEWER=0 or OPENAI_API_KEY missing, passes through transparently.
+    Fails open (passes) on any exception to prevent pipeline stall.
+    Uses slim ReviewerVerdict schema — only verdict + issues, never a full rewrite.
+    """
+    proposed = list(state.get("proposed_trades") or [])
+    revision_count = int(state.get("revision_count") or 0)
+
+    if not _reviewer_enabled():
+        return {"review_issues": [], "trade_watch_final": proposed}
+
+    if not proposed:
+        return {"review_issues": [], "trade_watch_final": []}
+
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        logger.info("llm_reviewer_node: OPENAI_API_KEY not set — pass-through")
+        return {"review_issues": [], "trade_watch_final": proposed}
+
+    raw_news = state.get("raw_news") or []
+    news_titles = [
+        str(item.get("title", "")).strip()
+        for item in raw_news[:8]
+        if str(item.get("title", "")).strip()
+    ]
+    raw_data_keys = list((state.get("raw_data") or {}).keys())[:10]
+    trade_lines = "\n".join(
+        f"- {t.get('asset')} ({t.get('direction')}) "
+        f"star={t.get('star_rating')} thesis={t.get('thesis_one_liner')}"
+        for t in proposed
+    )
+
+    prompt = ChatPromptTemplate.from_messages([
+        (
+            "system",
+            "你是交易意圖審查員。只檢查兩點，不做其他判斷：\n"
+            "1. thesis_one_liner 的敘述方向是否與 direction 一致"
+            "（含「看空」「空頭」「下跌」卻是 LONG，或含「看多」「做多」「上漲」卻是 SHORT，則為矛盾）。\n"
+            "2. asset 是否出現在新聞標題或資料鍵中（防止憑空 hallucination 的標的）。\n"
+            "若無矛盾：passed=true, issues=[]。\n"
+            "若有矛盾：passed=false 並列出具體 issues（field + reason，各一行）。\n"
+            "Slim schema only: passed (bool), issues (list of {field, reason}).",
+        ),
+        (
+            "human",
+            "Trade intents:\n{trade_lines}\n\n"
+            "News titles (anti-hallucination context):\n{news_titles}\n\n"
+            "Raw data keys available:\n{raw_data_keys}\n",
+        ),
+    ])
+
+    try:
+        llm = _get_reviewer_llm()
+        structured_llm = llm.with_structured_output(ReviewerVerdict)
+        verdict: ReviewerVerdict = (prompt | structured_llm).invoke({
+            "trade_lines": trade_lines or "（無）",
+            "news_titles": "\n".join(f"- {t}" for t in news_titles) or "（無）",
+            "raw_data_keys": ", ".join(raw_data_keys) or "（無）",
+        })
+    except Exception as exc:
+        logger.warning("llm_reviewer_node error — pass-through: %s", exc)
+        return {"review_issues": [], "trade_watch_final": proposed}
+
+    if verdict.passed:
+        logger.info("llm_reviewer_node: passed (revision_count=%d)", revision_count)
+        return {"review_issues": [], "trade_watch_final": proposed}
+
+    issues = [{"field": i.field, "reason": i.reason} for i in verdict.issues]
+    logger.warning(
+        "llm_reviewer_node: %d issue(s) at revision_count=%d — %s",
+        len(issues),
+        revision_count,
+        issues[:3],
+    )
+    return {"review_issues": issues, "revision_count": revision_count + 1}
+
+
+def degrade_node(state: ResearchGraphState) -> dict[str, Any]:
+    """Hard-cap fallback: retain last proposed_trades with degraded=True warning flag.
+
+    Strategy B from REVIEWER_LOOP_DESIGN.md: preserve information rather than
+    returning an empty trade list so users can judge the flagged output themselves.
+    Writes a reviewer_log entry to BigQuery (best-effort, non-blocking).
+    """
+    proposed = list(state.get("proposed_trades") or [])
+    review_issues = list(state.get("review_issues") or [])
+    revision_count = int(state.get("revision_count") or 0)
+
+    logger.warning(
+        "degrade_node: hard cap hit (revision_count=%d). "
+        "Retaining last trade output with degraded=True. Unresolved issues: %s",
+        revision_count,
+        review_issues[:3],
+    )
+    _write_reviewer_log_safe(state, degraded=True)
+    return {"degraded": True, "trade_watch_final": proposed}
+
+
+def _write_reviewer_log_safe(state: ResearchGraphState, *, degraded: bool) -> None:
+    """Best-effort BQ reviewer_log write; never raises (non-blocking)."""
+    try:
+        from bigquery_writer import write_reviewer_log  # lazy import avoids circular deps
+
+        review_issues = list(state.get("review_issues") or [])
+        run_id = str(state.get("graph_run_id") or "")
+        category = str(state.get("category") or "CRYPTO")
+        revision_count = int(state.get("revision_count") or 0)
+        trade_watch_final = list(state.get("trade_watch_final") or state.get("proposed_trades") or [])
+
+        write_reviewer_log(
+            run_id=run_id,
+            profile=None,
+            track=category.lower(),
+            revision_count=revision_count,
+            python_fail_reasons=[i.get("reason", "") for i in review_issues][:10],
+            llm_fail_reasons=[],
+            degraded=degraded,
+            final_trade_count=len(trade_watch_final),
+            total_latency_ms=0,
+        )
+    except Exception as exc:
+        logger.debug("_write_reviewer_log_safe skipped (non-blocking): %s", exc)
 
 
 def bull_agent_node(state: ResearchGraphState) -> dict[str, Any]:

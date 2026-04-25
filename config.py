@@ -23,6 +23,7 @@ RECOMMENDATIONS_TABLE = f"{PROJECT_ID}.market_data.trade_recommendations"
 PAPER_TRADE_TABLE = RECOMMENDATIONS_TABLE
 LLM_RUN_LOG_TABLE = f"{PROJECT_ID}.market_data.llm_run_log"
 GATE_FAILURE_LOG_TABLE = f"{PROJECT_ID}.market_data.gate_failure_log"
+REVIEWER_LOG_TABLE = f"{PROJECT_ID}.market_data.reviewer_log"
 # Web Push 持久化（T4a）：可選 BQ 表；見 docs/PWA_WEB_PUSH.md 與 `docs/SQL/web_push_subscriptions.sql`
 WEB_PUSH_SUBSCRIPTIONS_TABLE = os.getenv(
     "WEB_PUSH_SUBSCRIPTIONS_TABLE",
