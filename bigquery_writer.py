@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
 GATE_FAILURE_BQ_LOG = os.getenv("GATE_FAILURE_BQ_LOG", "1").lower() not in ("0", "false", "no")
+REVIEWER_LOG_BQ = os.getenv("REVIEWER_LOG_BQ", "1").lower() not in ("0", "false", "no")
 
 # ── 語義去重（Semantic Deduplication）──────────────────────────────────
 _SBERT_MODEL: object = None  # None=not loaded, False=unavailable, Model=ready
@@ -760,6 +761,8 @@ def write_reviewer_log(
     """
     if SKIP_BIGQUERY:
         logger.info("SKIP_BIGQUERY=1 — skipping reviewer_log write.")
+        return
+    if not REVIEWER_LOG_BQ:
         return
 
     try:

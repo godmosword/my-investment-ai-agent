@@ -27,6 +27,12 @@ class ResearchGraphState(TypedDict):
     raw_data: Annotated[dict[str, Any], merge_raw_data]
     raw_news: list[dict[str, Any]]
     proposed_trades: list[dict[str, Any]]
+    review_issues: list[str]
+    review_history: list[dict[str, Any]]
+    revision_count: int
+    review_passed: bool
+    degraded: bool
+    review_warnings: list[str]
     bull_arguments: list[str]
     bear_arguments: list[str]
     arbiter_summary: str

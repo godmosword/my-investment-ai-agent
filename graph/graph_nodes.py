@@ -216,8 +216,15 @@ def _trade_picker_enabled() -> bool:
 
 
 def _reviewer_enabled() -> bool:
-    """When GRAPH_LLM_REVIEWER=1, trade_picker output is validated before formatter."""
-    return os.getenv("GRAPH_LLM_REVIEWER", "0").lower() in ("1", "true", "yes")
+    """When enabled, trade_picker output is reviewed before formatter.
+
+    GRAPH_LLM_REVIEWER is the original flag; GRAPH_LLM_TRADE_REVIEWER is kept as
+    the explicit alias used in the architecture plan.
+    """
+    return (
+        os.getenv("GRAPH_LLM_REVIEWER", "0").lower() in ("1", "true", "yes")
+        or os.getenv("GRAPH_LLM_TRADE_REVIEWER", "0").lower() in ("1", "true", "yes")
+    )
 
 
 @lru_cache(maxsize=1)

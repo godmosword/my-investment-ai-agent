@@ -2,6 +2,8 @@
 
 > LangGraph Phase 3.5：`trade_picker_node` → `reviewer_node` 自動反思迴圈設計
 
+> **狀態（2026-04-21）**：第一版已落地於 `graph/`：`trade_picker → python_validate → llm_reviewer → retry/degrade → final_formatter`，並新增 `write_reviewer_log` 與 `docs/SQL/reviewer_log.sql`。實作保留設計紅線：Reviewer 只查 trade 邏輯，不取代 `validate_report`／Telegram HTML Gate。
+
 ---
 
 ## 設計原則
