@@ -1771,5 +1771,118 @@ class TestStrictInstitutionalPhaseAHtmlGate(unittest.TestCase):
         self.assertTrue(any("投資命題" in i or "免責" in i for i in issues))
 
 
+class TestDailyBriefReportMissingScoreFields(unittest.TestCase):
+    """Regression: DailyBriefReport must construct even when LLM omits score fields.
+
+    catalyst_score / flow_score / … are Optional in the schema. Score-field
+    completeness is a business-quality check owned by report_html_gates
+    (_strict_pick_scoring / STRICT_PICK_SCORING). The Pydantic model_validator
+    must NOT duplicate it as a hard block — that would crash the pipeline before
+    the gate layer can even report the issue gracefully.
+
+    Reproduces the 2026-04-27 production incident where missing catalyst_score
+    raised a ValidationError and triggered GATE_EXECUTION_FAILED / CRITICAL.
+    """
+
+    def _make_minimal_report_missing_scores(self) -> "DailyBriefReport":  # noqa: F821
+        from schemas import (
+            AISection,
+            CryptoSection,
+            DailyBriefReport,
+            MarketRegimeBlock,
+            MetricLine,
+            NewsItem,
+            TradeRecommendation,
+        )
+
+        def _ni(idx: int) -> NewsItem:
+            return NewsItem(
+                index=idx,
+                timestamp_line="[04/27 10:00 UTC+8]",
+                title=f"Headline {idx}",
+                source_and_nature="Source",
+                summary="Summary.",
+                investment_takeaway="BTC RSI 55.",
+                editor_consensus="Positive.",
+                pricing_note="大致已定價",
+            )
+
+        # Only selection_score provided; all other score fields are None.
+        qsrec = [
+            TradeRecommendation(
+                asset="BTC",
+                direction="LONG",
+                current_price=95000,
+                entry=94500,
+                target=100000,
+                stop=91000,
+                confidence=4,
+                category="CRYPTO",
+                narrative="ETF 流入延續偏多。",
+                trigger="突破前高",
+                invalidation="跌破支撐",
+                position_pct=5.0,
+                timeframe="3d",
+                bull_scenario="量能延續看 100k。",
+                base_scenario="區間震盪機率 50%。",
+                bear_scenario="跌破 91k 退場。",
+                selection_score=80.0,
+                # catalyst_score, flow_score, technical_score, risk_fit_score,
+                # execution_score, alt_candidate_score, score_gap all left as None
+            )
+        ]
+        crypto = CryptoSection(
+            report_title_date="2026-04-27",
+            market=MarketRegimeBlock(regime="risk_on"),
+            narrative_of_day="BTC 上漲",
+            dashboard=[MetricLine(label="BTC", value="$95000")],
+            news=[_ni(i) for i in range(1, 4)],
+            pick_reason="ETF 淨流入超過 12 億美元且鏈上 SOPR 回升，短期風險偏好延續",
+            risk_budget_summary="risk_on 模式下總倉位 15%",
+            signal_conflict_summary="無顯著衝突",
+            qsrec=qsrec,
+        )
+        ai_sec = AISection(
+            dashboard=[MetricLine(label="NVDA", value="$890")],
+            news=[_ni(i) for i in range(4, 7)],
+            pick_reason=(
+                "NVDA 財報前瞻與 GPU 拉貨動能見於主流媒體，資料中心 Capex 敘事強化，故優先佈局"
+            ),
+            signal_conflict_summary="無衝突",
+        )
+        return DailyBriefReport(crypto=crypto, ai=ai_sec)
+
+    def test_construction_succeeds_when_score_fields_missing(self):
+        """DailyBriefReport must not raise ValidationError when score fields are None."""
+        from pydantic import ValidationError as PydanticValidationError
+
+        try:
+            report = self._make_minimal_report_missing_scores()
+        except PydanticValidationError as exc:
+            self.fail(
+                f"DailyBriefReport raised ValidationError when score fields are None "
+                f"(regression: 2026-04-27 incident). Error: {exc}"
+            )
+        self.assertIsNone(report.crypto.qsrec[0].catalyst_score)
+
+    def test_validate_structured_report_no_score_issues(self):
+        """validate_structured_report must not flag missing score fields (HTML gate's job)."""
+        from schemas import validate_structured_report
+
+        report = self._make_minimal_report_missing_scores()
+        result = validate_structured_report(report)
+        score_issues = [
+            i for i in (result.get("issues") or [])
+            if "可量化評分欄位" in i
+        ]
+        self.assertEqual(
+            score_issues,
+            [],
+            "validate_structured_report should not report score-field issues; "
+            "that belongs to report_html_gates._strict_pick_scoring(). "
+            f"Found: {score_issues}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

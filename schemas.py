@@ -1323,18 +1323,11 @@ def _structured_business_issues(report: "DailyBriefReport") -> list[str]:
                     f"{label} 交易條目與 qsrec 方向不一致：{asset} leg={leg_map[asset]} qsrec={direction}"
                 )
 
-            for f in (
-                "selection_score",
-                "catalyst_score",
-                "flow_score",
-                "technical_score",
-                "risk_fit_score",
-                "execution_score",
-                "alt_candidate_score",
-                "score_gap",
-            ):
-                if getattr(rec, f) is None:
-                    issues.append(f"{label} qsrec 第 {idx} 筆缺少可量化評分欄位：{f}")
+            # Score-field completeness (catalyst_score, flow_score, …) is a
+            # business-quality check handled by report_html_gates._strict_pick_scoring().
+            # Do NOT duplicate it here: these fields are Optional in the schema,
+            # and blocking DailyBriefReport construction when the LLM omits one
+            # crashes the entire pipeline before the gate layer can even report it.
 
     for section_label, section in (("加密", cr), ("AI", ai_sec)):
         for leg in section.trade_legs:
