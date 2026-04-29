@@ -91,12 +91,12 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # NEWS_FRESHNESS_WINDOW_HOURS=36   # 預設 36h（與 crew 新聞新鮮度一致）；可改 48
 # NEWS_FRESHNESS_SOURCE_WHITELIST=FRED,IMF   # 行內含關鍵字則略過該則新鮮度檢查（逗號分隔，大小寫不敏感）
 # PIPELINE_REPORT_DATE=   # YYYY-MM-DD：新聞新鮮度以該日 HKT 23:59:59 為參考；並注入 crew exclusion 開頭
-# PREDICTION_MARKETS_IN_BRIEF=1  # 0=不在 assemble 注入【預測市場熱門】；預設 1（Polymarket Gamma 公開 API，無金鑰）
+# PREDICTION_MARKETS_IN_BRIEF=0  # 1=在 assemble 注入【預測市場熱門】；預設 0（Polymarket Gamma 公開 API，無金鑰，手動研究／staging 用）
 # PREDICTION_MARKETS_TAG_IDS=   # 逗號分隔 Gamma tag_id（GET https://gamma-api.polymarket.com/tags 查可用標籤）；可縮小主題至政治／總經等
 # PREDICTION_MARKETS_EXCLUDE_TAG_IDS=  # 逗號分隔要排除的 tag_id（請求僅帶第一個 exclude_tag_id）
 # PREDICTION_MARKETS_KEYWORDS=   # 逗號分隔：題目含關鍵字優先；不足 3 條再併全域成交量
 # PREDICTION_MARKETS_DENYLIST=nba,nfl,rebounds,assists,touchdown
-# EARNINGS_FOCUS_MODE=0   # 1 或 auto：當錨定日（PIPELINE_REPORT_DATE 或當日 UTC）有 watchlist 美股 yfinance 財報日曆命中時，於 exclusion 注入【財報聚焦日】（含盤前／盤後敘述規則）並要求 AI 段 financial_datasets_tool(TICKER:quarterly) 與財報主線新聞（見 earnings_focus.py）。錨定日為**週五／週六／週日**時，**無論本開關**，皆會注入【下週財報預告】（下一完整曆週 Mon–Sun）。
+# EARNINGS_FOCUS_MODE=0   # 1 或 auto：當錨定日（PIPELINE_REPORT_DATE 或當日 UTC）有 watchlist 美股 yfinance 財報日曆命中時，於 exclusion 注入【財報聚焦日】（含盤前／盤後敘述規則）並要求 AI 段 financial_datasets_tool(TICKER:quarterly) 與財報主線新聞（見 earnings_focus.py）。錨定日為**週五／週六／週日**時，**無論本開關**，皆會注入【下週財報預告】（下一完整曆週 Mon–Sun）。讀者版 AI 儀表板另由 pipeline 產生【財報雷達｜未來 7 天】事件預告；不含 EPS／營收共識 forecast。
 # REPORT_COMPARE_MODE=0   # Phase 3：1=每次 validate 後額外跑候選路徑並 log 差異（不切 Telegram/BQ 決策）
 # USE_LANGGRAPH_ENGINE=0  # Phase 3：1=啟用 LangGraph 狀態機（預設 0 走既有 CrewAI）
 # GRAPH_ENABLE_TOOL_CALLS=1  # LangGraph 節點是否呼叫工具；測試可設 0

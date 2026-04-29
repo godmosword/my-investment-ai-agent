@@ -199,6 +199,8 @@ def _flatten_brief_text_for_na_gate(crypto: CryptoSection, ai: AISection) -> str
         parts.append(line)
     for line in ai.macro_bridge_lines:
         parts.append(line)
+    for line in getattr(ai, "earnings_event_lines", []) or []:
+        parts.append(line)
     parts.extend(
         (
             crypto.narrative_of_day,
@@ -1335,6 +1337,59 @@ def _fix_chatter_unconfirmed(items: list) -> list:
     return out
 
 
+def _normalize_overlap_key(text: object) -> str:
+    return re.sub(r"[\s　，。；、｜|:：()（）《》【】\[\]<>]+", "", str(text or "")).lower()
+
+
+def _filter_incremental_highlights(highlights: list[str], *, evidence: str) -> list[str]:
+    """Drop exact or near-exact theme highlights already present in dashboard/news/trades."""
+    evidence_key = _normalize_overlap_key(evidence)
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in highlights or []:
+        line = str(raw or "").strip()
+        if not line:
+            continue
+        key = _normalize_overlap_key(line)
+        if not key or key in seen:
+            continue
+        if key in evidence_key:
+            continue
+        seen.add(key)
+        out.append(line)
+    return out
+
+
+def _dedupe_theme_highlights(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
+    """Keep 區塊②b only for incremental synthesis, not repeated dashboard/news sentences."""
+    crypto_evidence_parts: list[str] = []
+    ai_evidence_parts: list[str] = []
+    for row in crypto.dashboard or []:
+        crypto_evidence_parts.extend((row.label, row.value))
+    for row in ai.dashboard or []:
+        ai_evidence_parts.extend((row.label, row.value))
+    for n in crypto.news or []:
+        crypto_evidence_parts.extend((n.title, n.summary, n.investment_takeaway, n.editor_consensus))
+    for n in ai.news or []:
+        ai_evidence_parts.extend((n.title, n.summary, n.investment_takeaway, n.editor_consensus))
+    crypto_evidence_parts.extend((crypto.pick_reason, crypto.signal_conflict_summary))
+    ai_evidence_parts.extend((ai.pick_reason, ai.signal_conflict_summary))
+
+    new_crypto = _filter_incremental_highlights(
+        list(crypto.x_highlights or []),
+        evidence="\n".join(str(x or "") for x in crypto_evidence_parts),
+    )
+    new_ai = _filter_incremental_highlights(
+        list(ai.x_highlights or []),
+        evidence="\n".join(str(x or "") for x in ai_evidence_parts),
+    )
+    if new_crypto != list(crypto.x_highlights or []):
+        crypto = crypto.model_copy(update={"x_highlights": new_crypto})
+    if new_ai != list(ai.x_highlights or []):
+        ai = ai.model_copy(update={"x_highlights": new_ai})
+    return crypto, ai
+
+
 def _postprocess_brief_data_hygiene(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
     """Assembly-time fixes: halving calendar scrub, scenario bullets, VIX wording, FD dedupe, news bleed."""
     report_day = _parse_report_title_date_iso(crypto.report_title_date)
@@ -1397,6 +1452,8 @@ def _postprocess_brief_data_hygiene(crypto: CryptoSection, ai: AISection) -> tup
     new_ch_cr = _fix_chatter_unconfirmed(list(crypto.chatter or []))
     if new_ch_cr != list(crypto.chatter or []):
         crypto = crypto.model_copy(update={"chatter": new_ch_cr})
+
+    crypto, ai = _dedupe_theme_highlights(crypto, ai)
 
     return crypto, ai
 
@@ -1483,7 +1540,19 @@ _SECTION_TITLES: dict[str, str] = {
     "tech": "價格與技術結構",
     "other": "其他讀數",
 }
-_SECTION_TITLE_LABELS: frozenset[str] = frozenset(_SECTION_TITLES.values())
+_AI_SECTION_TITLES: dict[str, str] = {
+    "tradeable": "可交易市場",
+    "fundamental": "基本面／財報錨點",
+    "demand": "需求代理",
+}
+_SECTION_TITLE_LABELS: frozenset[str] = frozenset(
+    [*_SECTION_TITLES.values(), *_AI_SECTION_TITLES.values()]
+)
+_AI_BENCHMARK_SYMBOLS: frozenset[str] = frozenset({"SMH", "SOXX", "SPY"})
+_MOMENTUM_ROW_RE = re.compile(
+    r"MODEL|HUGGINGFACE|OPENROUTER|下載|按讚|模型|熱度|RSS|REQUEST|RANK",
+    re.IGNORECASE,
+)
 
 
 def _strip_llm_dashboard_section_placeholder_rows(rows: list[MetricLine]) -> list[MetricLine]:
@@ -1532,6 +1601,52 @@ def _dashboard_row_bucket(row: MetricLine) -> str:
     return "other"
 
 
+def _row_text(row: MetricLine) -> str:
+    return f"{row.label or ''} {row.value or ''}".strip()
+
+
+def _row_mentions_listed_equity(text: str) -> bool:
+    candidates = set(equity_universe_merged()) | set(_AI_BENCHMARK_SYMBOLS)
+    upper = text.upper()
+    return any(re.search(rf"(?<![A-Z0-9]){re.escape(sym)}(?![A-Z0-9])", upper) for sym in candidates)
+
+
+def _is_ai_momentum_row(row: MetricLine) -> bool:
+    return bool(_MOMENTUM_ROW_RE.search(_row_text(row)))
+
+
+def _prune_ai_dashboard_momentum_rows(rows: list[MetricLine]) -> list[MetricLine]:
+    """Keep model heat as at most one demand proxy, and only when linked to a listed ticker."""
+    out: list[MetricLine] = []
+    kept_momentum = False
+    for row in rows or []:
+        if getattr(row, "is_section_header", False):
+            out.append(row)
+            continue
+        if not _is_ai_momentum_row(row):
+            out.append(row)
+            continue
+        text = _row_text(row)
+        if kept_momentum or not _row_mentions_listed_equity(text):
+            continue
+        kept_momentum = True
+        out.append(row)
+    return out
+
+
+def _ai_dashboard_row_bucket(row: MetricLine) -> str:
+    if getattr(row, "is_section_header", False):
+        return ""
+    blob = _row_text(row).upper()
+    if "FINANCIALDATASETS" in blob or "財報" in blob or "營收" in blob or "FCF" in blob:
+        return "fundamental"
+    if _is_ai_momentum_row(row):
+        return "demand"
+    if "YFINANCE" in blob or _row_mentions_listed_equity(blob):
+        return "tradeable"
+    return "demand"
+
+
 def _inject_dashboard_section_groups(rows: list[MetricLine]) -> list[MetricLine]:
     """Insert MetricLine section headers (is_section_header) for IB-style grouping."""
     rows = _strip_llm_dashboard_section_placeholder_rows(rows)
@@ -1553,6 +1668,31 @@ def _inject_dashboard_section_groups(rows: list[MetricLine]) -> list[MetricLine]
                 )
             )
         out.append(row)
+    return _dedupe_consecutive_section_headers(out)
+
+
+def _inject_ai_dashboard_section_groups(rows: list[MetricLine]) -> list[MetricLine]:
+    """Insert AI-specific investor radar headers: tradeable, fundamentals, demand proxy."""
+    rows = _strip_llm_dashboard_section_placeholder_rows(_prune_ai_dashboard_momentum_rows(rows))
+    buckets: dict[str, list[MetricLine]] = {k: [] for k in _AI_SECTION_TITLES}
+    for row in rows:
+        if getattr(row, "is_section_header", False):
+            continue
+        b = _ai_dashboard_row_bucket(row)
+        buckets[b].append(row)
+
+    out: list[MetricLine] = []
+    for b in ("tradeable", "fundamental", "demand"):
+        if not buckets[b]:
+            continue
+        out.append(
+            MetricLine(
+                label=_AI_SECTION_TITLES[b],
+                value=" ",
+                is_section_header=True,
+            )
+        )
+        out.extend(buckets[b])
     return _dedupe_consecutive_section_headers(out)
 
 
@@ -1640,9 +1780,15 @@ def _ai_recommendation_summary_line(ai: AISection, regime: str) -> str:
     return f"<b>美股部位摘要</b>：<code>{blob}</code>｜<b>Regime</b>：<code>{r}</code>{cap_part}{risk_part}"
 
 
+def _prediction_markets_in_brief_enabled() -> bool:
+    return os.getenv("PREDICTION_MARKETS_IN_BRIEF", "").strip().lower() in ("1", "true", "yes")
+
+
 def _inject_prediction_market_highlights(crypto: CryptoSection) -> CryptoSection:
     """Fill prediction_market_highlight_lines from Polymarket API when empty or sparse."""
-    if os.getenv("PREDICTION_MARKETS_IN_BRIEF", "1").lower() in ("0", "false", "no"):
+    if not _prediction_markets_in_brief_enabled():
+        if crypto.prediction_market_highlight_lines:
+            return crypto.model_copy(update={"prediction_market_highlight_lines": []})
         return crypto
     existing = [str(x).strip() for x in (crypto.prediction_market_highlight_lines or []) if str(x).strip()]
     if len(existing) >= 3:
@@ -1659,13 +1805,52 @@ def _inject_prediction_market_highlights(crypto: CryptoSection) -> CryptoSection
     return crypto.model_copy(update={"prediction_market_highlight_lines": lines})
 
 
+def build_earnings_event_radar_lines(*, limit: int = 8) -> list[str]:
+    """Future 7-day earnings event radar from yfinance calendar only; no estimates."""
+    try:
+        from earnings_watchlist import (  # noqa: PLC0415
+            MEGA_CAP_TECH_EARNINGS_TICKERS,
+            pipeline_anchor_date,
+            tickers_with_earnings_between,
+        )
+    except Exception as exc:
+        logger.warning("earnings radar skipped: import failed: %s", exc)
+        return []
+    try:
+        start = pipeline_anchor_date()
+        end = start + timedelta(days=7)
+        pairs = tickers_with_earnings_between(MEGA_CAP_TECH_EARNINGS_TICKERS, start, end)
+    except Exception as exc:
+        logger.warning("earnings radar skipped: calendar fetch failed: %s", exc)
+        return []
+
+    lines: list[str] = []
+    for sym, event_date in pairs[: max(0, limit)]:
+        if event_date == start:
+            status = "今日財報日"
+        else:
+            status = "未來7天財報日"
+        lines.append(f"{event_date.strftime('%m/%d')} {sym}｜狀態：{status}｜來源：yfinance")
+    return lines
+
+
+def _ensure_earnings_event_lines(ai: AISection) -> AISection:
+    existing = [str(x).strip() for x in (ai.earnings_event_lines or []) if str(x).strip()]
+    if existing:
+        return ai.model_copy(update={"earnings_event_lines": existing})
+    lines = build_earnings_event_radar_lines()
+    if not lines:
+        return ai
+    return ai.model_copy(update={"earnings_event_lines": lines})
+
+
 def instrument_sections_for_ib_layout(crypto: CryptoSection, ai: AISection) -> tuple[CryptoSection, AISection]:
     """投行式排版：儀表板分區、區塊④一行摘要；不重排四大區塊順序。"""
     cr = crypto.model_copy(
         update={"dashboard": _inject_dashboard_section_groups(list(crypto.dashboard or []))}
     )
     ai_new = ai.model_copy(
-        update={"dashboard": _inject_dashboard_section_groups(list(ai.dashboard or []))}
+        update={"dashboard": _inject_ai_dashboard_section_groups(list(ai.dashboard or []))}
     )
     cr = cr.model_copy(
         update={"crypto_block4_recommendation_line": _crypto_recommendation_summary_line(cr)}
@@ -1857,6 +2042,7 @@ def assemble_daily_brief_report(
     report_tier_partial_news: bool,
     agreed_regime: str | None = None,
     current_affairs_roundtable: CurrentAffairsRoundtable | None = None,
+    inject_earnings_radar: bool = False,
 ) -> DailyBriefReport:
     crypto, ai = _coerce_sections_for_gate(crypto, ai, agreed_regime=agreed_regime)
     crypto, ai = _coerce_qsrec_regimes_to_market(crypto, ai)
@@ -1866,6 +2052,8 @@ def assemble_daily_brief_report(
     crypto = _sync_dashboard_btc_rsi_with_scorecard(crypto)
     crypto = _normalize_btc_ma_citations_from_dashboard(crypto)
     crypto = _ensure_crypto_liquidation_fallback_note(crypto)
+    if inject_earnings_radar:
+        ai = _ensure_earnings_event_lines(ai)
     crypto, ai = _postprocess_brief_data_hygiene(crypto, ai)
     crypto = _apply_gspc_anchor_to_equity_framing(crypto)
     crypto, ai = _coerce_trade_leg_position_pcts(crypto, ai)

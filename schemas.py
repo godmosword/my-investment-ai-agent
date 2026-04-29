@@ -1050,7 +1050,17 @@ class AISection(BaseModel):
     )
     dashboard: list[MetricLine] = Field(
         ...,
-        description="AI block ① metrics (model momentum etc.).",
+        description=(
+            "AI block ① metrics. Investor-facing order: 可交易市場, 基本面／財報錨點, "
+            "需求代理; model momentum is optional narrative support, not a price signal."
+        ),
+    )
+    earnings_event_lines: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Pipeline-filled deterministic 【財報雷達｜未來 7 天】 lines. "
+            "Use yfinance earnings calendar only; no EPS/revenue consensus forecast unless separately sourced."
+        ),
     )
     news: list[NewsItem] = Field(
         default_factory=list,

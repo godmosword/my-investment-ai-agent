@@ -52,6 +52,44 @@ def _patch_dual_crew_pool() -> patch:
     return patch.object(concurrent.futures, "ThreadPoolExecutor", _ThreadPoolExecutorSelective)
 
 
+class _FakeTool:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        self.calls += 1
+        return "ok"
+
+
+def test_prewarm_skips_prediction_markets_unless_enabled(monkeypatch):
+    import main as main_mod
+    import tools
+
+    tool_names = [
+        "coinglass_data_tool",
+        "fear_greed_tool",
+        "etf_flow_tool",
+        "econ_calendar_tool",
+        "onchain_metrics_tool",
+        "ml_quant_tool",
+        "regime_scorecard_tool",
+        "macro_context_tool",
+        "financial_datasets_tool",
+        "prediction_markets_tool",
+    ]
+    fakes = {name: _FakeTool() for name in tool_names}
+    for name, fake in fakes.items():
+        monkeypatch.setattr(tools, name, fake)
+
+    monkeypatch.delenv("PREDICTION_MARKETS_IN_BRIEF", raising=False)
+    main_mod._prewarm_tool_caches()
+    assert fakes["prediction_markets_tool"].calls == 0
+
+    monkeypatch.setenv("PREDICTION_MARKETS_IN_BRIEF", "1")
+    main_mod._prewarm_tool_caches()
+    assert fakes["prediction_markets_tool"].calls == 1
+
+
 @patch.dict(os.environ, {"SKIP_BIGQUERY": "1"}, clear=False)
 @patch("main.get_recent_lessons", return_value="{}")
 @patch("tools.regime_scorecard_tool")

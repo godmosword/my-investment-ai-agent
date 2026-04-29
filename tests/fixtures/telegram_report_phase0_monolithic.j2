@@ -120,6 +120,13 @@
 · <b>{{ row.label|tg_escape }}</b> <code>{{ row.value|tg_escape }}</code>
 {% endif %}
 {% endfor %}
+{% if ai.earnings_event_lines %}
+
+<b>【財報雷達｜未來 7 天】</b>
+{% for line in ai.earnings_event_lines %}
+· {{ line|tg_escape }}
+{% endfor %}
+{% endif %}
 
 <b>區塊②</b>【AI 產業新聞】
 {% for n in ai.news %}

@@ -513,7 +513,6 @@ def _prewarm_tool_caches() -> None:
         regime_scorecard_tool,
         macro_context_tool,
         financial_datasets_tool,
-        prediction_markets_tool,
     )
 
     # 定義所有獨立的 tool 呼叫（無互相依賴）
@@ -530,8 +529,11 @@ def _prewarm_tool_caches() -> None:
         "regime_scorecard":       lambda: regime_scorecard_tool.run(),
         "macro_context":          lambda: macro_context_tool.run(),
         "financial_datasets":     lambda: financial_datasets_tool.run("watchlist"),
-        "prediction_markets":     lambda: prediction_markets_tool.run(),
     }
+    if os.getenv("PREDICTION_MARKETS_IN_BRIEF", "").strip().lower() in ("1", "true", "yes"):
+        from tools import prediction_markets_tool  # noqa: PLC0415
+
+        tasks["prediction_markets"] = lambda: prediction_markets_tool.run()
 
     logger.info("Pre-warming %d tool caches in parallel...", len(tasks))
     t0 = time.time()
@@ -774,6 +776,7 @@ def _run_pipeline_once(
             report_tier_partial_news=partial_tier,
             agreed_regime=agreed_regime,
             current_affairs_roundtable=_rt,
+            inject_earnings_radar=True,
         )
         html = render_telegram_daily_brief(report_model, profile=get_active_profile())
         html = post_process_html_for_gate(html, agreed_regime=agreed_regime)

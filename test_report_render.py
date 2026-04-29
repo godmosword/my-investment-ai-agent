@@ -1,6 +1,7 @@
 """Smoke for Jinja Telegram render + structured validation."""
 
 import os
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -779,6 +780,244 @@ def test_render_contains_qsrec_and_passes_structured_gate():
     with patch.dict(os.environ, {"STRICT_NEWS_FRESHNESS_GATE": "0"}, clear=False):
         vhtml = validate_report(html)
     assert vhtml["valid"], vhtml["issues"]
+
+
+def test_prediction_markets_disabled_by_default_clears_existing_and_skips_fetch(monkeypatch):
+    monkeypatch.delenv("PREDICTION_MARKETS_IN_BRIEF", raising=False)
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="risk_on", score_suffix="（+4/6）"),
+        narrative_of_day="主敘事一句測試",
+        macro_framework_lines=["宏觀一行"],
+        prediction_market_highlight_lines=["Polymarket Yes≈50.0%｜24h量≈$1.0M｜Old"],
+        dashboard=[MetricLine(label="DXY", value="104")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="現貨 ETF 淨流入與交易所淨流出同向，新聞面以 BTC 催化最集中",
+        risk_budget_summary="今日風險預算：regime=risk_on 總曝險 60%",
+        signal_conflict_summary="無顯著衝突。",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="NVDA yfinance", value="$100")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="NVDA 具備資料中心 CAPEX 與 GPU 拉貨能見度，財報前瞻形成共振",
+        signal_conflict_summary="無顯著衝突。",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    with patch("tools_legacy.fetch_polymarket_hot_highlight_lines") as fetch_mock:
+        report = assemble_daily_brief_report(
+            crypto,
+            ai,
+            previous_recs_html="",
+            source_observability_block="",
+            report_tier_partial_news=False,
+        )
+    fetch_mock.assert_not_called()
+    html = render_telegram_daily_brief(report)
+    assert "【預測市場熱門】" not in html
+    assert report.crypto.prediction_market_highlight_lines == []
+
+
+def test_prediction_markets_enabled_injects_mocked_lines(monkeypatch):
+    monkeypatch.setenv("PREDICTION_MARKETS_IN_BRIEF", "1")
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="risk_on", score_suffix="（+4/6）"),
+        narrative_of_day="主敘事一句測試",
+        macro_framework_lines=["宏觀一行"],
+        dashboard=[MetricLine(label="DXY", value="104")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="現貨 ETF 淨流入與交易所淨流出同向，新聞面以 BTC 催化最集中",
+        risk_budget_summary="今日風險預算：regime=risk_on 總曝險 60%",
+        signal_conflict_summary="無顯著衝突。",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="NVDA yfinance", value="$100")],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="NVDA 具備資料中心 CAPEX 與 GPU 拉貨能見度，財報前瞻形成共振",
+        signal_conflict_summary="無顯著衝突。",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    lines = [
+        "Polymarket Yes≈40.0%｜24h量≈$2.0M｜Will CPI surprise?",
+        "Polymarket Yes≈45.0%｜24h量≈$1.5M｜Will Fed cut?",
+        "Polymarket Yes≈55.0%｜24h量≈$1.0M｜Will BTC ETF inflow?",
+    ]
+    with patch("tools_legacy.fetch_polymarket_hot_highlight_lines", return_value=lines) as fetch_mock:
+        report = assemble_daily_brief_report(
+            crypto,
+            ai,
+            previous_recs_html="",
+            source_observability_block="",
+            report_tier_partial_news=False,
+        )
+    fetch_mock.assert_called_once()
+    html = render_telegram_daily_brief(report)
+    assert "【預測市場熱門】" in html
+    assert "Will CPI surprise?" in html
+
+
+def test_earnings_event_radar_lines_no_events(monkeypatch):
+    import earnings_watchlist
+    from report_render import build_earnings_event_radar_lines
+
+    monkeypatch.setattr(earnings_watchlist, "pipeline_anchor_date", lambda: date(2026, 4, 29))
+    monkeypatch.setattr(earnings_watchlist, "tickers_with_earnings_between", lambda *_a, **_k: [])
+    assert build_earnings_event_radar_lines() == []
+
+
+def test_earnings_event_radar_lines_sorted_and_capped(monkeypatch):
+    import earnings_watchlist
+    from report_render import build_earnings_event_radar_lines
+
+    monkeypatch.setattr(earnings_watchlist, "pipeline_anchor_date", lambda: date(2026, 4, 29))
+    pairs = [
+        ("MSFT", date(2026, 4, 29)),
+        ("AAPL", date(2026, 4, 30)),
+        ("NVDA", date(2026, 5, 1)),
+    ]
+    monkeypatch.setattr(earnings_watchlist, "tickers_with_earnings_between", lambda *_a, **_k: pairs)
+    lines = build_earnings_event_radar_lines(limit=2)
+    assert lines == [
+        "04/29 MSFT｜狀態：今日財報日｜來源：yfinance",
+        "04/30 AAPL｜狀態：未來7天財報日｜來源：yfinance",
+    ]
+
+
+def test_earnings_event_radar_renders_when_injected(monkeypatch):
+    import report_render
+
+    monkeypatch.setattr(
+        report_render,
+        "build_earnings_event_radar_lines",
+        lambda: ["04/29 MSFT｜狀態：今日財報日｜來源：yfinance"],
+    )
+    report = assemble_daily_brief_report(
+        CryptoSection(
+            report_title_date="2025-03-22",
+            market=MarketRegimeBlock(regime="risk_on", score_suffix="（+4/6）"),
+            narrative_of_day="主敘事一句測試",
+            macro_framework_lines=["宏觀一行"],
+            dashboard=[MetricLine(label="DXY", value="104")],
+            news=_sample_news_crypto(),
+            chatter=[],
+            pick_reason="現貨 ETF 淨流入與交易所淨流出同向，新聞面以 BTC 催化最集中",
+            risk_budget_summary="今日風險預算：regime=risk_on 總曝險 60%",
+            signal_conflict_summary="無顯著衝突。",
+            trade_legs=[],
+            qsrec=[_sample_qsrec_crypto()],
+        ),
+        AISection(
+            macro_bridge_lines=[],
+            dashboard=[MetricLine(label="MSFT yfinance", value="$100")],
+            news=_sample_news_ai(),
+            chatter=[],
+            pick_reason="MSFT 具備資料中心 CAPEX、雲端合約與財報前瞻能見度，權值大型股流動性支撐今日可交易框架",
+            signal_conflict_summary="無顯著衝突。",
+            trade_legs=[],
+            qsrec=[_sample_qsrec_equity()],
+        ),
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+        inject_earnings_radar=True,
+    )
+    html = render_telegram_daily_brief(report)
+    assert "【財報雷達｜未來 7 天】" in html
+    assert "04/29 MSFT" in html
+
+
+def test_ai_dashboard_investor_radar_filters_unlinked_model_heat():
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事一句測試",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC RSI(14)", value="55")],
+        news=_sample_news_crypto(),
+        chatter=[],
+        pick_reason="現貨 ETF 淨流入與交易所淨流出同向，新聞面以 BTC 催化最集中",
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="無顯著衝突。",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[
+            MetricLine(label="NVDA yfinance", value="$100 (1D +1.0% | 5D +2.0%)"),
+            MetricLine(label="FinancialDatasets NVDA FY2026 Revenue", value="$216B"),
+            MetricLine(label="DeepSeek 模型熱度", value="下載 100,000"),
+            MetricLine(label="DeepSeek-V4-Pro (NVDA 推理鏈路) 下載", value="100,000"),
+            MetricLine(label="OpenRouter 模型熱度 (MSFT Azure)", value="排名 2"),
+        ],
+        news=_sample_news_ai(),
+        chatter=[],
+        pick_reason="NVDA 具備資料中心 CAPEX 與 GPU 拉貨能見度，財報前瞻形成共振",
+        signal_conflict_summary="無顯著衝突。",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    _, ai_out = instrument_sections_for_ib_layout(crypto, ai)
+    labels = [r.label for r in ai_out.dashboard]
+    assert "可交易市場" in labels
+    assert "基本面／財報錨點" in labels
+    assert "需求代理" in labels
+    blob = "\n".join(f"{r.label} {r.value}" for r in ai_out.dashboard)
+    assert "FinancialDatasets NVDA" in blob
+    assert "NVDA yfinance" in blob
+    assert "DeepSeek 模型熱度" not in blob
+    assert "OpenRouter 模型熱度" not in blob
+    assert "DeepSeek-V4-Pro (NVDA 推理鏈路)" in blob
+
+
+def test_x_highlights_duplicate_news_are_omitted():
+    crypto = CryptoSection(
+        report_title_date="2025-03-22",
+        market=MarketRegimeBlock(regime="neutral", score_suffix="（0/6）"),
+        narrative_of_day="主敘事一句測試",
+        macro_framework_lines=[],
+        dashboard=[MetricLine(label="BTC RSI(14)", value="55")],
+        news=_sample_news_crypto(),
+        x_highlights=["T1", "ETF 流向與監管訊號共同收斂至 BTC 高流動性資產"],
+        chatter=[],
+        pick_reason="現貨 ETF 淨流入與交易所淨流出同向，新聞面以 BTC 催化最集中",
+        risk_budget_summary="neutral 模式下總風險預算 40%",
+        signal_conflict_summary="無顯著衝突。",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_crypto()],
+    )
+    ai = AISection(
+        macro_bridge_lines=[],
+        dashboard=[MetricLine(label="NVDA yfinance", value="$100")],
+        news=_sample_news_ai(),
+        x_highlights=["A1", "雲端 capex 與供應鏈訊號分化"],
+        chatter=[],
+        pick_reason="NVDA 具備資料中心 CAPEX 與 GPU 拉貨能見度，財報前瞻形成共振",
+        signal_conflict_summary="無顯著衝突。",
+        trade_legs=[],
+        qsrec=[_sample_qsrec_equity()],
+    )
+    report = assemble_daily_brief_report(
+        crypto,
+        ai,
+        previous_recs_html="",
+        source_observability_block="",
+        report_tier_partial_news=False,
+    )
+    assert report.crypto.x_highlights == ["ETF 流向與監管訊號共同收斂至 BTC 高流動性資產"]
+    assert report.ai.x_highlights == ["雲端 capex 與供應鏈訊號分化"]
 
 
 def _minimal_report():

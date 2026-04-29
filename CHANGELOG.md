@@ -3,6 +3,14 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-04-29
+
+### Changed
+- **日報投資者可讀性清理**：[`report_render.py`](report_render.py)、[`main.py`](main.py)、[`templates/blocks/_ai_section.j2`](templates/blocks/_ai_section.j2)、[`schemas.py`](schemas.py)、[`crew.py`](crew.py) — `PREDICTION_MARKETS_IN_BRIEF` production 預設改為關閉，未顯式設 `1` 時不 prewarm Polymarket、不注入／渲染【預測市場熱門】；AI 儀表板改為「可交易市場／基本面／財報錨點／需求代理」三段可交易雷達，模型熱度最多一行且須連到已列 ticker；新增 pipeline 注入之 **【財報雷達｜未來 7 天】** 事件預告（yfinance watchlist，無 EPS／營收共識 forecast）；區塊②b 會移除與儀表板／新聞／交易理由重複的主題摘要。文件同步 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)、[`docs/BRIEF_BLOCK_REFERENCE.md`](docs/BRIEF_BLOCK_REFERENCE.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)、[`CLAUDE.md`](CLAUDE.md)。
+
+### Tests
+- [`test_report_render.py`](test_report_render.py)、[`test_main_pipeline_boundaries.py`](test_main_pipeline_boundaries.py)：覆蓋 Polymarket 預設關閉／顯式開啟、prewarm 跳過、財報雷達無事件／排序截斷／渲染、AI 儀表板需求代理過濾、區塊②b 重複內容省略。
+
 ## 2026-04-21
 
 ### Changed

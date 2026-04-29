@@ -17,13 +17,13 @@
 | 3 | `previous_recs` | `_previous_recs.j2` → `telegram_previous_recs` | `previous_recs_html` | `html` | `TrustedHtmlBlock` | 由後端渲染為 HTML |
 | 4 | `market_mode` | `_market_mode.j2` → `telegram_market_mode` | `crypto.market.regime`、`crypto.market.scorecard_lines`、`crypto.narrative_of_day` | `text` | `TextSummaryBlock` | 制度 / 評分卡 / 主敘事 |
 | 5 | `macro_framework` | `_macro_framework.j2` → `telegram_macro_framework` | `crypto.macro_framework_lines[]` | `text` | `TextSummaryBlock` | 多行文字列表 |
-| 6 | `prediction_markets` | `_prediction_markets.j2` → `telegram_prediction_markets` | `crypto.prediction_market_highlight_lines[]` | `text` | `TextSummaryBlock` | 候選：未來可升級為條列卡片 |
+| 6 | `prediction_markets` | `_prediction_markets.j2` → `telegram_prediction_markets` | `crypto.prediction_market_highlight_lines[]` | `text` | `TextSummaryBlock` | Production 預設關閉；`PREDICTION_MARKETS_IN_BRIEF=1` 時顯示 |
 | 7 | `crypto_dashboard` | `_crypto_dashboard.j2` → `telegram_crypto_dashboard` | `crypto.dashboard[]` | `metrics` | `MetricsDashboardBlock` | 已有專用元件 |
 | 8 | `crypto_news` | `_crypto_news.j2` → `telegram_crypto_news` | `crypto.news[]` | `news_items` | `NewsItemsBlock` | 已有專用元件 |
 | 9 | `crypto_chatter` | `_crypto_chatter.j2` → `telegram_crypto_chatter` | `crypto.chatter[]`、`crypto.x_highlights[]` | `text` | `TextSummaryBlock` | 候選：可升級為 ChatterBlock（作者/情緒） |
 | 10 | `crypto_trades` | `_crypto_trades.j2` → `telegram_crypto_trades` | `crypto.trade_legs[]`、`crypto.crypto_block4_recommendation_line` | `trades` | `TradesBlock` | 已有專用元件 |
 | 11 | `ai_bridge` | `_ai_bridge.j2` → `telegram_ai_bridge` | `ai.macro_bridge_lines[]` | `text` | `TextSummaryBlock` | 多行文字列表 |
-| 12 | `ai_dashboard` | `_ai_dashboard.j2` → `telegram_ai_dashboard` | `ai.dashboard[]` | `metrics` | `MetricsDashboardBlock` | 已有專用元件 |
+| 12 | `ai_dashboard` | `_ai_dashboard.j2` → `telegram_ai_dashboard` | `ai.dashboard[]`、`ai.earnings_event_lines[]` | `metrics` | `MetricsDashboardBlock` | 可交易雷達；含可選【財報雷達｜未來 7 天】 |
 | 13 | `ai_news` | `_ai_news.j2` → `telegram_ai_news` | `ai.news[]` | `news_items` | `NewsItemsBlock` | 已有專用元件 |
 | 14 | `ai_chatter` | `_ai_chatter.j2` → `telegram_ai_chatter` | `ai.chatter[]`、`ai.x_highlights[]` | `text` | `TextSummaryBlock` | 候選：同 `crypto_chatter` |
 | 15 | `ai_trades` | `_ai_trades.j2` → `telegram_ai_trades` | `ai.trade_legs[]`、`ai.ai_block4_recommendation_line` | `trades` | `TradesBlock` | 已有專用元件 |
