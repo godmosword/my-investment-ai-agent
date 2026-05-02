@@ -24,6 +24,12 @@
 
 多 profile（`full`／`lite`／`crypto-only`）、`templates/blocks/` macro、`brief_profiles`／`BLOCK_REGISTRY`、profile-aware **`validate_report`**，以及 Phase 4c（BQ `profile`）／Phase 5（【時事多觀點】）之**短／中／長期**切分，見 [`docs/architecture/modularization_plan.md`](docs/architecture/modularization_plan.md)。**已交付**：Phase 1（**2026-04-26**，`templates/blocks/` + smoke byte 對齊）、Phase 2–3（**2026-04-27**，`REPORT_PROFILE`、`templates/profiles/`、`main.py` 傳 profile、Gate `profile=`）、**Phase 4a**（**2026-04-27**，`telegram_crypto_only`、`REPORT_PROFILE=crypto-only`）、**Phase 4b**（**2026-04-27**，[`config/brief_layouts/`](config/brief_layouts/)、`BRIEF_LAYOUT_FILE`、`brief_profiles_layout`、`profile_block_ids` merge）、**Phase 4c**（**2026-04-16**，[`bigquery_writer.py`](bigquery_writer.py) `llm_run_log`／`gate_failure_log` 寫入 **`profile`**，見 [`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql)）、**Phase 4d**（**2026-04-14**，[`modularization_plan.md#phase-4d`](docs/architecture/modularization_plan.md#phase-4d) — profile 一致性錨點、啟動 `REPORT_PROFILE` 檢、YAML／BQ 文件對齊）；預設 **`full`** 與凍結基線 **byte-identical** — 見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-14**／**2026-04-16**／**2026-04-26**／**2026-04-27**。**Phase 5**：〔時事多觀點〕schema／macro／可選 Gate／**單 task crew（5b）**／`main` 並行掛載；**`BRIEF_DYNAMIC_RENDER`** 可選 YAML 驅動 **`full`** 重排（預設關閉＝**byte-identical**）— 見 [`modularization_plan.md`](docs/architecture/modularization_plan.md)、[`docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)。啟用仍須遵守 **Telegram HTML 白名單**與 **無數據幻覺**（見上表「日報版面」）。
 
+### 個人化投資決策夥伴 Roadmap（規劃）
+
+下一階段產品方向是從「通用研報 tool」推進到「個人化投資決策夥伴」，但會沿用既有信任邊界：`execution_intents`／`paper_execution` 做 paper-tracked 訊號生命週期，`report_quality_agent` 與 `validate_report` 做品質與 Gate 依據，PWA War Room / Terminal 承接可審核操作面。12 週 roadmap 的主線為：paper P&L → quality-adjusted scoring → portfolio alignment → scenario / target optimizer → beta / launch。
+
+v1 僅追蹤 **paper-tracked** 訊號，不接券商、不自動下單，也不保證任何投資績效；公開績效或月度信函必須使用可回放、可審計的 paper 記錄，且不得弱化無數據幻覺、Telegram HTML 白名單或 `validate_report` 契約。可執行隊列見 [`TODOS.md`](TODOS.md) **28：12 週投資價值優化 Roadmap**。
+
 ---
 
 ## 設計紅線

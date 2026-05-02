@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-02
+
+### Docs
+- **12 週個人化投資決策夥伴 Roadmap（文件對齊，尚未實作）**：[`README.md`](README.md) 新增 roadmap 說明，將方向從通用研報延伸到 paper P&L、quality-adjusted scoring、portfolio alignment、scenario / target optimizer 與 beta / launch；[`TODOS.md`](TODOS.md) 新增隊列 **28** 與 28a–28d 可執行波次，並於修訂紀錄標註本次僅為 roadmap 對齊。紅線維持：不弱化 `validate_report`、Telegram HTML 白名單或無數據幻覺；v1 僅允許 **paper-tracked** performance，不接券商、不自動下單，公開績效須可回放與可審計。
+
 ## 2026-04-29
 
 ### Changed
