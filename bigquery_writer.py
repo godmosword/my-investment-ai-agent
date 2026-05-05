@@ -16,7 +16,14 @@ from datetime import datetime, timezone
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import bigquery
 
-from config import GATE_FAILURE_LOG_TABLE, PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE, REVIEWER_LOG_TABLE
+from config import (
+    GATE_FAILURE_LOG_TABLE,
+    METRICS_TABLE,
+    PAPER_EXECUTION_AUDIT_TABLE,
+    PROJECT_ID,
+    RECOMMENDATIONS_TABLE,
+    REVIEWER_LOG_TABLE,
+)
 from telegram_sender import strip_html
 
 logger = logging.getLogger(__name__)
@@ -821,3 +828,74 @@ def write_reviewer_log(
         logger.warning("BigQuery credentials not configured (reviewer_log skipped): %s", e)
     except Exception as e:
         logger.error("Failed to write reviewer_log to BigQuery: %s", e)
+
+
+def write_paper_execution_audit_row(
+    *,
+    signal_id: str,
+    new_status: str,
+    reason: str,
+    quote_as_of: str,
+    asset: str = "",
+    direction: str = "",
+) -> None:
+    """Optional BigQuery audit row after a successful paper intent append (28a).
+
+    Set ``PAPER_EXECUTION_AUDIT_TABLE`` to ``project.dataset.table`` and run
+    ``docs/SQL/paper_execution_audit.sql``. Respects ``SKIP_BIGQUERY``; no-op if
+    table env is empty or credentials are missing.
+    """
+    if SKIP_BIGQUERY:
+        return
+    tid = (PAPER_EXECUTION_AUDIT_TABLE or "").strip()
+    if not tid:
+        return
+    bq_project = tid.split(".", 1)[0] if "." in tid else PROJECT_ID
+    try:
+        client = bigquery.Client(project=bq_project)
+        schema = [
+            bigquery.SchemaField("signal_id", "STRING"),
+            bigquery.SchemaField("new_status", "STRING"),
+            bigquery.SchemaField("reason", "STRING"),
+            bigquery.SchemaField("quote_as_of", "STRING"),
+            bigquery.SchemaField("asset", "STRING"),
+            bigquery.SchemaField("direction", "STRING"),
+            bigquery.SchemaField("created_at", "TIMESTAMP"),
+        ]
+        table_ref = bigquery.Table(tid, schema=schema)
+        client.create_table(table_ref, exists_ok=True)
+
+        table = client.get_table(tid)
+        existing_columns = {field.name for field in table.schema}
+        missing_fields = [f for f in schema if f.name not in existing_columns]
+        if missing_fields:
+            table.schema = list(table.schema) + missing_fields
+            client.update_table(table, ["schema"])
+            logger.info(
+                "Added missing paper_execution_audit columns: %s",
+                ", ".join(f.name for f in missing_fields),
+            )
+
+        row = {
+            "signal_id": (signal_id or "")[:128],
+            "new_status": (new_status or "")[:32],
+            "reason": (reason or "")[:256],
+            "quote_as_of": (quote_as_of or "")[:64],
+            "asset": (asset or "")[:32],
+            "direction": (direction or "")[:16],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        errors = client.insert_rows_json(tid, [row])
+        if errors:
+            logger.error("BigQuery paper_execution_audit insert errors: %s", errors)
+        else:
+            logger.info(
+                "paper_execution_audit written (signal_id=%s, status=%s, reason=%s).",
+                signal_id,
+                new_status,
+                reason,
+            )
+    except DefaultCredentialsError as e:
+        logger.warning("BigQuery credentials not configured (paper_execution_audit skipped): %s", e)
+    except Exception as e:
+        logger.error("Failed to write paper_execution_audit to BigQuery: %s", e)

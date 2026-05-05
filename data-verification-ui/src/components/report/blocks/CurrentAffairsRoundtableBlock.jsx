@@ -1,10 +1,11 @@
 import { radius, shadow } from "../../../design/tokens";
+import BlockSectionShell from "./BlockSectionShell";
 
 /**
  * 〔時事多觀點〕— mobile 直向堆疊、md+ 三欄 voice 卡（visualization_plan V4）。
- * @param {{ title: import("react").ReactNode, headerExtras: import("react").ReactNode, anchor: string, payload: Record<string, unknown> }} props
+ * @param {{ title: import("react").ReactNode, headerExtras: import("react").ReactNode, anchor: string, blockId?: string, payload: Record<string, unknown> }} props
  */
-export default function CurrentAffairsRoundtableBlock({ title, headerExtras, anchor, payload }) {
+export default function CurrentAffairsRoundtableBlock({ title, headerExtras, anchor, blockId, payload }) {
   const rt = payload ?? {};
   const topic = String(rt.topic ?? "—");
   const voices = Array.isArray(rt.voices) ? rt.voices : [];
@@ -12,13 +13,7 @@ export default function CurrentAffairsRoundtableBlock({ title, headerExtras, anc
   const consensus = rt.consensus;
 
   return (
-    <section id={anchor} className="structured-report-block">
-      <div className="section-header">
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <span>{title}</span>
-          {headerExtras}
-        </div>
-      </div>
+    <BlockSectionShell id={anchor} dataSection={blockId} title={title} headerExtras={headerExtras}>
       <div
         className="card"
         style={{
@@ -27,7 +22,12 @@ export default function CurrentAffairsRoundtableBlock({ title, headerExtras, anc
           boxShadow: shadow.card,
         }}
       >
-        <div style={{ fontWeight: 600, marginBottom: 12, color: "var(--text)" }}>{topic}</div>
+        <div
+          data-testid="current-affairs-roundtable-topic"
+          style={{ fontWeight: 600, marginBottom: 12, color: "var(--text)" }}
+        >
+          {topic}
+        </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {voices.map((v, i) => (
             <div
@@ -73,6 +73,6 @@ export default function CurrentAffairsRoundtableBlock({ title, headerExtras, anc
           </div>
         ) : null}
       </div>
-    </section>
+    </BlockSectionShell>
   );
 }

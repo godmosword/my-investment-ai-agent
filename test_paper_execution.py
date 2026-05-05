@@ -96,3 +96,44 @@ def test_paper_tick_skips_without_reference_prices(monkeypatch, tmp_path: Path):
         lambda _a: {"last": 999.0, "error": None},
     )
     assert run_paper_execution_tick() == []
+
+
+def test_paper_tick_calls_bigquery_audit_when_table_set(monkeypatch, tmp_path: Path):
+    calls: list[dict] = []
+
+    def fake_write(**kwargs):
+        calls.append(kwargs)
+
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "bq1",
+                "created_at": "2026-04-01T00:00:00Z",
+                "category": "CRYPTO",
+                "asset": "ETH",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "APPROVED_FOR_PAPER",
+                "reference_entry_price": 10.0,
+                "reference_target_price": 20.0,
+                "reference_stop_price": 5.0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    monkeypatch.setattr(
+        "paper_execution.fetch_symbol_quote",
+        lambda _a: {"last": 12.0, "as_of": "2026-04-02T12:00:00Z", "error": None},
+    )
+    monkeypatch.setattr("bigquery_writer.write_paper_execution_audit_row", fake_write)
+
+    run_paper_execution_tick()
+    assert len(calls) == 1
+    assert calls[0]["signal_id"] == "bq1"
+    assert calls[0]["new_status"] == "PAPER_FILLED"
+    assert calls[0]["asset"] == "ETH"
+    assert calls[0]["direction"] == "LONG"
+    assert calls[0]["quote_as_of"] == "2026-04-02T12:00:00Z"

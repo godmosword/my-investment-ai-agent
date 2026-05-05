@@ -13,6 +13,8 @@ test.describe("Structured report route (VITE_STRUCTURED_REPORT)", () => {
     await expect(page.getByText(/風險偏好（risk_on）/)).toBeVisible();
     await expect(page.getByText("e2e narrative of day")).toBeVisible();
     await expect(page.getByText("e2e scorecard line A")).toBeVisible();
+    await expect(page.locator('section[data-section="crypto_dashboard"]')).toBeVisible();
+    await expect(page.getByTestId("current-affairs-roundtable-topic")).toHaveText("e2e roundtable topic");
     // full profile：crypto_dashboard 無 DBR 列時仍走 legacy grok 摘要
     await expect(page.getByText("e2e grok").first()).toBeVisible();
   });

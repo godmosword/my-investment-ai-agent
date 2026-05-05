@@ -9,6 +9,7 @@ import json
 import logging
 from typing import Any
 
+import bigquery_writer
 import execution_intents as execution_intents_mod
 
 from execution_intents import (
@@ -161,5 +162,14 @@ def run_paper_execution_tick() -> list[dict[str, Any]]:
         if append_execution_intent_row(merged):
             written.append(merged)
             logger.info("paper tick wrote %s -> %s (%s)", sid, new_status, reason)
+            as_of = str(q.get("as_of") or "")
+            bigquery_writer.write_paper_execution_audit_row(
+                signal_id=sid,
+                new_status=new_status,
+                reason=reason,
+                quote_as_of=as_of,
+                asset=asset,
+                direction=direction,
+            )
 
     return written

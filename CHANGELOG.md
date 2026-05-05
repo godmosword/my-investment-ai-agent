@@ -3,6 +3,29 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-05
+
+### PWA（視覺化隊列 27／Portal 隊列 26 切片）
+- **結構化區塊可選 `data-section`**：[`BlockSectionShell.jsx`](data-verification-ui/src/components/report/blocks/BlockSectionShell.jsx) 支援 **`data-section={block_id}`**；[`MetricsDashboardBlock.jsx`](data-verification-ui/src/components/report/blocks/MetricsDashboardBlock.jsx)／[`CurrentAffairsRoundtableBlock.jsx`](data-verification-ui/src/components/report/blocks/CurrentAffairsRoundtableBlock.jsx) 接上；roundtable 主題加 **`data-testid="current-affairs-roundtable-topic"`**。
+- **E2E mock**：[`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 最小 **`daily_brief_report`** 補 **`crypto.dashboard`** 與根層 **`current_affairs_roundtable`**；[`structured-report-route.spec.js`](data-verification-ui/e2e/structured-report-route.spec.js) 斷言 `section[data-section="crypto_dashboard"]` 與 roundtable testid。
+- **Today 離線提示**：[`Today.jsx`](data-verification-ui/src/pages/Today.jsx) 監聽 **`online`／`offline`**，離線時顯示 **`data-testid="today-offline-banner"`**。
+- **倉位頁最小切片**：[`PositionsHome.jsx`](data-verification-ui/src/modules/position-management/pages/PositionsHome.jsx) 接 [`useExecutionIntents`](data-verification-ui/src/hooks/useApi.js) 表格 + **`data-testid="positions-home"`**；新增 [`positions-route.spec.js`](data-verification-ui/e2e/positions-route.spec.js)。
+
+### API（隊列 28a）
+- **Paper 稽核可選 BQ**：[`paper_execution.py`](paper_execution.py) 在 `append_execution_intent_row` 成功後呼叫 [`bigquery_writer.write_paper_execution_audit_row`](bigquery_writer.py)（`PAPER_EXECUTION_AUDIT_TABLE` 空則略過；`SKIP_BIGQUERY=1` 仍略過）；DDL 範本 [`docs/SQL/paper_execution_audit.sql`](docs/SQL/paper_execution_audit.sql)；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 註解；[`test_paper_execution.py`](test_paper_execution.py)。
+
+### Tests
+- **NotebookLM Phase 0–1**：[`test_notebooklm_tool.py`](test_notebooklm_tool.py) — `NOTEBOOKLM_ENABLED=0`／stub 快取路徑。
+- **`validate_report` fixture 與新聞新鮮度**：[`test_validate_report.py`](test_validate_report.py) 之 `_make_report`／`_make_minimal_structured_report_dbr` 改以 **動態 UTC+8 括號時間戳**（`_fresh_news_timestamp_bracket`），在 **`STRICT_NEWS_FRESHNESS_GATE=1`** 下仍通過整合測試。
+- **Playwright**：[`positions-route.spec.js`](data-verification-ui/e2e/positions-route.spec.js) 以 **`getByRole('cell', { name: 'SPY', exact: true })`** 避免與 intent id 列 **`e2e-spy-1`** 的 strict 雙重匹配。
+
+### Docs
+- [`visualization_plan.md`](docs/architecture/visualization_plan.md) §3：對齊本日 **V2 切片**、**V4 mock smoke**、**V5 Today 離線橫幅** 勾選與誠實註記（staging PWA↔Telegram、預快取仍待）。
+- [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md) 現況錨點補 **CHANGELOG 2026-05-05** 對照。
+
+### Ops
+- **隊列 18–21 手順入庫**：[`docs/OPS_QUEUE_18_21_RUNBOOK.md`](docs/OPS_QUEUE_18_21_RUNBOOK.md) — BQ DDL／Redis／VAPID／staging `test-send` **仍須在 GCP／執行環境手動完成**；本條不視為雲端已自動閉環。
+
 ## 2026-05-06
 
 ### Docs

@@ -1,9 +1,9 @@
 import BlockSectionShell from "./BlockSectionShell";
 
-export default function MetricsDashboardBlock({ anchor, title, headerExtras, payload }) {
+export default function MetricsDashboardBlock({ anchor, title, headerExtras, payload, blockId }) {
   const lines = Array.isArray(payload) ? payload : [];
   return (
-    <BlockSectionShell id={anchor} title={title} headerExtras={headerExtras}>
+    <BlockSectionShell id={anchor} dataSection={blockId} title={title} headerExtras={headerExtras}>
       <div className="card" style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <tbody>

@@ -41,7 +41,8 @@
 ### V2 — 結構化 Report（補齊）
 
 - [x] **`exec_summary`／`market_mode`**：`ExecSummaryBlock`／`MarketModeBlock`；`structuredBlockContent` 輸出結構化 payload（命題／條列、制度／敘事／評分卡），legacy 以 `fallbackText` 承接舊版摘要。
-- [ ] 其餘 **`block_id` 專用 JSX 元件**（如 Dashboard、News、…）逐步取代 placeholder／僅 legacy 路徑（依 `BLOCK_REGISTRY` 對照表擴充）。
+- [x] **`crypto_dashboard`／`current_affairs_roundtable` 專用呈現 + 可驗收錨點**：`BlockSectionShell` 可選 **`data-section`**（對應 `block_id`）；[`MetricsDashboardBlock`](../../data-verification-ui/src/components/report/blocks/MetricsDashboardBlock.jsx)／[`CurrentAffairsRoundtableBlock`](../../data-verification-ui/src/components/report/blocks/CurrentAffairsRoundtableBlock.jsx) 接上；E2E mock 補 `crypto.dashboard`／根層 `current_affairs_roundtable`；[`structured-report-route.spec.js`](../../data-verification-ui/e2e/structured-report-route.spec.js) 斷言 `data-section`／`data-testid="current-affairs-roundtable-topic"`。
+- [ ] 其餘 **`block_id` 專用 JSX 元件**（如 News、…）逐步取代 placeholder／僅 legacy 路徑（依 `BLOCK_REGISTRY` 對照表擴充）。
 - [ ] 可選：**BQ 或集中儲持久化 `DailyBriefReport` JSON** 供營運稽核（現以本機 JSON／`raw_data`／`.qsilicon` 為主）。
 
 ### V3 — Profile／Layout UX
@@ -51,14 +52,14 @@
 
 ### V4 — Roundtable + 互動（收尾）
 
-- [ ] **`BRIEF_CURRENT_AFFAIRS=1`** staging 下 **PWA ↔ Telegram** voice 順序與呈現 **端到端 smoke**（與 Gate／文件一致）。
+- [x] **Mock／Playwright 結構化 smoke**：`mock-api-server` 含 `current_affairs_roundtable`／`crypto.dashboard` 時，PWA 區塊視圖可驗 **`data-section`** 與 **`current-affairs-roundtable-topic`**（**`BRIEF_CURRENT_AFFAIRS=1` staging 下 PWA ↔ Telegram** 端到端仍待手動）。
 - [ ] Streamlit **Gate／Roundtable** 分頁已於 v4 交付；若與 PWA **像素級**仍差異，逐項列 issue 對照（regime／typography）。
 
 ### V5 — 即時化與通知
 
 - [x] **SSE 全頁**：`/api/stream/war-room` → **`metrics`／`report`／`positions.open`／`war-room`** 等 **invalidate**（`VITE_SSE_ENABLED=1`）；意圖 PATCH 成功時同步。
 - [x] **Web Push 深連結**：`service-worker.js` **`notificationclick`** → **`report_date` + `block_id`** 深連結；與 [`PWA_WEB_PUSH.md`](../PWA_WEB_PUSH.md) 契約一致。
-- [ ] **離線**：可選 **預快取** `/today`／最新報告、**as_of** 離線提示（現為保守 **NetworkOnly API**，見 [`PWA_OFFLINE.md`](../PWA_OFFLINE.md)）。
+- [x] **Today 離線橫幅**：`/today` 在 `navigator.onLine===false` 時顯示 **`data-testid="today-offline-banner"`**（可選 **預快取** `/today`／最新報告、**as_of** 離線提示仍為後續；API 仍 **NetworkOnly**，見 [`PWA_OFFLINE.md`](../PWA_OFFLINE.md)）。
 - [x] **`/settings`**：**`/settings`** 路由 + BottomNav；**VAPID／Register／API URL**、**SW**、**`qsilicon_push_prefs`**；測試推送仍以 **`POST /api/push/test-send`**（管理金鑰）為準。
 
 ### V6 — 戰情室與 PWA 視覺對齊（剩餘）

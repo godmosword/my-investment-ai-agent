@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from pydantic import ValidationError
@@ -99,6 +100,13 @@ _PHASE_C_HTML_FOR_GATE_TESTS = (
 )
 
 
+def _fresh_news_timestamp_bracket(offset_hours: int = 0) -> str:
+    """UTC+8 括號時間戳，預設為「現在往前 offset_hours」，供 STRICT_NEWS_FRESHNESS_GATE 視窗內通過。"""
+    tz_utc8 = timezone(timedelta(hours=8))
+    dt = datetime.now(timezone.utc).astimezone(tz_utc8) - timedelta(hours=offset_hours)
+    return dt.strftime("[%Y-%m-%d %H:%M UTC+8]")
+
+
 def _make_report(
     *,
     length: int = 5000,
@@ -135,8 +143,9 @@ def _make_report(
             else:
                 canon = "已高度反應"
             pricing_line = f"\n市場定價：{canon}"
+        ts = _fresh_news_timestamp_bracket(i)
         news += (
-            f"〔新聞 {i}〕[03/{i:02d} 10:00 UTC+8] 來源\n"
+            f"〔新聞 {i}〕{ts} 來源\n"
             f"測試新聞標題 {i} 內容夠長超過十字元{pricing_line}\n\n"
         )
 
@@ -246,7 +255,7 @@ def _make_minimal_structured_report_dbr(
     def _ni(idx: int) -> NewsItem:
         return NewsItem(
             index=idx,
-            timestamp_line=f"[03/{idx:02d} 10:00 UTC+8]",
+            timestamp_line=_fresh_news_timestamp_bracket(idx),
             title=f"Headline {idx}",
             source_and_nature="Source confirmed",
             summary=f"Summary line {idx}.",
