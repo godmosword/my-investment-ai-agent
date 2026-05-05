@@ -231,8 +231,18 @@ const E2E_MINIMAL_DAILY_BRIEF_REPORT = {
       score_suffix: "· e2e score suffix",
       scorecard_lines: ["e2e scorecard line A", "e2e scorecard line B"],
     },
+    dashboard: ["DXY 100 · e2e crypto dashboard line", "BTC DOM 55% · mock"],
   },
   ai: {},
+  current_affairs_roundtable: {
+    topic: "e2e roundtable topic",
+    voices: [
+      { role: "A", viewpoint: "e2e voice A" },
+      { role: "B", viewpoint: "e2e voice B" },
+    ],
+    unresolved: [],
+    consensus: null,
+  },
 };
 
 function structuredEnvelope(reportDate, profileResolved) {

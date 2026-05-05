@@ -21,33 +21,32 @@
 
 ## 目錄結構
 
+> **現況（2026-05）**：repo 為 **Vite + React（`.jsx`）**，入口 **`src/main.jsx`** → **`src/app/App.jsx`**／**`Router.jsx`**；佈局 **`app/layout/Shell.jsx`** + **`ModuleNav.jsx`**。共用 HTTP：**[`lib/siliconApiHeaders.js`](../../data-verification-ui/src/lib/siliconApiHeaders.js)** + **[`hooks/useApi.js`](../../data-verification-ui/src/hooks/useApi.js)**（`X-Q-Silicon-Key`、401→`/api-key`）；**無** `shared/api/client.ts`（設計稿 axios 路徑仍列於下方 Prompt／驗收清單「設計錨點」）。後端增量路由見 repo 根目錄 **[`api_routers/`](../../api_routers/)**（`CHANGELOG` **2026-05-06**）。
+
 ```
 data-verification-ui/
 ├── src/
+│   ├── main.jsx
 │   ├── app/
-│   │   ├── App.tsx
-│   │   ├── Router.tsx           ← 模組路由中心
+│   │   ├── App.jsx
+│   │   ├── Router.jsx           ← 模組路由中心
 │   │   └── layout/
-│   │       ├── Shell.tsx        ← 側邊導航 + 頂部狀態列
-│   │       └── ModuleNav.tsx    ← 五模組切換
+│   │       ├── Shell.jsx        ← 側邊導航 + 頂部狀態列
+│   │       └── ModuleNav.jsx    ← 五模組切換
 │   ├── modules/
-│   │   ├── daily-brief/         ← 現有日報板塊
-│   │   │   ├── pages/
-│   │   │   ├── components/
-│   │   │   ├── api/             ← /api/briefs/*
-│   │   │   └── types.ts
-│   │   ├── investment-analysis/ ← 初期 stub
-│   │   ├── position-management/ ← 初期 stub
-│   │   ├── industry-trends/     ← 初期 stub
-│   │   └── quant-trading/       ← 初期 stub
-│   ├── shared/
-│   │   ├── api/                 ← 共用 API client（auth、error handling）
-│   │   ├── components/          ← 共用 UI primitives
-│   │   ├── hooks/
-│   │   └── types/               ← 共用 Pydantic → TS schema
-│   └── main.tsx
+│   │   ├── daily-brief/         ← 日報／原 /terminal
+│   │   │   └── pages/
+│   │   ├── investment-analysis/
+│   │   ├── position-management/
+│   │   ├── industry-trends/
+│   │   └── quant-trading/
+│   ├── hooks/                   ← useApi、War Room SSE 等
+│   ├── lib/                     ← siliconApiHeaders 等
+│   ├── components/              ← 跨路由共用（Terminal、Report…）
+│   ├── pages/                   ← Today、ApiKey…
+│   └── …
 ├── public/
-└── vite.config.ts
+└── vite.config.js
 ```
 
 ### 關鍵設計原則
@@ -145,67 +144,14 @@ QSILICON_MASTER_KEY=<random-hex-32>
 
 ## 給 Claude Code / Cursor 的實作 Prompt
 
-```
-Task: Restructure data-verification-ui into modular architecture for
-Q-Silicon Terminal Portal.
-
-Context files to read first:
-- data-verification-ui/src/ (current structure)
-- data-verification-ui/package.json
-- data-verification-ui/vite.config.ts
-- api.py (current FastAPI endpoints)
-
-Phase 1 deliverables (this task):
-
-1. Create new directory structure under data-verification-ui/src/:
-   - app/layout/ (Shell.tsx, ModuleNav.tsx)
-   - modules/{daily-brief,investment-analysis,position-management,
-     industry-trends,quant-trading}/
-   - shared/{api,components,hooks,types}/
-
-2. Move existing /terminal route code into modules/daily-brief/.
-   Other four modules should have placeholder pages that render
-   "Coming soon: {module name}".
-
-3. Implement Shell.tsx with:
-   - Left sidebar with 5 module links (use lucide-react icons)
-   - Top status bar showing current time (Asia/Taipei) and build version
-   - Main content area rendering <Outlet />
-
-4. Set up react-router-dom routes:
-   - / → redirect to /briefs
-   - /briefs → modules/daily-brief
-   - /analysis → modules/investment-analysis
-   - /positions → modules/position-management
-   - /industries → modules/industry-trends
-   - /quant → modules/quant-trading
-
-5. shared/api/client.ts: axios instance that:
-   - Reads VITE_API_URL (fallback to same-origin)
-   - Adds X-Q-Silicon-Key header from localStorage key 'qsi_master_key'
-   - On 401, redirect to a simple key-input page
-
-6. shared/components/: extract any genuinely reusable UI from existing
-   /terminal code. Do not over-extract; only move things used in 2+ places.
-
-Constraints:
-- Do NOT import between modules/{a}/ and modules/{b}/ directly. Only via shared/.
-- Existing /terminal functionality must still work after restructure
-  (routes may change, but behavior preserved).
-- Tailwind classes must use utility classes only (no custom @apply blocks).
-- Keep single-file artifacts where possible; do not split components into
-  tiny files prematurely.
-
-Out of scope for this task:
-- Backend API changes
-- New business logic for modules 2–5 (placeholders only)
-- Authentication UI beyond the 401 key-input page
-
-Deliverables:
-- Full new directory structure with placeholder pages
-- One PR-ready commit with all changes
-- Updated README in data-verification-ui/ explaining new structure
-```
+> **沿革（避免與現況脫節）**：下述英文區塊為 Phase 1 **草擬**時的「future state」，曾列 `Shell.tsx`、`ModuleNav.tsx`、`shared/api/client.ts`。**現況以本節下方 §驗收清單與 repo 為準**（2026-05 起）：
+>
+> - Shell／導航：`data-verification-ui/src/app/layout/Shell.jsx`、`ModuleNav.jsx`（非 `.tsx`）。
+> - API：`src/lib/siliconApiHeaders.js` + `src/hooks/useApi.js` + `pushClient.js`；**無** `shared/api/client.ts`（設計稿 axios 單一 client 仍以驗收清單註記為錨點，見上表與 CHANGELOG 2026-05-04）。
+> - 目錄：`modules/*/pages/*Home.jsx`、`modules/daily-brief/pages/DailyBriefPage.jsx`；模組間禁互 import（`eslint.config.js`：`import/no-restricted-paths`）。
+> - 後端：FastAPI 以 [`api_routers/`](../../api_routers/) 增量 `include_router`，見 [`api.py`](../../api.py)。
+>
+> **新功能開發**：先讀現檔再改；對齊 [`DASHBOARD_CONTRACT.md`](../DASHBOARD_CONTRACT.md)、[`ENV_TEMPLATE.txt`](../../ENV_TEMPLATE.txt)。
 
 ---
 

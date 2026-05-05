@@ -44,6 +44,7 @@
 - **引擎**：LangGraph 為主；CrewAI legacy 逐步收斂
 - **輸出**：Telegram HTML（`validate_report`／`report_html_gates.py` 白名單）
 - **前端**：`data-verification-ui/`（Vite PWA；Portal 模組路由含 `/briefs`、`/terminal`）
+- **Portal API 錨點（對齊 CHANGELOG 2026-05-04／2026-05-05／2026-05-06）**：PWA 取數一律走 [`data-verification-ui/src/hooks/useApi.js`](../../data-verification-ui/src/hooks/useApi.js) + [`lib/siliconApiHeaders.js`](../../data-verification-ui/src/lib/siliconApiHeaders.js)（`X-Q-Silicon-Key`）；後端 HTTP 路由以 [`api_routers/`](../../api_routers/) 增量掛載、[`api.py`](../../api.py) `include_router` 組裝。架構驗收清單見 [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) §驗收清單。**2026-05-05**：結構化報告區塊可選 **`data-section`**（`visualization_plan` §3）；`/positions` 最小頁接 **`/api/execution-intents`**；paper tick 可選 **BQ 稽核列**（`PAPER_EXECUTION_AUDIT_TABLE`，見根目錄 `CHANGELOG` **2026-05-05**）。
 - **Profile**：`full` / `lite` / `crypto-only`（`REPORT_PROFILE`、`BRIEF_LAYOUT_FILE`）
 
 ---

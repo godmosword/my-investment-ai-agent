@@ -11,6 +11,8 @@
 | 授權 | [`LICENSE`](LICENSE)（MIT）·[`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
 | 待辦 | [`TODOS.md`](TODOS.md) |
 | Terminal 總表（中段 M1–M5 + Portal 長線 + 架構看法） | [`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) |
+| Portal PWA 驗收清單（§驗收） | [`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) |
+| 視覺化剩餘 backlog（§3 勾選表） | [`docs/architecture/visualization_plan.md`](docs/architecture/visualization_plan.md) |
 | 變更紀錄 | [`CHANGELOG.md`](CHANGELOG.md) |
 | 執行路線圖 | [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) |
 | 開發導覽 | [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) |

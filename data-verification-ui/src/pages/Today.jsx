@@ -21,6 +21,9 @@ import { normalizeReportProfile } from "../components/report/reportProfiles";
 const STRUCTURED_FLAG = import.meta.env.VITE_STRUCTURED_REPORT === "1";
 
 export default function Today() {
+  const [online, setOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
   const [warRoomIntentFilter, setWarRoomIntentFilter] = useState("all");
   const [searchParams, setSearchParams] = useSearchParams();
   const rawProfile = searchParams.get("profile");
@@ -35,6 +38,17 @@ export default function Today() {
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
 
   const today = new Date().toISOString().slice(0, 10);
   const {
@@ -96,6 +110,17 @@ export default function Today() {
         onRetryOpen={useDemo ? undefined : () => oRefetch()}
         retryingOpen={useDemo ? false : oFetching}
       />
+
+      {!online && (
+        <div
+          data-testid="today-offline-banner"
+          className="glassbox-demo-banner glassbox-demo-banner--today"
+          role="status"
+          style={{ borderColor: "var(--border)", marginBottom: 8 }}
+        >
+          目前離線；API 仍採 NetworkOnly（見 <code>PWA_OFFLINE.md</code>）。恢復網路後請手動刷新以取得最新戰情室資料。
+        </div>
+      )}
 
       {useDemo && (
         <div className="glassbox-demo-banner glassbox-demo-banner--today" role="status">

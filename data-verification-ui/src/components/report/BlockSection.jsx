@@ -72,7 +72,13 @@ export default function BlockSection({
       return <TradesBlock anchor={anchor} title={title} headerExtras={headerExtras} payload={content.payload} />;
     case "metrics":
       return (
-        <MetricsDashboardBlock anchor={anchor} title={title} headerExtras={headerExtras} payload={content.payload} />
+        <MetricsDashboardBlock
+          anchor={anchor}
+          blockId={blockId}
+          title={title}
+          headerExtras={headerExtras}
+          payload={content.payload}
+        />
       );
     case "news_items":
       return (
@@ -86,6 +92,7 @@ export default function BlockSection({
       return (
         <CurrentAffairsRoundtableBlock
           anchor={anchor}
+          blockId={blockId}
           title={title}
           headerExtras={headerExtras}
           payload={content.payload ?? {}}
