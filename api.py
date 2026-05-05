@@ -15,7 +15,7 @@ import re
 import time
 
 import yaml
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +25,7 @@ from fastapi.responses import StreamingResponse
 from google.cloud import bigquery
 from pydantic import BaseModel, Field, field_validator
 
-from config import PROJECT_ID, METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE
+from config import METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE
 from execution_intents import (
     ALLOWED_INTENT_STATUSES,
     CLIENT_PATCHABLE_STATUSES,
