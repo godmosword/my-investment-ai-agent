@@ -9,6 +9,9 @@
 - **Portal Phase 1 驗收對齊**：[`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) 驗收清單曾依 **main** 標示待辦（`useApi` header、401 專頁、`/`→`/briefs`、eslint）；**程式已於 CHANGELOG 2026-05-04** `### PWA`／`### API` 交付，驗收清單已改勾選；[`TODOS.md`](TODOS.md) **同步狀態（2026-05-04／2026-05-06）** 對齊。
 - **勘誤（無行為變更）**：**2026-05-04** `### Added` 第一條原先所列 `shared/api/client.js` **並不存在**；已改為指向 [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)，並於該條附設計稿 `shared/api/client` 之驗收錨點。
 
+### CI
+- **GitHub Actions（deploy）**：[`deploy.yml`](.github/workflows/deploy.yml) `build-and-deploy` 將 **`docker/setup-buildx-action`** 固定至 **v4.0.0**（`4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd`）、**`docker/build-push-action`** 至 **v7.1.0**（`bcafcacb16a39f128d818304e6c9c0c18556b85f`），對齊 Actions **Node.js 24** 預設執行環境，消除 Node 20 淘汰警告；見 [GitHub Blog](https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/)。
+
 ## 2026-05-04
 
 ### PWA（Terminal Portal）
