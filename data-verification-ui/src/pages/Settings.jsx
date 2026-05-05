@@ -95,6 +95,26 @@ export default function Settings() {
       </section>
 
       <section className="card mb-4 p-3">
+        <h2 className="mb-2 text-[13px] font-semibold">Portal／日報路由</h2>
+        <p className="mb-2 text-[12px] leading-snug text-[var(--muted)]">
+          <span className="font-semibold text-[var(--fg)]">日報</span> canonical 路徑為 <code className="font-mono">/briefs</code>；<code className="font-mono">/terminal</code> 與其同頁（相容既有連結與 E2E）。五模組導覽見頂欄 Shell。
+        </p>
+        <p className="m-0 text-[11px] leading-snug text-[var(--muted)]">
+          API 基底與選用主金鑰：<code className="font-mono">VITE_API_URL</code>、<code className="font-mono">VITE_QSILICON_KEY</code>（送 <code className="font-mono">X-Q-Silicon-Key</code>；401 觸發全域事件）。
+        </p>
+      </section>
+
+      <section className="card mb-4 p-3">
+        <h2 className="mb-2 text-[13px] font-semibold">圖表／對齊（後端 Runbook）</h2>
+        <p className="m-0 text-[12px] leading-snug text-[var(--muted)]">
+          BTC Panel 1 收盤序列來源由伺服端 <code className="font-mono">VISUALIZER_BTC_SOURCE</code> 控制（<code className="font-mono">yfinance</code> 預設；<code className="font-mono">snapshot</code> 時改吃已驗證之
+          <code className="font-mono">symbol_snapshot</code> <code className="font-mono">price_series</code>，須 BQ 可用）。本頁不讀該變數，僅供溯源說明；詳見{" "}
+          <code className="rounded bg-black/25 px-1 py-0.5 font-mono text-[11px]">docs/DASHBOARD_CONTRACT.md</code> 與{" "}
+          <code className="rounded bg-black/25 px-1 py-0.5 font-mono text-[11px]">docs/architecture/visualization_plan.md</code>。
+        </p>
+      </section>
+
+      <section className="card mb-4 p-3">
         <h2 className="mb-2 text-[13px] font-semibold">Push 訂閱 metadata（sessionStorage）</h2>
         <p className="mb-2 text-[11px] leading-snug text-[var(--muted)]">
           鍵名 <code className="font-mono">{PREFS_KEY}</code>，會與{" "}

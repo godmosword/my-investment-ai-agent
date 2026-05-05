@@ -46,7 +46,7 @@ v1 僅追蹤 **paper-tracked** 訊號，不接券商、不自動下單，也不�
 |------|------------|------------|
 | 戰情室 UI | `streamlit run dashboard.py --server.port 8501 --server.headless true` — 可選 **`DASHBOARD_AUTO_REFRESH_SEC`**（秒，預設 **300**）；頂層 **`st.tabs`**：`Overview`、`Profile / LLM`、`Gate（7 日）`、`Roundtable`（細節見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-18** `### Added`） | 否（BQ 區塊降級） |
 | PWA 版型 | `cd data-verification-ui && npm install && VITE_GLASSBOX_MOCK=1 npm run dev` | 否 |
-| PWA Terminal（代號快照／K 線） | 同上；開啟 **`/terminal`**。接實盤 API 時設 **`VITE_API_URL`**（例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`） | 否（mock）；是（讀 BQ 需本機 `uvicorn` + GCP） |
+| PWA Terminal（代號快照／K 線） | 同上；開啟 **`/terminal`** 或 **`/briefs`**（與 `/terminal` 同工作區；Portal Phase 1，見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-04**）。接實盤 API 時設 **`VITE_API_URL`**（例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`）；可選 **`VITE_QSILICON_KEY`** → `X-Q-Silicon-Key`（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)） | 否（mock）；是（讀 BQ 需本機 `uvicorn` + GCP） |
 | PWA E2E（Playwright） | `cd data-verification-ui && npm run test:e2e`（內建 mock API + `VITE_E2E=1` 建置；Bloomberg §6 Today vs `/terminal` BTC 價） | 否（需下載 Chromium） |
 | 對齊 CI | `ruff check .` · `python3 -m pytest -m smoke -q` · `./scripts/ci_terminal_contract_check.sh`（quote／OHLC 契約 + PWA build；GitHub Actions 對 `data-verification-ui/package.json` 啟用 **npm cache**） | 否（PWA build 需 Node） |
 | 乾跑管線 | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` | 是（啟動四項 LLM／資料 key，見下） |

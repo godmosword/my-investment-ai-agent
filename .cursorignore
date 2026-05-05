@@ -183,7 +183,10 @@ raw_data/
 # ── IDE / 工具快取 ──────────────────────────────────────────────────────────
 .vscode/
 .idea/
-.cursor/
+# Cursor：排除 .cursor 下多數內容，但保留 rules（專案 MDC / Rules）
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 *.iml
 .DS_Store
 Thumbs.db

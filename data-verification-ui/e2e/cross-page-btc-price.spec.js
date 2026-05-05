@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Bloomberg §6 — BTC price across Today vs Terminal", () => {
   test("Today snapshot strip matches Terminal quote last (mock API)", async ({ page }) => {
-    await page.goto("/", { waitUntil: "load" });
+    await page.goto("/today", { waitUntil: "load" });
     await expect(page.getByTestId("today-btc-quote-last")).toBeVisible({ timeout: 60_000 });
     const todayText = await page.getByTestId("today-btc-quote-last").innerText();
     expect(todayText.replace(/\s/g, "")).toMatch(/50,000\.125/);

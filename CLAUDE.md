@@ -1,211 +1,71 @@
-# Project Developer Guide for Claude
+# Q-Silicon（本 repo）
 
-**Claude Code** discovers this file at the repo root as project context; **Cursor** loads `.cursor/rules/claude-md-bootstrap.mdc` + `.cursorrules` §0 so agents are nudged to read this file before substantive work.
+與 **Karpathy 準則**（下方）並存；專案紅線、模組表、指令與架構索引見：
 
-Concise orientation for coding agents. **Authoritative product/README detail** → [`README.md`](README.md)（含紅線、情境式快速開始、**雙軌研究引擎**圖：預設並行 `CryptoResearchCrew`／`AIResearchCrew` 與可選 **`USE_LANGGRAPH_ENGINE=1`** 的 [`graph/`](graph/) LangGraph 路徑，以及環境變數／CI／PWA 索引）。**Backlog & shipped features** → [`TODOS.md`](TODOS.md)（**每次 `git pull` 或第一次讀 repo**：先看 [§ git pull／讀 codebase 提醒](TODOS.md#pull-or-read-codebase-reminder) — Web Push／price probe **雲端營運待辦**）。**Human changelog** → [`CHANGELOG.md`](CHANGELOG.md)（**須與 TODOS 雙向對齊**，見兩檔檔首）。 **Cursor-specific** → [`AGENTS.md`](AGENTS.md) (includes **Collaboration model / Technical Co-Founder** alignment for agent–human roles).
-
----
-
-## 1. Tooling & Navigation Rules (CRITICAL)
-
-- **LSP priority**: Prefer the IDE/LSP for go-to-definition, references, and refactors.
-- **Fallback**: If LSP is unavailable, targeted search (e.g. ripgrep) is acceptable—do not avoid navigation entirely.
+- [`TODOS.md`](TODOS.md) 隊列與維護者意見
+- [`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) 執行順序與風險
+- [`docs/architecture/`](docs/architecture/)（`AI_CONTEXT.md`、`REVIEWER_LOOP_DESIGN.md`、`TERMINAL_FRONTEND_PLAN.md` 等）
+- 前端 Portal：`data-verification-ui/`（`/briefs` 與 `/terminal` 同掛日報模組；`npm run test:e2e`）
+- 後端：`api.py` 組裝；`api_routers/` incremental `APIRouter`（例：`metrics`、`health`）；改 Graph／Reviewer 請跑 `scripts/verify_graph_gate.sh` 或 `pytest test_reviewer_loop.py`
 
 ---
 
-## 2. Project Red Lines (Q-Silicon)
+# Karpathy Coding Guidelines
 
-Align with [`.cursorrules`](.cursorrules) and [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md):
+Behavioral guidelines to reduce common LLM coding mistakes.
 
-- **No data hallucination**: Objective prices, indicators (RSI, MAs, VIX, etc.), and macro figures must come from **Python tools** / APIs injected into context—not LLM invention.
-- **X/Twitter**: Not used in the main daily pipeline (crew tasks do not rely on X search); do not reintroduce it as a primary news path.
-- **Telegram HTML**: Whitelist only `<b>`, `<i>`, `<u>`, `<s>`, `<code>`, `<blockquote>`, `<a>`. Report layout order: dashboard → core news → market murmurs → actionable trades.
-- **Tools**: New tools should implement cache helpers consistent with existing patterns (`_get_cache` / `_set_cache` where applicable).
-- **Threading**: Respect `ThreadPoolExecutor` safety for the dual crypto + AI crew path in [`main.py`](main.py).
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
----
+## 1. Think Before Coding
 
-## 3. Project Context & Architecture
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-- **Description**: Q-Silicon Institutional Research AI Agent — Python **CrewAI** pipeline producing daily **crypto** and **AI (incl. US equities fundamentals)** research, merged into a Telegram HTML brief. Optional **LLM judge**, **BigQuery** metrics / logs, **Streamlit** dashboard, **FastAPI** + **PWA** front-end.
-- **Flow (high level)**: API key checks → optional strict env → numeric env validation → tool prewarm → **parallel** `CryptoResearchCrew` + `AIResearchCrew` → assemble/render → `validate_report` / structured validation → optional editor polish → Telegram + BQ writes.
-- **Tech stack**: Python 3.11+ (Dockerfile 3.11-slim; 3.12 OK locally); CrewAI + LiteLLM (Grok, GPT, Claude, Gemini); Streamlit; BigQuery; pandas / plotly / matplotlib; pyTelegramBotAPI; pydantic v2; python-dotenv.
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-### Key files (repo root)
+## 2. Simplicity First
 
-| File | Role |
-|------|------|
-| [`main.py`](main.py) | Entry: `_validate_required_keys`, `_validate_critical_env_strict` (`PIPELINE_STRICT_ENV`), `_validate_env_types`, prewarm, dual-crew run, retries, Telegram, BQ, charts |
-| [`earnings_watchlist.py`](earnings_watchlist.py) | 美股 mega-cap／AI 財報 watchlist 與錨定週邏輯（`macro_context`、財報聚焦、**週五–日**下週預告共用） |
-| [`earnings_focus.py`](earnings_focus.py) | 可選 **`EARNINGS_FOCUS_MODE`**；**週五／週六／週日**自動【下週財報預告】exclusion |
-| [`crew.py`](crew.py) | CrewAI agents, tasks, LLM fallback chains；**華爾街級財報分析**規則（`_EARNINGS_ANALYSIS_WALL_STREET_RULE`） |
-| [`graph/graph_crew.py`](graph/graph_crew.py) | LangGraph state machine compiler/runtime (`USE_LANGGRAPH_ENGINE=1` 時切換路徑) |
-| [`graph/graph_nodes.py`](graph/graph_nodes.py) + [`graph/graph_state.py`](graph/graph_state.py) | Phase 3 nodes（Gather/Bull/Bear/Arbiter/Deep/Formatter）與共享 state/reducer |
-| [`graph/graph_tools.py`](graph/graph_tools.py) | LangChain `RESEARCH_TOOLS` 橋接層（`GRAPH_DEEP_RESEARCH_TOOL_LLM=1` 時 deep research 以 `bind_tools` 呼叫原生 tools） |
-| [`tools/`](tools/) + [`tools_legacy.py`](tools_legacy.py) | Crew import `tools` (package re-exports legacy); new scaffold `tools.base` / `tools.market` + ADR [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md); split plan [`docs/TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md)；**`prediction_markets_tool`**（Polymarket Gamma 熱門事件；讀者版預設關閉，`PREDICTION_MARKETS_IN_BRIEF=1` 才注入【預測市場熱門】） |
-| [`schemas.py`](schemas.py) | Pydantic — `DailyBriefReport`, sections, QSREC |
-| [`config.py`](config.py) | `PROJECT_ID`, table IDs, model env names, `GATE_FAILURE_LOG_TABLE`, etc. |
-| [`report_render.py`](report_render.py) | Assemble + render Telegram HTML from crew output |
-| [`report_html_gates.py`](report_html_gates.py) | HTML/env/BQ gate: `validate_report()` (news, UTC+8, freshness, QSREC, rotation, …) |
-| [`schemas.py`](schemas.py) | Pydantic contract + `ReportOutput` / `parse_report_output` + `validate_structured_report` + `DailyBriefReport` business rules |
-| [`report_judge.py`](report_judge.py) | Hard-pattern judge; optional `REPORT_LLM_JUDGE` |
-| [`report_quality_agent.py`](report_quality_agent.py) | Optional post-gate QA (`REPORT_QUALITY_AGENT`): composite score + TODOS follow-ups |
-| [`report_editor.py`](report_editor.py) | Optional polish pass (`EDITOR_AGENT_ENABLED`) |
-| [`validation_rules.py`](validation_rules.py) | Shared regex / rule fragments for validation |
-| [`telegram_sender.py`](telegram_sender.py) | HTML sanitization + send helpers |
-| [`bigquery_writer.py`](bigquery_writer.py) | Metrics, LLM run log, exclusion context, **`write_gate_failure_log`** |
-| [`tracker.py`](tracker.py) | Positions / previous recommendations |
-| [`scratchpad.py`](scratchpad.py) | JSONL trace, tool caps, editor/judge append |
-| [`api.py`](api.py) | FastAPI for PWA / war room data（含可選 SSE `/api/stream/war-room`、紙上 `POST /api/paper/execution-tick`） |
-| [`war_room_stream.py`](war_room_stream.py) | SSE bump version（intent 寫入） |
-| [`paper_execution.py`](paper_execution.py) | 紙上模擬 tick（M5；無真下單） |
-| [`api_schema.py`](api_schema.py) | JSON response guards for tools |
-| [`dashboard.py`](dashboard.py) | Streamlit war room |
-| [`crew_output_parse.py`](crew_output_parse.py) | Crew `kickoff()` output → Pydantic |
-| [`signal_weights_store.py`](signal_weights_store.py) | Versioned ML weights; optional crew context (`WEIGHTS_CONTEXT_ENABLED`) |
-| [`crew_company.py`](crew_company.py) | Company Growth narrative pilot (`COMPANY_CREW_ENABLED`) |
-| [`company_ops_schemas.py`](company_ops_schemas.py) | Pydantic schemas for company ops / war room |
-| [`monitor_intraday.py`](monitor_intraday.py) | Intraday monitor script + workflow companion |
-| [`visualizer.py`](visualizer.py) | Chart generation |
-| [`backtest.py`](backtest.py) | ML backtest CLI |
-| [`assets_config.json`](assets_config.json) + [`assets_universe.py`](assets_universe.py) | 美股 **core_equity**（儀表板 FD 錨點≥2 行）／**extended_equity**（每檔≤3 行）＋合併後 `watchlist`／yfinance 籃 |
+**Minimum code that solves the problem. Nothing speculative.**
 
-### Subdirectories
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
 
-| Path | Contents |
-|------|----------|
-| [`core/`](core/) | Reserved package root (`__init__.py`); compare path uses `main._validate_report_candidate` → `report_html_gates.validate_report` |
-| [`templates/`](templates/) | `telegram_report.j2`（`include` → [`profiles/telegram_full.j2`](templates/profiles/telegram_full.j2)）；**Phase 1** macro [`templates/blocks/`](templates/blocks/)；**Phase 2** [`brief_profiles.py`](brief_profiles.py) + `REPORT_PROFILE`（`full`／`lite`／`crypto-only`；**Phase 4d** 啟動時 [`main.py`](main.py) `_validate_report_profile_env`）；**Phase 5** 可選〔時事多觀點〕：`BRIEF_CURRENT_AFFAIRS`（預設關閉＝等價）、[`templates/blocks/_current_affairs_roundtable.j2`](templates/blocks/_current_affairs_roundtable.j2)、`report_render.telegram_render_context` 之 `current_affairs_block_html`；**Phase 4b** 可選 [`brief_profiles_layout.py`](brief_profiles_layout.py) + `BRIEF_LAYOUT_FILE` + [`config/brief_layouts/`](config/brief_layouts/)（`profile_block_ids` merge；**不驅動** Jinja 靜態模板順序 — [`modularization_plan.md#phase-4d`](docs/architecture/modularization_plan.md#phase-4d)）；合併門檻：`pytest -m smoke` [`test_telegram_template_modularization.py`](test_telegram_template_modularization.py) + [`test_brief_profiles.py`](test_brief_profiles.py) vs [`tests/fixtures/telegram_report_phase0_monolithic.j2`](tests/fixtures/telegram_report_phase0_monolithic.j2)（`full` **byte-identical**） |
-| [`docs/`](docs/) | Design docs, runbooks, SQL samples (see §5) |
-| [`scripts/`](scripts/) | `bench_autoresearch.sh`, `oss_scout_candidates.py`, `write_ml_weights.py`, `inject_test_data.py` |
-| [`data-verification-ui/`](data-verification-ui/) | Vite + React PWA |
-| [`.github/workflows/`](.github/workflows/) | CI, deploy (`environment: production`), schedulers |
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
----
+## 3. Surgical Changes
 
-## 4. Common Commands
+**Touch only what you must. Clean up only your own mess.**
 
-| Task | Command |
-|------|---------|
-| Install deps | `uv pip install -r requirements.txt --system` or `pip install -r requirements.txt` |
-| Lint | `ruff check .` |
-| Smoke tests (CI-aligned) | `python3 -m pytest -m smoke -v`（Actions 使用 [`requirements-ci.txt`](requirements-ci.txt) + `conftest` stub） |
-| Full tests | `python3 -m pytest -v`（nightly workflow 每日 full；deploy 前僅 smoke） |
-| Boundary / contract subset | `python3 -m pytest -m boundary -v`（markers 見 [`pytest.ini`](pytest.ini)；矩陣見 [`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md)） |
-| Dashboard | `streamlit run dashboard.py --server.port 8501 --server.headless true` |
-| Full pipeline | `python main.py` (many API keys; ~15–30+ min) |
-| Dry run | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` |
-| Strict prod-like startup | `PIPELINE_STRICT_ENV=1` (requires Telegram and/or GCP when respective `SKIP_*` unset) |
-| Bench / autoresearch hook | `./scripts/bench_autoresearch.sh` (ruff + smoke; official `METRIC` lines at end only) |
-| Docker | `docker build -f Dockerfile .` |
-| Dual-track compare | `REPORT_COMPARE_MODE=1 python main.py` — [`docs/REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md) |
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
 
----
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
 
-## 5. Documentation Index (`docs/`)
+The test: Every changed line should trace directly to the user's request.
 
-### Q-Silicon Terminal — AI / Cursor 長線規劃（Claude Code）
+## 4. Goal-Driven Execution
 
-當任務涉及 **Terminal Portal**、**Reviewer 閉環**、**LangGraph Phase 3.5**、或 **PWA 模組化重構** 時，先讀這三份（依主題選讀即可）：
+**Define success criteria. Loop until verified.**
 
-| Doc | Purpose |
-|-----|---------|
-| [`architecture/AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md) | 與 AI 協作時的行為準則、工程紅線、現況快照、**五模組 Terminal** 願景與 `qsilicon/` 組織原則 |
-| [`architecture/REVIEWER_LOOP_DESIGN.md`](docs/architecture/REVIEWER_LOOP_DESIGN.md) | **`trade_picker` → `reviewer_node`**：Python 先擋、LLM 只查邏輯矛盾；Hard cap、降級、BQ `reviewer_log`、實作驗收清單 |
-| [`architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) | **`data-verification-ui` 模組化目錄**、FastAPI 路由分層、master key、五模組 MVP 與開發順序 |
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
 
-與現有文件中 [`TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)、[`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)、[`visualization_plan.md`](docs/architecture/visualization_plan.md) 並用：前者偏 **中段產品路線**，這三份偏 **實作骨架與 Graph 設計**。
+For multi-step tasks, state a brief plan:
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
 
-| Doc | Purpose |
-|-----|---------|
-| [`DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md) | Brief format / Telegram rules |
-| [`BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md) | Gate／HTTP／main 邊界測試盤點與 pytest marker |
-| [`research/LAST30DAYS_SKILL.md`](docs/research/LAST30DAYS_SKILL.md) | 可選 [last30days-skill](https://github.com/mvanhorn/last30days-skill)：安裝、pilot、與日報管線信任邊界（預設 A+B，不進 `main.py`） |
-| [`ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) | Product directions |
-| [`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) | Streamlit / API / PWA KPI contract |
-| [`visualization_plan.md`](docs/architecture/visualization_plan.md) | 視覺化階段計畫（A–D）：契約、Terminal、Telegram 附圖、長線 K 線疊加 |
-| [`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) | Terminal-style capability map and acceptance checklist |
-| [`ADR_INDEX.md`](docs/ADR_INDEX.md) | ADR／架構決策與相鄰設計稿索引 |
-| [`PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) | Web Push 分階實作與環境變數 |
-| [`TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md) | Terminal「中段」路線：data provenance、互動節奏、執行意圖 API（M1–M5） |
-| [`DEPLOY_RUNBOOK.md`](docs/DEPLOY_RUNBOOK.md) | Production deploy + GitHub Environment reviewers |
-| [`AUTORESEARCH_LOOP.md`](docs/AUTORESEARCH_LOOP.md) + [`autoresearch.plan.md`](docs/autoresearch.plan.md) | Autoresearch loop spec |
-| [`REPORT_COMPARE_STAGING.md`](docs/REPORT_COMPARE_STAGING.md) | Compare mode |
-| [`COST_PER_MODEL.md`](docs/COST_PER_MODEL.md) | LLM cost notes |
-| [`COMMERCE_PLAYBOOK.md`](docs/COMMERCE_PLAYBOOK.md) / [`COMMERCE_NEXT_STEPS.md`](docs/COMMERCE_NEXT_STEPS.md) | Commerce hypotheses / checklist |
-| [`COMPANY_CREW_ROADMAP.md`](docs/COMPANY_CREW_ROADMAP.md) | Multi-function crew roadmap |
-| [`TOOLS_MODULARIZATION_PLAN.md`](docs/TOOLS_MODULARIZATION_PLAN.md) | Splitting legacy tools |
-| [`ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md) | MOCK_APIS / `tools` package (Office Hours Alt B) |
-| [`SQL/gate_failure_weekly_summary.sql`](docs/SQL/gate_failure_weekly_summary.sql) | Example BQ aggregation for gate failures |
-| [`SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) | Optional DDL: add `profile` to `llm_run_log` / `gate_failure_log` (Phase 4c; pipeline also auto-adds) |
-| [`oss_candidates/README.md`](docs/oss_candidates/README.md) | OSS scout process |
-
-**Env reference**: [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) (copy to `.env`).
-
----
-
-## 6. Observability & Gates (quick reference)
-
-- **Gate failure artifacts**: `.qsilicon/last_gate_failure/` when `GATE_FAILURE_ARTIFACTS` enabled.
-- **Gate failure BigQuery**: `write_gate_failure_log` → `{PROJECT}.market_data.gate_failure_log`（列含 **`profile`**，與 `REPORT_PROFILE`／`validate_report` 對齊）；toggle `GATE_FAILURE_BQ_LOG`, respect `SKIP_BIGQUERY`.
-- **LLM run log BigQuery**: `write_llm_run_log` → `{PROJECT}.market_data.llm_run_log`（列含 **`profile`**）；respect `SKIP_BIGQUERY`.
-- **Scratchpad**: `.qsilicon/scratchpad/*.jsonl` when `SCRATCHPAD_ENABLED`.
-- **News freshness** (optional): `STRICT_NEWS_FRESHNESS_GATE`, `NEWS_FRESHNESS_WINDOW_HOURS`, `NEWS_FRESHNESS_SOURCE_WHITELIST` — see [`report_html_gates.py`](report_html_gates.py), tests in [`test_news_freshness.py`](test_news_freshness.py).
-- **投資解讀 vs 儀表板**（optional, default off）: `STRICT_INVESTMENT_DASHBOARD_NUMERIC_GATE=1` — 每則投資解讀的數字錨點須出現在同段區塊① `<code>` 讀值；觀望模式略過；blocking。
-- **呢喃 MSM**（optional）: `STRICT_CHATTER_MSM_VERIFY_GATE=1` — 含可信度之呢喃須含「主流媒體二次驗證：是/否」；blocking。
-- **BTC MA 儀表列**: `assemble_daily_brief_report` 可注入 `BTC MA20（日線）`／`MA50`（yfinance）；`SKIP_BTC_MA_DASHBOARD_INJECT=1` 關閉。
-- **機構 Phase A**（optional）: `STRICT_INSTITUTIONAL_PHASE_A_GATE=1` — HTML 須含固定免責 `<blockquote>` 與【投資命題】／支持·反駁（各 **2–3** 條）·假設·敘事失效；同開關下 `DailyBriefReport` 結構化驗證要求 `CryptoSection` 對應欄位。日報掃讀順序與「機構速讀」置末見 [`docs/DAILY_BRIEF_V2.md`](docs/DAILY_BRIEF_V2.md)；模板 [`templates/telegram_report.j2`](templates/telegram_report.j2)（免責渲染於 **【機構速讀】** 標題前，仍滿足全文含 `<blockquote>`）。**`REPORT_PROFILE=lite`** 時 HTML 無機構速讀段：[`validate_report(..., profile=)`](report_html_gates.py) **跳過** Phase A/B/C HTML 檢查（結構化仍受 `STRICT_*` 約束；組裝 `lite` 前勿開 strict 或須滿欄位）。
-- **機構 Phase B**（optional）: `STRICT_INSTITUTIONAL_PHASE_B_GATE=1` — HTML 須含【組合與曝險框架】、【三情境機率】、每則新聞「市場定價」三擇一；結構化驗證 `portfolio_framing_summary`、`scenario_probability_notes`、`NewsItem.pricing_note`。新聞新鮮度預設視窗 **`NEWS_FRESHNESS_WINDOW_HOURS=36`**（啟用 `STRICT_NEWS_FRESHNESS_GATE` 時）。
-- **機構 Phase C**（optional）: `STRICT_INSTITUTIONAL_PHASE_C_GATE=1` — 估值錨、美股估值框架、近端事件日曆（3–6 條含日期）、每筆可執行 `trade_legs` 之 `liquidity_execution_note`；結構化與 HTML 雙檢。
-- **〔時事多觀點〕**（optional）: `BRIEF_CURRENT_AFFAIRS=1` — [`current_affairs_crew.py`](current_affairs_crew.py) 單 task（無 tools）；`STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE=1` 時建議管線以 `validate_report(..., structured_report=DailyBriefReport)` 做 HTML＋結構化交叉檢；**Lite Pass6** `STRICT_LITE_EXEC_SUMMARY_PASS6_GATE=1`；ADR [`docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](docs/ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)。
-- **動態 `full` 組版**（optional）: `BRIEF_DYNAMIC_RENDER=1` + `BRIEF_LAYOUT_FILE` 與內建 `full` 順序不同時 — [`report_render.render_telegram_daily_brief`](report_render.py) macro 串接；預設關閉維持 byte-identical。
-
----
-
-## 7. Bug Fixing Workflow
-
-- **Test-first**: Add a failing test that reproduces the bug, then fix until green. Do not fix-only without coverage for regressions.
-
----
-
-## 8. Coding Conventions
-
-- **Style**: Ruff; fix warnings in touched files.
-- **Naming**: `snake_case` / `PascalCase` / `UPPER_SNAKE_CASE` / `_private`.
-- **Errors**: Log with `logger.warning` / `logger.error`; retry 503/429 with backoff where appropriate; tools return `[DATA_MISSING:...]` (or agreed sentinel) on API failure—do not silently return fake numbers.
-- **Comments**: Explain *why*; docstrings on public APIs; inline notes for thresholds and whitelist behavior.
-
----
-
-## 9. gstack — Browsing & Workflow Skills
-
-- **Optional social/trend research (not daily pipeline data)**: [last30days-skill](https://github.com/mvanhorn/last30days-skill) — install per upstream; scope and red-line alignment → [`docs/research/LAST30DAYS_SKILL.md`](docs/research/LAST30DAYS_SKILL.md).
-- **Browsing**: Prefer `/browse` from gstack for interactive web QA when applicable. Do not use legacy `mcp__claude-in-chrome__*` flows documented as deprecated in older setups.
-- **Setup** (first time): `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`
-- **Skills** (examples): `/browse`, `/review`, `/ship`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/design-consultation`, `/qa`, `/qa-only`, `/investigate`, `/retro`, `/codex`, `/office-hours`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/gstack-upgrade`, `/document-release`, `/setup-browser-cookies`.
-
-See [`gstack.md`](gstack.md) if present for repo-local gstack notes.
-
-## Git / ship（本 repo 覆寫）
-
-- 使用者要 **ship／deploy／上線** 時：預設 **直推 `main`**（`git push origin main`）；**勿**自動開 PR，除非使用者要求或 `main` 受保護無法直推。
-- **自動 Deploy**（[`deploy.yml`](.github/workflows/deploy.yml)）僅在 `push` 變更落在 **`paths`** 內時觸發（例如 `**/*.py`、`Dockerfile`、`requirements*.txt`、`assets_config.json`、相關 workflow 檔等）；**純文件**（`README.md`、`CHANGELOG.md`、`TODOS.md`、`docs/architecture/modularization_plan.md` 等）**不會**觸發，以免無謂 Docker build。若要在此情況下仍部署 Cloud Run：GitHub → **Actions** → **Deploy — Cloud Run Job** → **Run workflow**（`workflow_dispatch`）。
-- gstack `/ship` 技能若預設開 PR，在此 repo **改為** 上述直推流程（仍須先跑 `ruff` + `pytest -m smoke` 等約定檢查）。
-
-## Skill routing
-
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
-
-Key routing rules:
-- Product ideas, "is this worth building", brainstorming → invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push → 見上節「Git / ship」；若使用者**明確**要 PR 再用 ship/PR 流程
-- QA, test the site, find bugs → invoke qa
-- Code review, check my diff → invoke review
-- Update docs after shipping → invoke document-release
-- Weekly retro → invoke retro
-- Design system, brand → invoke design-consultation
-- Visual audit, design polish → invoke design-review
-- Architecture review → invoke plan-eng-review
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.

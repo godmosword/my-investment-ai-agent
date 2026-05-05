@@ -10,7 +10,7 @@ test.describe("Bloomberg §6 — Today BTC price_alignment banner", () => {
         /* ignore */
       }
     });
-    await page.goto("/", { waitUntil: "load" });
+    await page.goto("/today", { waitUntil: "load" });
     await expect(page.getByTestId("today-btc-price-mismatch-banner")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("today-btc-price-aligned")).toContainText(/對齊警告/);
     await expect(page.getByTestId("today-btc-quote-last")).toBeVisible();
@@ -26,7 +26,7 @@ test.describe("Bloomberg §6 — Today BTC price_alignment banner", () => {
         /* ignore */
       }
     });
-    await page.goto("/", { waitUntil: "load" });
+    await page.goto("/today", { waitUntil: "load" });
     await expect(page.getByTestId("today-btc-price-aligned")).toContainText(/對齊狀態：N\/A/);
     await expect(page.getByTestId("today-btc-price-alignment-na-banner")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("today-btc-quote-last")).toContainText(/50,000\.125/);

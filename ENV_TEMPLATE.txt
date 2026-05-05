@@ -228,7 +228,16 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # （PWA）VITE_TERMINAL_POLL_MS=45000   # Terminal 輪詢間隔（毫秒；見 docs/DASHBOARD_CONTRACT.md）
 # （PWA）VITE_TERMINAL_QUERY_COALESCE=1   # 1=多卡同頁時 snapshot/quote/intents 輪詢時間錯開，減少 burst（設 0 關閉）
 # （PWA）VITE_STRUCTURED_REPORT=0   # 1=報告頁使用 GET /api/reports/{date}/structured 區塊視圖（見 docs/DASHBOARD_CONTRACT.md；預設 0）
+# （PWA）VITE_QSILICON_KEY=   # 建置時注入或留空；執行時優先讀 localStorage「qsi_master_key」（`/api-key` 頁寫入）。`data-verification-ui/src/lib/siliconApiHeaders.js` + `useApi.js`／`pushClient.js` 對 `/api/*` fetch 送 Header `X-Q-Silicon-Key`；401 時（`VITE_E2E`≠1）導向 `/api-key?return=…` 並 dispatch `qsilicon:api-unauthorized`
+# QSILICON_MASTER_KEY=   # 非空時 FastAPI 對 `/api/*`（`GET /api/stream/war-room` 除外：EventSource 無法帶自訂 header，仍用 `API_STREAM_AUTH_KEY`／query）要求 Header `X-Q-Silicon-Key` 與此值完全一致
 # 結構化報告頁可選 URL ?profile=full|lite|crypto-only；後端 GET /api/brief-layouts 列 config/brief_layouts/*.yaml（無 env 開關）
+
+# ---------- NotebookLM / Agency（研究管線 Phase 1；預設關；見 docs/architecture/notebooklm_research.md §14、agency_agents_research.md §12）----------
+# NOTEBOOKLM_ENABLED=0   # 1=啟用 tools/notebooklm_tool.py 查詢路徑（目前仍為 stub，回 [DATA_MISSING:notebooklm_not_implemented] 直至接 client）
+# AGENCY_RESEARCH_ENABLED=0   # 1=允許 agents.agency._load_agency_template 讀取 agents/agency/*.md；0 時回空字串、主線無行為變更
+
+# ---------- Runbook 視覺化（visualizer.py；見 docs/architecture/visualization_plan.md 階段 C）----------
+# VISUALIZER_BTC_SOURCE=yfinance   # yfinance（預設）｜snapshot — Panel 1 BTC 收盤序列改由 BQ + symbol_snapshot_service 之 price_series（須 GCP/BQ 可用）
 
 # TERMINAL_SSE_ENABLED=0       # 1=啟用 GET /api/stream/war-room（SSE；見 docs/TERMINAL_MID_TIER_ROADMAP.md M4）
 # API_STREAM_AUTH_KEY=         # 非空時 SSE 須 Header X-QS-Stream-Key 或 query stream_key

@@ -211,11 +211,13 @@ Deliverables:
 
 ## 驗收清單
 
-- [ ] 五個模組目錄建立完成，皆有 placeholder page
-- [ ] Shell 導航可切換五個模組，URL 對應正確
-- [ ] 現有 `/terminal` 功能遷移到 `modules/daily-brief/` 後行為一致
-- [ ] `shared/api/client.ts` 正確處理 X-Q-Silicon-Key 認證
-- [ ] 401 回應時正確跳轉到 key-input 頁面
-- [ ] 模組之間無直接 import（用 lint rule 或人工檢查）
-- [ ] PWA 離線快取仍正常運作
-- [ ] Playwright E2E 測試通過（`npm run test:e2e`）
+> **2026-05-04 對齊現況**：勾選以 **本 PR** 為準。設計稿曾寫 `shared/api/client.ts`／axios；repo 實作為 [`data-verification-ui/src/lib/siliconApiHeaders.js`](../../data-verification-ui/src/lib/siliconApiHeaders.js) + [`useApi.js`](../../data-verification-ui/src/hooks/useApi.js)／[`pushClient.js`](../../data-verification-ui/src/pushClient.js)。根路徑 **`/`** 已 **`Navigate` → `/briefs`**；**Today** 掛 **`/today`**。
+
+- [x] 五個模組目錄建立完成，皆有 placeholder page（`modules/*/pages/*Home.jsx` + `daily-brief/pages/DailyBriefPage.jsx`）
+- [x] Shell 導航可切換五個模組，URL 對應正確（`app/layout/Shell.jsx` + `ModuleNav.jsx` → `/briefs`、`/analysis`、`/positions`、`/industries`、`/quant`）
+- [x] 現有 `/terminal` 功能遷移到 `modules/daily-brief/` 後行為一致（`/briefs` 與 `/terminal` 同掛 `DailyBriefPage`）
+- [x] 單一 API 出口正確處理 `VITE_API_URL` + `X-Q-Silicon-Key`（`siliconApiHeaders.js`：`localStorage.qsi_master_key` 優先於 `VITE_QSILICON_KEY`；`useApi.js`／`pushClient.js`）
+- [x] 401 回應時跳轉專用 key-input 頁（`/api-key`；`VITE_E2E=1` 時不跳轉）；並 dispatch `qsilicon:api-unauthorized`
+- [x] 模組之間無直接 `modules/A` → `modules/B` import（`eslint.config.js`：`import/no-restricted-paths`）
+- [x] PWA 離線快取仍正常運作（`service-worker.js` 未因 Portal 重構移除；`/api` NetworkOnly 策略維持）
+- [x] Playwright E2E 測試通過（含 `briefs-alias-route` 等；`npm run test:e2e`）

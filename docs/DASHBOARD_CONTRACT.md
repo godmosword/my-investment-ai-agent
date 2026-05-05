@@ -1,6 +1,6 @@
 # 儀表板與 API 契約（BL-12）
 
-本檔描述 **Streamlit 戰情室**（[`dashboard.py`](../dashboard.py)）、**FastAPI**（[`api.py`](../api.py)）與 PWA（[`data-verification-ui/`](../data-verification-ui/)）對齊時應遵守的資料語意。欄位名以實作為準；缺憑證時行為為 **優雅降級（N/A／錯誤提示）**。  
+本檔描述 **Streamlit 戰情室**（[`dashboard.py`](../dashboard.py)）、**FastAPI**（[`api.py`](../api.py) 與 [`api_routers/`](../api_routers/) 掛載之增量路由）與 PWA（[`data-verification-ui/`](../data-verification-ui/)）對齊時應遵守的資料語意。欄位名以實作為準；缺憑證時行為為 **優雅降級（N/A／錯誤提示）**。  
 「Bloomberg Terminal 對齊」能力映射與驗收清單見 [`docs/BLOOMBERG_ALIGNMENT.md`](BLOOMBERG_ALIGNMENT.md)。  
 **視覺化總覽與階段路線**（A–D）見 [`architecture/visualization_plan.md`](architecture/visualization_plan.md)。
 
@@ -34,7 +34,7 @@
 
 ### Streamlit ↔ PWA 同形約束（T2c）
 
-1. `dashboard.py` 的 Symbol 快照唯讀區與 PWA `/terminal` 應共用同一 payload 語意：
+1. `dashboard.py` 的 Symbol 快照唯讀區與 PWA **`/briefs`**（日報模組 canonical）及 **`/terminal`**（與 `/briefs` 同實作、供既有連結／E2E）應共用同一 payload 語意：
    - 未設 `SYMBOL_SNAPSHOT_HTTP_BASE`：Streamlit 直接呼叫 `symbol_snapshot_service.build_symbol_snapshot`
    - 有設 `SYMBOL_SNAPSHOT_HTTP_BASE`：Streamlit 改打 `GET /api/symbols/{symbol}/snapshot`
 2. 兩條路徑都必須維持以下鍵存在且語意一致：`symbol`、`latest_metrics`、`history`、`price_series`、`event_markers`、`recommendations`、`report_links`、`data_provenance`、`price_alignment`。
@@ -59,8 +59,8 @@
 
 | 路由 | 用途 | 備註 |
 |------|------|------|
-| `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema |
-| `GET /api/metrics/history` | 歷史指標 | query：`days` |
+| `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema；實作於 [`api_routers/metrics.py`](../api_routers/metrics.py)（`APIRouter` prefix `/api/metrics`） |
+| `GET /api/metrics/history` | 歷史指標 | query：`days`；同上 |
 | `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit`；回應含 **`data_provenance`**（OHLC／BQ 來源與 as_of）；**`price_alignment`** 描述 **yfinance OHLC 尾端** vs **`/quote` 之 last**（皆 yfinance），並標 **`daily_metrics_source: bigquery`**；staging 可選 **`PRICE_ALIGNMENT_E2E_OVERRIDES`** 強制數值（見 `ENV_TEMPLATE.txt`） |
 | `GET /api/symbols/{symbol}/quote` | 輕量 **最新日線收盤** + 可選 **1D %**（僅 yfinance，無 BQ） | 失敗 **503**；伺服端快取約 **45s**；回應含 **`data_provenance.price`** |
 | `GET /api/execution-intents` | 執行意圖列表（每 `signal_id` 最新一列） | query：`limit`；可選 **`status`**（狀態字串之子字串比對，大小寫不敏感）、**`category`**（`CRYPTO`／`AI` 前綴）、**`sort_by`**（`updated_desc`｜`created_desc`｜`asset_asc`）。回應列契約至少含 **`signal_id`、`created_at`、`category`、`regime`、`asset`、`direction`、`star_rating`、`thesis_one_liner`、`status`、`status_updated_at`、`status_note`、`reference_*`、`paper_*`**；若存在本機 **`.qsilicon/last_gate_failure/validation_summary.json`**，列表列會附加唯讀 **`gate_issue_hints`**（無命中時回空陣列） |
@@ -74,14 +74,14 @@
 | `GET /api/brief-layouts` | 列 `config/brief_layouts/*.yaml`（唯讀；V3 layout UX）；後端會 **safe_load** 並附預覽 | 回傳 **`layouts`**: `{ filename, path, applies_to_profile?, blocks?, parse_error? }[]` |
 | `GET /api/trades` | 交易列表 | |
 | `GET /api/trades/performance` | 績效彙總 | |
-| `GET /healthz` | 存活探測 | |
+| `GET /healthz` | 存活探測 | [`api_routers/health.py`](../api_routers/health.py) |
 | `POST /api/push/subscribe` | Web Push 訂閱 | 預設 **501**；`WEB_PUSH_ENABLED=1` 時：可設 **`WEB_PUSH_REDIS_URL`**（分散式儲存 + **Redis** rate limit）、或 **`WEB_PUSH_STORE=1`**（程序內）；可選 **`WEB_PUSH_BQ_PERSIST`**／**`WEB_PUSH_BQ_AUDIT`**。推送 payload 目前以 `title`／`body`／`url` 為主；**預留擴充**：`report_date`（`YYYY-MM-DD`）與 `block_id`（對應 `block_registry`），供 SW `notificationclick` 深連結至 `/report/:date#block=<block_id>`（**實作中／待 PR**，見 Phase 5）。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
 | `POST /api/push/test-send` | 管理端 **測試推送**（`pywebpush`） | 預設 **404**；須 **`WEB_PUSH_ADMIN_KEY`** + Header **`X-Web-Push-Admin-Key`** + **`WEB_PUSH_VAPID_PRIVATE_KEY`** + 已存完整訂閱 |
 
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
 Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。
 
-**PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/terminal`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。可選 **`VITE_TERMINAL_QUERY_COALESCE=1`**（預設）讓同頁多卡之 `snapshot`／`quote`／`intents` 輪詢 **微錯開**，降低 burst（設 **`0`** 關閉）。**2026-04-21 起的 T3c 約束**：`PATCH /api/execution-intents/{signal_id}` 成功後，前端需先**寫回 react-query cache**，僅對**活躍**的 `execution-intents`／`war-room` query 做即時 refetch；`metrics/latest`／`report`／`positions/open` 只標記 stale，不可每次 mutation 都同步全頁重抓。  
+**PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/briefs`**／**`/terminal`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。可選 **`VITE_TERMINAL_QUERY_COALESCE=1`**（預設）讓同頁多卡之 `snapshot`／`quote`／`intents` 輪詢 **微錯開**，降低 burst（設 **`0`** 關閉）。**2026-04-21 起的 T3c 約束**：`PATCH /api/execution-intents/{signal_id}` 成功後，前端需先**寫回 react-query cache**，僅對**活躍**的 `execution-intents`／`war-room` query 做即時 refetch；`metrics/latest`／`report`／`positions/open` 只標記 stale，不可每次 mutation 都同步全頁重抓。  
 可選 **`VITE_WEB_PUSH_REGISTER=1`** + **`VITE_WEB_PUSH_VAPID_PUBLIC_KEY`**（URL-safe base64）在 SW 就緒後嘗試 `pushManager.subscribe` 並 `POST /api/push/subscribe`（後端須 `WEB_PUSH_ENABLED=1`）；預設關閉。  
 可選 **`VITE_SSE_ENABLED=1`** + **`VITE_SSE_STREAM_KEY`**（與後端 `API_STREAM_AUTH_KEY` 對齊）以 **EventSource** 訂閱 `/api/stream/war-room` 並同步 React Query（後端須 `TERMINAL_SSE_ENABLED=1`）。**T3c 約束**：SSE **message** 應節流後再刷新活躍 `war-room`／`execution-intents`；SSE **error** 僅視為連線退化，不可反覆 invalidate 全頁 query，以保留 polling 作為降級路徑。  
 可選 **`VITE_STRUCTURED_REPORT=1`**：`/report/:date` 改載 **`GET /api/reports/{date}/structured`** 並以區塊順序渲染（結構化本文未入庫時以 **`legacy`** 欄位填 placeholder）；預設關閉時維持僅 **`GET /api/reports/{date}`**。結構化模式下可選 query **`?profile=`**（`full`｜`lite`｜`crypto-only`）切換前端版型（與 structured 端點之 `profile` 對齊）；無效值正規化為 **`full`**。
@@ -96,5 +96,5 @@ Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol
 
 ## 變更流程
 
-1. 修改 `dashboard.py` / `api.py` 時，同步更新本檔與（若對外）OpenAPI。  
+1. 修改 `dashboard.py` / `api.py` / `api_routers/*` 時，同步更新本檔與（若對外）OpenAPI。  
 2. KPI 閾值（例如 gauge 2.5 / 3.5）變更時，註記於 PR 與 `CHANGELOG.md`。

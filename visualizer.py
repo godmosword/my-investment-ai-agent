@@ -1,6 +1,7 @@
 """圖表生成模組：3 Panel BTC 量化儀表板，供戰報 Telegram 發送使用。"""
 import inspect
 import logging
+import os
 import warnings
 from datetime import datetime
 
@@ -73,6 +74,45 @@ def _ensure_warn_compat() -> None:
     warnings.warn = _warn_wrapped
 
 
+def _load_btc_close_from_snapshot(days: int = 65):
+    """Optional: use same `build_symbol_snapshot` OHLC path as Terminal (single pipeline).
+
+    Set ``VISUALIZER_BTC_SOURCE=snapshot`` to prefer this over a standalone ``yf.download``
+    for Panel 1 BTC closes. Falls back to yfinance on failure or too few points.
+    """
+    if os.getenv("VISUALIZER_BTC_SOURCE", "").strip().lower() != "snapshot":
+        return None
+    try:
+        import pandas as pd
+
+        from api_deps import get_bq_client
+        from symbol_snapshot_service import build_symbol_snapshot
+    except Exception as exc:
+        logger.warning("visualizer: snapshot BTC imports failed: %s", exc)
+        return None
+    try:
+        snap = build_symbol_snapshot(get_bq_client(), "BTC", days=days)
+        raw = snap.get("price_series") or []
+        if len(raw) < 10:
+            return None
+        idx = []
+        vals = []
+        for row in raw:
+            t = row.get("time")
+            c = row.get("close")
+            if t is None or c is None:
+                continue
+            idx.append(pd.Timestamp(str(t)))
+            vals.append(float(c))
+        if len(idx) < 10:
+            return None
+        ser = pd.Series(vals, index=pd.DatetimeIndex(idx))
+        return ser.sort_index()
+    except Exception as exc:
+        logger.warning("visualizer: snapshot BTC series failed: %s", exc)
+        return None
+
+
 def _fetch_btc_funding_pct_series(limit: int = 120) -> tuple[list, list] | None:
     """Binance USDT-M 永續 BTC 資金費率（8h），回傳 (datetimes_utc, funding_pct)；失敗則 None。"""
     try:
@@ -124,7 +164,11 @@ def generate_quant_chart(filename: str = "daily_chart.png") -> None:
             _fallback_chart(btc, vix, filename)
             return
 
-        btc_close = btc["Close"].squeeze()
+        btc_snap = _load_btc_close_from_snapshot(65)
+        if btc_snap is not None:
+            btc_close = btc_snap
+        else:
+            btc_close = btc["Close"].squeeze()
         vix_close = vix["Close"].squeeze()
 
         spy_close  = spy["Close"].squeeze()

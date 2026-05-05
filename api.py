@@ -41,7 +41,16 @@ from symbol_snapshot_service import (
     validate_symbol_for_snapshot,
 )
 
+from api_deps import get_bq_client as _bq_singleton, rows_to_dicts
+from api_routers import health as health_router
+from api_routers import metrics as metrics_router
+
 logger = logging.getLogger(__name__)
+
+
+def _get_bq_client() -> bigquery.Client:
+    """BQ client accessor; tests monkeypatch ``api._get_bq_client``."""
+    return _bq_singleton()
 
 _REPO_ROOT = Path(__file__).resolve().parent
 
@@ -64,6 +73,37 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
+
+app.include_router(health_router.router)
+app.include_router(metrics_router.router)
+
+
+def _qsilicon_master_key_required() -> str:
+    """非空時，所有 ``/api/*``（除 SSE 專線）須 Header ``X-Q-Silicon-Key`` 與其完全一致。"""
+    return (os.getenv("QSILICON_MASTER_KEY") or "").strip()
+
+
+def _path_exempt_from_silicon_master_key(path: str) -> bool:
+    """EventSource 無法自訂 Header；SSE 仍用 ``API_STREAM_AUTH_KEY``／query。"""
+    return path == "/api/stream/war-room" or path.startswith("/api/stream/war-room/")
+
+
+@app.middleware("http")
+async def _qsilicon_master_key_middleware(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    path = request.url.path
+    if not path.startswith("/api/") or _path_exempt_from_silicon_master_key(path):
+        return await call_next(request)
+    master = _qsilicon_master_key_required()
+    if not master:
+        return await call_next(request)
+    hdr = (request.headers.get("X-Q-Silicon-Key") or "").strip()
+    if hdr != master:
+        from starlette.responses import Response
+
+        return Response(status_code=401, content="Unauthorized", media_type="text/plain")
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -98,106 +138,6 @@ async def _api_request_observability_middleware(request: Request, call_next):
             elapsed_ms,
         )
     return response
-
-
-# ── BigQuery client singleton ───────────────────────────────────────────────
-_bq_client: bigquery.Client | None = None
-
-
-def _get_bq_client() -> bigquery.Client:
-    global _bq_client
-    if _bq_client is None:
-        _bq_client = bigquery.Client(project=PROJECT_ID)
-    return _bq_client
-
-
-def _rows_to_dicts(rows) -> list[dict[str, Any]]:
-    """Convert BigQuery RowIterator rows to JSON-serialisable dicts."""
-    result = []
-    for row in rows:
-        result.append(
-            {k: v.isoformat() if isinstance(v, (datetime, date)) else v for k, v in row.items()}
-        )
-    return result
-
-
-# ── /api/metrics ─────────────────────────────────────────────────────────────
-
-@app.get("/api/metrics/latest")
-def get_metrics_latest() -> dict[str, Any]:
-    """Return the most recent daily_metrics row with day-over-day deltas."""
-    try:
-        client = _get_bq_client()
-        rows = list(client.query(f"""
-            SELECT
-                timestamp, dxy, etf_flow_millions, avg_risk_score,
-                mvrv_z_score, sentiment_score, sopr, exchange_netflow,
-                regime_score, grok_summary, gpt_summary
-            FROM `{METRICS_TABLE}`
-            ORDER BY timestamp DESC
-            LIMIT 2
-        """).result())
-    except Exception as exc:
-        logger.error("BigQuery metrics/latest failed: %s", exc)
-        raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
-
-    if not rows:
-        raise HTTPException(status_code=404, detail="No metrics data found")
-
-    serialised = _rows_to_dicts(rows)
-    latest = serialised[0]
-    prev = serialised[1] if len(serialised) > 1 else None
-
-    # Compute deltas（與 PWA Today 第二排 KPI 對齊）
-    delta_keys = [
-        "dxy",
-        "etf_flow_millions",
-        "avg_risk_score",
-        "mvrv_z_score",
-        "sentiment_score",
-        "sopr",
-        "exchange_netflow",
-        "regime_score",
-    ]
-    deltas: dict[str, float | None] = {}
-    if prev:
-        for k in delta_keys:
-            cur, old = latest.get(k), prev.get(k)
-            if cur is not None and old is not None:
-                try:
-                    deltas[f"delta_{k}"] = round(float(cur) - float(old), 4)
-                except (TypeError, ValueError):
-                    deltas[f"delta_{k}"] = None
-            else:
-                deltas[f"delta_{k}"] = None
-    else:
-        for k in delta_keys:
-            deltas[f"delta_{k}"] = None
-
-    return {**latest, **deltas}
-
-
-@app.get("/api/metrics/history")
-def get_metrics_history(
-    days: int = Query(default=30, ge=7, le=180),
-) -> list[dict[str, Any]]:
-    """Return historical daily_metrics for the past N days (default 30)."""
-    try:
-        client = _get_bq_client()
-        rows = client.query(f"""
-            SELECT
-                timestamp, dxy, etf_flow_millions, avg_risk_score,
-                mvrv_z_score, sentiment_score, sopr, exchange_netflow,
-                regime_score
-            FROM `{METRICS_TABLE}`
-            WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY)
-            ORDER BY timestamp ASC
-        """).result()
-    except Exception as exc:
-        logger.error("BigQuery metrics/history failed: %s", exc)
-        raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
-
-    return _rows_to_dicts(rows)
 
 
 # ── /api/reports ─────────────────────────────────────────────────────────────
@@ -283,7 +223,7 @@ def list_reports(
         logger.error("BigQuery reports list failed: %s", exc)
         raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
 
-    return _rows_to_dicts(rows)
+    return rows_to_dicts(rows)
 
 
 @app.get("/api/reports/profile-stats")
@@ -327,7 +267,7 @@ def get_report_profile_stats(
         logger.error("BigQuery profile-stats query failed: %s", exc)
         raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
 
-    raw = {row["profile"]: row for row in _rows_to_dicts(rows)}
+    raw = {row["profile"]: row for row in rows_to_dicts(rows)}
     breakdown: list[dict[str, Any]] = []
     total = 0
     for name in known_profiles:
@@ -406,7 +346,7 @@ def _load_report_legacy(report_date: str) -> dict[str, Any]:
     if not rows:
         raise HTTPException(status_code=404, detail=f"No report found for {report_date}")
 
-    report = _rows_to_dicts(rows)[0]
+    report = rows_to_dicts(rows)[0]
 
     try:
         rec_rows = client.query(
@@ -421,7 +361,7 @@ def _load_report_legacy(report_date: str) -> dict[str, Any]:
             ORDER BY confidence DESC, asset ASC
         """
         ).result()
-        report["recommendations"] = _rows_to_dicts(rec_rows)
+        report["recommendations"] = rows_to_dicts(rec_rows)
     except Exception as exc:
         logger.warning("Could not attach recommendations for %s: %s", report_date, exc)
         report["recommendations"] = []
@@ -612,7 +552,7 @@ def _fetch_trades(
         logger.error("BigQuery trades failed: %s", exc)
         raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
 
-    return _rows_to_dicts(rows)
+    return rows_to_dicts(rows)
 
 
 @app.get("/api/trades")
@@ -688,7 +628,7 @@ def get_trades_performance(
             GROUP BY category
             ORDER BY category
         """).result()
-        stats["by_category"] = _rows_to_dicts(cat_rows)
+        stats["by_category"] = rows_to_dicts(cat_rows)
     except Exception as exc:
         logger.warning("Could not fetch category breakdown: %s", exc)
         stats["by_category"] = []
@@ -714,19 +654,12 @@ def get_trades_performance(
             FROM daily_sum
             ORDER BY d
         """).result()
-        stats["equity_curve"] = _rows_to_dicts(eq_rows)
+        stats["equity_curve"] = rows_to_dicts(eq_rows)
     except Exception as exc:
         logger.warning("Could not fetch equity curve: %s", exc)
         stats["equity_curve"] = []
 
     return stats
-
-
-# ── Health check ─────────────────────────────────────────────────────────────
-
-@app.get("/healthz")
-def healthz() -> dict[str, str]:
-    return {"status": "ok"}
 
 
 class WebPushSubscribeBody(BaseModel):

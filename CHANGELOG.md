@@ -3,6 +3,36 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-06
+
+### Docs
+- **Portal Phase 1 驗收對齊**：[`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) 驗收清單曾依 **main** 標示待辦（`useApi` header、401 專頁、`/`→`/briefs`、eslint）；**程式已於 CHANGELOG 2026-05-04** `### PWA`／`### API` 交付，驗收清單已改勾選；[`TODOS.md`](TODOS.md) **同步狀態（2026-05-04／2026-05-06）** 對齊。
+- **勘誤（無行為變更）**：**2026-05-04** `### Added` 第一條原先所列 `shared/api/client.js` **並不存在**；已改為指向 [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)，並於該條附設計稿 `shared/api/client` 之驗收錨點。
+
+## 2026-05-04
+
+### PWA（Terminal Portal）
+- **API 認證出口**：[`data-verification-ui/src/lib/siliconApiHeaders.js`](data-verification-ui/src/lib/siliconApiHeaders.js) 集中 `localStorage.qsi_master_key` 與 `VITE_QSILICON_KEY` → `X-Q-Silicon-Key`；[`useApi.js`](data-verification-ui/src/hooks/useApi.js)、[`pushClient.js`](data-verification-ui/src/pushClient.js) 合併送出；401 時 dispatch `qsilicon:api-unauthorized` 並導向 [`/api-key`](data-verification-ui/src/pages/ApiKeyPage.jsx)（`VITE_E2E=1` 時不跳轉，避免 Playwright mock 中斷）。
+- **路由**：`/` 改 `Navigate` 至 `/briefs`；原今日頁改 `/today`；BottomNav「今日」連 `/today`；[`vite.config.js`](data-verification-ui/vite.config.js) PWA `start_url` 改 `/briefs`；[`TerminalSymbolCard`](data-verification-ui/src/components/TerminalSymbolCard.jsx)「今日」連結改 `/today`；E2E 改 `goto("/today")`。
+- **Shell**：`/api-key` 隱藏 `ModuleNav` 與 `BottomNav`。
+- **ESLint**：[`data-verification-ui/eslint.config.js`](data-verification-ui/eslint.config.js) 以 `import/no-restricted-paths` 禁止五模組互 import；`package.json` 新增 `npm run lint`；`languageOptions.parserOptions.ecmaFeatures.jsx` 以解析 `.jsx`。
+
+### API
+- **可選主金鑰保護**：當 `QSILICON_MASTER_KEY` 非空時，除 **`GET /api/stream/war-room`** 外，所有 `/api/*` 須 Header `X-Q-Silicon-Key` 與環境變數值一致；[`test_api_master_key_middleware.py`](test_api_master_key_middleware.py)。
+
+### Added
+- **Portal Phase 1 路由與設定頁溯源**：PWA 新增 **`/briefs`**（與 **`/terminal`** 同頁）、Shell 五模組 stub、API 請求見 [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)（設計稿之單一 `shared/api/client` 見 [`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) 驗收清單）；Settings 補 Portal／`VISUALIZER_BTC_SOURCE` 說明；E2E [`data-verification-ui/e2e/briefs-alias-route.spec.js`](data-verification-ui/e2e/briefs-alias-route.spec.js)。
+- **研究管線 stub（預設關）**：[`tools/notebooklm_tool.py`](tools/notebooklm_tool.py)（`NOTEBOOKLM_ENABLED`、`_get_cache`／`_set_cache`）、[`agents/agency/`](agents/agency/) 與 [`agents/agency/investment_researcher.md`](agents/agency/investment_researcher.md)、[`agents/agency/__init__.py`](agents/agency/__init__.py) 之 `_load_agency_template`（`AGENCY_RESEARCH_ENABLED`）。
+
+### Changed
+- **FastAPI 增量路由**：`GET /healthz`、`GET /api/metrics/*` 遷至 [`api_routers/`](api_routers/)，[`api.py`](api.py) 以 `include_router` 掛載；共用 BQ helper 見 [`api_deps.py`](api_deps.py)。
+- **Runbook 視覺化**：[`visualizer.py`](visualizer.py) 支援 `VISUALIZER_BTC_SOURCE=snapshot` 時以已驗證 `symbol_snapshot` 之 `price_series` 建 BTC close 序列（預設仍 `yfinance`）。
+
+### Docs
+- [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)：對齊 `/briefs`、`api_routers`、NotebookLM／Agency／`VISUALIZER_BTC_SOURCE`／`VITE_QSILICON_KEY`。
+- [`docs/architecture/AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)：現況區改為對照 CHANGELOG 之模板；Session 任務改為可填模板。
+- [`CLAUDE.md`](CLAUDE.md)：根目錄補 Q-Silicon 架構與指令索引（含 `docs/architecture/Terminal_Master_Plan.md`、`scripts/verify_graph_gate.sh`）。
+
 ## 2026-05-02
 
 ### Docs

@@ -305,7 +305,7 @@ export default function TerminalSymbolCard({
                     </a>
                   );
                 })}
-                <Link className="terminal-report-links-today" to="/" data-testid={`terminal-today-link-${symbol}`}>
+                <Link className="terminal-report-links-today" to="/today" data-testid={`terminal-today-link-${symbol}`}>
                   今日戰情室
                 </Link>
               </div>

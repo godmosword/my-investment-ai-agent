@@ -35,15 +35,16 @@
 
 ---
 
-## 現有代碼庫狀態（2026-04）
+## 現有代碼庫狀態（請對照 CHANGELOG／實際檔案，勿僅依本段）
 
-- **主 repo**：`my-investment-ai-agent`（Python 88.7%, 649+ commits）
-- **核心管線**：`main.py` 雙 ThreadPoolExecutor 並行 Crypto / AI 兩軌
-- **引擎**：CrewAI（legacy，逐步退役）+ LangGraph（主力，Phase 3 重構中）
-- **輸出**：Telegram HTML + 可選 BigQuery
-- **前端**：`data-verification-ui/`（React + Vite PWA，含 `/terminal` 路由）
-- **Profile 系統**：`full` / `lite` / `crypto-only`，透過 `REPORT_PROFILE`
-  與 `BRIEF_LAYOUT_FILE` 驅動（Phase 1–4d 已完成）
+> **維護方式**：以 `CHANGELOG.md`、最近一次 merge 與 `git log` 為準；本節僅列**穩定錨點**，細節日期會漂移。
+
+- **主 repo**：Q-Silicon investment-ai-agent（Python + LangGraph 管線 + PWA）
+- **核心管線**：`main.py` 雙 ThreadPoolExecutor（Crypto / AI）
+- **引擎**：LangGraph 為主；CrewAI legacy 逐步收斂
+- **輸出**：Telegram HTML（`validate_report`／`report_html_gates.py` 白名單）
+- **前端**：`data-verification-ui/`（Vite PWA；Portal 模組路由含 `/briefs`、`/terminal`）
+- **Profile**：`full` / `lite` / `crypto-only`（`REPORT_PROFILE`、`BRIEF_LAYOUT_FILE`）
 
 ---
 
@@ -83,9 +84,9 @@ Q-Silicon Terminal (Portal)
 
 ## 本次 Session 任務
 
-<在此填入具體任務，例如：>
+> **模板**：每次開工在此填入當日可驗收切片；完成後刪除或勾選。長線 backlog 以 `TODOS.md`／`Terminal_Master_Plan.md` 為準。
 
-- [ ] 實作 `graph/graph_nodes.py` 的 `reviewer_node` 與反思路由
-- [ ] 將 `templates/telegram_report.j2` 拆分為原子模板
-- [ ] 建立 Terminal 前端骨架（五模組 placeholder）
-- [ ] 其他：_______________
+- （例）___________
+- （例）___________
+
+---

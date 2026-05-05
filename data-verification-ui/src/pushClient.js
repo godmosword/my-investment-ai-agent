@@ -4,6 +4,8 @@
  * Enable with VITE_WEB_PUSH_REGISTER=1 and a reachable VITE_API_URL where
  * WEB_PUSH_ENABLED=1 on the FastAPI server.
  */
+import { mergeSiliconHeaders } from "./lib/siliconApiHeaders";
+
 const truthy = (v) => String(v || "").toLowerCase() === "1" || String(v || "").toLowerCase() === "true";
 
 async function urlBase64ToUint8Array(base64String) {
@@ -60,7 +62,7 @@ export async function tryRegisterWebPush() {
     }
     const r = await fetch(`${base}/api/push/subscribe`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: mergeSiliconHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys, ...extra }),
     });
     if (!r.ok) {

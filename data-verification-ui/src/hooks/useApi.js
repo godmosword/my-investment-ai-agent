@@ -1,6 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { mergeSiliconHeaders } from "../lib/siliconApiHeaders";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
+const E2E_MODE = import.meta.env.VITE_E2E === "1";
+
+function handleApiUnauthorized() {
+  if (E2E_MODE) return;
+  try {
+    globalThis.dispatchEvent(new CustomEvent("qsilicon:api-unauthorized"));
+  } catch {
+    /* ignore */
+  }
+  try {
+    const path = globalThis.location?.pathname || "/briefs";
+    const q = globalThis.location?.search || "";
+    const ret = encodeURIComponent(`${path}${q}`);
+    globalThis.location?.assign(`/api-key?return=${ret}`);
+  } catch {
+    /* ignore */
+  }
+}
 
 function isServerErrorMessage(message) {
   return /^5\d\d:/.test(String(message ?? ""));
@@ -169,12 +188,13 @@ export function syncWarRoomRelatedQueries(
 async function apiFetch(path) {
   let res;
   try {
-    res = await fetch(`${BASE}${path}`);
+    res = await fetch(`${BASE}${path}`, { headers: mergeSiliconHeaders() });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(`Network error (${msg})`);
   }
   if (!res.ok) {
+    if (res.status === 401) handleApiUnauthorized();
     const msg = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status}: ${msg}`);
   }
@@ -190,7 +210,7 @@ async function apiPatchJson(path, body) {
   try {
     res = await fetch(`${BASE}${path}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: mergeSiliconHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     });
   } catch (e) {
@@ -198,6 +218,7 @@ async function apiPatchJson(path, body) {
     throw new Error(`Network error (${msg})`);
   }
   if (!res.ok) {
+    if (res.status === 401) handleApiUnauthorized();
     const msg = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status}: ${msg}`);
   }
