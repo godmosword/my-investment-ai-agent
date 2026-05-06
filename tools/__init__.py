@@ -10,7 +10,7 @@ import tools_legacy as _tools_legacy
 
 from . import base  # noqa: F401 — expose ``tools.base``
 from . import market  # noqa: F401 — expose ``tools.market``
-from .tradingview import tradingview_mcp_enabled, tradingview_snapshot_tool, tradingview_summary
+from .tradingview import tradingview_mcp_enabled, tradingview_snapshot_tool, tradingview_summary  # noqa: F401 — re-exported via globals().__all__
 
 # Mirror full legacy surface (``from legacy import *`` omits leading-underscore names).
 for _name, _value in vars(_tools_legacy).items():

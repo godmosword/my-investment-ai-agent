@@ -2,8 +2,6 @@
 
 import importlib
 
-import pytest
-
 
 def test_notebooklm_disabled_returns_placeholder(monkeypatch):
     monkeypatch.setenv("NOTEBOOKLM_ENABLED", "0")
