@@ -21,6 +21,7 @@ from config import (
 
 from dashboard.theme import COLORS, PLOTLY_TEMPLATE, dashboard_inline_css
 from dashboard.snapshot_payload import load_dashboard_symbol_snapshot_payload
+from dashboard.snapshot_format import format_price_alignment_status, format_provenance_summary
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -436,6 +437,8 @@ def render_roundtable_tab() -> None:
                 if isinstance(_pl.get("price_alignment"), dict)
                 else {}
             )
+            st.caption(format_price_alignment_status(_pa))
+            st.caption(format_provenance_summary(_pl.get("data_provenance")))
             if _pa:
                 _al = _pa.get("aligned")
                 if _al is False:
@@ -644,6 +647,13 @@ def render_overview() -> None:
                     f"recommendations **{len(_pl.get('recommendations') or [])}** · "
                     f"report_links **{len(_pl.get('report_links') or [])}**"
                 )
+                _pa = (
+                    _pl.get("price_alignment")
+                    if isinstance(_pl.get("price_alignment"), dict)
+                    else {}
+                )
+                st.caption(format_price_alignment_status(_pa))
+                st.caption(format_provenance_summary(_pl.get("data_provenance")))
                 _lm = _pl.get("latest_metrics") or {}
                 m1, m2, m3, m4 = st.columns(4)
                 with m1:

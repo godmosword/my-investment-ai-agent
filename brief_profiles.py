@@ -28,6 +28,8 @@ BLOCK_IDS: Final[tuple[str, ...]] = (
     "ai_news",
     "ai_chatter",
     "ai_trades",
+    "deep_filing_block",
+    "agency_finance_block",
     "current_affairs_roundtable",
     "institutional_view",
     "source_health",
@@ -98,6 +100,8 @@ BLOCK_REGISTRY: Final[dict[str, BlockRegistryEntry]] = {
     "ai_news": BlockRegistryEntry("_ai_section.j2", "telegram_ai_section"),
     "ai_chatter": BlockRegistryEntry("_ai_section.j2", "telegram_ai_section"),
     "ai_trades": BlockRegistryEntry("_ai_trades_only.j2", "telegram_ai_trades_only"),
+    "deep_filing_block": BlockRegistryEntry("_deep_filing_block.j2", "telegram_deep_filing_block"),
+    "agency_finance_block": BlockRegistryEntry("_agency_finance_block.j2", "telegram_agency_finance_block"),
     "current_affairs_roundtable": BlockRegistryEntry(
         "_current_affairs_roundtable.j2", "telegram_current_affairs_roundtable"
     ),

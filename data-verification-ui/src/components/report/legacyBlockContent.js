@@ -104,6 +104,8 @@ export function blockSectionTitle(blockId, registryEntry) {
     ai_news: "AI 新聞",
     ai_chatter: "AI 社群",
     ai_trades: "AI 交易",
+    deep_filing_block: "深度財報核讀",
+    agency_finance_block: "Agency 財務研究",
     current_affairs_roundtable: "時事圓桌",
     institutional_view: "機構觀點",
     source_health: "來源健康",

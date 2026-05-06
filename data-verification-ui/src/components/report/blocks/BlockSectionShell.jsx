@@ -3,7 +3,9 @@
  * @param {string} [dataSection] — 對應 `block_id`，供 E2E／可及性以 `data-section` 選取（visualization_plan V2）。
  */
 export default function BlockSectionShell({ id, dataSection, title, headerExtras, children }) {
-  const ds = dataSection != null && String(dataSection).trim() !== "" ? String(dataSection).trim() : undefined;
+  const explicit = dataSection != null && String(dataSection).trim() !== "" ? String(dataSection).trim() : "";
+  const fromAnchor = String(id || "").startsWith("block-") ? String(id).slice("block-".length) : "";
+  const ds = explicit || fromAnchor || undefined;
   return (
     <section id={id} className="structured-report-block" {...(ds ? { "data-section": ds } : {})}>
       <div className="section-header">

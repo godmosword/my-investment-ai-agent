@@ -1,10 +1,16 @@
 # NotebookLM Research & Integration Plan
 
 **版本：** 1.1 (2026-04-20)
-**狀態：** 規劃階段 → 待實作
+**狀態：** Repo-side 主流程 scaffold 已入庫（2026-05-06）；live NotebookLM client 仍待外部接入
 **相鄰文件：** [`AI_CONTEXT.md`](AI_CONTEXT.md)、[`REVIEWER_LOOP_DESIGN.md`](REVIEWER_LOOP_DESIGN.md)、[`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md)
 
 ---
+
+> **現況對齊（2026-05-06）**：repo 已補 `Citation`／`DeepFilingAnalysis` schema、
+> `graph/graph_nodes.py` 的 `deep_filing_analysis_node`、`brief_profiles.py` 的 `deep_filing_block`、
+> `tools/notebooklm_tool.py` 的多題 helper 與可選 BQ `notebooklm_cost_log`。但
+> `notebooklm_query()` 仍未接 live NotebookLM client；未設 `NOTEBOOKLM_ENABLED=1` 或缺 notebook id 時
+> 會回 `DATA_MISSING`，production 預設不渲染。
 
 ## 1. 研究背景與動機
 

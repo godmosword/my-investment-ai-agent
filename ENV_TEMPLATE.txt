@@ -71,7 +71,8 @@ TELEGRAM_CHAT_ID=
 # BRIEF_DYNAMIC_RENDER=0   # 1=當 `BRIEF_LAYOUT_FILE` 使 `profile_block_ids("full")` 與內建順序不同時，`full` 走 macro 動態串接（預設 0 維持 Phase 0 **byte-identical**）。
 # STRICT_LITE_EXEC_SUMMARY_PASS6_GATE=0   # 1=`lite` 執行摘要「→」要點 ≤3 條、每條 ≤40 字（見 `report_html_gates.py`）。
 # BRIEF_LAYOUT_FILE=   # 可選；指向 YAML，與內建 `PROFILES` merge 粗粒度 **block 順序**（白名單、同集合重排）。專案根相對或絕對路徑。見 `config/brief_layouts/README.md`。
-# DAILY_BRIEF_JSON_DIR=   # 可選；目錄內放 `YYYY-MM-DD.json`（`DailyBriefReport` 之 JSON，與管線 `model_dump_json` 同形），供 `GET /api/reports/{date}/structured` 填充 **`daily_brief_report`**。亦會嘗試 **`.qsilicon/daily_brief_reports/{date}.json`** 與 **`logs/run_YYYYMMDD_*/raw_data.json`**（與 `main.py` 寫入之結構化快照一致）。見根目錄 `DESIGN.md`、`docs/DASHBOARD_CONTRACT.md`。
+# DAILY_BRIEF_JSON_DIR=   # 可選；管線成功 assemble 後寫 `YYYY-MM-DD.json`（`DailyBriefReport` 之 JSON）；未設則寫 `.qsilicon/daily_brief_reports/{date}.json`，供 `GET /api/reports/{date}/structured` 填充 **`daily_brief_report`**。亦會嘗試 **`logs/run_YYYYMMDD_*/raw_data.json`**。見根目錄 `DESIGN.md`、`docs/DASHBOARD_CONTRACT.md`。
+# DAILY_BRIEF_JSON_BQ_TABLE=   # 可選；非空且未 `SKIP_BIGQUERY` 時，額外寫完整 DailyBriefReport JSON row。DDL 見 docs/SQL/daily_brief_report_json.sql。
 
 # ---------- GCP / BigQuery（選填，預設專案名見下）----------
 GCP_PROJECT_ID=my-investment-ai-agent
@@ -233,9 +234,15 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # QSILICON_MASTER_KEY=   # 非空時 FastAPI 對 `/api/*`（`GET /api/stream/war-room` 除外：EventSource 無法帶自訂 header，仍用 `API_STREAM_AUTH_KEY`／query）要求 Header `X-Q-Silicon-Key` 與此值完全一致
 # 結構化報告頁可選 URL ?profile=full|lite|crypto-only；後端 GET /api/brief-layouts 列 config/brief_layouts/*.yaml（無 env 開關）
 
-# ---------- NotebookLM / Agency（研究管線 Phase 1；預設關；見 docs/architecture/notebooklm_research.md §14、agency_agents_research.md §12）----------
-# NOTEBOOKLM_ENABLED=0   # 1=啟用 tools/notebooklm_tool.py 查詢路徑（目前仍為 stub，回 [DATA_MISSING:notebooklm_not_implemented] 直至接 client）
-# AGENCY_RESEARCH_ENABLED=0   # 1=允許 agents.agency._load_agency_template 讀取 agents/agency/*.md；0 時回空字串、主線無行為變更
+# ---------- NotebookLM / Agency / TradingView（預設關；補充研究，不替代 Gate／客觀工具）----------
+# NOTEBOOKLM_ENABLED=0   # 1=允許 LangGraph `deep_filing_analysis_node` 在 filing keywords 命中時呼叫 tools/notebooklm_tool.py；無 notebook id 或無 citation 時不渲染。
+# NOTEBOOKLM_NOTEBOOK_ID=   # NotebookLM notebook id；缺失回 [DATA_MISSING:notebooklm_notebook_id_missing]。
+# NOTEBOOKLM_COST_LOG_TABLE=   # 可選；非空且未 `SKIP_BIGQUERY` 時寫 NotebookLM 查詢成本／狀態 row。DDL 見 docs/SQL/notebooklm_cost_log.sql。
+# AGENCY_RESEARCH_ENABLED=0   # 1=允許 agents.agency 載入 template，並在 LangGraph `agency_researcher_node`／Crew backstory 中作補充；0 時主線無行為變更。
+# TRADINGVIEW_MCP_ENABLED=0   # 1=允許 tools/tradingview.py 執行 repo-side command bridge；預設關。
+# TRADINGVIEW_MCP_COMMAND=   # 例：python scripts/tradingview_mcp_bridge.py；repo 僅讀此 command，不修改 ~/.claude 或安裝外部 MCP server。
+# TRADINGVIEW_TIMEOUT_SEC=8
+# TRADINGVIEW_FALLBACK_YFINANCE=1   # bridge 未啟用或失敗時，以 multi_timeframe_tool/yfinance 靜默 fallback；設 0 則回 DATA_MISSING。
 
 # ---------- Runbook 視覺化（visualizer.py；見 docs/architecture/visualization_plan.md 階段 C）----------
 # VISUALIZER_BTC_SOURCE=yfinance   # yfinance（預設）｜snapshot — Panel 1 BTC 收盤序列改由 BQ + symbol_snapshot_service 之 price_series（須 GCP/BQ 可用）

@@ -17,6 +17,7 @@ from tools import (
     newsapi_tool,
     onchain_metrics_tool,
     prediction_markets_tool,
+    tradingview_snapshot_tool,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,10 +92,18 @@ def fetch_prediction_market_hot_events(query: str = "") -> str:
     return _run_legacy_tool(prediction_markets_tool, query or "")
 
 
+@tool
+def fetch_tradingview_snapshot(symbol: str = "BTC") -> str:
+    """取得可選 TradingView 技術快照；不得作為唯一價格來源。"""
+    logger.info("[Tool Call] fetch_tradingview_snapshot: %s", symbol)
+    return _run_legacy_tool(tradingview_snapshot_tool, symbol or "BTC")
+
+
 RESEARCH_TOOLS = [
     fetch_crypto_derivatives,
     fetch_us_equity_financials,
     fetch_latest_news,
     fetch_onchain_metrics_btc,
     fetch_prediction_market_hot_events,
+    fetch_tradingview_snapshot,
 ]

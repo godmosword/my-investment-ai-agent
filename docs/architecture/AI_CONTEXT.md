@@ -49,13 +49,17 @@
 
 ---
 
-## 進行中（Phase 3.5）
+## 已落地／維護中（Phase 3.5）
 
 - **`final_formatter_node`**：已用 `CryptoFormatterNarrative` Slim Schema
   + `_assemble_crypto_section` Python 組裝取代 CrewAI formatter 路徑。
-- **Reviewer Loop**：`trade_picker_node` → `reviewer_node` 閉環開發中。
-  Reviewer 僅查核「邏輯矛盾」與「幻覺標的」，**不查格式**。
-  有 Hard Cap 與降級路徑。
+- **Reviewer Loop**：第一版已於 **2026-04-21** 落地於 LangGraph native trade picker 路徑：
+  `trade_picker → python_validate → llm_reviewer → retry/degrade → final_formatter`。
+  Reviewer 僅查核 trade 邏輯矛盾與幻覺標的，**不查格式**、不取代
+  `validate_report`／Telegram HTML Gate；後續變更依
+  [`REVIEWER_LOOP_DESIGN.md`](REVIEWER_LOOP_DESIGN.md) 與
+  [`GRAPH_REVIEWER_CHANGE_CHECKLIST.md`](GRAPH_REVIEWER_CHANGE_CHECKLIST.md)
+  的 flag／測試維護。
 
 ---
 

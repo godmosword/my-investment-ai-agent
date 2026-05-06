@@ -198,6 +198,18 @@ function structuredContentForBlock(blockId, dbr) {
         payload: wrapTradesPayload(mapped, { introHtml: intro || undefined }),
       };
     }
+    case "deep_filing_block": {
+      const d = ai.deep_filing_analysis;
+      const answers = d && typeof d === "object" && d.answers && typeof d.answers === "object" ? d.answers : {};
+      if (!Object.keys(answers).length) return { kind: "skip" };
+      return { kind: "deep_filing", payload: d };
+    }
+    case "agency_finance_block": {
+      const a = ai.agency_research_output;
+      const deliverables = Array.isArray(a?.deliverables) ? a.deliverables : [];
+      if (!deliverables.length) return { kind: "skip" };
+      return { kind: "agency_research", payload: a };
+    }
     case "current_affairs_roundtable": {
       const rt = dbr.current_affairs_roundtable;
       if (!rt || typeof rt !== "object") return { kind: "skip" };

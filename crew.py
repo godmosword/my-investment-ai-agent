@@ -40,6 +40,7 @@ from tools import (
     rss_feed_tool,
     rumor_scanner_tool,
     sentiment_score_tool,
+    tradingview_snapshot_tool,
     valuation_anchor_tool,
 )
 
@@ -95,10 +96,30 @@ def _crypto_researcher_tools():
         cot_positioning_tool,
         grayscale_premium_tool,
         historical_analog_tool,
+        tradingview_snapshot_tool,
     ]
     if _PIPELINE_SKIP_SENTIMENT_SCORE:
         return core + tail
     return core + [sentiment_score_tool] + tail
+
+
+def _agency_backstory_suffix() -> str:
+    try:
+        from agents.agency import agency_research_enabled, load_agency_template
+
+        if not agency_research_enabled():
+            return ""
+        summary = load_agency_template("investment_researcher.md").summary()
+        if not summary:
+            return ""
+        return (
+            "\n\n【Agency template supplement】\n"
+            f"{summary}\n"
+            "僅作研究框架補充；客觀數字仍以既有工具、schema 與 Gate 為準。"
+        )
+    except Exception:
+        logger.debug("Agency backstory suffix skipped", exc_info=True)
+        return ""
 
 # 每個角色的 LLM fallback chain：主 LLM 失敗時依序嘗試下一個
 _FALLBACK_CHAINS: dict[str, list[str]] = {
@@ -823,7 +844,7 @@ class CryptoResearchCrew:
         self.crypto_researcher = Agent(
             role="加密市場情報研究員",
             goal="收集完整加密市場數據，產出 3 則高衝擊幣圈新聞。",
-            backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。",
+            backstory="冷靜量化研究員，專注流動性、槓桿與聰明錢行為。" + _agency_backstory_suffix(),
             llm=grok,
             tools=_crypto_researcher_tools(),
             verbose=_VERBOSE,
@@ -842,7 +863,7 @@ class CryptoResearchCrew:
         self.quant_strategist = Agent(
             role="機構策略主編（加密市場）",
             goal="整合研究成果，輸出戰報上半部。",
-            backstory="最終排版與風控守門員；嚴守【思考區／展示區】與【機構級寫作】Bloomberg 式洗練。",
+            backstory="最終排版與風控守門員；嚴守【思考區／展示區】與【機構級寫作】Bloomberg 式洗練。" + _agency_backstory_suffix(),
             llm=gemini,
             tools=[
                 coinglass_data_tool,
@@ -1081,7 +1102,7 @@ class AIResearchCrew:
         self.ai_researcher = Agent(
             role="前沿 AI 市場研究員",
             goal="收集 AI 市場核心資訊並輸出 3 則可交易新聞。",
-            backstory="科技產業鏈研究員，聚焦可驗證催化。",
+            backstory="科技產業鏈研究員，聚焦可驗證催化。" + _agency_backstory_suffix(),
             llm=grok,
             tools=[
                 market_search_tool,
@@ -1109,9 +1130,9 @@ class AIResearchCrew:
         self.quant_strategist = Agent(
             role="機構策略主編（AI 市場）",
             goal="整合 AI 研究成果輸出戰報下半部。",
-            backstory="最終格式與可操作性守門；嚴守【思考區／展示區】與【機構級寫作】Bloomberg 式洗練。",
+            backstory="最終格式與可操作性守門；嚴守【思考區／展示區】與【機構級寫作】Bloomberg 式洗練。" + _agency_backstory_suffix(),
             llm=gemini,
-            tools=[multi_timeframe_tool],
+            tools=[multi_timeframe_tool, tradingview_snapshot_tool],
             verbose=_VERBOSE,
         )
 

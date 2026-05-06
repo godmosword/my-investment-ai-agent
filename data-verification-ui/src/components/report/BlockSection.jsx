@@ -13,6 +13,8 @@ import TrustedHtmlBlock from "./blocks/TrustedHtmlBlock";
 import InstitutionalViewBlock from "./blocks/InstitutionalViewBlock";
 import ExecSummaryBlock from "./blocks/ExecSummaryBlock";
 import MarketModeBlock from "./blocks/MarketModeBlock";
+import DeepFilingBlock from "./blocks/DeepFilingBlock";
+import AgencyResearchBlock from "./blocks/AgencyResearchBlock";
 
 export default function BlockSection({
   blockId,
@@ -109,6 +111,14 @@ export default function BlockSection({
     case "market_mode":
       return (
         <MarketModeBlock anchor={anchor} title={title} headerExtras={headerExtras} payload={content.payload} />
+      );
+    case "deep_filing":
+      return (
+        <DeepFilingBlock anchor={anchor} title={title} headerExtras={headerExtras} payload={content.payload} />
+      );
+    case "agency_research":
+      return (
+        <AgencyResearchBlock anchor={anchor} title={title} headerExtras={headerExtras} payload={content.payload} />
       );
     default:
       return null;

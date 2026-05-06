@@ -1,6 +1,6 @@
 # Terminal 總表（中段落地 · 長線 Portal）
 
-**目的**：用**單一導覽頁**銜接「已交付的中段能力」與「五模組 Q-Silicon Terminal」長線規劃，並收斂 [`docs/architecture/`](.) 內長線三檔（`AI_CONTEXT`、`REVIEWER_LOOP_DESIGN`、`TERMINAL_FRONTEND_PLAN`）之**維護者／AI 看法**（與實作對照時請以程式與 CHANGELOG 為準）。
+**目的**：用**單一導覽頁**銜接「已交付的中段能力」與「五模組 Q-Silicon Terminal」長線規劃，並收斂 [`docs/architecture/`](.) 內架構文件之**維護者／AI 看法**（與實作對照時請以程式與 CHANGELOG 為準）。
 
 | 層級 | 文件 | 角色 |
 |------|------|------|
@@ -10,6 +10,25 @@
 | 長線（PWA／API） | [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) | `data-verification-ui` 模組化、FastAPI 路由分層、master key、MVP 順序 |
 | 索引 | [`ADR_INDEX.md`](../ADR_INDEX.md) | ADR／設計稿；含 **`architecture/`** 列 |
 | 根導覽 | [`CLAUDE.md`](../../CLAUDE.md) §5 | Terminal 長線規劃表格（與本檔並用） |
+
+---
+
+## 0. `architecture/` 文件狀態矩陣
+
+> **判讀原則**：本目錄不是「全部已實作」清單；同時包含已落地導覽、協作 context、仍有 backlog 的產品計畫，以及尚未接主流程的研究稿。逐日行為變更仍以根目錄 [`CHANGELOG.md`](../../CHANGELOG.md) 與 [`TODOS.md`](../../TODOS.md) 為準。
+
+| 文件 | 現況 | 實作對齊摘要 |
+|------|------|--------------|
+| [`modularization_plan.md`](modularization_plan.md) | ✅ 已落地／維護導覽 | 日報模組化 Phase 1–5 已落地；預設 `full` byte-identical；後續只保留維護紀律與非本 plan backlog。 |
+| [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) | ✅ Portal Phase 1 已閉環 | Vite PWA、`/briefs`／`/terminal`、Shell、master key、401、eslint 模組邊界已對齊 2026-05-04／05／06。 |
+| [`REVIEWER_LOOP_DESIGN.md`](REVIEWER_LOOP_DESIGN.md) | ✅ 第一版已落地 | `trade_picker → python_validate → llm_reviewer → retry/degrade → final_formatter`、`write_reviewer_log`、`test_reviewer_loop.py` 已入庫。 |
+| [`GRAPH_REVIEWER_CHANGE_CHECKLIST.md`](GRAPH_REVIEWER_CHANGE_CHECKLIST.md) | ✅ 維護檢查清單 | Reviewer／`graph/` 變更時的必跑測試與紅線，非新功能 backlog。 |
+| [`visualization_plan.md`](visualization_plan.md) | 🟡 主要 repo backlog 已補，仍有 staging／離線細項 | 2026-05-06 補 `deep_filing_block`／`agency_finance_block` JSX、全區塊 `data-section`、DailyBriefReport JSON 持久化／可選 BQ、Streamlit snapshot provenance／price alignment helper；仍留 roundtable staging smoke 與預快取細節。 |
+| [`AI_CONTEXT.md`](AI_CONTEXT.md) | 🟡 協作 context | 行為準則與紅線有效；現況段需以 CHANGELOG 校正；`qsilicon/` 邊界仍屬長線方向。 |
+| [`notebooklm_research.md`](notebooklm_research.md) | 🟡 Repo-side 主流程 scaffold 已接，live client 仍未接 | 新增 `DeepFilingAnalysis`／`Citation`、`deep_filing_analysis_node`、`deep_filing_block`、多題 helper、可選 BQ cost log；`notebooklm_query()` 仍是預設關閉／未接 live client stub。 |
+| [`agency_agents_research.md`](agency_agents_research.md) | 🟡 Repo-side 主流程 scaffold 已接 | 新增 template parser、`AgencyResearchOutput`／`AgencyDeliverable`、`agency_researcher_node`、Crew backstory opt-in 注入、`agency_finance_block`；完整多 Agent 模板庫仍屬長線。 |
+| [`tradingview_mcp_research.md`](tradingview_mcp_research.md) | 🟡 Repo-side bridge 已接，外部 MCP 未安裝 | 新增 `tools/tradingview.py`、mock fixture、Crew／LangGraph tool tail、sample setup；不修改 `~/.claude`、不安裝外部 MCP server。 |
+| [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) | ✅ 狀態索引 | 本檔負責對齊上述狀態，避免研究稿被誤讀為已全部完成。 |
 
 ---
 
@@ -47,4 +66,5 @@
 
 ## 修訂紀錄
 
+- **2026-05-06**：新增並更新 `architecture/` 文件狀態矩陣；同日補上 NotebookLM／Agency／TradingView repo-side scaffold 與視覺化主要 repo backlog。
 - **2026-04-18**：初版 — 總表連結、`architecture/` 三檔看法；與 [`TODOS.md`](../../TODOS.md)、[`CHANGELOG.md`](../../CHANGELOG.md) 對齊。

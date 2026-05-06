@@ -28,9 +28,13 @@
 
 ## 2026-05-06
 
+### Changed
+- **Architecture backlog repo-side 補完（預設關／空資料不渲染）**：視覺化補 [`DeepFilingBlock.jsx`](data-verification-ui/src/components/report/blocks/DeepFilingBlock.jsx)、[`AgencyResearchBlock.jsx`](data-verification-ui/src/components/report/blocks/AgencyResearchBlock.jsx)、全區塊 `data-section`、DailyBriefReport JSON 持久化（`.qsilicon/daily_brief_reports`／`DAILY_BRIEF_JSON_DIR`／可選 `DAILY_BRIEF_JSON_BQ_TABLE`）與 Streamlit snapshot 格式 helper；NotebookLM 補 `Citation`／`DeepFilingAnalysis`、`deep_filing_analysis_node`、`deep_filing_block`、多題 helper、[`docs/SQL/notebooklm_cost_log.sql`](docs/SQL/notebooklm_cost_log.sql)；Agency 補 template parser、`AgencyResearchOutput`、`agency_researcher_node`、Crew backstory opt-in 與 `agency_finance_block`；TradingView 補 [`tools/tradingview.py`](tools/tradingview.py)、mock fixture、Crew／LangGraph tool tail 與 sample setup [`tradingview_mcp_setup.md`](docs/architecture/tradingview_mcp_setup.md)。Production 預設輸出保持不漂移；NotebookLM live client 與外部 TradingView MCP server 仍需另行接入／安裝。
+
 ### Docs
 - **Portal Phase 1 驗收對齊**：[`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) 驗收清單曾依 **main** 標示待辦（`useApi` header、401 專頁、`/`→`/briefs`、eslint）；**程式已於 CHANGELOG 2026-05-04** `### PWA`／`### API` 交付，驗收清單已改勾選；[`TODOS.md`](TODOS.md) **同步狀態（2026-05-04／2026-05-06）** 對齊。
 - **勘誤（無行為變更）**：**2026-05-04** `### Added` 第一條原先所列 `shared/api/client.js` **並不存在**；已改為指向 [`data-verification-ui/src/hooks/useApi.js`](data-verification-ui/src/hooks/useApi.js)，並於該條附設計稿 `shared/api/client` 之驗收錨點。
+- **Architecture 狀態對齊**：[`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) 新增並更新 10 檔狀態矩陣；[`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md) 將 Reviewer Loop 改為第一版已落地／維護中；[`REVIEWER_LOOP_DESIGN.md`](docs/architecture/REVIEWER_LOOP_DESIGN.md) 將舊驗收清單改成歷史設計對照；[`notebooklm_research.md`](docs/architecture/notebooklm_research.md)、[`agency_agents_research.md`](docs/architecture/agency_agents_research.md)、[`tradingview_mcp_research.md`](docs/architecture/tradingview_mcp_research.md) 改列 repo-side scaffold 與 live／外部依賴邊界；[`README.md`](README.md)、[`TODOS.md`](TODOS.md) 同步索引。
 
 ### CI
 - **GitHub Actions（deploy）**：[`deploy.yml`](.github/workflows/deploy.yml) `build-and-deploy` 將 **`docker/setup-buildx-action`** 固定至 **v4.0.0**（`4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd`）、**`docker/build-push-action`** 至 **v7.1.0**（`bcafcacb16a39f128d818304e6c9c0c18556b85f`），對齊 Actions **Node.js 24** 預設執行環境，消除 Node 20 淘汰警告；見 [GitHub Blog](https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/)。

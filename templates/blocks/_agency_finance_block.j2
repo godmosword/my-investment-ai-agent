@@ -1,0 +1,19 @@
+{% macro telegram_agency_finance_block(ai) -%}
+{%- set a = ai.agency_research_output if ai else none -%}
+{%- if a and a.deliverables -%}
+
+<b>區塊⑥</b>【Agency 財務研究補充】
+{%- if a.ticker %}
+· <b>標的</b>：{{ a.ticker|tg_escape }}
+{%- endif %}
+{%- for item in a.deliverables %}
+· <b>{{ item.name|tg_escape }}</b>：{{ item.content|tg_soft_wrap_mobile }}（信心：{{ item.confidence|tg_escape }}）
+{%- if item.citations %}
+  <blockquote>{{ item.citations[0].excerpt|tg_escape }}{% if item.citations[0].section %}（{{ item.citations[0].section|tg_escape }}）{% endif %}</blockquote>
+{%- endif %}
+{%- endfor %}
+{%- if a.risk_register %}
+· <b>風險登錄</b>：{{ a.risk_register|join('；')|tg_escape }}
+{%- endif %}
+{%- endif -%}
+{%- endmacro %}

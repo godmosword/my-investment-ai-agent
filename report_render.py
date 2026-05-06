@@ -2173,6 +2173,13 @@ def _render_dynamic_full_html(env: Environment, ctx: dict) -> str:
         if bid == "current_affairs_roundtable":
             parts.append(str(ctx.get("current_affairs_block_html") or ""))
             continue
+        if macro in ("telegram_deep_filing_block", "telegram_agency_finance_block"):
+            frag = env.from_string(
+                f'{{% from "blocks/{sub}" import {macro} %}}'
+                f"{{{{ {macro}(ai) }}}}"
+            )
+            parts.append(frag.render(ai=ai))
+            continue
         if macro == "telegram_ai_trades_only":
             frag = env.from_string(
                 f'{{% from "blocks/{sub}" import {macro} %}}'
