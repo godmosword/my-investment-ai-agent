@@ -318,7 +318,7 @@ def build_crypto_structured_final_prompt(
     """)
 
 
-def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = None) -> str:
+def build_ai_structured_final_prompt(*, ctx: str, prev_recs_ctx: str = "", agreed_regime: str | None = None) -> str:
     """最終任務：結構化 AISection（無排版指令）。"""
     regime_lock = (
         f"\n【⚠️ Pipeline 鎖定 market_regime = {agreed_regime}】"
@@ -329,6 +329,7 @@ def build_ai_structured_final_prompt(*, ctx: str, agreed_regime: str | None = No
         {_STRUCTURED_IO_HEADER}
         【AI 美股 — 最終整合主編】
         {regime_lock}
+        {prev_recs_ctx}
         {_QUOTE_RULE}
         {_NARRATIVE_CONSISTENCY_RULE}
         {_TOOL_TRUTH_RULE}
@@ -1140,6 +1141,7 @@ class AIResearchCrew:
         self,
         exclude_context: str | None = None,
         price_context: str = "",
+        prev_recs_block: str = "",
         agreed_regime: str | None = None,
         langgraph_debate_context: str | None = None,
         recent_lessons: str = (
@@ -1152,6 +1154,10 @@ class AIResearchCrew:
         )
         year = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m")
         ctx = f"\n【系統強制即時報價】\n{price_context}\n"
+        prev_recs_ctx = (
+            f"\n【上期建議追蹤（必須原文輸出於報告最頂端，排在標題之後）】\n{prev_recs_block}\n"
+            if prev_recs_block else ""
+        )
         regime_lock_notice = (
             f"\n【⚠️ Pipeline 鎖定 market_regime = {agreed_regime}】"
             f" 全文 regime 欄位必須一律使用 {agreed_regime}，嚴禁輸出其他 regime 值。\n"
@@ -1266,7 +1272,7 @@ class AIResearchCrew:
         )
 
         final_report_task = Task(
-            description=build_ai_structured_final_prompt(ctx=ctx, agreed_regime=agreed_regime)
+            description=build_ai_structured_final_prompt(ctx=ctx, prev_recs_ctx=prev_recs_ctx, agreed_regime=agreed_regime)
             + "\n\n"
             + _REFLECTION_DYNAMIC_RISK_RULE,
             expected_output="符合 AISection schema 的 JSON 物件；qsrec 為 EQUITY 建議陣列。",

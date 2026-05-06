@@ -719,6 +719,7 @@ def _run_pipeline_once(
                     lambda: AIResearchCrew(use_fallback_llm=use_fallback_llm).run(
                         exclude_context=trimmed_exclusion,
                         price_context=price_context,
+                        prev_recs_block=prev_recs,
                         agreed_regime=agreed_regime,
                         recent_lessons=lessons_str,
                     )
