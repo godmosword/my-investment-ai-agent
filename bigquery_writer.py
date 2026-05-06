@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
 GATE_FAILURE_BQ_LOG = os.getenv("GATE_FAILURE_BQ_LOG", "1").lower() not in ("0", "false", "no")
 REVIEWER_LOG_BQ = os.getenv("REVIEWER_LOG_BQ", "1").lower() not in ("0", "false", "no")
+DAILY_BRIEF_JSON_BQ_TABLE = os.getenv("DAILY_BRIEF_JSON_BQ_TABLE", "").strip()
+NOTEBOOKLM_COST_LOG_TABLE = os.getenv("NOTEBOOKLM_COST_LOG_TABLE", "").strip()
 
 # ── 語義去重（Semantic Deduplication）──────────────────────────────────
 _SBERT_MODEL: object = None  # None=not loaded, False=unavailable, Model=ready
@@ -551,6 +553,125 @@ def _resolve_profile_for_bq(
     elif validation_profile is not None and str(validation_profile).strip() != "":
         raw = str(validation_profile).strip()
     return get_active_profile(raw)
+
+
+def _ensure_table_has_schema(client: bigquery.Client, table_id: str, schema: list[bigquery.SchemaField]) -> None:
+    table_ref = bigquery.Table(table_id, schema=schema)
+    client.create_table(table_ref, exists_ok=True)
+    table = client.get_table(table_id)
+    existing_columns = {field.name for field in table.schema}
+    missing_fields = [field for field in schema if field.name not in existing_columns]
+    if missing_fields:
+        table.schema = list(table.schema) + missing_fields
+        client.update_table(table, ["schema"])
+        logger.info(
+            "Added missing BigQuery columns to %s: %s",
+            table_id,
+            ", ".join(field.name for field in missing_fields),
+        )
+
+
+def write_daily_brief_json(
+    *,
+    report_date: str,
+    profile: str,
+    payload_json: str,
+    run_id: str = "",
+    source: str = "pipeline",
+    table_id: str | None = None,
+) -> None:
+    """Persist a complete DailyBriefReport JSON row when explicitly configured."""
+    if SKIP_BIGQUERY:
+        return
+    tid = (table_id or "").strip() or DAILY_BRIEF_JSON_BQ_TABLE
+    if not tid:
+        return
+    bq_project = tid.split(".", 1)[0] if "." in tid else PROJECT_ID
+    try:
+        client = bigquery.Client(project=bq_project)
+        schema = [
+            bigquery.SchemaField("timestamp", "TIMESTAMP"),
+            bigquery.SchemaField("report_date", "DATE"),
+            bigquery.SchemaField("profile", "STRING"),
+            bigquery.SchemaField("run_id", "STRING"),
+            bigquery.SchemaField("source", "STRING"),
+            bigquery.SchemaField("payload_json", "STRING"),
+            bigquery.SchemaField("payload_sha256", "STRING"),
+        ]
+        _ensure_table_has_schema(client, tid, schema)
+        row = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "report_date": report_date,
+            "profile": profile,
+            "run_id": run_id or None,
+            "source": source,
+            "payload_json": payload_json,
+            "payload_sha256": hashlib.sha256(payload_json.encode("utf-8")).hexdigest(),
+        }
+        errors = client.insert_rows_json(tid, [row])
+        if errors:
+            logger.error("BigQuery daily brief JSON insert errors: %s", errors)
+        else:
+            logger.info("DailyBriefReport JSON row written to %s (%s).", tid, report_date)
+    except DefaultCredentialsError as e:
+        logger.warning("BigQuery credentials not configured (daily brief JSON skipped): %s", e)
+    except Exception as e:
+        logger.error("Failed to write daily brief JSON to BigQuery: %s", e)
+
+
+def write_notebooklm_cost_log(
+    *,
+    run_id: str,
+    notebook_id: str,
+    ticker: str = "",
+    question_count: int = 0,
+    status: str = "unknown",
+    latency_ms: int = 0,
+    cost_usd: float | None = None,
+    metadata: dict | None = None,
+    table_id: str | None = None,
+) -> None:
+    """Optional NotebookLM cost/usage log; no-op unless table env is set."""
+    if SKIP_BIGQUERY:
+        return
+    tid = (table_id or "").strip() or NOTEBOOKLM_COST_LOG_TABLE
+    if not tid:
+        return
+    bq_project = tid.split(".", 1)[0] if "." in tid else PROJECT_ID
+    try:
+        client = bigquery.Client(project=bq_project)
+        schema = [
+            bigquery.SchemaField("timestamp", "TIMESTAMP"),
+            bigquery.SchemaField("run_id", "STRING"),
+            bigquery.SchemaField("notebook_id", "STRING"),
+            bigquery.SchemaField("ticker", "STRING"),
+            bigquery.SchemaField("question_count", "INTEGER"),
+            bigquery.SchemaField("status", "STRING"),
+            bigquery.SchemaField("latency_ms", "INTEGER"),
+            bigquery.SchemaField("cost_usd", "FLOAT"),
+            bigquery.SchemaField("metadata_json", "STRING"),
+        ]
+        _ensure_table_has_schema(client, tid, schema)
+        row = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "run_id": run_id or None,
+            "notebook_id": notebook_id or None,
+            "ticker": ticker or None,
+            "question_count": int(question_count or 0),
+            "status": str(status or "unknown"),
+            "latency_ms": int(latency_ms or 0),
+            "cost_usd": cost_usd,
+            "metadata_json": json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True),
+        }
+        errors = client.insert_rows_json(tid, [row])
+        if errors:
+            logger.error("BigQuery NotebookLM cost log insert errors: %s", errors)
+        else:
+            logger.info("NotebookLM cost log row written to %s (%s).", tid, status)
+    except DefaultCredentialsError as e:
+        logger.warning("BigQuery credentials not configured (NotebookLM cost log skipped): %s", e)
+    except Exception as e:
+        logger.error("Failed to write NotebookLM cost log to BigQuery: %s", e)
 
 
 def write_llm_run_log(

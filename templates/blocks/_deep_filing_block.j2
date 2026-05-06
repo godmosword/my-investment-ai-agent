@@ -1,0 +1,20 @@
+{% macro telegram_deep_filing_block(ai) -%}
+{%- set d = ai.deep_filing_analysis if ai else none -%}
+{%- if d and d.answers -%}
+
+<b>區塊⑤</b>【深度財報／申報文件核讀】
+{%- if d.ticker or d.filing_type %}
+· <b>標的</b>：{{ d.ticker|tg_escape }}{% if d.filing_type %}｜{{ d.filing_type|tg_escape }}{% endif %}
+{%- endif %}
+{%- for idx, answer in d.answers.items() %}
+· <b>Q{{ idx }}</b>：{{ answer|tg_soft_wrap_mobile }}
+{%- set cites = d.citations.get(idx, []) %}
+{%- if cites %}
+  <blockquote>{{ cites[0].excerpt|tg_escape }}{% if cites[0].page %}（p.{{ cites[0].page|tg_escape }}）{% endif %}</blockquote>
+{%- endif %}
+{%- endfor %}
+{%- if d.red_flags %}
+· <b>紅旗</b>：{{ d.red_flags|join('；')|tg_escape }}
+{%- endif %}
+{%- endif -%}
+{%- endmacro %}

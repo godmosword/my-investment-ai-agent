@@ -1,0 +1,18 @@
+{
+  "symbols": {
+    "BTC": {
+      "symbol": "BTC",
+      "timeframe": "1D",
+      "signal": "BUY",
+      "price": 95000,
+      "source": "mock_tradingview"
+    },
+    "NVDA": {
+      "symbol": "NVDA",
+      "timeframe": "1D",
+      "signal": "NEUTRAL",
+      "price": 900,
+      "source": "mock_tradingview"
+    }
+  }
+}

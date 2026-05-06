@@ -1,10 +1,16 @@
 # Agency Agents Research & Integration Plan
 
 **版本：** 1.0 (2026-04-20)
-**狀態：** 規劃階段 → 待實作
+**狀態：** Repo-side 主流程 scaffold 已入庫（2026-05-06）；完整多 Agent 模板庫仍屬長線
 **相鄰文件：** [`AI_CONTEXT.md`](AI_CONTEXT.md)、[`REVIEWER_LOOP_DESIGN.md`](REVIEWER_LOOP_DESIGN.md)、[`notebooklm_research.md`](notebooklm_research.md)、[`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md)
 
 ---
+
+> **現況對齊（2026-05-06）**：repo 已有 [`agents/agency/`](../../agents/agency/)、
+> template parser／fallback、`AgencyResearchOutput`／`AgencyDeliverable` schema、
+> `graph/graph_nodes.py` 的 `agency_researcher_node`、`crew.py` opt-in backstory 注入與
+> `brief_profiles.py` 的 `agency_finance_block`。`AGENCY_RESEARCH_ENABLED=0` 時完全不進主流程；
+> 多 Agent pipeline 與完整模板庫仍需後續計畫。
 
 ## 1. 研究背景與動機
 

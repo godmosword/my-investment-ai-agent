@@ -2,9 +2,14 @@
 
 > 研究日期：2026-04-25  
 > 來源：[tradesdontlie/tradingview-mcp](https://github.com/tradesdontlie/tradingview-mcp)  
-> 狀態：評估中（未實作）
+> 狀態：Repo-side bridge 已入庫（2026-05-06）；外部 TradingView MCP server 未安裝
 
 ---
+
+> **現況對齊（2026-05-06）**：repo 已新增 [`tools/tradingview.py`](../../tools/tradingview.py)、
+> [`tests/fixtures/mock_data/tradingview.json`](../../tests/fixtures/mock_data/tradingview.json)、
+> Crew／LangGraph tool tail 與 sample setup [`tradingview_mcp_setup.md`](tradingview_mcp_setup.md)。
+> 仍不修改 `~/.claude`、不安裝外部 MCP server；未啟用或失敗時 fallback 到 yfinance 或 `DATA_MISSING`。
 
 ## 一、什麼是 TradingView MCP？
 

@@ -17,6 +17,8 @@ blocks:
   - ai_news
   - ai_chatter
   - ai_trades
+  - deep_filing_block
+  - agency_finance_block
   - current_affairs_roundtable
   - institutional_view
   - source_health

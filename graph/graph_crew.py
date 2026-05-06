@@ -9,9 +9,11 @@ from langgraph.graph import END, START, StateGraph
 
 from graph.graph_nodes import (
     arbiter_node,
+    agency_researcher_node,
     bear_agent_node,
     bull_agent_node,
     data_gatherer_node,
+    deep_filing_analysis_node,
     deep_research_node,
     degrade_node,
     final_formatter_node,
@@ -73,6 +75,8 @@ def build_research_graph() -> Any:
     builder.add_node("arbiter", arbiter_node)
     builder.add_node("deep_research", deep_research_node)
     builder.add_node("news_scraper", news_scraper_node)
+    builder.add_node("deep_filing_analysis", deep_filing_analysis_node)
+    builder.add_node("agency_researcher", agency_researcher_node)
     builder.add_node("trade_picker", trade_picker_node)
     builder.add_node("python_validate", python_validate_node)
     builder.add_node("llm_reviewer", llm_reviewer_node)
@@ -95,7 +99,9 @@ def build_research_graph() -> Any:
     )
     builder.add_edge("deep_research", "bull_agent")
     builder.add_edge("deep_research", "bear_agent")
-    builder.add_edge("news_scraper", "trade_picker")
+    builder.add_edge("news_scraper", "deep_filing_analysis")
+    builder.add_edge("deep_filing_analysis", "agency_researcher")
+    builder.add_edge("agency_researcher", "trade_picker")
 
     # Reviewer loop replaces the former direct trade_picker → final_formatter edge.
     builder.add_edge("trade_picker", "python_validate")
@@ -171,6 +177,8 @@ def run_langgraph_category(
         "review_history": [],
         "trade_watch_final": [],
         "degraded": False,
+        "deep_filing_analysis": {},
+        "agency_research_output": {},
     }
 
     result = graph.invoke(initial_state, config={"recursion_limit": 40})

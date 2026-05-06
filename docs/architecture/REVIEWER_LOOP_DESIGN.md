@@ -185,13 +185,18 @@ Deliverables:
 
 ---
 
-## 驗收清單
+## 歷史設計驗收清單（已對齊 2026-04-21 實作）
 
-- [ ] `python_validate_node` 涵蓋五項檢查，全為 deterministic
-- [ ] `llm_reviewer_node` 使用 Slim Schema，不做完整 rewrite
-- [ ] Hard cap 在 `revision_count >= 2` 時強制進入 degrade
-- [ ] 所有節點異常都路由到 END，Graph 永遠完成
-- [ ] BQ `reviewer_log` 表可寫入，欄位齊全
-- [ ] smoke test 涵蓋：pass 路徑、python fail、llm fail、hard cap 觸發
-- [ ] boundary test 涵蓋：空 candidates、單一 candidate、同標的重複
-- [ ] Telegram render 正確顯示警示標記（degraded=True 時）
+> 下表是原設計清單的現況對照，不再代表「全部未完成」。行為變更以
+> [`CHANGELOG.md`](../../CHANGELOG.md) **2026-04-21**、[`test_reviewer_loop.py`](../../test_reviewer_loop.py)
+> 與 [`scripts/verify_graph_gate.sh`](../../scripts/verify_graph_gate.sh) 為準。
+
+| 原設計要求 | 現況 |
+|------------|------|
+| `python_validate_node` deterministic 檢查 | 已落地於 `graph/graph_nodes.py`；測試覆蓋 pass/fail、重複標的、空候選等路徑。 |
+| `llm_reviewer_node` 使用 Slim Schema，不做完整 rewrite | 已落地；預設仍受 `GRAPH_LLM_TRADE_REVIEWER`／`GRAPH_LLM_TRADE_PICKER` 控制。 |
+| Hard cap 在 `revision_count >= 2` 時強制 degrade | 已落地並由 `test_reviewer_loop.py` 覆蓋。 |
+| 節點例外不繞過 Graph 出口契約 | 變更時須跑 `scripts/verify_graph_gate.sh`；Reviewer 不取代 `validate_report`。 |
+| BQ `reviewer_log` 表可寫入 | `bigquery_writer.write_reviewer_log` 與 [`docs/SQL/reviewer_log.sql`](../SQL/reviewer_log.sql) 已入庫；`SKIP_BIGQUERY`／`REVIEWER_LOG_BQ` 控制寫入。 |
+| smoke／boundary test | [`test_reviewer_loop.py`](../../test_reviewer_loop.py) 已覆蓋主要 reviewer loop 路徑。 |
+| 降級警示 | 實作以 reviewer issue／degraded 狀態併入既有輸出路徑；仍不得繞過 Telegram HTML 白名單。 |

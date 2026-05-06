@@ -51,3 +51,5 @@ class ResearchGraphState(TypedDict):
     review_history: NotRequired[list[dict[str, Any]]]     # per-round audit trail for BQ
     trade_watch_final: NotRequired[list[dict[str, Any]]]  # approved trade list after review
     degraded: NotRequired[bool]               # True if hard cap hit; trades retained with warning
+    deep_filing_analysis: NotRequired[dict[str, Any]]
+    agency_research_output: NotRequired[dict[str, Any]]

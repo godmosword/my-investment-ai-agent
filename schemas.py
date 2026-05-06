@@ -1037,6 +1037,94 @@ class CryptoSection(BaseModel):
         return self
 
 
+class Citation(BaseModel):
+    """Supplemental research citation used by optional deep-dive blocks."""
+
+    page: int | str | None = Field(
+        default=None,
+        description="Source page or locator when available.",
+    )
+    section: str | None = Field(
+        default=None,
+        description="Filing / template section label when available.",
+    )
+    excerpt: str = Field(
+        ...,
+        description="Short source excerpt or citation anchor; must not be empty.",
+    )
+
+    @field_validator("excerpt", mode="before")
+    @classmethod
+    def _require_excerpt(cls, v: object) -> object:
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+        raise ValueError("Citation.excerpt cannot be empty")
+
+
+class DeepFilingAnalysis(BaseModel):
+    """Optional NotebookLM filing analysis; omitted from renders when absent."""
+
+    ticker: str = Field(default="", description="Ticker or company symbol.")
+    filing_type: str = Field(default="", description="10-K / 10-Q / S-1 / other filing label.")
+    answers: dict[int, str] = Field(
+        default_factory=dict,
+        description="Question index to answer text.",
+    )
+    citations: dict[int, list[Citation]] = Field(
+        default_factory=dict,
+        description="Question index to source citations.",
+    )
+    red_flags: list[str] = Field(
+        default_factory=list,
+        description="Concise filing red flags, if any.",
+    )
+
+    @field_validator("answers", mode="before")
+    @classmethod
+    def _drop_empty_answers(cls, v: object) -> object:
+        if isinstance(v, dict):
+            return {k: str(val).strip() for k, val in v.items() if str(val).strip()}
+        return v
+
+    @model_validator(mode="after")
+    def _require_citations_for_answers(self) -> "DeepFilingAnalysis":
+        for key in self.answers:
+            if not self.citations.get(key):
+                raise ValueError(f"DeepFilingAnalysis answer {key!r} missing citation")
+        return self
+
+
+class AgencyDeliverable(BaseModel):
+    """One structured deliverable from the optional Agency research template."""
+
+    name: str = Field(..., min_length=1, description="Deliverable title.")
+    content: str = Field(..., min_length=1, description="Deliverable body.")
+    confidence: Literal["high", "medium", "low"] = Field(default="low")
+    citations: list[Citation] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _require_citations(self) -> "AgencyDeliverable":
+        if not self.citations:
+            raise ValueError("AgencyDeliverable requires at least one citation")
+        return self
+
+
+class AgencyResearchOutput(BaseModel):
+    """Optional Agency-style supplemental finance research."""
+
+    agent_type: str = Field(default="investment_researcher")
+    ticker: str | None = Field(default=None)
+    deliverables: list[AgencyDeliverable] = Field(default_factory=list)
+    risk_register: list[str] = Field(default_factory=list)
+    success_metrics: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _require_deliverables(self) -> "AgencyResearchOutput":
+        if not self.deliverables:
+            raise ValueError("AgencyResearchOutput requires at least one deliverable")
+        return self
+
+
 class AISection(BaseModel):
     """AI / US equities crew structured output."""
 
@@ -1141,6 +1229,14 @@ class AISection(BaseModel):
     qsrec: list[TradeRecommendation] = Field(
         default_factory=list,
         description="EQUITY category rows for QSREC.",
+    )
+    deep_filing_analysis: DeepFilingAnalysis | None = Field(
+        default=None,
+        description="Optional NotebookLM filing deep dive; empty values are omitted from renders.",
+    )
+    agency_research_output: AgencyResearchOutput | None = Field(
+        default=None,
+        description="Optional Agency supplemental finance research; empty values are omitted from renders.",
     )
 
     @field_validator("qsrec", mode="before")

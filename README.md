@@ -11,8 +11,9 @@
 | 授權 | [`LICENSE`](LICENSE)（MIT）·[`CONTRIBUTING.md`](CONTRIBUTING.md) · [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
 | 待辦 | [`TODOS.md`](TODOS.md) |
 | Terminal 總表（中段 M1–M5 + Portal 長線 + 架構看法） | [`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) |
+| Architecture 狀態索引（已落地／repo-side scaffold／研究稿） | [`docs/architecture/Terminal_Master_Plan.md#0-architecture-文件狀態矩陣`](docs/architecture/Terminal_Master_Plan.md#0-architecture-文件狀態矩陣) |
 | Portal PWA 驗收清單（§驗收） | [`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) |
-| 視覺化剩餘 backlog（§3 勾選表） | [`docs/architecture/visualization_plan.md`](docs/architecture/visualization_plan.md) |
+| 視覺化狀態／剩餘 staging backlog（§3 勾選表） | [`docs/architecture/visualization_plan.md`](docs/architecture/visualization_plan.md) |
 | 變更紀錄 | [`CHANGELOG.md`](CHANGELOG.md) |
 | 執行路線圖 | [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) |
 | 開發導覽 | [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) |
@@ -317,7 +318,15 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 ### 結構化日報（戰報區塊視圖，可選）
 
 - **前端**：`cd data-verification-ui && VITE_STRUCTURED_REPORT=1 npm run dev` — 單日戰報改走 **`GET /api/reports/{date}/structured`**；當回應 **`structured_body_available`** 且含 **`daily_brief_report`** 時，以 [`structuredBlockContent.js`](data-verification-ui/src/components/report/structuredBlockContent.js) 對 **`DailyBriefReport`** 做逐區塊渲染（否則 legacy 摘要）。詳見 [`visualization_plan.md`](docs/architecture/visualization_plan.md)、[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。
-- **後端**：環境 **`DAILY_BRIEF_JSON_DIR`**（[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）；另會嘗試 **`.qsilicon/daily_brief_reports/{date}.json`** 與 **`logs/run_YYYYMMDD_*/raw_data.json`**（見 [`api.py`](api.py)）。
+- **後端**：管線成功 assemble 後會寫 **`.qsilicon/daily_brief_reports/{date}.json`**（或環境 **`DAILY_BRIEF_JSON_DIR`**）；另保留 **`logs/run_YYYYMMDD_*/raw_data.json`**。可選 **`DAILY_BRIEF_JSON_BQ_TABLE`** 寫完整 JSON row（DDL：[`docs/SQL/daily_brief_report_json.sql`](docs/SQL/daily_brief_report_json.sql)）。讀取路徑見 [`api.py`](api.py)。
+
+### Optional Research Scaffolds
+
+NotebookLM、Agency、TradingView 皆為 **repo-side scaffold**，預設關閉或 fallback；不會取代 `validate_report`、Telegram HTML Gate 或客觀價格來源。
+
+- `NOTEBOOKLM_ENABLED=1` + `NOTEBOOKLM_NOTEBOOK_ID`：允許 LangGraph 在 filing keywords 命中時產生 optional `deep_filing_block`；live NotebookLM client 尚未接，缺 citation 時不渲染。
+- `AGENCY_RESEARCH_ENABLED=1`：允許 Agency template parser、LangGraph optional `agency_finance_block` 與 Crew backstory 摘要注入。
+- `TRADINGVIEW_MCP_ENABLED=1` + `TRADINGVIEW_MCP_COMMAND`：啟用 repo-side TradingView command bridge；不修改 `~/.claude`，失敗時依 `TRADINGVIEW_FALLBACK_YFINANCE` fallback。
 
 ---
 

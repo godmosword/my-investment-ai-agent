@@ -34,6 +34,7 @@ from bigquery_writer import (
     extract_and_save_metrics,
     fetch_exclusion_context,
     _get_last_success_report_time_utc,
+    write_daily_brief_json,
     write_gate_failure_log,
     write_llm_run_log,
 )
@@ -132,8 +133,19 @@ def _postprocess_report_for_resilience(text: str) -> str:
     return sanitize_telegram_html(text)
 
 
+def _daily_brief_report_date(report: DailyBriefReport) -> str:
+    raw = str(getattr(report.crypto, "report_title_date", "") or "").strip()
+    m = re.search(r"\d{4}-\d{2}-\d{2}", raw)
+    if m:
+        return m.group(0)
+    from datetime import timedelta
+
+    tz = timezone(timedelta(hours=8))
+    return datetime.now(tz).strftime("%Y-%m-%d")
+
+
 def _persist_pipeline_raw_report(report: DailyBriefReport | None) -> None:
-    """將組裝後 DailyBriefReport 寫入 logs/run_*/raw_data.json（渲染前結構化真相）。"""
+    """Persist the assembled DailyBriefReport JSON for API/PWA parity and debugging."""
     if report is None:
         return
     try:
@@ -141,15 +153,31 @@ def _persist_pipeline_raw_report(report: DailyBriefReport | None) -> None:
 
         tz = timezone(timedelta(hours=8))
         run_id = datetime.now(tz).strftime("run_%Y%m%d_%H%M%S")
+        payload_json = report.model_dump_json(indent=2)
         d = Path("logs") / run_id
         d.mkdir(parents=True, exist_ok=True)
         (d / "raw_data.json").write_text(
-            report.model_dump_json(indent=2),
+            payload_json,
             encoding="utf-8",
         )
         logger.info("Wrote structured raw report to %s", d / "raw_data.json")
+
+        report_date = _daily_brief_report_date(report)
+        json_dir = Path(os.getenv("DAILY_BRIEF_JSON_DIR") or ".qsilicon/daily_brief_reports")
+        json_dir.mkdir(parents=True, exist_ok=True)
+        daily_path = json_dir / f"{report_date}.json"
+        daily_path.write_text(payload_json, encoding="utf-8")
+        logger.info("Wrote DailyBriefReport JSON to %s", daily_path)
+
+        write_daily_brief_json(
+            report_date=report_date,
+            profile=get_active_profile(),
+            payload_json=payload_json,
+            run_id=run_id,
+            source="pipeline",
+        )
     except OSError as e:
-        logger.warning("raw_data.json write failed: %s", e)
+        logger.warning("DailyBriefReport JSON write failed: %s", e)
 
 
 def _log_shadow_benchmark(stage: str, payload: dict) -> None:

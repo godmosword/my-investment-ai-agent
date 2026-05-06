@@ -57,8 +57,12 @@ from graph.graph_state import ResearchGraphState
 from graph.graph_tools import RESEARCH_TOOLS
 from execution_intents import append_execution_intents
 from schemas import (
+    AgencyDeliverable,
+    AgencyResearchOutput,
     AISection,
+    Citation,
     CryptoSection,
+    DeepFilingAnalysis,
     ExecutableTradeLeg,
     MarketRegimeBlock,
     MetricLine,
@@ -99,6 +103,79 @@ def _llm_debate_enabled() -> bool:
 
 def _formatter_uses_legacy_crews() -> bool:
     return os.getenv("LANGGRAPH_SKIP_FORMATTER_CREW", "0").lower() not in ("1", "true", "yes")
+
+
+_FILING_TRIGGER_KEYWORDS = (
+    "10-k",
+    "10-q",
+    "8-k",
+    "s-1",
+    "filing",
+    "sec",
+    "earnings",
+    "financial statement",
+    "財報",
+    "申報",
+    "年報",
+    "季報",
+)
+_AGENCY_TRIGGER_KEYWORDS = _FILING_TRIGGER_KEYWORDS + (
+    "equity",
+    "company",
+    "stock",
+    "valuation",
+    "ai",
+    "nvda",
+    "msft",
+    "股票",
+    "估值",
+)
+
+
+def _state_text_for_feature_triggers(state: ResearchGraphState, *, max_chars: int = 6000) -> str:
+    chunks: list[str] = [
+        str(state.get("category", "")),
+        str(state.get("price_context", "")),
+        str(state.get("exclude_context", "")),
+        str(state.get("arbiter_summary", "")),
+        str(state.get("deep_dive_query", "")),
+    ]
+    chunks.extend(str(x) for x in state.get("bull_arguments", [])[:4])
+    chunks.extend(str(x) for x in state.get("bear_arguments", [])[:4])
+    for item in state.get("raw_news", [])[:6]:
+        if isinstance(item, dict):
+            chunks.append(str(item.get("title", "")))
+            chunks.append(str(item.get("description", "")))
+    try:
+        chunks.append(json.dumps(state.get("raw_data", {}), ensure_ascii=False)[:max_chars])
+    except Exception:
+        chunks.append(str(state.get("raw_data", ""))[:max_chars])
+    return "\n".join(chunks).lower()[:max_chars]
+
+
+def _state_hits_keywords(state: ResearchGraphState, keywords: tuple[str, ...]) -> bool:
+    blob = _state_text_for_feature_triggers(state)
+    return any(kw.lower() in blob for kw in keywords)
+
+
+def _extract_equity_ticker(state: ResearchGraphState) -> str:
+    for row in state.get("proposed_trades", []) or []:
+        if isinstance(row, dict):
+            asset = str(row.get("asset", "")).strip().upper()
+            if re.fullmatch(r"[A-Z]{2,5}", asset):
+                return asset
+    text = "\n".join(
+        [
+            str(state.get("price_context", "")),
+            str(state.get("deep_dive_query", "")),
+            str(state.get("arbiter_summary", "")),
+        ]
+    )
+    ignore = {"AI", "SEC", "ETF", "USD", "BTC", "ETH", "SOL", "LONG", "SHORT"}
+    for token in re.findall(r"\b[A-Z]{2,5}\b", text):
+        if token not in ignore:
+            return token
+    return "AI"
 
 
 # ==========================================
@@ -770,6 +847,10 @@ def _assemble_ai_section(
         "trade_legs": trade_legs,
         "qsrec": qsrec,
     }
+    if state.get("deep_filing_analysis"):
+        payload["deep_filing_analysis"] = state.get("deep_filing_analysis")
+    if state.get("agency_research_output"):
+        payload["agency_research_output"] = state.get("agency_research_output")
     return AISection.model_validate(payload)
 
 
@@ -1506,6 +1587,146 @@ def deep_research_node(state: ResearchGraphState) -> dict[str, Any]:
     }
 
 
+def deep_filing_analysis_node(state: ResearchGraphState) -> dict[str, Any]:
+    """Optional NotebookLM filing analysis; disabled/no-data paths are no-ops."""
+    if state.get("category") != "AI":
+        return {}
+    if not _state_hits_keywords(state, _FILING_TRIGGER_KEYWORDS):
+        return {}
+
+    from tools.notebooklm_tool import notebooklm_enabled, notebooklm_query_many
+
+    if not notebooklm_enabled():
+        return {}
+
+    ticker = _extract_equity_ticker(state)
+    notebook_id = os.getenv("NOTEBOOKLM_NOTEBOOK_ID", "").strip()
+    questions = [
+        f"{ticker} 最新 filing 的營收／毛利率變化是什麼？請附頁碼引用。",
+        f"{ticker} filing 中有哪些風險因子或管理層語氣變化？請附頁碼引用。",
+        f"{ticker} 的現金流、capex 或客戶集中度有何值得追蹤之處？請附頁碼引用。",
+    ]
+    start = time.perf_counter()
+    status = "degraded"
+    try:
+        rows = notebooklm_query_many(questions, notebook_id=notebook_id)
+        answers: dict[int, str] = {}
+        citations: dict[int, list[dict[str, Any]]] = {}
+        for idx, row in rows.items():
+            answer = str((row or {}).get("answer", "")).strip()
+            if not answer or "[DATA_MISSING:" in answer:
+                continue
+            raw_citations = (row or {}).get("citations") or []
+            valid_citations: list[dict[str, Any]] = []
+            for raw in raw_citations:
+                try:
+                    valid_citations.append(Citation.model_validate(raw).model_dump(mode="json"))
+                except Exception:
+                    continue
+            if not valid_citations:
+                continue
+            answers[int(idx)] = answer
+            citations[int(idx)] = valid_citations
+
+        if not answers:
+            return {"raw_data": {"deep_filing_analysis": "[DATA_MISSING:notebooklm_no_cited_answers]"}}
+
+        analysis = DeepFilingAnalysis.model_validate(
+            {
+                "ticker": ticker,
+                "filing_type": "filing",
+                "answers": answers,
+                "citations": citations,
+                "red_flags": [],
+            }
+        )
+        status = "success"
+        payload = analysis.model_dump(mode="json")
+        return {
+            "deep_filing_analysis": payload,
+            "raw_data": {"deep_filing_analysis": payload},
+        }
+    except Exception as exc:
+        logger.warning("deep_filing_analysis_node skipped: %s", exc)
+        return {"raw_data": {"deep_filing_analysis": f"[DATA_MISSING:notebooklm_error] {exc}"}}
+    finally:
+        try:
+            from bigquery_writer import write_notebooklm_cost_log
+
+            write_notebooklm_cost_log(
+                run_id=str(state.get("graph_run_id", "")),
+                notebook_id=notebook_id,
+                ticker=ticker,
+                question_count=len(questions),
+                status=status,
+                latency_ms=int((time.perf_counter() - start) * 1000),
+                metadata={"node": "deep_filing_analysis_node"},
+            )
+        except Exception:
+            logger.debug("NotebookLM cost log skipped", exc_info=True)
+
+
+def agency_researcher_node(state: ResearchGraphState) -> dict[str, Any]:
+    """Optional Agency-style structured finance research; no-op unless enabled."""
+    if state.get("category") != "AI":
+        return {}
+
+    from agents.agency import agency_research_enabled, load_agency_template
+
+    if not agency_research_enabled():
+        return {}
+    if not state.get("deep_filing_analysis") and not _state_hits_keywords(state, _AGENCY_TRIGGER_KEYWORDS):
+        return {}
+
+    template = load_agency_template("investment_researcher.md")
+    if not (template.core_mission or template.deliverables):
+        return {}
+
+    ticker = _extract_equity_ticker(state)
+    deep = state.get("deep_filing_analysis") if isinstance(state.get("deep_filing_analysis"), dict) else {}
+    first_answer = ""
+    first_citation: dict[str, Any] | None = None
+    if deep:
+        answers = deep.get("answers") if isinstance(deep.get("answers"), dict) else {}
+        citations = deep.get("citations") if isinstance(deep.get("citations"), dict) else {}
+        for key, answer in answers.items():
+            cite_rows = citations.get(key) or citations.get(str(key)) or []
+            if answer and cite_rows:
+                first_answer = str(answer).strip()
+                first_citation = cite_rows[0]
+                break
+
+    if not first_citation:
+        first_citation = {
+            "section": "Agency template",
+            "excerpt": template.core_mission or "Agency fallback template",
+        }
+    content = first_answer or (template.deliverables[0] if template.deliverables else template.core_mission)
+    try:
+        output = AgencyResearchOutput(
+            agent_type="investment_researcher",
+            ticker=ticker,
+            deliverables=[
+                AgencyDeliverable(
+                    name="可驗證研究補充",
+                    content=content,
+                    confidence="low",
+                    citations=[Citation.model_validate(first_citation)],
+                )
+            ],
+            risk_register=list(template.critical_rules[:3]),
+            success_metrics={"fallback_template": str(bool(template.fallback)).lower()},
+        )
+        payload = output.model_dump(mode="json")
+        return {
+            "agency_research_output": payload,
+            "raw_data": {"agency_research_output": payload},
+        }
+    except Exception as exc:
+        logger.warning("agency_researcher_node skipped: %s", exc)
+        return {"raw_data": {"agency_research_output": f"[DATA_MISSING:agency_research_error] {exc}"}}
+
+
 def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
     """Final formatter with legacy fallback and native structured mode."""
     category = state["category"]
@@ -1532,6 +1753,13 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
                 langgraph_debate_context=debate_context,
                 recent_lessons=state.get("recent_lessons", ""),
             )
+            updates = {
+                k: state.get(k)
+                for k in ("deep_filing_analysis", "agency_research_output")
+                if state.get(k)
+            }
+            if updates:
+                section = section.model_copy(update=updates)
         return {"final_report": section.model_dump(mode="json"), "needs_deep_dive": False}
 
     logger.info("--- [Node] Final Formatter (Native Structured Output) 啟動 ---")
