@@ -1616,9 +1616,18 @@ def deep_filing_analysis_node(state: ResearchGraphState) -> dict[str, Any]:
             answer = str((row or {}).get("answer", "")).strip()
             if not answer or "[DATA_MISSING:" in answer:
                 continue
-            raw_citations = (row or {}).get("citations") or []
+            raw_citations = (row or {}).get("citations")
+            if isinstance(raw_citations, str):
+                raw_citations = [raw_citations] if raw_citations.strip() else []
+            elif not raw_citations:
+                raw_citations = []
             valid_citations: list[dict[str, Any]] = []
             for raw in raw_citations:
+                if isinstance(raw, str):
+                    s = raw.strip()
+                    if not s:
+                        continue
+                    raw = {"excerpt": s}
                 try:
                     valid_citations.append(Citation.model_validate(raw).model_dump(mode="json"))
                 except Exception:
@@ -1690,10 +1699,21 @@ def agency_researcher_node(state: ResearchGraphState) -> dict[str, Any]:
         answers = deep.get("answers") if isinstance(deep.get("answers"), dict) else {}
         citations = deep.get("citations") if isinstance(deep.get("citations"), dict) else {}
         for key, answer in answers.items():
-            cite_rows = citations.get(key) or citations.get(str(key)) or []
+            cite_raw = citations.get(key)
+            if cite_raw is None:
+                cite_raw = citations.get(str(key))
+            if isinstance(cite_raw, str):
+                cite_rows: list[Any] = [{"excerpt": cite_raw.strip()}] if cite_raw.strip() else []
+            elif isinstance(cite_raw, dict):
+                cite_rows = [cite_raw]
+            elif isinstance(cite_raw, list):
+                cite_rows = cite_raw
+            else:
+                cite_rows = []
             if answer and cite_rows:
                 first_answer = str(answer).strip()
-                first_citation = cite_rows[0]
+                fc = cite_rows[0]
+                first_citation = fc if isinstance(fc, dict) else {"excerpt": str(fc).strip()}
                 break
 
     if not first_citation:
