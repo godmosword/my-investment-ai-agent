@@ -1170,11 +1170,26 @@ class AISection(BaseModel):
     macro_bridge_lines: list[str] = Field(
         default_factory=list,
         description=(
-            "1–2 lines connecting macro context to AI equities impact. "
+            "1–2 lines ≤60 chars each connecting macro context to AI equities impact. "
             "Do NOT repeat UST/SOFR/VIX values already shown in 加密宏觀框架. "
             "Focus on the specific implication for AI growth stocks (e.g. valuation compression, capex outlook)."
         ),
     )
+
+    @field_validator("macro_bridge_lines", mode="before")
+    @classmethod
+    def _cap_macro_bridge_line_length(cls, v: object) -> object:
+        if not isinstance(v, list):
+            return v
+        result = []
+        for line in v:
+            if isinstance(line, str) and len(line) > 60:
+                logger.warning("macro_bridge_lines: line truncated %d→60 chars", len(line))
+                result.append(line[:60])
+            else:
+                result.append(line)
+        return result[:2]  # enforce 1–2 lines max
+
     dashboard: list[MetricLine] = Field(
         ...,
         description=(

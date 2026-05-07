@@ -183,6 +183,7 @@ def build_crypto_final_prompt(*, ctx: str, prev_recs_ctx: str, today_str: str) -
         {_CHATTER_FMT}
         {_RISK_MODE_RULE}
         {_REGIME_POSITION_POLICY}
+        {_SCORECARD_RULE}
         {_PAIR_TRADE_RULE}
         {_CRYPTO_TRADE_MUTEX_RULE}
         {_BRIEF_V2_RULE}
@@ -218,6 +219,7 @@ def build_ai_final_prompt(*, ctx: str) -> str:
         {_NARRATIVE_CONSISTENCY_RULE}
         {_RISK_MODE_RULE}
         {_REGIME_POSITION_POLICY}
+        {_SCORECARD_RULE}
         {_PAIR_TRADE_RULE}
         {_BRIEF_V2_RULE}
         {_HEDGE_FUND_BRIEF_RULE}
@@ -428,7 +430,22 @@ _REGIME_POSITION_POLICY = dedent("""\
     - risk_off：單筆建議倉位上限 5%，總風險預算 20%，信心上限 ⭐️⭐️⭐️
     - neutral：單筆建議倉位上限 10%，總風險預算 40%
     - risk_on：單筆建議倉位上限 15%，總風險預算 60%
-    必須在交易段落前輸出「今日風險預算」摘要，並讓每筆 position_pct 與 regime 一致。""")
+    必須在交易段落前輸出「今日風險預算」摘要，並讓每筆 position_pct 與 regime 一致。
+
+    【反趨勢空單信心上限】
+    若空單標的符合以下任一條件，信心評級上限為 ⭐️⭐️（不得給出 ⭐️⭐️⭐️ 或以上）：
+    - 標的當日創 52 週新高或歷史新高（新聞標題含「歷史新高」「all-time high」「52-week high」）
+    - 標的單日漲幅 ≥10% 且尚無明確技術反轉訊號（K 線未收倒錘頭線、量能未見萎縮）
+    - 風險回報比（R:R）< 1:2
+    若觸發上述任一條件，必須在 trigger 欄位中說明「等待明確轉折訊號（如倒錘頭線＋量縮）後再進場」。
+    """)
+_SCORECARD_RULE = dedent("""\
+    【市場計分卡完整性】
+    market_mode 的 scorecard_lines 必須包含恰好 6 個計分指標行（與 score_suffix 分母一致）。
+    計分欄位依序建議：VIX / 資金費率 / RSI / 恐懼貪婪指數 / BTC 動能（MA 排列） / 鏈上指標或 COT。
+    每行格式：「{指標名稱} {讀值} {狀態說明} ({+N})」。
+    禁止 scorecard_lines 行數與 score_suffix 分母不一致（如只列 4 行卻寫 +2/6）。
+    """)
 _DATA_RULES = dedent("""\
     【新鮮度】新聞事件／報導時間戳須在 **36 小時內**（相對本輪管線執行時刻）；超時 **必須捨棄並重搜**，禁止把逾時素材改標為「分析」硬塞；仍無合格素材則走 partial tier／減則，**嚴禁捏造**。
     【AI 段新聞（index 4–6）】事件時間戳與上列 **36 小時** 一致；啟用 STRICT_NEWS_FRESHNESS_GATE 時與 Gate 視窗對齊。若用法說／季報回顧素材，標題或首句須註明「資料／事件日期」，且 **investment_takeaway 主數字錨點仍須為當日 AI 區塊① 已列 yfinance／FinancialDatasets 讀值**，避免 Gate 或讀者感知「多日舊聞拼貼」。
