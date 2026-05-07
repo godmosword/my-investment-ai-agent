@@ -21,6 +21,18 @@ def test_deep_filing_analysis_requires_citations():
     assert model.answers[1] == "Capex rose."
 
 
+def test_deep_filing_analysis_coerces_string_citation_values():
+    """Upstream may send a section label string per question instead of list[Citation]."""
+    model = DeepFilingAnalysis(
+        ticker="NVDA",
+        filing_type="10-Q",
+        answers={1: "Revenue note."},
+        citations={1: "Section 1, Financial Performance"},
+    )
+    assert len(model.citations[1]) == 1
+    assert model.citations[1][0].excerpt == "Section 1, Financial Performance"
+
+
 def test_agency_research_output_requires_cited_deliverables():
     with pytest.raises(ValueError, match="requires at least one citation"):
         AgencyDeliverable(name="x", content="y", confidence="low", citations=[])

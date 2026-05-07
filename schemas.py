@@ -1086,6 +1086,45 @@ class DeepFilingAnalysis(BaseModel):
             return {k: str(val).strip() for k, val in v.items() if str(val).strip()}
         return v
 
+    @field_validator("citations", mode="before")
+    @classmethod
+    def _normalize_citations_shape(cls, v: object) -> object:
+        """Coerce API / legacy shapes so Gate AISection parse does not fail.
+
+        Live NotebookLM or upstream JSON may send a section label string per question,
+        a bare string instead of a list, or string elements inside the list.
+        """
+        if not isinstance(v, dict):
+            return v
+        out: dict[int | str, object] = {}
+        for key, val in v.items():
+            if isinstance(key, str):
+                try:
+                    nk: int | str = int(key)
+                except ValueError:
+                    nk = key
+            else:
+                nk = key
+            if isinstance(val, str):
+                s = val.strip()
+                val = [{"excerpt": s}] if s else []
+            elif isinstance(val, dict):
+                val = [val]
+            elif isinstance(val, list):
+                fixed: list[object] = []
+                for item in val:
+                    if isinstance(item, str):
+                        s = item.strip()
+                        if s:
+                            fixed.append({"excerpt": s})
+                    else:
+                        fixed.append(item)
+                val = fixed
+            else:
+                val = []
+            out[nk] = val
+        return out
+
     @model_validator(mode="after")
     def _require_citations_for_answers(self) -> "DeepFilingAnalysis":
         for key in self.answers:
