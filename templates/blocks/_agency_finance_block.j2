@@ -14,6 +14,7 @@
 {%- endfor %}
 {%- if a.risk_register %}
 · <b>風險登錄</b>：{{ a.risk_register|join('；')|tg_escape }}
-{%- endif %}
+{% endif %}
+────────────
 {%- endif -%}
 {%- endmacro %}
