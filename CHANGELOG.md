@@ -8,9 +8,11 @@
 ### Fixed
 - **Crew 結構化 JSON（尾隨逗號）**：[`crew_output_parse.py`](crew_output_parse.py) 新增 **`repair_llm_json_text`**，於 **`kickoff_to_pydantic`** 內 **`model_validate_json`／`json.loads` 前**迭代移除 `}`／`]` 前的非法尾隨逗號（RFC 8259 不允許、LLM 常見），避免 **`AISection`／`CryptoSection`** 解析失敗觸發 **`GATE_EXECUTION_FAILED`** 與 **`STRICT_CONSISTENCY_GATE`** 擋推送。
 - **Crew kickoff 內建 pydantic 解析失敗**：[`crew_output_parse.py`](crew_output_parse.py) 新增 **`kickoff_with_structured_fallback`** — 當 **`crew.kickoff()`** 因 **`output_pydantic`** 路徑先拋 **`ValidationError`（json_invalid）`** 時，從例外鏈取出原始 JSON 字串，再走 **`repair_llm_json_text` + `parse_pydantic_from_llm_json_text`**。[`crew.py`](crew.py) **Crypto／AI** 日報 Crew 改為以此包 **`kickoff`**。
+- **QSREC `direction` 漏填**：[`schemas.py`](schemas.py) 於 **`TradeRecommendation`** 解析前補 **`direction`**（常見別名欄位、`entry`／`target`／`stop` 幾何）；**`CryptoSection`／`AISection`** 另以 **`trade_legs`** 同資產方向回填 **`qsrec`**，避免生產 **`qsrec.0.direction Field required`** 使 **`CryptoSection.model_validate`** 失敗而觸發 **`GATE_EXECUTION_FAILED`**。
 
 ### Tests
 - [`test_crew_output_parse.py`](test_crew_output_parse.py) — `repair_llm_json_text`、`kickoff_to_pydantic` 對尾隨逗號 JSON 之回歸；**`parse_pydantic_from_llm_json_text`**、**`kickoff_with_structured_fallback`**（成功路徑／`ValidationError` 自救／不可恢復時 re-raise）。
+- [`test_trade_recommendation_schema.py`](test_trade_recommendation_schema.py) — **`direction`** 由價位／`side` 別名推斷；**`CryptoSection.model_validate`** 由 **`trade_legs`** 回填 **`qsrec`**。
 
 ## 2026-05-05
 

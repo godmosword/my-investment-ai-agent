@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -125,6 +125,84 @@ def _check_consensus_direction(
                     "主編共識方向衝突：%s 倉位 LONG，但 News %d editor_consensus 含看跌語氣：%r",
                     asset, item.index, item.editor_consensus,
                 )
+
+
+def _norm_qsrec_asset(a: object) -> str:
+    """Canonical asset key for leg↔qsrec alignment (same rule as structured gate checks)."""
+    return str(a or "").upper().replace("$", "").replace("-", "/").replace(" ", "")
+
+
+def _infer_trade_direction_from_prices(
+    entry: object, target: object, stop: object
+) -> Literal["LONG", "SHORT"] | None:
+    """When LLM omits direction, infer LONG/SHORT from entry/target/stop geometry (no fabrication of prices)."""
+    try:
+        e = float(entry)  # type: ignore[arg-type]
+        t = float(target)
+        s = float(stop)
+    except (TypeError, ValueError):
+        return None
+    if t > e and s < e:
+        return "LONG"
+    if t < e and s > e:
+        return "SHORT"
+    if t > e and s <= e:
+        return "LONG"
+    if t < e and s >= e:
+        return "SHORT"
+    return None
+
+
+def _backfill_missing_qsrec_directions_from_sections_raw(
+    data: dict[str, Any], *, label: str
+) -> dict[str, Any]:
+    """Patch raw qsrec dicts missing direction using same-section trade_legs (Crew drift guard)."""
+    qsrec = data.get("qsrec")
+    legs = data.get("trade_legs")
+    if not isinstance(qsrec, list) or not isinstance(legs, list):
+        return data
+    leg_dirs: dict[str, str] = {}
+    for leg in legs:
+        if not isinstance(leg, dict):
+            continue
+        asset_key = _norm_qsrec_asset(leg.get("asset"))
+        dv = leg.get("direction")
+        if not asset_key or not isinstance(dv, str) or not dv.strip():
+            continue
+        u = dv.strip().upper()
+        if u in ("LONG", "BUY"):
+            leg_dirs[asset_key] = "LONG"
+        elif u in ("SHORT", "SELL"):
+            leg_dirs[asset_key] = "SHORT"
+    if not leg_dirs:
+        return data
+    new_qs: list[Any] = []
+    changed = False
+    for item in qsrec:
+        if not isinstance(item, dict):
+            new_qs.append(item)
+            continue
+        row = dict(item)
+        cur = row.get("direction")
+        missing = cur is None or (isinstance(cur, str) and not cur.strip())
+        if missing:
+            ak = _norm_qsrec_asset(row.get("asset"))
+            fill = leg_dirs.get(ak)
+            if fill:
+                row["direction"] = fill
+                changed = True
+                logger.warning(
+                    "%s: qsrec 資產 %r 缺 direction，已由 trade_legs 補為 %s",
+                    label,
+                    row.get("asset"),
+                    fill,
+                )
+        new_qs.append(row)
+    if not changed:
+        return data
+    out = dict(data)
+    out["qsrec"] = new_qs
+    return out
 
 
 class TradeRecommendation(BaseModel):
@@ -273,17 +351,60 @@ class TradeRecommendation(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _derive_score_gap_before(cls, data: object) -> object:
-        """Crew 契約：score_gap = selection_score − alt_candidate_score。LLM 常漏填 gap；有兩分數時於解析前補上。"""
+    def _coerce_trade_recommendation_raw(cls, data: object) -> object:
+        """解析前容錯：補 direction（別名欄位／價位幾何）、補 score_gap（selection−alt）。"""
         if not isinstance(data, dict):
             return data
-        if data.get("score_gap") is not None:
-            return data
-        sel, alt = data.get("selection_score"), data.get("alt_candidate_score")
-        if sel is None or alt is None:
-            return data
-        merged = dict(data)
-        merged["score_gap"] = float(sel) - float(alt)
+        merged: dict[str, Any] = dict(data)
+
+        raw_dir = merged.get("direction")
+        if isinstance(raw_dir, str) and raw_dir.strip():
+            u = raw_dir.strip().upper()
+            if u in ("LONG", "BUY"):
+                merged["direction"] = "LONG"
+            elif u in ("SHORT", "SELL"):
+                merged["direction"] = "SHORT"
+
+        if merged.get("direction") not in ("LONG", "SHORT"):
+            for alt_key in ("side", "position", "bias", "net_direction", "trade_direction"):
+                alt = merged.get(alt_key)
+                if not isinstance(alt, str) or not alt.strip():
+                    continue
+                u = alt.strip().upper()
+                if u in ("LONG", "BUY"):
+                    merged["direction"] = "LONG"
+                    logger.warning(
+                        "TradeRecommendation: direction 已由別名欄位 %r 補上（資產=%r）",
+                        alt_key,
+                        merged.get("asset"),
+                    )
+                    break
+                if u in ("SHORT", "SELL"):
+                    merged["direction"] = "SHORT"
+                    logger.warning(
+                        "TradeRecommendation: direction 已由別名欄位 %r 補上（資產=%r）",
+                        alt_key,
+                        merged.get("asset"),
+                    )
+                    break
+
+        if merged.get("direction") not in ("LONG", "SHORT"):
+            inferred = _infer_trade_direction_from_prices(
+                merged.get("entry"), merged.get("target"), merged.get("stop")
+            )
+            if inferred:
+                merged["direction"] = inferred
+                logger.warning(
+                    "TradeRecommendation: direction 依 entry/target/stop 推斷為 %s（資產=%r）",
+                    inferred,
+                    merged.get("asset"),
+                )
+
+        if merged.get("score_gap") is None:
+            sel, alt = merged.get("selection_score"), merged.get("alt_candidate_score")
+            if sel is not None and alt is not None:
+                merged["score_gap"] = float(sel) - float(alt)
+
         return merged
 
     @model_validator(mode="after")
@@ -902,6 +1023,15 @@ class CryptoSection(BaseModel):
         description="CRYPTO category recommendations for QSREC JSON block.",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _backfill_qsrec_direction_from_legs(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        return _backfill_missing_qsrec_directions_from_sections_raw(
+            data, label="CryptoSection"
+        )
+
     @field_validator("qsrec", mode="before")
     @classmethod
     def _coerce_qsrec_category_to_crypto(cls, v: object) -> object:
@@ -1284,6 +1414,14 @@ class AISection(BaseModel):
         default_factory=list,
         description="EQUITY category rows for QSREC.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _backfill_qsrec_direction_from_legs(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        return _backfill_missing_qsrec_directions_from_sections_raw(data, label="AISection")
+
     deep_filing_analysis: DeepFilingAnalysis | None = Field(
         default=None,
         description="Optional NotebookLM filing deep dive; empty values are omitted from renders.",
