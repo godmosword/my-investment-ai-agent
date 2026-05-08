@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import TerminalSymbolCard from "../../../components/TerminalSymbolCard";
+import TerminalSseStatusBar from "../../../components/TerminalSseStatusBar";
 import ExecutionIntentsBlotter from "../../../components/ExecutionIntentsBlotter";
 import SymbolFocusBar from "../../../components/SymbolFocusBar";
 import { useSymbolFocus } from "../../../context/SymbolFocusContext";
@@ -320,6 +321,8 @@ export default function DailyBriefPage() {
 
       <SymbolFocusBar compact />
 
+      <TerminalSseStatusBar />
+
       <ExecutionIntentsBlotter />
 
       <div className="terminal-workspace-tabs" role="tablist" aria-label="工作區分組">
@@ -431,35 +434,48 @@ export default function DailyBriefPage() {
         data-testid="terminal-workspace-grid"
         data-active-symbols={symbols.join(",")}
       >
-        {symbols.map((symbol, index) => (
+        {symbols.length === 0 ? (
           <div
-            key={`${workspace.activeGroupId}-${symbol}`}
-            draggable
-            onDragStart={() => setDragIndex(index)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => {
-              if (dragIndex == null || dragIndex === index) return;
-              setSymbolsForActive(moveIndex(symbols, dragIndex, index));
-              setDragIndex(null);
-            }}
+            className="card terminal-workspace-empty"
+            role="status"
+            data-testid="terminal-workspace-empty"
+            style={{ gridColumn: "1 / -1" }}
           >
-            <TerminalSymbolCard
-              symbol={symbol}
-              onRemove={() => setSymbolsForActive(symbols.filter((s) => s !== symbol))}
-              onMoveUp={() =>
-                setSymbolsForActive(index > 0 ? moveIndex(symbols, index, index - 1) : symbols)
-              }
-              onMoveDown={() =>
-                setSymbolsForActive(
-                  index < symbols.length - 1 ? moveIndex(symbols, index, index + 1) : symbols,
-                )
-              }
-              dragHandleProps={{
-                onMouseDown: () => setDragIndex(index),
-              }}
-            />
+            <div className="page-subtitle" style={{ margin: 0 }}>
+              目前分組尚無代號。請於上方輸入代號加入，或套用模板／「目前分組重設為預設」。
+            </div>
           </div>
-        ))}
+        ) : (
+          symbols.map((symbol, index) => (
+            <div
+              key={`${workspace.activeGroupId}-${symbol}`}
+              draggable
+              onDragStart={() => setDragIndex(index)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => {
+                if (dragIndex == null || dragIndex === index) return;
+                setSymbolsForActive(moveIndex(symbols, dragIndex, index));
+                setDragIndex(null);
+              }}
+            >
+              <TerminalSymbolCard
+                symbol={symbol}
+                onRemove={() => setSymbolsForActive(symbols.filter((s) => s !== symbol))}
+                onMoveUp={() =>
+                  setSymbolsForActive(index > 0 ? moveIndex(symbols, index, index - 1) : symbols)
+                }
+                onMoveDown={() =>
+                  setSymbolsForActive(
+                    index < symbols.length - 1 ? moveIndex(symbols, index, index + 1) : symbols,
+                  )
+                }
+                dragHandleProps={{
+                  onMouseDown: () => setDragIndex(index),
+                }}
+              />
+            </div>
+          ))
+        )}
       </div>
     </>
   );

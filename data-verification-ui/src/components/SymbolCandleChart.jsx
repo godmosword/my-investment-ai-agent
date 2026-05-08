@@ -8,6 +8,49 @@ const PERIODS = [
   { label: "全部", days: null },
 ];
 
+function finiteNumber(value) {
+  if (value == null || (typeof value === "string" && value.trim() === "")) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function timeMs(time) {
+  if (time && typeof time === "object") {
+    const { year, month, day } = time;
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      return Date.UTC(year, month - 1, day);
+    }
+  }
+  const parsed = Date.parse(String(time ?? ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function timeKey(time) {
+  if (time && typeof time === "object") {
+    return `${time.year ?? ""}-${time.month ?? ""}-${time.day ?? ""}`;
+  }
+  return String(time ?? "");
+}
+
+function normalizeCandle(row) {
+  const time = row?.time;
+  const open = finiteNumber(row?.open);
+  const high = finiteNumber(row?.high);
+  const low = finiteNumber(row?.low);
+  const close = finiteNumber(row?.close);
+  if (time == null || open == null || high == null || low == null || close == null) return null;
+
+  const volume = finiteNumber(row?.volume);
+  return {
+    time,
+    open,
+    high,
+    low,
+    close,
+    ...(volume == null ? {} : { volume }),
+  };
+}
+
 function calcMA(data, period) {
   const result = [];
   for (let i = 0; i < data.length; i++) {
@@ -21,10 +64,16 @@ function calcMA(data, period) {
 
 function filterByDays(data, days) {
   if (!days || data.length === 0) return data;
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-  return data.filter((d) => d.time >= cutoffStr);
+  const latestMs = data.reduce((max, d) => {
+    const ms = timeMs(d.time);
+    return ms == null ? max : Math.max(max, ms);
+  }, Number.NEGATIVE_INFINITY);
+  if (!Number.isFinite(latestMs)) return data;
+  const cutoffMs = latestMs - days * 24 * 60 * 60 * 1000;
+  return data.filter((d) => {
+    const ms = timeMs(d.time);
+    return ms != null && ms >= cutoffMs;
+  });
 }
 
 function markerColor(item) {
@@ -63,28 +112,45 @@ export default function SymbolCandleChart({ symbol, priceSeries = [], eventMarke
   const ma50Ref = useRef(null);
   const markersRef = useRef(null);
 
-  const hasPriceData = Array.isArray(priceSeries) && priceSeries.length > 0;
+  const normalizedPriceSeries = useMemo(
+    () => (Array.isArray(priceSeries) ? priceSeries.map(normalizeCandle).filter(Boolean) : []),
+    [priceSeries],
+  );
+  const hasPriceData = normalizedPriceSeries.length > 0;
 
   const filteredData = useMemo(() => {
     const period = PERIODS.find((p) => p.label === activePeriod);
-    return filterByDays(Array.isArray(priceSeries) ? priceSeries : [], period?.days ?? null);
-  }, [priceSeries, activePeriod]);
+    return filterByDays(normalizedPriceSeries, period?.days ?? null);
+  }, [normalizedPriceSeries, activePeriod]);
+
+  const visibleTimes = useMemo(
+    () => new Set(filteredData.map((d) => timeKey(d.time))),
+    [filteredData],
+  );
 
   const markers = useMemo(
     () =>
-      eventMarkers
+      (Array.isArray(eventMarkers) ? eventMarkers : [])
         .map(toMarker)
-        .filter((m) => filteredData.some((d) => d.time === m.time)),
-    [eventMarkers, filteredData],
+        .filter((m) => visibleTimes.has(timeKey(m.time))),
+    [eventMarkers, visibleTimes],
   );
 
-  const ma20Data = useMemo(() => calcMA(filteredData, 20), [filteredData]);
-  const ma50Data = useMemo(() => calcMA(filteredData, 50), [filteredData]);
+  const ma20FullData = useMemo(() => calcMA(normalizedPriceSeries, 20), [normalizedPriceSeries]);
+  const ma50FullData = useMemo(() => calcMA(normalizedPriceSeries, 50), [normalizedPriceSeries]);
+  const ma20Data = useMemo(
+    () => ma20FullData.filter((d) => visibleTimes.has(timeKey(d.time))),
+    [ma20FullData, visibleTimes],
+  );
+  const ma50Data = useMemo(
+    () => ma50FullData.filter((d) => visibleTimes.has(timeKey(d.time))),
+    [ma50FullData, visibleTimes],
+  );
 
   const volData = useMemo(
     () =>
       filteredData
-        .filter((d) => d.volume != null)
+        .filter((d) => d.volume != null && Number.isFinite(d.volume))
         .map((d) => ({
           time: d.time,
           value: d.volume,
@@ -204,7 +270,7 @@ export default function SymbolCandleChart({ symbol, priceSeries = [], eventMarke
 
   if (!hasPriceData) {
     return (
-      <div className="terminal-chart-empty">
+      <div className="terminal-chart-empty" role="status" data-testid={`terminal-chart-empty-${symbol}`}>
         {symbol} 暫無 OHLC 資料（請確認行情來源與 symbol 對映）。
       </div>
     );

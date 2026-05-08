@@ -18,6 +18,13 @@
 - [`test_crew_output_parse.py`](test_crew_output_parse.py) — `repair_llm_json_text`、`kickoff_to_pydantic` 對尾隨逗號 JSON 之回歸；**`parse_pydantic_from_llm_json_text`**、**`kickoff_with_structured_fallback`**（成功路徑／`ValidationError` 自救／不可恢復時 re-raise）。
 - [`test_trade_recommendation_schema.py`](test_trade_recommendation_schema.py) — **`direction`** 由價位／`side` 別名推斷；**`CryptoSection.model_validate`** 由 **`trade_legs`** 回填 **`qsrec`**。
 
+### Changed
+- **PWA — Terminal（DailyBrief）狀態矩陣補強**：[`DailyBriefPage.jsx`](data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx) 於 **`VITE_SSE_ENABLED=1`** 時在 **`md:hidden`** 顯示 [**`TerminalSseStatusBar`**](data-verification-ui/src/components/TerminalSseStatusBar.jsx)（與 [**`SideNav`**](data-verification-ui/src/app/layout/SideNav.jsx) **`SseDot`** 同源 **`useWarRoomSseStatus`**）；目前分組無代號時顯示 **`terminal-workspace-empty`**（**`data-testid`**）。[**`SymbolCandleChart`**](data-verification-ui/src/components/SymbolCandleChart.jsx) 無 OHLC 時補 **`role="status"`**／**`data-testid`**。[**`index.css`**](data-verification-ui/src/index.css) 新增 **`.terminal-sse-bar`**。
+- **PWA — design review 落地（Shell／狀態／規格）**：[`DESIGN.md`](DESIGN.md) 擴充 IA、狀態矩陣、首次開啟 storyboard、`accent`／`accent2` 語意、響應式與 a11y（1120px、`≥768px` 僅 SideNav、`ModuleNav` 角色）。[`ModuleNav.jsx`](data-verification-ui/src/app/layout/ModuleNav.jsx) **`md:hidden`**；[`index.css`](data-verification-ui/src/index.css) **`.page-content`** `max-width:1120px`（768px+）、**`:focus-visible`**、側欄項目圓角對齊 **`tokens.radius.md`（10px）**、底部／模組導覽觸控目標 **≥44×44**。[`AnalysisHome.jsx`](data-verification-ui/src/modules/investment-analysis/pages/AnalysisHome.jsx)／[`IndustriesHome.jsx`](data-verification-ui/src/modules/industry-trends/pages/IndustriesHome.jsx)／[`QuantHome.jsx`](data-verification-ui/src/modules/quant-trading/pages/QuantHome.jsx) 移除巢狀 **`page-content`**；分析／產業頁補 **`error`／empty／`.loading`** 對齊狀態矩陣；[`PositionsHome.jsx`](data-verification-ui/src/modules/position-management/pages/PositionsHome.jsx) 載入態改用 **`.loading`**；[`DesignShowcase.jsx`](data-verification-ui/src/pages/DesignShowcase.jsx) 外層不再重複 **`page-content`**。
+
+### Tests
+- **`data-verification-ui`**：`npm run lint`、`npm run test:e2e` — design review 與 Terminal DailyBrief（SSE 列／空工作區／圖表 empty）變更後仍綠。
+
 ## 2026-05-05
 
 ### PWA（視覺化隊列 27／Portal 隊列 26 切片）

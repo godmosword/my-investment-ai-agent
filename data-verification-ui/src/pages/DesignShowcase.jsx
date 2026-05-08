@@ -17,7 +17,7 @@ const sampleProvenance = {
 
 export default function DesignShowcase() {
   return (
-    <div className="page-content" style={{ maxWidth: 480, margin: "0 auto" }}>
+    <div style={{ maxWidth: 480, margin: "0 auto", width: "100%" }}>
       <div className="page-header">
         <div className="page-title">Design（dev）</div>
         <p className="page-subtitle" style={{ opacity: 0.85 }}>
