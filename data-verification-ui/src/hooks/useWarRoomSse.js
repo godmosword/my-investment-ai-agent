@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { createContext, createElement, useContext, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { syncWarRoomRelatedQueries } from "./useApi";
 
@@ -6,15 +6,21 @@ const BASE = import.meta.env.VITE_API_URL ?? "";
 const SSE_ENABLED = import.meta.env.VITE_SSE_ENABLED === "1";
 const SSE_KEY = import.meta.env.VITE_SSE_STREAM_KEY ?? "";
 
+const WarRoomSseStatusContext = createContext({ sseStatus: "idle" });
+
 /**
- * Single app-wide SSE subscription to `/api/stream/war-room`.
- * Keeps Today（War Room）、Terminal（execution intents）與後端推送同步而不重複連線。
+ * App-wide SSE subscription to `/api/stream/war-room` (single EventSource, includes stream_key).
+ * Children read status via `useWarRoomSseStatus` — do not open duplicate EventSources.
  */
-export function useWarRoomSse() {
+export function WarRoomSseProvider({ children }) {
   const qc = useQueryClient();
+  const [sseStatus, setSseStatus] = useState("idle");
 
   useEffect(() => {
-    if (!SSE_ENABLED || !BASE) return undefined;
+    if (!SSE_ENABLED || !BASE) {
+      setSseStatus("idle");
+      return undefined;
+    }
 
     const q = SSE_KEY ? `?stream_key=${encodeURIComponent(SSE_KEY)}` : "";
     const url = `${BASE}/api/stream/war-room${q}`;
@@ -22,8 +28,11 @@ export function useWarRoomSse() {
     try {
       es = new EventSource(url);
     } catch {
+      setSseStatus("error");
       return undefined;
     }
+
+    es.onopen = () => setSseStatus("connected");
 
     let refreshTimer = null;
     let lastRefreshAt = 0;
@@ -35,6 +44,7 @@ export function useWarRoomSse() {
     };
 
     const scheduleRefresh = () => {
+      setSseStatus("connected");
       const sinceLastRefresh = Date.now() - lastRefreshAt;
       if (sinceLastRefresh >= 1_000) {
         flushRefresh();
@@ -45,7 +55,7 @@ export function useWarRoomSse() {
     };
 
     es.onmessage = scheduleRefresh;
-    es.onerror = () => {};
+    es.onerror = () => setSseStatus("error");
 
     return () => {
       if (refreshTimer != null) {
@@ -54,4 +64,12 @@ export function useWarRoomSse() {
       es.close();
     };
   }, [qc]);
+
+  const value = useMemo(() => ({ sseStatus }), [sseStatus]);
+
+  return createElement(WarRoomSseStatusContext.Provider, { value }, children);
+}
+
+export function useWarRoomSseStatus() {
+  return useContext(WarRoomSseStatusContext);
 }

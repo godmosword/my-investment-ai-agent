@@ -7,6 +7,7 @@
 - [`docs/architecture/`](docs/architecture/)（`AI_CONTEXT.md`、`REVIEWER_LOOP_DESIGN.md`、`TERMINAL_FRONTEND_PLAN.md` 等）
 - 前端 Portal：`data-verification-ui/`（`/briefs` 與 `/terminal` 同掛日報模組；`npm run test:e2e`）
 - 後端：`api.py` 組裝；`api_routers/` incremental `APIRouter`（例：`metrics`、`health`）；改 Graph／Reviewer 請跑 `scripts/verify_graph_gate.sh` 或 `pytest test_reviewer_loop.py`
+- **發佈（ship）**：維護者預設 **不上 PR**——相關測試通過後 **commit 並 `git push origin main`**。若遠端 `main` 設了 branch protection 無法直推，再改由人類處理合併／調整規則。
 
 ---
 

@@ -2,7 +2,8 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BottomNav from "./components/BottomNav";
-import WarRoomSseBridge from "./components/WarRoomSseBridge";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { WarRoomSseProvider } from "./hooks/useWarRoomSse";
 import { SymbolFocusProvider } from "./context/SymbolFocusContext";
 import Shell from "./app/layout/Shell";
 import Today from "./pages/Today";
@@ -82,13 +83,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <WarRoomSseBridge />
-      <SymbolFocusProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </SymbolFocusProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <WarRoomSseProvider>
+          <SymbolFocusProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </SymbolFocusProvider>
+        </WarRoomSseProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

@@ -20,6 +20,84 @@ import { normalizeReportProfile } from "../components/report/reportProfiles";
 
 const STRUCTURED_FLAG = import.meta.env.VITE_STRUCTURED_REPORT === "1";
 
+const PIPELINE_STEPS = [
+  { key: "research",  label: "研究" },
+  { key: "validate",  label: "驗證" },
+  { key: "signal",    label: "信號" },
+  { key: "review",    label: "審核" },
+  { key: "dispatch",  label: "發送" },
+];
+
+function SignalPipeline({ warRoom }) {
+  const gateStatus = warRoom?.gate_status ?? warRoom?.gate ?? null;
+  const passedStep = gateStatus === "PASS" ? 5 : gateStatus != null ? 2 : 1;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0,
+        marginBottom: 12,
+        padding: "10px 14px",
+        background: "rgba(12, 18, 34, 0.6)",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        overflow: "hidden",
+      }}
+      role="status"
+      aria-label="信號 pipeline 狀態"
+    >
+      {PIPELINE_STEPS.map((step, i) => {
+        const done = i < passedStep;
+        const active = i === passedStep - 1;
+        return (
+          <div key={step.key} style={{ display: "flex", alignItems: "center", flex: i < 4 ? "1 1 0" : undefined }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 44 }}>
+              <div
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  border: `2px solid ${done ? "var(--accent)" : active ? "var(--yellow)" : "var(--border)"}`,
+                  background: done
+                    ? "var(--accent-soft)"
+                    : active
+                      ? "rgba(251,191,36,0.1)"
+                      : "rgba(255,255,255,0.02)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: done ? "var(--accent)" : active ? "var(--yellow)" : "var(--muted)",
+                  transition: "all 0.3s",
+                }}
+              >
+                {done ? "✓" : i + 1}
+              </div>
+              <span style={{ fontSize: 9, color: done ? "var(--accent)" : "var(--muted)", fontWeight: done ? 600 : 400 }}>
+                {step.label}
+              </span>
+            </div>
+            {i < 4 && (
+              <div
+                style={{
+                  flex: 1,
+                  height: 2,
+                  background: done ? "var(--accent)" : "var(--border)",
+                  transition: "background 0.3s",
+                  marginBottom: 14,
+                }}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Today() {
   const [online, setOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true,
@@ -138,7 +216,30 @@ export default function Today() {
         </div>
       )}
 
-      <div className="page-header">
+      {/* Regime ambient glow overlay */}
+      {showMetricsBlock && effectiveMetrics && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "40vh",
+            pointerEvents: "none",
+            zIndex: 0,
+            background:
+              regime.cls === "regime-on"
+                ? "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(52,211,153,0.07), transparent 70%)"
+                : regime.cls === "regime-off"
+                  ? "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(248,113,113,0.07), transparent 70%)"
+                  : "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(251,191,36,0.05), transparent 70%)",
+            transition: "background 1.2s ease",
+          }}
+        />
+      )}
+
+      <div className="page-header" style={{ position: "relative", zIndex: 1 }}>
         <div className="page-title">今日戰情室</div>
         <div
           className="page-subtitle"
@@ -184,7 +285,13 @@ export default function Today() {
 
       {!useDemo && <TodayBtcSnapshotStrip />}
 
-      <div className="section-header subtle">War Room（Gate / Scratchpad / Intent）</div>
+      <div className="section-header subtle" style={{ position: "relative", zIndex: 1 }}>
+        War Room（Gate / Scratchpad / Intent）
+      </div>
+
+      {/* Signal pipeline progress indicator */}
+      <SignalPipeline warRoom={warRoom} />
+
       <WarRoomCard
         warRoom={warRoom}
         loading={useDemo ? false : wLoading}
