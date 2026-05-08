@@ -1,11 +1,17 @@
 import { useExecutionIntents } from "../../../hooks/useApi";
 
+function finiteNumber(value) {
+  if (value == null || (typeof value === "string" && value.trim() === "")) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function paperEntry(r) {
-  return r.paper_fill_price ?? r.paper_entry ?? r.reference_entry_price ?? r.entry_price ?? null;
+  return finiteNumber(r.paper_fill_price ?? r.paper_entry ?? r.reference_entry_price ?? r.entry_price);
 }
 
 function paperExit(r) {
-  return r.paper_exit_price ?? r.paper_exit ?? null;
+  return finiteNumber(r.paper_exit_price ?? r.paper_exit);
 }
 
 /** Rows counted as closed for paper PnL stats (API + legacy aliases). */
@@ -17,29 +23,34 @@ function isPaperClosedRow(r) {
 function calcStats(rows) {
   if (!rows || rows.length === 0) return null;
   const closed = rows.filter(isPaperClosedRow);
-  if (closed.length === 0) return null;
-
-  const wins = closed.filter((r) => {
+  const settled = closed.filter((r) => {
     const px = paperExit(r);
     const en = paperEntry(r);
-    if (px == null || en == null) return false;
+    return px != null && en != null && en !== 0;
+  });
+  if (settled.length === 0) return null;
+
+  const wins = settled.filter((r) => {
+    const px = paperExit(r);
+    const en = paperEntry(r);
     const dir = (r.direction ?? "").toUpperCase();
+    if (dir !== "LONG" && dir !== "SHORT") return false;
     return dir === "LONG" ? px > en : px < en;
   });
 
-  const winRate = closed.length > 0 ? Math.round((wins.length / closed.length) * 100) : 0;
+  const winRate = settled.length > 0 ? Math.round((wins.length / settled.length) * 100) : 0;
 
-  const pnls = closed
+  const pnls = settled
     .map((r) => {
       const px = paperExit(r);
       const en = paperEntry(r);
-      if (px == null || en == null) return null;
       const dir = (r.direction ?? "").toUpperCase();
+      if (dir !== "LONG" && dir !== "SHORT") return null;
       const raw =
         dir === "LONG" ? (px - en) / en : (en - px) / en;
       return raw * 100;
     })
-    .filter((v) => v != null);
+    .filter((v) => Number.isFinite(v));
 
   const avgPnl = pnls.length > 0 ? pnls.reduce((a, b) => a + b, 0) / pnls.length : 0;
 
@@ -49,7 +60,7 @@ function calcStats(rows) {
   const avgLoss = losePnls.length ? Math.abs(losePnls.reduce((a, b) => a + b, 0) / losePnls.length) : 1;
   const rr = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : "—";
 
-  return { total: closed.length, wins: wins.length, winRate, avgPnl: avgPnl.toFixed(2), rr };
+  return { total: settled.length, wins: wins.length, winRate, avgPnl: avgPnl.toFixed(2), rr };
 }
 
 function KpiCard({ label, value, sub, color }) {
@@ -116,7 +127,7 @@ export default function QuantHome() {
   const active = rows.filter(isActiveIntent);
 
   return (
-    <div className="page-content" style={{ padding: "16px 16px 80px" }}>
+    <>
       <div className="page-header">
         <div className="page-title">量化交易</div>
         <div className="page-subtitle">紙上模擬績效（execution_intents · 僅追蹤，不下單）</div>
@@ -205,6 +216,6 @@ export default function QuantHome() {
           )}
         </div>
       ))}
-    </div>
+    </>
   );
 }

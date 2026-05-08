@@ -77,7 +77,7 @@ function SectorCard({ sector, score }) {
 }
 
 export default function IndustriesHome() {
-  const { data: metrics, isLoading } = useMetricsLatest();
+  const { data: metrics, isLoading, error } = useMetricsLatest();
 
   const sectors = SECTORS.map((s) => ({
     ...s,
@@ -85,26 +85,36 @@ export default function IndustriesHome() {
   })).sort((a, b) => b.score - a.score);
 
   return (
-    <div className="page-content" style={{ padding: "16px 16px 80px" }}>
+    <>
       <div className="page-header">
         <div className="page-title">產業趨勢</div>
         <div className="page-subtitle">板塊相對強度（依 BigQuery 風險評分調整）</div>
       </div>
 
       {isLoading && <div className="loading" style={{ padding: "20px 0" }}>載入指標中…</div>}
+      {error && !isLoading && (
+        <div className="error-msg" style={{ marginBottom: 12 }}>
+          無法載入即時風險評分：<code>{error.message}</code>
+          <span style={{ display: "block", marginTop: 6, fontSize: 12, opacity: 0.9 }}>
+            以下為板塊基準分（未套用市場偏差）。
+          </span>
+        </div>
+      )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        {sectors.map((s) => (
-          <SectorCard key={s.id} sector={s} score={s.score} />
-        ))}
-      </div>
+      {!isLoading && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+            gap: 10,
+            marginBottom: 16,
+          }}
+        >
+          {sectors.map((s) => (
+            <SectorCard key={s.id} sector={s} score={s.score} />
+          ))}
+        </div>
+      )}
 
       <div className="card" style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
         <div className="card-title">評分說明</div>
@@ -114,6 +124,6 @@ export default function IndustriesHome() {
           詳細板塊輪動資料請見 Streamlit 戰情室或當日日報。
         </p>
       </div>
-    </div>
+    </>
   );
 }

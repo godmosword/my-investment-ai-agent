@@ -25,7 +25,7 @@ export default function PositionsHome() {
         執行意圖列表（<code>/api/execution-intents</code>）；紙上前置，不下單。
       </p>
 
-      {isLoading && <div className="text-[13px] text-[var(--muted)]">載入中…</div>}
+      {isLoading && <div className="loading text-[13px]">載入中…</div>}
       {error && (
         <div className="error-msg text-[13px]">
           無法載入意圖：<code>{error.message}</code>

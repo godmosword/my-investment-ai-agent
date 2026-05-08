@@ -31,11 +31,17 @@ function RadarBar({ label, pct, color }) {
   );
 }
 
+function finiteNumber(value, fallback) {
+  if (value == null || (typeof value === "string" && value.trim() === "")) return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function deriveScores(metrics) {
   if (!metrics) return { tech: 50, fund: 50, sent: 50 };
-  const sentRaw = metrics.sentiment_score ?? 0;
-  const riskRaw = metrics.avg_risk_score ?? 2.5;
-  const sopr = metrics.sopr ?? 1;
+  const sentRaw = finiteNumber(metrics.sentiment_score, 0);
+  const riskRaw = finiteNumber(metrics.avg_risk_score, 2.5);
+  const sopr = finiteNumber(metrics.sopr, 1);
   const tech = Math.max(10, Math.min(95, 100 - (riskRaw / 5) * 100));
   const fund = Math.max(10, Math.min(95, (sopr - 0.85) / 0.4 * 100));
   const sent = Math.max(10, Math.min(95, 50 + sentRaw * 30));
@@ -45,7 +51,8 @@ function deriveScores(metrics) {
 function WatchlistTable({ intents }) {
   const intentMap = {};
   for (const r of intents ?? []) {
-    if (r.asset) intentMap[r.asset.toUpperCase()] = r;
+    const asset = String(r.asset ?? "").trim().toUpperCase();
+    if (asset && !intentMap[asset]) intentMap[asset] = r;
   }
 
   return (
@@ -122,12 +129,14 @@ function WatchlistTable({ intents }) {
 }
 
 export default function AnalysisHome() {
-  const { data: metrics, isLoading: mLoading } = useMetricsLatest();
-  const { data: intents = [], isLoading: iLoading } = useExecutionIntents(100, { livePoll: false });
-  const scores = deriveScores(metrics);
+  const { data: metrics, isLoading: mLoading, error: mError } = useMetricsLatest();
+  const { data: intents = [], isLoading: iLoading, error: iError } = useExecutionIntents(100, {
+    livePoll: false,
+  });
+  const scores = metrics ? deriveScores(metrics) : null;
 
   return (
-    <div className="page-content" style={{ padding: "16px 16px 80px" }}>
+    <>
       <div className="page-header">
         <div className="page-title">投資分析</div>
         <div className="page-subtitle">觀察名單 · 多空維度評分（源自 BigQuery daily_metrics）</div>
@@ -136,13 +145,22 @@ export default function AnalysisHome() {
       {/* Dimension score bars */}
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="card-title">市場多空維度（即時）</div>
-        {mLoading ? (
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>載入中…</div>
-        ) : (
-          SCORE_DIMS.map(({ key, label, color }) => (
-            <RadarBar key={key} label={label} pct={scores[key]} color={color} />
-          ))
+        {mLoading && <div className="loading" style={{ padding: "12px 0" }}>載入指標中…</div>}
+        {mError && !mLoading && (
+          <div className="error-msg" style={{ marginBottom: 8 }}>
+            無法載入最新指標：<code>{mError.message}</code>
+          </div>
         )}
+        {!mLoading && !mError && !metrics && (
+          <div className="page-subtitle" style={{ opacity: 0.75 }}>
+            尚無指標快照。
+          </div>
+        )}
+        {!mLoading && !mError && metrics && scores
+          ? SCORE_DIMS.map(({ key, label, color }) => (
+              <RadarBar key={key} label={label} pct={scores[key]} color={color} />
+            ))
+          : null}
         <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8, opacity: 0.6 }}>
           ※ 技術面由風險評分換算；基本面由 SOPR 換算；情緒面由 sentiment_score 換算。
         </div>
@@ -151,16 +169,18 @@ export default function AnalysisHome() {
       {/* Watchlist */}
       <div className="section-header">📋 觀察名單（QSREC 宇宙）</div>
       <div className="card" style={{ padding: "8px 0" }}>
-        {iLoading ? (
-          <div style={{ padding: "12px 16px", fontSize: 12, color: "var(--muted)" }}>載入意圖中…</div>
-        ) : (
-          <WatchlistTable intents={intents} />
+        {iLoading && <div className="loading" style={{ padding: "12px 16px" }}>載入意圖中…</div>}
+        {iError && !iLoading && (
+          <div className="error-msg" style={{ padding: "12px 16px" }}>
+            無法載入意圖：<code>{iError.message}</code>
+          </div>
         )}
+        {!iLoading && !iError && <WatchlistTable intents={intents} />}
       </div>
 
       <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, opacity: 0.65 }}>
         完整分析請見 <code>/briefs</code> 日報終端或 Telegram 戰報。
       </div>
-    </div>
+    </>
   );
 }

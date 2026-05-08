@@ -40,7 +40,15 @@ function SseDot() {
         ? "SSE 連線失敗"
         : "SSE 連線中…";
 
-  return <span className={dotClass} title={title} aria-label={title} />;
+  return (
+    <span
+      className={dotClass}
+      title={title}
+      role="status"
+      aria-live="polite"
+      aria-label={title}
+    />
+  );
 }
 
 function NavItem({ to, icon, label, end }) {
