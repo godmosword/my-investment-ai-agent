@@ -46,7 +46,7 @@ export default function MetricsDashboardBlock({ anchor, title, headerExtras, pay
                 style={{
                   borderBottom: "1px solid var(--border)",
                   fontWeight: row.is_section_header ? 600 : 400,
-                  background: row.is_section_header ? "rgba(255,255,255,0.03)" : undefined,
+                  background: row.is_section_header ? "rgba(0,0,0,0.02)" : undefined,
                 }}
               >
                 <td style={{ padding: "8px 6px", verticalAlign: "middle", color: "var(--muted)" }}>
@@ -57,7 +57,7 @@ export default function MetricsDashboardBlock({ anchor, title, headerExtras, pay
                   style={{
                     padding: "8px 6px",
                     textAlign: "right",
-                    fontFamily: "ui-monospace, monospace",
+                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
                     verticalAlign: "middle",
                   }}
                 >

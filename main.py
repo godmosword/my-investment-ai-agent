@@ -68,6 +68,7 @@ from report_html_gates import (
     _qsrec_opposing_direction_same_asset,  # noqa: F401
     _persist_gate_validation_failure,
     _allow_partial_news_gate,
+    format_gate_feedback_for_llm,
 )
 from crew import _parse_regime_from_scorecard
 from tools import source_observability_lines
@@ -862,6 +863,9 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
     _used_fallback = False
     _total_retries = 0
     _pipeline_start = time.monotonic()
+    # Gate feedback accumulated across retries — injected into exclude_context so the
+    # crew knows exactly what to fix without re-reading raw gate issues.
+    _gate_feedback: str = ""
 
     def _budget_ok() -> bool:
         """True 當剩餘時間足夠再跑一次完整的 crew kickoff（加 2 分鐘緩衝）。"""
@@ -887,7 +891,12 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                         time.monotonic() - _pipeline_start,
                     )
                     break
-                report_html, err, report_model = _run_pipeline_once(exclude_context, use_fallback_llm=False)
+                _context_with_feedback = (
+                    f"{_gate_feedback}\n\n{exclude_context}".strip()
+                    if _gate_feedback
+                    else exclude_context
+                )
+                report_html, err, report_model = _run_pipeline_once(_context_with_feedback, use_fallback_llm=False)
                 if err is None:
                     if report_model is None:
                         raise RuntimeError("pipeline OK but DailyBriefReport missing")
@@ -922,7 +931,7 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
                 logger.warning("Primary LLM 失敗，改用 fallback LLM（全 GPT）重試一次：%s", last_err)
                 _used_fallback = True
                 _total_retries += 1
-                report_html, err, report_model = _run_pipeline_once(exclude_context, use_fallback_llm=True)
+                report_html, err, report_model = _run_pipeline_once(_context_with_feedback, use_fallback_llm=True)
                 if err is None:
                     if report_model is None:
                         raise RuntimeError("pipeline OK but DailyBriefReport missing")
@@ -1023,6 +1032,9 @@ def run_pipeline_with_retries(exclude_context: str | None) -> tuple[str, bool, d
             )
             if logger.isEnabledFor(logging.DEBUG) and final_report:
                 logger.debug("Report snippet (first 500 chars): %s", final_report[:500].replace("\n", " "))
+            _gate_feedback = format_gate_feedback_for_llm(result)
+            if _gate_feedback:
+                logger.info("Gate feedback prepared for next retry (%d chars).", len(_gate_feedback))
             if attempt < MAX_REPORT_RETRIES:
                 _total_retries += 1
                 logger.info("Retrying report generation (%d/%d)...", attempt + 2, MAX_REPORT_RETRIES + 1)

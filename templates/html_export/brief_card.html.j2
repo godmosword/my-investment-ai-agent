@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q-Silicon Daily Brief — {{ report_date }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f3ef; --surface: #ffffff; --border: rgba(0,0,0,0.08);
+    --text: #1c1c1e; --muted: #6e6e73;
+    --accent: #0a7c68; --accent2: #6d28d9;
+    --green: #059669; --red: #dc2626; --yellow: #d97706;
+    --shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+  }
+  body {
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--text);
+    font-size: 13px; line-height: 1.5;
+    padding: 24px 16px; max-width: 760px; margin: 0 auto;
+  }
+  .card { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px; }
+  .mono { font-family: "JetBrains Mono", monospace; }
+  .muted { color: var(--muted); }
+  .label-row { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+  /* Masthead */
+  .masthead { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 20px 22px; background: var(--surface); border-radius: 14px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+  .masthead-left h1 { font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+  .masthead-left .sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .regime-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .regime-on  { background: rgba(5,150,105,0.08);  color: var(--green); border: 1px solid rgba(5,150,105,0.2); }
+  .regime-off { background: rgba(220,38,38,0.08);  color: var(--red);   border: 1px solid rgba(220,38,38,0.2); }
+  .regime-neutral { background: rgba(217,119,6,0.08); color: var(--yellow); border: 1px solid rgba(217,119,6,0.2); }
+
+  /* KPI Strip */
+  .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi-card { background: var(--surface); border-radius: 10px; border: 1px solid var(--border); padding: 14px 16px; box-shadow: var(--shadow); }
+  .kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
+  .kpi-value { font-size: 18px; font-weight: 700; font-family: "JetBrains Mono", monospace; color: var(--text); }
+  .kpi-status { font-size: 10px; margin-top: 3px; color: var(--muted); }
+
+  /* Exec Summary */
+  .summary-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .summary-list li { display: flex; gap: 8px; font-size: 13px; }
+  .summary-list li::before { content: "•"; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+
+  /* Trades Grid */
+  .trades-grid { display: flex; flex-direction: column; gap: 12px; }
+  .trade-row { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+  .trade-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .trade-asset { font-size: 15px; font-weight: 700; }
+  .dir-long  { background: rgba(5,150,105,0.08);  color: var(--green); border: 1px solid rgba(5,150,105,0.2);  border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+  .dir-short { background: rgba(220,38,38,0.08);  color: var(--red);   border: 1px solid rgba(220,38,38,0.2);  border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+  .trade-prices { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 10px 0; }
+  .price-cell .plabel { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 2px; }
+  .price-cell .pval { font-size: 14px; font-weight: 600; font-family: "JetBrains Mono", monospace; }
+  .trade-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; color: var(--muted); }
+  .trade-meta strong { color: var(--text); font-family: "JetBrains Mono", monospace; }
+  .trade-narrative { font-size: 12px; color: var(--muted); margin-top: 8px; font-style: italic; }
+
+  /* News */
+  .news-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .news-item:last-child { border-bottom: none; }
+  .news-ts { font-size: 10px; color: var(--muted); font-family: "JetBrains Mono", monospace; margin-bottom: 4px; }
+  .news-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .news-summary { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .news-takeaway { font-size: 12px; color: var(--accent); }
+
+  /* QSREC */
+  details summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); padding: 10px 0; user-select: none; }
+  details summary:hover { color: var(--text); }
+  pre { font-family: "JetBrains Mono", monospace; font-size: 11px; white-space: pre-wrap; word-break: break-all; color: var(--muted); background: rgba(0,0,0,0.02); border-radius: 8px; padding: 12px; border: 1px solid var(--border); margin-top: 8px; }
+
+  /* Footer */
+  .footer { text-align: center; font-size: 11px; color: var(--muted); padding: 24px 0 8px; }
+  @media print { body { padding: 0; } .card { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+{# ── Masthead ── #}
+{% set regime = report.crypto.market.regime | default("neutral") | lower %}
+{% set regime_class = "regime-on" if regime == "risk_on" else ("regime-off" if regime == "risk_off" else "regime-neutral") %}
+{% set regime_label = "Risk On ▲" if regime == "risk_on" else ("Risk Off ▼" if regime == "risk_off" else "Neutral ─") %}
+
+<div class="masthead">
+  <div class="masthead-left">
+    <h1>Q-Silicon Daily Brief</h1>
+    <div class="sub">{{ report_date }}{% if profile and profile != "full" %} · {{ profile }}{% endif %}</div>
+  </div>
+  <div>
+    <span class="regime-badge {{ regime_class }}">{{ regime_label }}</span>
+    {% if report.crypto.narrative_of_day %}
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:right;">{{ report.crypto.narrative_of_day }}</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── KPI Strip (first 4 dashboard metrics from crypto section) ── #}
+{% set kpi_items = (report.crypto.dashboard or [])[:4] %}
+{% if kpi_items %}
+<div class="kpi-strip">
+  {% for m in kpi_items %}
+  {% if not m.is_section_header %}
+  <div class="kpi-card">
+    <div class="kpi-label">{{ m.label }}</div>
+    <div class="kpi-value">{{ m.value }}</div>
+    {% if m.status_emoji %}<div class="kpi-status">{{ m.status_emoji }}</div>{% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Executive Summary ── #}
+{% if report.crypto.exec_summary %}
+<div class="card">
+  <div class="section-title">Executive Summary</div>
+  <ul class="summary-list">
+    {% for line in report.crypto.exec_summary %}
+    <li>{{ line | tg_escape }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{# ── Trade Legs ── #}
+{% set all_trades = (report.crypto.trade_legs or []) + (report.ai.trade_legs or []) %}
+{% if all_trades %}
+<div class="card">
+  <div class="section-title">Trade Recommendations ({{ all_trades | length }})</div>
+  <div class="trades-grid">
+    {% for t in all_trades %}
+    <div class="trade-row">
+      <div class="trade-header">
+        <span class="trade-asset">{{ t.asset }}</span>
+        <span class="{{ 'dir-long' if t.direction == 'LONG' else 'dir-short' }}">{{ t.direction }}</span>
+      </div>
+      <div class="trade-prices">
+        <div class="price-cell"><div class="plabel">Entry</div><div class="pval">{{ t.entry }}</div></div>
+        <div class="price-cell"><div class="plabel">Target</div><div class="pval">{{ t.target }}</div></div>
+        <div class="price-cell"><div class="plabel">Stop</div><div class="pval">{{ t.stop }}</div></div>
+      </div>
+      <div class="trade-meta">
+        {% if t.rr %}<span>R:R <strong>{{ t.rr }}</strong></span>{% endif %}
+        {% if t.max_drawdown_pct %}<span>Max DD <strong>{{ t.max_drawdown_pct }}</strong></span>{% endif %}
+        {% if t.expected_win_rate %}<span>Win <strong>{{ t.expected_win_rate }}</strong></span>{% endif %}
+        {% if t.signal_score %}<span>Signal <strong>{{ t.signal_score }}</strong></span>{% endif %}
+        <span>{{ "⭐" * t.star_rating }}</span>
+        {% if t.position_pct %}<span>倉位 <strong>{{ t.position_pct }}</strong></span>{% endif %}
+      </div>
+      {% if t.narrative %}
+      <div class="trade-narrative">{{ t.narrative | tg_escape }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── News Block ── #}
+{% set all_news = (report.crypto.news or []) + (report.ai.news or []) %}
+{% if all_news %}
+<div class="card">
+  <div class="section-title">Market Intelligence ({{ all_news | length }})</div>
+  {% for n in all_news %}
+  <div class="news-item">
+    <div class="news-ts">#{{ n.index }} · {{ n.timestamp_line }} · {{ n.source_and_nature }}</div>
+    <div class="news-title">{{ n.title | tg_escape }}</div>
+    <div class="news-summary">{{ n.summary | tg_escape }}</div>
+    <div class="news-takeaway">→ {{ n.investment_takeaway | tg_escape }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── QSREC JSON (collapsible) ── #}
+{% set qsrec_data = (report.crypto.qsrec or []) + (report.ai.qsrec or []) %}
+{% if qsrec_data %}
+<div class="card">
+  <details>
+    <summary>QSREC Payload ({{ qsrec_data | length }} rows)</summary>
+    <pre>{{ qsrec_data | tojson(indent=2) }}</pre>
+  </details>
+</div>
+{% endif %}
+
+<div class="footer">
+  Generated by Q-Silicon Pipeline · {{ report_date }}{% if profile %} · {{ profile }}{% endif %}
+</div>
+
+</body>
+</html>

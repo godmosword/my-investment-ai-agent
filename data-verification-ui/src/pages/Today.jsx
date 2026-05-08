@@ -230,10 +230,10 @@ export default function Today() {
             zIndex: 0,
             background:
               regime.cls === "regime-on"
-                ? "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(52,211,153,0.07), transparent 70%)"
+                ? "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(5,150,105,0.06), transparent 70%)"
                 : regime.cls === "regime-off"
-                  ? "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(248,113,113,0.07), transparent 70%)"
-                  : "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(251,191,36,0.05), transparent 70%)",
+                  ? "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(220,38,38,0.06), transparent 70%)"
+                  : "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(217,119,6,0.05), transparent 70%)",
             transition: "background 1.2s ease",
           }}
         />

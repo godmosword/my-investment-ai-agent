@@ -18,9 +18,9 @@ export default class ErrorBoundary extends Component {
             padding: "32px 24px",
             margin: "16px",
             borderRadius: 12,
-            border: "1px solid rgba(248,113,113,0.3)",
-            background: "rgba(248,113,113,0.08)",
-            color: "#fecaca",
+            border: "1px solid rgba(220,38,38,0.2)",
+            background: "rgba(220,38,38,0.06)",
+            color: "var(--red, #dc2626)",
             fontSize: 13,
             lineHeight: 1.6,
           }}
@@ -39,9 +39,9 @@ export default class ErrorBoundary extends Component {
             style={{
               padding: "6px 14px",
               borderRadius: 6,
-              border: "1px solid rgba(248,113,113,0.4)",
+              border: "1px solid rgba(220,38,38,0.3)",
               background: "transparent",
-              color: "#fecaca",
+              color: "var(--red, #dc2626)",
               fontSize: 12,
               cursor: "pointer",
             }}

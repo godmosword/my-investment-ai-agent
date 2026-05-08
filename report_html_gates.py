@@ -2557,3 +2557,92 @@ def validate_report(
         "n_data_missing_tags": n_data_missing_tags,
         "ai_fundamentals_citation_ok": fund_cite_ok,
     }
+
+
+# ── Lint-Feedback Loop ────────────────────────────────────────────────────────
+# Converts validate_report() gate issues into actionable LLM retry instructions.
+# Inspired by nexu-io/open-design POST /api/artifacts/lint pattern.
+
+_ISSUE_INSTRUCTIONS: list[tuple[str, str]] = [
+    # (issue prefix/substring, actionable instruction for LLM)
+    ("報告過短", "報告篇幅不足，請補充敘述至 3000 字以上，重點擴充 ② 新聞分析段與交易解說。"),
+    ("核心新聞〔新聞", "核心新聞標籤缺失，請確認每則新聞都標有〔新聞 1〕…〔新聞 6〕格式標籤。"),
+    ("新聞數不足", "新聞數量不足，請補充至少 6 則新聞（加密 3 則 + AI/美股 3 則），每則含 timestamp_line、investment_takeaway。"),
+    ("缺少 market_regime", "缺少市場狀態標籤，請在 market 段明確標示 risk_on、risk_off 或 neutral 其中一個。"),
+    ("缺少加密市場操作建議", "缺少加密操作建議，請加入加密 trade_legs（含 entry / target / stop 數值型價格）。"),
+    ("缺少 AI 美股操作建議", "缺少 AI/美股操作建議，請加入美股 trade_legs（含 entry / target / stop 數值型價格）。"),
+    ("缺少 AI 市場段落", "缺少 AI 市場段落，請補充 AI/美股板塊分析，含宏觀銜接與個股觀察。"),
+    ("缺少加密市場段落", "缺少加密市場段落，請補充加密板塊分析，含鏈上數據與市場情緒。"),
+    ("缺少系統追蹤載荷區塊", "缺少 QSREC 區塊，請在報告末段加入 [QSREC_START]…[QSREC_END] JSON 陣列，每筆含 asset / direction / entry / target / stop / confidence / category 欄位。"),
+    ("QSREC 區塊存在但", "QSREC JSON 無法解析或為空陣列，請檢查 [QSREC_START]…[QSREC_END] 內容是否為合法 JSON 陣列且至少含一筆推薦。"),
+    ("交易段含 N/A 關鍵價格", "交易段有 N/A 關鍵價格，請為所有 trade_legs 填入數值型 entry、target、stop（不可為 N/A 或空白）。"),
+    ("戰報外洩 Python 函數名稱", "報告不可包含 Python 函數名稱（如 multi_timeframe_tool），請移除所有程式碼引用。"),
+    ("關鍵資料來源缺失", "關鍵資料來源缺失，請確認 macro_context 與 regime_scorecard 資料已正確載入並呈現於報告。"),
+    ("缺少數據儀表板", "缺少 Dashboard 指標，請加入 DXY、RSI、資金費率、Fear&Greed 等指標行。"),
+    ("缺少呢喃/傳聞區塊", "缺少傳聞區塊，請加入 2–3 則市場傳言（chatter），每則含可信度分級 A/B/C。"),
+    ("交易建議缺少 R:R", "請為每個 trade_leg 填入 R:R 比例（如 1:2.5）與最大回撤百分比（如 -3.2%）。"),
+    ("交易建議缺少預期勝率", "請為每個 trade_leg 填入預期勝率（如 55%）與 Signal Score（如 62/100）。"),
+    ("缺少今日風險預算摘要", "請加入風險預算摘要段落，說明今日各倉位風險分配（例：Crypto 3% / Equity 2%）。"),
+    ("交易建議存在空白/截斷的失效條件", "請為每個 confidence ≥ 2 的 trade_leg 填入完整的 invalidation 失效條件（不可為空白或截斷）。"),
+    ("宏觀數值疑似異常", "宏觀數值（10Y/2Y/SOFR/利差）疑似異常，請核查數據來源並更正超出合理範圍的數值。"),
+    ("宏觀段落前後矛盾", "宏觀數值前後矛盾，請統一 2Y/利差數值口徑（確保 2Y yield 與 10Y-2Y 利差一致）。"),
+    ("缺少訊號衝突摘要", "請加入訊號衝突摘要，說明多空雙方的核心分歧點（避免純單邊敘事）。"),
+    ("傳聞區缺少可信度分級", "請為每則傳言加上可信度分級（A = 近乎確認 / B = 有來源支撐 / C = 未確認）。"),
+    ("新聞時間未統一標示 UTC+8", "請確認所有新聞時間戳記格式為 [MM/DD HH:MM UTC+8]。"),
+    ("資料缺失標記過多", "報告 [DATA_MISSING:…] 標記超過上限，請補全缺失欄位或將信心等級降至 1 星。"),
+    ("N/A 過多但缺少低置信度標籤", "N/A 欄位過多，請降低整體信心星級至 1–2 星並加入替代指標說明。"),
+]
+
+
+def _issue_to_instruction(issue: str) -> str | None:
+    """Return the LLM instruction for a gate issue, or None if no mapping exists."""
+    for prefix, instruction in _ISSUE_INSTRUCTIONS:
+        if issue.startswith(prefix) or prefix in issue:
+            return instruction
+    return None
+
+
+def format_gate_feedback_for_llm(gate_result: dict) -> str:
+    """
+    Convert validate_report() result into actionable LLM retry instructions.
+
+    Returns an empty string when the gate passed (valid=True).
+    Returns a structured prompt block when there are issues, suitable for
+    injecting into the crew's retry context as gate_feedback.
+    """
+    if gate_result.get("valid"):
+        return ""
+
+    blocking = gate_result.get("blocking_issues", [])
+    warnings = gate_result.get("warning_issues", [])
+
+    def _dedupe_instructions(issues: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for issue in issues:
+            instr = _issue_to_instruction(issue)
+            text = instr if instr else issue
+            if text not in seen:
+                seen.add(text)
+                result.append(text)
+        return result
+
+    lines: list[str] = [
+        "【Gate 失敗 — 請依以下指示修正後重新生成報告】",
+        "",
+    ]
+
+    if blocking:
+        lines.append(f"▌ 阻斷性問題（{len(blocking)} 項，必須全部修正）：")
+        for i, text in enumerate(_dedupe_instructions(blocking), 1):
+            lines.append(f"  {i}. {text}")
+        lines.append("")
+
+    if warnings:
+        lines.append(f"▌ 品質警告（{len(warnings)} 項，建議修正）：")
+        for i, text in enumerate(_dedupe_instructions(warnings), 1):
+            lines.append(f"  {i}. {text}")
+        lines.append("")
+
+    lines.append("修正完成後，請依相同 profile 重新輸出完整報告（不可省略任何段落）。")
+    return "\n".join(lines)

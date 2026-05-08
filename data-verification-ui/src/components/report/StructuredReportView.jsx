@@ -96,6 +96,26 @@ export default function StructuredReportView({
             <BriefProfileBar value={profileUi} onChange={onProfileChange} />
           ) : null}
           <AsOfChip label="資料截至" asOf={asOf} source="BigQuery · daily_metrics" />
+          <a
+            href={`/api/reports/${reportDate}/html?download=1&profile=${profileUi}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--accent)",
+              textDecoration: "none",
+              padding: "3px 10px",
+              borderRadius: 6,
+              border: "1px solid rgba(10,124,104,0.25)",
+              background: "rgba(10,124,104,0.06)",
+            }}
+          >
+            ↓ 匯出 HTML
+          </a>
         </div>
       </div>
 

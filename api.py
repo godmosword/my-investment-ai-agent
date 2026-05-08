@@ -456,6 +456,52 @@ def get_report_structured(
     }
 
 
+@app.get("/api/reports/{report_date}/html")
+def get_report_html(
+    report_date: str,
+    profile: str = Query(default="full"),
+    download: bool = Query(default=False),
+) -> Response:
+    """Render a self-contained HTML export of the Daily Brief.
+
+    Inspired by nexu-io/open-design finance-report skill:
+    Masthead + KPI strip + exec summary + trades grid + news block + QSREC payload.
+    """
+    from fastapi.responses import HTMLResponse
+    from jinja2 import Environment, FileSystemLoader
+    from report_render import tg_escape
+    import json as _json
+
+    _validate_report_date(report_date)
+    raw_dict, _ = _try_load_daily_brief_raw_dict(report_date)
+    if not raw_dict:
+        raise HTTPException(status_code=404, detail=f"No structured report found for {report_date}")
+
+    try:
+        from schemas import DailyBriefReport
+        model = DailyBriefReport.model_validate(raw_dict)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Report schema error: {exc}") from exc
+
+    templates_dir = _REPO_ROOT / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)),
+        autoescape=False,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    env.filters["tg_escape"] = tg_escape
+    env.filters["tojson"] = lambda v, indent=None: _json.dumps(v, ensure_ascii=False, indent=indent)
+
+    tmpl = env.get_template("html_export/brief_card.html.j2")
+    html = tmpl.render(report=model, report_date=report_date, profile=profile)
+
+    headers = {}
+    if download:
+        headers["Content-Disposition"] = f'attachment; filename="brief_{report_date}.html"'
+    return HTMLResponse(content=html, headers=headers)
+
+
 @app.get("/api/brief-layouts")
 def list_brief_layout_yaml_files() -> dict[str, Any]:
     """List ``*.yaml`` under ``config/brief_layouts/`` (modularization Phase 4b).

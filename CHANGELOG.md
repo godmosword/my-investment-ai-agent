@@ -25,6 +25,16 @@
 ### Tests
 - **`data-verification-ui`**：`npm run lint`、`npm run test:e2e` — design review 與 Terminal DailyBrief（SSE 列／空工作區／圖表 empty）變更後仍綠。
 
+### Added
+- **API — Daily Brief 自包含 HTML 匯出**：[`GET /api/reports/{report_date}/html`](api.py)（Jinja [`templates/html_export/brief_card.html.j2`](templates/html_export/brief_card.html.j2)、`tg_escape`／`tojson` filters；可選 **`profile`**、**`download`** 下載標頭）。
+
+### Changed
+- **管線 — Gate 失敗時將可執行修正指示注入重試上下文**：[`report_html_gates.py`](report_html_gates.py) 新增 **`format_gate_feedback_for_llm`**（阻斷／警告問題對應中文修正句）；[`main.py`](main.py) **`run_pipeline_with_retries`** 累積 **`_gate_feedback`** 並與 **`exclude_context`** 合併後再跑 **`_run_pipeline_once`**。
+- **PWA — 今日／結構化戰報與 Trade 卡片**：[`TradeCard.jsx`](data-verification-ui/src/components/TradeCard.jsx)、[`StructuredReportView.jsx`](data-verification-ui/src/components/report/StructuredReportView.jsx)、[`MetricsDashboardBlock.jsx`](data-verification-ui/src/components/report/blocks/MetricsDashboardBlock.jsx)／[`NewsItemsBlock.jsx`](data-verification-ui/src/components/report/blocks/NewsItemsBlock.jsx)、[`tokens.js`](data-verification-ui/src/design/tokens.js)／[`index.css`](data-verification-ui/src/index.css)、[`Today.jsx`](data-verification-ui/src/pages/Today.jsx)、[`ErrorBoundary.jsx`](data-verification-ui/src/components/ErrorBoundary.jsx)、[`index.html`](data-verification-ui/index.html)；對齊儀表板／新聞區塊與 **`AsOfChip`**／**`BriefProfileBar`** 細節。
+
+### Tests
+- **`pytest`**：`test_reviewer_loop.py`、`test_report_html_gates_boundaries.py`、`test_core_report_validation.py`、`test_report_render.py`；**`npm run lint`**（`data-verification-ui`）。
+
 ## 2026-05-05
 
 ### PWA（視覺化隊列 27／Portal 隊列 26 切片）

@@ -20,7 +20,7 @@ export default function BriefProfileBar({ value, onChange, className = "" }) {
         id="brief-profile-select"
         value={v}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border border-[rgba(120,160,200,0.25)] bg-[rgba(12,18,34,0.85)] px-2 py-1 font-mono text-[12px] text-[var(--text)]"
+        className="rounded-md border border-[rgba(0,0,0,0.12)] bg-white px-2 py-1 font-mono text-[12px] text-[var(--text)]"
       >
         {REPORT_PROFILE_IDS.map((id) => (
           <option key={id} value={id}>

@@ -1,9 +1,9 @@
 import BlockSectionShell from "./BlockSectionShell";
 
 const URGENCY_LEVELS = {
-  critical: { label: "緊急", color: "var(--red)",    bg: "rgba(248,113,113,0.1)",  border: "rgba(248,113,113,0.3)" },
-  high:     { label: "高",   color: "var(--yellow)", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.25)" },
-  medium:   { label: "中",   color: "var(--accent)", bg: "rgba(46,230,190,0.06)",  border: "rgba(46,230,190,0.2)" },
+  critical: { label: "緊急", color: "var(--red)",    bg: "rgba(220,38,38,0.06)",   border: "rgba(220,38,38,0.2)" },
+  high:     { label: "高",   color: "var(--yellow)", bg: "rgba(217,119,6,0.06)",   border: "rgba(217,119,6,0.2)" },
+  medium:   { label: "中",   color: "var(--accent)", bg: "rgba(10,124,104,0.05)",  border: "rgba(10,124,104,0.15)" },
   low:      { label: "低",   color: "var(--muted)",  bg: undefined,                border: undefined },
 };
 
@@ -50,7 +50,7 @@ export default function NewsItemsBlock({ anchor, title, headerExtras, payload })
               marginBottom: 10,
               borderColor: info.border ?? "var(--border)",
               background: info.bg
-                ? `linear-gradient(135deg, ${info.bg} 0%, rgba(18,26,42,0.95) 100%)`
+                ? `linear-gradient(135deg, ${info.bg} 0%, rgba(255,255,255,0.96) 100%)`
                 : undefined,
             }}
           >
@@ -71,7 +71,7 @@ export default function NewsItemsBlock({ anchor, title, headerExtras, payload })
             <div style={{ fontWeight: 600, marginBottom: 6 }}>{n.title}</div>
             <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 6 }}>{n.source_and_nature}</div>
             <div style={{ fontSize: 13, lineHeight: 1.45 }}>{n.summary}</div>
-            <div style={{ fontSize: 13, marginTop: 8, color: "rgb(167 243 208)" }}>{n.investment_takeaway}</div>
+            <div style={{ fontSize: 13, marginTop: 8, color: "var(--green)" }}>{n.investment_takeaway}</div>
             <div style={{ fontSize: 11, marginTop: 6, color: "var(--muted)" }}>
               編輯共識：{n.editor_consensus}
               {n.pricing_note ? ` · 定價：${n.pricing_note}` : ""}

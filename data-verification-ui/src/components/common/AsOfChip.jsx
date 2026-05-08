@@ -13,7 +13,7 @@ export default function AsOfChip({
   const text = formatAsOfZh(asOf);
   return (
     <span
-      className={`qs-asof-chip inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[rgba(120,160,200,0.18)] bg-[rgba(12,18,34,0.65)] px-2.5 py-1 text-[11px] leading-snug text-[var(--muted)] ${className}`}
+      className={`qs-asof-chip inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[rgba(0,0,0,0.1)] bg-[rgba(255,255,255,0.8)] px-2.5 py-1 text-[11px] leading-snug text-[var(--muted)] ${className}`}
       data-testid="as-of-chip"
       role="status"
       aria-label={`${label} ${text}${source ? ` · ${source}` : ""}`}
