@@ -56,6 +56,19 @@ html, body, #root {
   position: relative;
 }
 
+/* ── Metric grid（mobile-first；768px+ 覆寫欄數）── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* ── Sidebar navigation (desktop) ── */
+.side-nav {
+  display: none;
+}
+
 /* ── Bottom navigation ── */
 .bottom-nav {
   position: fixed;
@@ -73,6 +86,157 @@ html, body, #root {
   display: flex;
   align-items: stretch;
   z-index: 100;
+}
+
+/* ── Desktop / Tablet responsive ── */
+@media (min-width: 768px) {
+  .app-shell {
+    flex-direction: row;
+    max-width: none;
+    margin: 0;
+    height: 100vh;
+  }
+
+  .page-content {
+    padding: 24px 32px 32px;
+    overflow-y: auto;
+  }
+
+  .bottom-nav {
+    display: none;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .side-nav {
+    display: flex;
+    flex-direction: column;
+    width: 220px;
+    min-width: 220px;
+    flex-shrink: 0;
+    background: rgba(7, 10, 18, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(46, 230, 190, 0.1);
+    padding: 20px 0 24px;
+    gap: 2px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 50;
+  }
+}
+
+@media (min-width: 1280px) {
+  .side-nav {
+    width: 240px;
+    min-width: 240px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Sidebar nav items */
+.side-nav__logo {
+  padding: 4px 20px 20px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  text-shadow: 0 0 28px rgba(46, 230, 190, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.side-nav__logo-sub {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 1px;
+  letter-spacing: 0.04em;
+}
+
+.side-nav__section {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  padding: 12px 20px 4px;
+  opacity: 0.6;
+}
+
+.side-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin: 0 8px;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.side-nav__item:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.side-nav__item.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.side-nav__icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.side-nav__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 16px;
+  opacity: 0.5;
+}
+
+.side-nav__footer {
+  margin-top: auto;
+  padding: 16px 20px 0;
+}
+
+.sse-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.5;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.sse-dot--connected {
+  background: var(--green);
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+  animation: glassbox-pulse 2s ease-in-out infinite;
+}
+
+.sse-dot--error {
+  background: var(--red);
+  opacity: 1;
 }
 
 .nav-item {
@@ -116,14 +280,6 @@ html, body, #root {
   letter-spacing: 0.08em;
   color: var(--muted);
   margin-bottom: 8px;
-}
-
-/* ── Metric grid ── */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
 }
 
 .metric-card {

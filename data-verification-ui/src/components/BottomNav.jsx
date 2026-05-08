@@ -11,15 +11,16 @@ const TABS = [
 
 export default function BottomNav() {
   return (
-    <nav className="bottom-nav">
+    <nav className="bottom-nav" aria-label="主導航（底部）">
       {TABS.map(({ to, icon, label }) => (
         <NavLink
           key={to}
           to={to}
           end={to === "/today"}
           className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
+          aria-label={label}
         >
-          <span className="nav-icon">{icon}</span>
+          <span className="nav-icon" aria-hidden="true">{icon}</span>
           {label}
         </NavLink>
       ))}

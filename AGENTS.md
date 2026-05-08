@@ -57,3 +57,7 @@ For multi-step tasks, state a brief plan:
 3. [Step] → verify: [check]
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+## Collaboration model
+
+- **Ship / landing**: Prefer **no GitHub PR**. After scoped tests pass, **commit and `git push origin main`**. If `main` is protected and direct push fails, report the error and let the maintainer merge or adjust branch rules.
