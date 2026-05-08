@@ -8,7 +8,7 @@ from crewai import Agent, Crew, LLM, Process, Task
 
 from config import MODEL_CLAUDE, MODEL_GEMINI, MODEL_GROK, MODEL_GPT, MODEL_GPT_NANO
 import scratchpad
-from crew_output_parse import kickoff_to_pydantic
+from crew_output_parse import kickoff_with_structured_fallback
 from schemas import AISection, CryptoSection
 from assets_universe import (
     ai_sector_yfinance_symbols,
@@ -1104,10 +1104,13 @@ class CryptoResearchCrew:
         )
         try:
             scratchpad.set_tool_invocation_lane("crypto")
-            kickoff_result = crew.kickoff(inputs={"recent_lessons": recent_lessons})
+            section = kickoff_with_structured_fallback(
+                crew,
+                CryptoSection,
+                inputs={"recent_lessons": recent_lessons},
+            )
         finally:
             scratchpad.set_tool_invocation_lane(None)
-        section = kickoff_to_pydantic(kickoff_result, CryptoSection)
         section.chatter = _ensure_chatter_credibility(section.chatter)
         return section
 
@@ -1305,9 +1308,12 @@ class AIResearchCrew:
         )
         try:
             scratchpad.set_tool_invocation_lane("ai")
-            kickoff_result = crew.kickoff(inputs={"recent_lessons": recent_lessons})
+            section = kickoff_with_structured_fallback(
+                crew,
+                AISection,
+                inputs={"recent_lessons": recent_lessons},
+            )
         finally:
             scratchpad.set_tool_invocation_lane(None)
-        section = kickoff_to_pydantic(kickoff_result, AISection)
         section.chatter = _ensure_chatter_credibility(section.chatter)
         return section
