@@ -4,7 +4,7 @@ import pytest
 
 from pydantic import ValidationError
 
-from schemas import TradeRecommendation
+from schemas import CryptoSection, TradeRecommendation
 
 
 def _base_rec(**kwargs: object) -> dict[str, object]:
@@ -71,3 +71,79 @@ def test_score_gap_derived_when_omitted_but_scores_present() -> None:
     del d["score_gap"]
     r = TradeRecommendation(**d)
     assert r.score_gap == pytest.approx(78.0 - 63.0)
+
+
+@pytest.mark.smoke
+def test_direction_inferred_from_prices_when_field_absent() -> None:
+    """LLM 漏填 direction 時，以 entry/target/stop 幾何推斷，避免 CryptoSection 解析硬失敗。"""
+    d = _base_rec()
+    del d["direction"]
+    r = TradeRecommendation(**d)
+    assert r.direction == "LONG"
+
+
+@pytest.mark.smoke
+def test_direction_taken_from_side_alias_when_absent() -> None:
+    d = _base_rec(
+        entry=100.0,
+        target=90.0,
+        stop=102.0,
+    )
+    del d["direction"]
+    d["side"] = "SHORT"
+    r = TradeRecommendation(**d)
+    assert r.direction == "SHORT"
+
+
+@pytest.mark.smoke
+def test_crypto_section_backfills_qsrec_direction_from_trade_legs() -> None:
+    """同段 trade_legs 有方向時，補齊 qsrec 缺漏的 direction（Crew 漂移）。
+
+    qsrec 價位幾何若單獨推斷會偏空，但與腿方向不一致時須以 trade_legs 為準。
+    """
+    leg = {
+        "asset": "BTC",
+        "direction": "LONG",
+        "current_price": "95000",
+        "star_rating": 2,
+        "entry": "94500",
+        "target": "100000 (+5%)",
+        "stop": "91000 (-4%)",
+        "rr": "1:2",
+        "max_drawdown_pct": "-4%",
+        "expected_win_rate": "52%",
+        "signal_score": "58/100",
+        "trigger": "觸價",
+        "sizing_logic": "分批",
+        "invalidation": "跌破",
+        "narrative": "測試展示句",
+        "bull_scenario": "上行情境",
+        "base_scenario": "中性情境",
+        "bear_scenario": "下行情境",
+    }
+    crypto = CryptoSection.model_validate(
+        {
+            "report_title_date": "2026-05-08",
+            "market": {"regime": "neutral"},
+            "narrative_of_day": "測試敘事",
+            "dashboard": [{"label": "BTC", "value": "95000"}],
+            "pick_reason": "本日選擇理由足以超過三十四字長度門檻測試用內容填充",
+            "risk_budget_summary": "neutral 模式下風險預算適中測試說明文字",
+            "signal_conflict_summary": "空方主線測試｜多方主線測試",
+            "trade_legs": [leg],
+            "qsrec": [
+                {
+                    "asset": "BTC",
+                    "category": "CRYPTO",
+                    "confidence": 2,
+                    "current_price": 100.0,
+                    "entry": 100.0,
+                    "target": 90.0,
+                    "stop": 102.0,
+                    "selection_score": 70.0,
+                    "alt_candidate_score": 60.0,
+                }
+            ],
+        }
+    )
+    assert crypto.qsrec[0].direction == "LONG"
