@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-08
+
+### Fixed
+- **Crew 結構化 JSON（尾隨逗號）**：[`crew_output_parse.py`](crew_output_parse.py) 新增 **`repair_llm_json_text`**，於 **`kickoff_to_pydantic`** 內 **`model_validate_json`／`json.loads` 前**迭代移除 `}`／`]` 前的非法尾隨逗號（RFC 8259 不允許、LLM 常見），避免 **`AISection`／`CryptoSection`** 解析失敗觸發 **`GATE_EXECUTION_FAILED`** 與 **`STRICT_CONSISTENCY_GATE`** 擋推送。
+- **Crew kickoff 內建 pydantic 解析失敗**：[`crew_output_parse.py`](crew_output_parse.py) 新增 **`kickoff_with_structured_fallback`** — 當 **`crew.kickoff()`** 因 **`output_pydantic`** 路徑先拋 **`ValidationError`（json_invalid）`** 時，從例外鏈取出原始 JSON 字串，再走 **`repair_llm_json_text` + `parse_pydantic_from_llm_json_text`**。[`crew.py`](crew.py) **Crypto／AI** 日報 Crew 改為以此包 **`kickoff`**。
+
+### Tests
+- [`test_crew_output_parse.py`](test_crew_output_parse.py) — `repair_llm_json_text`、`kickoff_to_pydantic` 對尾隨逗號 JSON 之回歸；**`parse_pydantic_from_llm_json_text`**、**`kickoff_with_structured_fallback`**（成功路徑／`ValidationError` 自救／不可恢復時 re-raise）。
+
 ## 2026-05-05
 
 ### PWA（視覺化隊列 27／Portal 隊列 26 切片）
