@@ -21,7 +21,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from google.cloud import bigquery
 from pydantic import BaseModel, Field, field_validator
 
@@ -467,7 +467,6 @@ def get_report_html(
     Inspired by nexu-io/open-design finance-report skill:
     Masthead + KPI strip + exec summary + trades grid + news block + QSREC payload.
     """
-    from fastapi.responses import HTMLResponse
     from jinja2 import Environment, FileSystemLoader
     from report_render import tg_escape
     import json as _json
