@@ -45,4 +45,4 @@ MODEL_CLAUDE = _env_model("MODEL_CLAUDE", default="anthropic/claude-sonnet-4-202
 MODEL_GPT_NANO = _env_model("MODEL_GPT_NANO", default="openai/gpt-5.4-nano-2026-03-17")
 
 # Phase 3 shadow switch: 1=run LangGraph engine, 0=legacy CrewAI path.
-USE_LANGGRAPH_ENGINE = _env_flag("USE_LANGGRAPH_ENGINE", "0")
+USE_LANGGRAPH_ENGINE = _env_flag("USE_LANGGRAPH_ENGINE", "1")

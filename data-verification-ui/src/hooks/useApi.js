@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { mergeSiliconHeaders } from "../lib/siliconApiHeaders";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
@@ -299,6 +299,16 @@ export function useGateStatus(date) {
   });
 }
 
+/** QSREC reviewer_log aggregate stats for the last N days. */
+export function useQsrecStats(days = 7) {
+  return useQuery({
+    queryKey: ["qsrec-stats", days],
+    queryFn: () => apiFetch(`/api/reports/qsrec-stats?days=${days}`),
+    staleTime: 15 * 60 * 1000,
+    retry: false,
+  });
+}
+
 /** V2 block-based report envelope (`GET /api/reports/{date}/structured`). */
 export function useStructuredReport(date, profile = "full", queryOptions = {}) {
   const q = encodeURIComponent(profile);
@@ -310,6 +320,23 @@ export function useStructuredReport(date, profile = "full", queryOptions = {}) {
     enabled,
     staleTime: 30 * 60 * 1000,
     retry: 1,
+  });
+}
+
+/**
+ * Fetch multiple structured reports in parallel (safe for dynamic date arrays).
+ * Returns array of { data, isLoading, error } in the same order as dates.
+ */
+export function useStructuredReports(dates, profile = "full") {
+  const q = encodeURIComponent(profile);
+  return useQueries({
+    queries: (dates ?? []).map((date) => ({
+      queryKey: ["report", "structured", date, profile],
+      queryFn: () => apiFetch(`/api/reports/${date}/structured?profile=${q}`),
+      enabled: !!date,
+      staleTime: 30 * 60 * 1000,
+      retry: 1,
+    })),
   });
 }
 

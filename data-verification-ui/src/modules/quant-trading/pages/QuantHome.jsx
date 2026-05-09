@@ -1,66 +1,30 @@
-import { useExecutionIntents } from "../../../hooks/useApi";
+import { useExecutionIntents, useGateStatus, useReports } from "../../../hooks/useApi";
+import { finiteNumber, paperEntry, paperExit, isPaperClosedRow, calcStats } from "../../../utils/positionStats";
 
-function finiteNumber(value) {
-  if (value == null || (typeof value === "string" && value.trim() === "")) return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
+const GATE_BADGE = {
+  pass:     { label: "通過",  bg: "rgba(52,211,153,0.15)", color: "var(--green)" },
+  fail:     { label: "需修正", bg: "rgba(251,191,36,0.15)",  color: "#fbbf24" },
+  degraded: { label: "降級",  bg: "rgba(239,68,68,0.15)",   color: "var(--red)" },
+  未審:     { label: "未審",  bg: "rgba(120,160,200,0.1)",  color: "var(--muted)" },
+};
 
-function paperEntry(r) {
-  return finiteNumber(r.paper_fill_price ?? r.paper_entry ?? r.reference_entry_price ?? r.entry_price);
-}
-
-function paperExit(r) {
-  return finiteNumber(r.paper_exit_price ?? r.paper_exit);
-}
-
-/** Rows counted as closed for paper PnL stats (API + legacy aliases). */
-function isPaperClosedRow(r) {
-  const s = String(r.status ?? "").toUpperCase();
-  return s === "PAPER_CLOSED" || s === "CLOSED" || s === "EXITED";
-}
-
-function calcStats(rows) {
-  if (!rows || rows.length === 0) return null;
-  const closed = rows.filter(isPaperClosedRow);
-  const settled = closed.filter((r) => {
-    const px = paperExit(r);
-    const en = paperEntry(r);
-    return px != null && en != null && en !== 0;
-  });
-  if (settled.length === 0) return null;
-
-  const wins = settled.filter((r) => {
-    const px = paperExit(r);
-    const en = paperEntry(r);
-    const dir = (r.direction ?? "").toUpperCase();
-    if (dir !== "LONG" && dir !== "SHORT") return false;
-    return dir === "LONG" ? px > en : px < en;
-  });
-
-  const winRate = settled.length > 0 ? Math.round((wins.length / settled.length) * 100) : 0;
-
-  const pnls = settled
-    .map((r) => {
-      const px = paperExit(r);
-      const en = paperEntry(r);
-      const dir = (r.direction ?? "").toUpperCase();
-      if (dir !== "LONG" && dir !== "SHORT") return null;
-      const raw =
-        dir === "LONG" ? (px - en) / en : (en - px) / en;
-      return raw * 100;
-    })
-    .filter((v) => Number.isFinite(v));
-
-  const avgPnl = pnls.length > 0 ? pnls.reduce((a, b) => a + b, 0) / pnls.length : 0;
-
-  const winPnls = pnls.filter((v) => v > 0);
-  const losePnls = pnls.filter((v) => v < 0);
-  const avgWin = winPnls.length ? winPnls.reduce((a, b) => a + b, 0) / winPnls.length : 0;
-  const avgLoss = losePnls.length ? Math.abs(losePnls.reduce((a, b) => a + b, 0) / losePnls.length) : 1;
-  const rr = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : "—";
-
-  return { total: settled.length, wins: wins.length, winRate, avgPnl: avgPnl.toFixed(2), rr };
+function GateBadge({ status }) {
+  const cfg = GATE_BADGE[status] ?? GATE_BADGE["未審"];
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        padding: "2px 8px",
+        borderRadius: 4,
+        background: cfg.bg,
+        color: cfg.color,
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {cfg.label}
+    </span>
+  );
 }
 
 function KpiCard({ label, value, sub, color }) {
@@ -123,6 +87,18 @@ export default function QuantHome() {
     sortBy: "updated_desc",
   });
 
+  const { data: reports } = useReports(3);
+  const dates = reports?.map((r) => r.report_date) ?? [];
+  // Fixed 3 calls — never conditional, satisfies React hook rules
+  const gs0 = useGateStatus(dates[0]);
+  const gs1 = useGateStatus(dates[1]);
+  const gs2 = useGateStatus(dates[2]);
+  const gateEntries = [
+    dates[0] && { date: dates[0], ...gs0.data },
+    dates[1] && { date: dates[1], ...gs1.data },
+    dates[2] && { date: dates[2], ...gs2.data },
+  ].filter(Boolean);
+
   const stats = calcStats(rows);
   const active = rows.filter(isActiveIntent);
 
@@ -131,6 +107,31 @@ export default function QuantHome() {
       <div className="page-header">
         <div className="page-title">量化交易</div>
         <div className="page-subtitle">紙上模擬績效（execution_intents · 僅追蹤，不下單）</div>
+      </div>
+
+      {/* QSREC gate-status — last 3 days */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div className="card-title">QSREC 近 3 日審核結果</div>
+        {gateEntries.length === 0 && (
+          <div className="page-subtitle" style={{ opacity: 0.75 }}>
+            Reviewer loop 尚未啟動 — 無審核紀錄。
+          </div>
+        )}
+        {gateEntries.map(({ date, gate_status }) => (
+          <div
+            key={date}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "6px 0",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <span style={{ fontSize: 13, color: "var(--muted)" }}>{date}</span>
+            <GateBadge status={gate_status ?? "未審"} />
+          </div>
+        ))}
       </div>
 
       {isLoading && <div className="loading" style={{ padding: "20px 0" }}>載入中…</div>}

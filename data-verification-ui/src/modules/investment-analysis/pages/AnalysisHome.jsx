@@ -1,4 +1,4 @@
-import { useMetricsLatest, useExecutionIntents } from "../../../hooks/useApi";
+import { useQsrecStats, useExecutionIntents } from "../../../hooks/useApi";
 
 const WATCHLIST = [
   { symbol: "NVDA",  name: "Nvidia",    sector: "AI 半導體" },
@@ -11,41 +11,15 @@ const WATCHLIST = [
   { symbol: "ETH",   name: "Ethereum",  sector: "智能合約" },
 ];
 
-const SCORE_DIMS = [
-  { key: "tech",  label: "技術面", color: "#2ee6be" },
-  { key: "fund",  label: "基本面", color: "#8b5cf6" },
-  { key: "sent",  label: "情緒面", color: "#fbbf24" },
-];
-
-function RadarBar({ label, pct, color }) {
+function QsrecKpi({ label, value, color }) {
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted)", marginBottom: 3 }}>
-        <span>{label}</span>
-        <span style={{ color }}>{Math.round(pct)}%</span>
-      </div>
-      <div style={{ height: 5, borderRadius: 3, background: "var(--border)", overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, transition: "width 0.4s ease" }} />
+    <div className="card" style={{ textAlign: "center", flex: 1, minWidth: 100 }}>
+      <div className="metric-label" style={{ fontSize: 11, color: "var(--muted)" }}>{label}</div>
+      <div className="metric-value" style={{ color: color ?? "var(--text)", fontSize: 26, marginTop: 4 }}>
+        {value}
       </div>
     </div>
   );
-}
-
-function finiteNumber(value, fallback) {
-  if (value == null || (typeof value === "string" && value.trim() === "")) return fallback;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function deriveScores(metrics) {
-  if (!metrics) return { tech: 50, fund: 50, sent: 50 };
-  const sentRaw = finiteNumber(metrics.sentiment_score, 0);
-  const riskRaw = finiteNumber(metrics.avg_risk_score, 2.5);
-  const sopr = finiteNumber(metrics.sopr, 1);
-  const tech = Math.max(10, Math.min(95, 100 - (riskRaw / 5) * 100));
-  const fund = Math.max(10, Math.min(95, (sopr - 0.85) / 0.4 * 100));
-  const sent = Math.max(10, Math.min(95, 50 + sentRaw * 30));
-  return { tech: Math.round(tech), fund: Math.round(fund), sent: Math.round(sent) };
 }
 
 function WatchlistTable({ intents }) {
@@ -129,41 +103,62 @@ function WatchlistTable({ intents }) {
 }
 
 export default function AnalysisHome() {
-  const { data: metrics, isLoading: mLoading, error: mError } = useMetricsLatest();
+  const { data: qsrec, isLoading: qLoading, error: qError } = useQsrecStats(7);
   const { data: intents = [], isLoading: iLoading, error: iError } = useExecutionIntents(100, {
     livePoll: false,
   });
-  const scores = metrics ? deriveScores(metrics) : null;
+
+  const passRateColor =
+    !qsrec ? "var(--text)"
+    : qsrec.pass_rate_pct >= 70 ? "var(--green)"
+    : qsrec.pass_rate_pct >= 40 ? "#fbbf24"
+    : "var(--red)";
 
   return (
     <>
       <div className="page-header">
         <div className="page-title">投資分析</div>
-        <div className="page-subtitle">觀察名單 · 多空維度評分（源自 BigQuery daily_metrics）</div>
+        <div className="page-subtitle">觀察名單 · 模型品質（源自 QSREC reviewer_log）</div>
       </div>
 
-      {/* Dimension score bars */}
+      {/* Model Quality — real QSREC stats */}
       <div className="card" style={{ marginBottom: 12 }}>
-        <div className="card-title">市場多空維度（即時）</div>
-        {mLoading && <div className="loading" style={{ padding: "12px 0" }}>載入指標中…</div>}
-        {mError && !mLoading && (
+        <div className="card-title">模型品質（近 7 日）</div>
+        {qLoading && <div className="loading" style={{ padding: "12px 0" }}>載入 QSREC 數據中…</div>}
+        {qError && !qLoading && (
           <div className="error-msg" style={{ marginBottom: 8 }}>
-            無法載入最新指標：<code>{mError.message}</code>
+            無法載入 QSREC 數據：<code>{qError.message}</code>
           </div>
         )}
-        {!mLoading && !mError && !metrics && (
+        {!qLoading && !qError && !qsrec?.total_days && (
           <div className="page-subtitle" style={{ opacity: 0.75 }}>
-            尚無指標快照。
+            Reviewer loop 尚未啟動 — 無 QSREC 數據。
           </div>
         )}
-        {!mLoading && !mError && metrics && scores
-          ? SCORE_DIMS.map(({ key, label, color }) => (
-              <RadarBar key={key} label={label} pct={scores[key]} color={color} />
-            ))
-          : null}
-        <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8, opacity: 0.6 }}>
-          ※ 技術面由風險評分換算；基本面由 SOPR 換算；情緒面由 sentiment_score 換算。
-        </div>
+        {!qLoading && !qError && !!qsrec?.total_days && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <QsrecKpi
+              label="通過率"
+              value={`${qsrec.pass_rate_pct}%`}
+              color={passRateColor}
+            />
+            <QsrecKpi
+              label="平均交易數"
+              value={qsrec.avg_trade_count}
+              color="var(--text)"
+            />
+            <QsrecKpi
+              label="降級天數"
+              value={qsrec.degraded_count}
+              color={qsrec.degraded_count > 0 ? "var(--red)" : "var(--green)"}
+            />
+            <QsrecKpi
+              label="已審天數"
+              value={`${qsrec.total_days}d`}
+              color="var(--muted)"
+            />
+          </div>
+        )}
       </div>
 
       {/* Watchlist */}

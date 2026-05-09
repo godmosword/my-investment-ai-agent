@@ -879,6 +879,7 @@ def write_reviewer_log(
     degraded: bool,
     final_trade_count: int,
     total_latency_ms: int,
+    report_date: str | None = None,
     project_id: str = PROJECT_ID,
 ) -> None:
     """Write LangGraph reviewer loop outcome to BigQuery reviewer_log table.
@@ -886,6 +887,8 @@ def write_reviewer_log(
     Called by degrade_node (degraded=True) and optionally by llm_reviewer_node
     on success (degraded=False) for quality trend monitoring.
     Respects SKIP_BIGQUERY; silently skips on missing credentials.
+    report_date (YYYY-MM-DD) is the brief date, not the write time — avoids
+    UTC midnight bucketing errors for late-night Asia/Taipei pipeline runs.
     """
     if SKIP_BIGQUERY:
         logger.info("SKIP_BIGQUERY=1 — skipping reviewer_log write.")
@@ -906,6 +909,7 @@ def write_reviewer_log(
             bigquery.SchemaField("degraded", "BOOL"),
             bigquery.SchemaField("final_trade_count", "INTEGER"),
             bigquery.SchemaField("total_latency_ms", "INTEGER"),
+            bigquery.SchemaField("report_date", "DATE"),
             bigquery.SchemaField("created_at", "TIMESTAMP"),
         ]
         table_ref = bigquery.Table(REVIEWER_LOG_TABLE, schema=schema)
@@ -922,6 +926,7 @@ def write_reviewer_log(
                 ", ".join(f.name for f in missing_fields),
             )
 
+        now = datetime.now(timezone.utc)
         row = {
             "run_id": (run_id or "")[:64],
             "profile": active_profile,
@@ -932,7 +937,8 @@ def write_reviewer_log(
             "degraded": bool(degraded),
             "final_trade_count": int(final_trade_count),
             "total_latency_ms": int(total_latency_ms),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "report_date": report_date or now.strftime("%Y-%m-%d"),
+            "created_at": now.isoformat(),
         }
         errors = client.insert_rows_json(REVIEWER_LOG_TABLE, [row])
         if errors:

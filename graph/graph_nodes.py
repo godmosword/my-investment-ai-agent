@@ -1842,4 +1842,6 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
             logger.error("Native formatter (AI) failed: %s", exc)
             raise RuntimeError(f"Native formatter failed for AI: {exc}") from exc
 
+    if not state.get("degraded"):
+        _write_reviewer_log_safe(state, degraded=False)
     return {"final_report": section.model_dump(mode="json"), "needs_deep_dive": False}

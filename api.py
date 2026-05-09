@@ -486,17 +486,21 @@ def get_report_gate_status(report_date: str) -> dict[str, Any]:
             rows = list(
                 client.query(
                     f"""
-                    SELECT run_id, revision_count, degraded, final_trade_count
+                    SELECT
+                      MAX(run_id) AS run_id,
+                      LOGICAL_OR(degraded) AS degraded,
+                      MAX(revision_count) AS revision_count,
+                      SUM(final_trade_count) AS final_trade_count
                     FROM `{REVIEWER_LOG_TABLE}`
-                    WHERE DATE(created_at) = @dt
-                    ORDER BY created_at DESC
-                    LIMIT 1
+                    WHERE COALESCE(report_date, DATE(created_at)) = @dt
                     """,
                     job_config=job_config,
                 ).result()
             )
             if rows:
                 row = dict(rows[0])
+                if row.get("run_id") is None:
+                    return {"gate_status": "未審"}
                 return {
                     "gate_status": _gate_status_from_row(row),
                     "run_id": row.get("run_id"),
@@ -620,6 +624,110 @@ def list_brief_layout_yaml_files() -> dict[str, Any]:
                 entry["blocks"] = [str(b).strip() for b in blocks_raw if b is not None and str(b).strip()]
         layouts.append(entry)
     return {"layouts": layouts}
+
+
+@app.get("/api/reports/qsrec-stats")
+def get_qsrec_stats(days: int = Query(default=7, ge=1, le=90)) -> dict[str, Any]:
+    """Aggregate QSREC reviewer_log stats for the last N days.
+
+    Returns pass_rate_pct, avg_trade_count, degraded_count, fail_count, pass_count.
+    Uses worst-of-two aggregation: if ANY track (CRYPTO/AI) degraded on a given day,
+    that day is counted as degraded.
+    Empty state when no reviewer_log entries exist: all zeros.
+    """
+    skip_bq = os.getenv("SKIP_BIGQUERY", "0") == "1"
+
+    if not skip_bq:
+        try:
+            client = _get_bq_client()
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("days", "INT64", days),
+                ]
+            )
+            rows = list(
+                client.query(
+                    f"""
+                    WITH daily_agg AS (
+                      SELECT
+                        COALESCE(report_date, DATE(created_at)) AS rd,
+                        LOGICAL_OR(degraded) AS degraded,
+                        MAX(revision_count) AS revision_count,
+                        SUM(final_trade_count) AS final_trade_count
+                      FROM `{REVIEWER_LOG_TABLE}`
+                      WHERE DATE(created_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL @days DAY)
+                      GROUP BY rd
+                    )
+                    SELECT
+                      COUNT(*) AS total_days,
+                      COUNTIF(NOT degraded AND revision_count < 2) AS pass_count,
+                      COUNTIF(degraded) AS degraded_count,
+                      COUNTIF(NOT degraded AND revision_count >= 2) AS fail_count,
+                      IFNULL(AVG(final_trade_count), 0) AS avg_trade_count
+                    FROM daily_agg
+                    """,
+                    job_config=job_config,
+                ).result()
+            )
+            if rows:
+                r = dict(rows[0])
+                total = int(r.get("total_days", 0))
+                pass_count = int(r.get("pass_count", 0))
+                return {
+                    "days": days,
+                    "total_days": total,
+                    "pass_count": pass_count,
+                    "degraded_count": int(r.get("degraded_count", 0)),
+                    "fail_count": int(r.get("fail_count", 0)),
+                    "pass_rate_pct": round(pass_count / total * 100, 1) if total else 0.0,
+                    "avg_trade_count": round(float(r.get("avg_trade_count", 0)), 1),
+                }
+        except Exception as exc:
+            logger.warning("qsrec-stats BQ query failed: %s", exc)
+
+    # Fixture fallback (SKIP_BIGQUERY=1 or BQ unavailable)
+    fixture_path = _REPO_ROOT / "fixtures" / "reviewer_log_fixture.json"
+    if fixture_path.exists():
+        try:
+            entries: list[dict[str, Any]] = json.loads(fixture_path.read_text())
+            from datetime import date as _date, timedelta as _timedelta
+            cutoff = (_date.today() - _timedelta(days=days)).isoformat()
+            recent = [e for e in entries if e.get("date", "") >= cutoff]
+            total = len(recent)
+            pass_count = sum(
+                1 for e in recent
+                if not e.get("degraded") and int(e.get("revision_count", 0)) < 2
+            )
+            degraded_count = sum(1 for e in recent if e.get("degraded"))
+            fail_count = sum(
+                1 for e in recent
+                if not e.get("degraded") and int(e.get("revision_count", 0)) >= 2
+            )
+            avg_tc = (
+                sum(int(e.get("final_trade_count", 0)) for e in recent) / total
+                if total else 0.0
+            )
+            return {
+                "days": days,
+                "total_days": total,
+                "pass_count": pass_count,
+                "degraded_count": degraded_count,
+                "fail_count": fail_count,
+                "pass_rate_pct": round(pass_count / total * 100, 1) if total else 0.0,
+                "avg_trade_count": round(avg_tc, 1),
+            }
+        except Exception as exc:
+            logger.warning("qsrec-stats fixture read failed: %s", exc)
+
+    return {
+        "days": days,
+        "total_days": 0,
+        "pass_count": 0,
+        "degraded_count": 0,
+        "fail_count": 0,
+        "pass_rate_pct": 0.0,
+        "avg_trade_count": 0.0,
+    }
 
 
 @app.get("/api/reports/{report_date}")
