@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import TradeCard from "../../TradeCard";
 import { unwrapTradesPayload } from "../structuredBlockContent";
 import BlockSectionShell from "./BlockSectionShell";
@@ -22,7 +23,7 @@ export default function TradesBlock({ anchor, title, headerExtras, payload }) {
         </div>
       ) : null}
       {introHtml ? (
-        <div className="summary-block mb-3" dangerouslySetInnerHTML={{ __html: introHtml }} />
+        <div className="summary-block mb-3" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(introHtml) }} />
       ) : null}
       {rows.map((t, i) => (
         <TradeCard key={i} trade={t} />

@@ -1,3 +1,4 @@
+import DOMPurify from "dompurify";
 import BlockSectionShell from "./BlockSectionShell";
 
 export default function InstitutionalViewBlock({ anchor, title, headerExtras, payload }) {
@@ -13,7 +14,7 @@ export default function InstitutionalViewBlock({ anchor, title, headerExtras, pa
         <div
           className="summary-block"
           style={{ marginTop: thesisText ? 10 : 0 }}
-          dangerouslySetInnerHTML={{ __html: String(disclaimerHtml) }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(String(disclaimerHtml)) }}
         />
       ) : null}
     </BlockSectionShell>

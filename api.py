@@ -54,6 +54,39 @@ def _get_bq_client() -> bigquery.Client:
 
 _REPO_ROOT = Path(__file__).resolve().parent
 
+# Prevent duplicate PAPER_* rows when two execution-tick requests arrive simultaneously
+_paper_tick_lock = asyncio.Lock()
+
+# Module-level Jinja2 env (bytecode-cached, autoescape enabled for XSS safety)
+def _build_jinja2_env() -> "Environment":  # noqa: F821 — lazy import avoids hard dep at startup
+    from jinja2 import Environment, FileSystemLoader, Markup
+    from report_render import tg_escape
+    import json as _json
+
+    _env = Environment(
+        loader=FileSystemLoader(str(_REPO_ROOT / "templates")),
+        autoescape=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    # tg_escape output is already HTML-entity-encoded — wrap as Markup so
+    # autoescape doesn't double-encode & → &amp;amp; etc.
+    _env.filters["tg_escape"] = lambda v: Markup(tg_escape(v))
+    # tojson renders into <pre> — autoescape will encode < > keeping the pre safe
+    _env.filters["tojson"] = lambda v, indent=None: _json.dumps(v, ensure_ascii=False, indent=indent)
+    return _env
+
+
+_JINJA2_ENV: "Environment | None" = None  # noqa: F821
+
+
+def _get_jinja2_env() -> "Environment":  # noqa: F821
+    global _JINJA2_ENV
+    if _JINJA2_ENV is None:
+        _JINJA2_ENV = _build_jinja2_env()
+    return _JINJA2_ENV
+
+
 app = FastAPI(
     title="Q-Silicon Investment API",
     description="Daily crypto/AI investment report data API",
@@ -315,6 +348,9 @@ def _load_report_legacy(report_date: str) -> dict[str, Any]:
     """Load metrics row + recommendations from BigQuery (legacy PWA shape)."""
     try:
         client = _get_bq_client()
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("report_date", "DATE", report_date)]
+        )
         rows = list(
             client.query(
                 f"""
@@ -333,10 +369,11 @@ def _load_report_legacy(report_date: str) -> dict[str, Any]:
                 gpt_summary,
                 news_titles
             FROM `{METRICS_TABLE}`
-            WHERE DATE(timestamp) = '{report_date}'
+            WHERE DATE(timestamp) = @report_date
             ORDER BY timestamp DESC
             LIMIT 1
-        """
+        """,
+                job_config=job_config,
             ).result()
         )
     except Exception as exc:
@@ -349,6 +386,9 @@ def _load_report_legacy(report_date: str) -> dict[str, Any]:
     report = rows_to_dicts(rows)[0]
 
     try:
+        rec_job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("report_date", "DATE", report_date)]
+        )
         rec_rows = client.query(
             f"""
             SELECT
@@ -357,9 +397,10 @@ def _load_report_legacy(report_date: str) -> dict[str, Any]:
                 position_pct, timeframe, category,
                 status, exit_price, exit_date, pnl_pct, rr_ratio
             FROM `{RECOMMENDATIONS_TABLE}`
-            WHERE report_date = '{report_date}'
+            WHERE report_date = @report_date
             ORDER BY confidence DESC, asset ASC
-        """
+        """,
+            job_config=rec_job_config,
         ).result()
         report["recommendations"] = rows_to_dicts(rec_rows)
     except Exception as exc:
@@ -543,10 +584,6 @@ def get_report_html(
     Inspired by nexu-io/open-design finance-report skill:
     Masthead + KPI strip + exec summary + trades grid + news block + QSREC payload.
     """
-    from jinja2 import Environment, FileSystemLoader
-    from report_render import tg_escape
-    import json as _json
-
     _validate_report_date(report_date)
     raw_dict, _ = _try_load_daily_brief_raw_dict(report_date)
     if not raw_dict:
@@ -558,17 +595,10 @@ def get_report_html(
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Report schema error: {exc}") from exc
 
-    templates_dir = _REPO_ROOT / "templates"
-    env = Environment(
-        loader=FileSystemLoader(str(templates_dir)),
-        autoescape=False,
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
-    env.filters["tg_escape"] = tg_escape
-    env.filters["tojson"] = lambda v, indent=None: _json.dumps(v, ensure_ascii=False, indent=indent)
-
+    env = _get_jinja2_env()
     tmpl = env.get_template("html_export/brief_card.html.j2")
+    # profile is a user-supplied query param — pass through Jinja2's autoescaping
+    # by NOT marking it safe; autoescape=True handles it at render time.
     html = tmpl.render(report=model, report_date=report_date, profile=profile)
 
     headers = {}
@@ -1503,11 +1533,14 @@ async def stream_war_room(request: Request):
 
 
 @app.post("/api/paper/execution-tick")
-def post_paper_execution_tick(request: Request) -> dict[str, Any]:
+async def post_paper_execution_tick(request: Request) -> dict[str, Any]:
     """Run one paper simulation pass (M5). Disabled unless ``PAPER_TICK_HTTP_ENABLED=1``."""
     if os.getenv("PAPER_TICK_HTTP_ENABLED", "0").lower() not in ("1", "true", "yes"):
         raise HTTPException(status_code=404, detail="paper tick HTTP disabled")
     if not _paper_tick_auth_ok(request):
         raise HTTPException(status_code=403, detail="Invalid or missing paper tick auth")
-    written = run_paper_execution_tick()
+    if _paper_tick_lock.locked():
+        raise HTTPException(status_code=409, detail="paper tick already in progress")
+    async with _paper_tick_lock:
+        written = run_paper_execution_tick()
     return {"ok": True, "written": len(written), "rows": written}
