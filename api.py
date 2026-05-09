@@ -25,7 +25,7 @@ from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from google.cloud import bigquery
 from pydantic import BaseModel, Field, field_validator
 
-from config import METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE
+from config import METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE, REVIEWER_LOG_TABLE
 from execution_intents import (
     ALLOWED_INTENT_STATUSES,
     CLIENT_PATCHABLE_STATUSES,
@@ -454,6 +454,78 @@ def get_report_structured(
         "gate_summary": gate_summary,
         "legacy": legacy,
     }
+
+
+def _gate_status_from_row(row: dict[str, Any]) -> str:
+    if row.get("degraded"):
+        return "degraded"
+    if int(row.get("revision_count", 0)) >= 2:
+        return "fail"
+    return "pass"
+
+
+@app.get("/api/reports/{report_date}/gate-status")
+def get_report_gate_status(report_date: str) -> dict[str, Any]:
+    """Reviewer loop outcome for the given date.
+
+    Returns gate_status = pass | fail | degraded | 未審.
+    Falls back to fixtures/reviewer_log_fixture.json when SKIP_BIGQUERY=1.
+    """
+    _validate_report_date(report_date)
+
+    skip_bq = os.getenv("SKIP_BIGQUERY", "0") == "1"
+
+    if not skip_bq:
+        try:
+            client = _get_bq_client()
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("dt", "DATE", report_date),
+                ]
+            )
+            rows = list(
+                client.query(
+                    f"""
+                    SELECT run_id, revision_count, degraded, final_trade_count
+                    FROM `{REVIEWER_LOG_TABLE}`
+                    WHERE DATE(created_at) = @dt
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    job_config=job_config,
+                ).result()
+            )
+            if rows:
+                row = dict(rows[0])
+                return {
+                    "gate_status": _gate_status_from_row(row),
+                    "run_id": row.get("run_id"),
+                    "degraded": bool(row.get("degraded")),
+                    "revision_count": int(row.get("revision_count", 0)),
+                    "final_trade_count": int(row.get("final_trade_count", 0)),
+                }
+            return {"gate_status": "未審"}
+        except Exception as exc:
+            logger.warning("gate-status BQ query failed for %s: %s", report_date, exc)
+
+    # Fixture fallback (SKIP_BIGQUERY=1 or BQ unavailable)
+    fixture_path = _REPO_ROOT / "fixtures" / "reviewer_log_fixture.json"
+    if fixture_path.exists():
+        try:
+            entries: list[dict[str, Any]] = json.loads(fixture_path.read_text())
+            for entry in entries:
+                if entry.get("date") == report_date:
+                    return {
+                        "gate_status": _gate_status_from_row(entry),
+                        "run_id": entry.get("run_id"),
+                        "degraded": bool(entry.get("degraded")),
+                        "revision_count": int(entry.get("revision_count", 0)),
+                        "final_trade_count": int(entry.get("final_trade_count", 0)),
+                    }
+        except Exception as exc:
+            logger.warning("gate-status fixture read failed: %s", exc)
+
+    return {"gate_status": "未審"}
 
 
 @app.get("/api/reports/{report_date}/html")

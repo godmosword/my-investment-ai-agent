@@ -288,6 +288,17 @@ export function useReportProfileStats(days = 30) {
   });
 }
 
+/** Reviewer loop gate status for one date (`GET /api/reports/{date}/gate-status`). */
+export function useGateStatus(date) {
+  return useQuery({
+    queryKey: ["gate-status", date],
+    queryFn: () => apiFetch(`/api/reports/${date}/gate-status`),
+    enabled: !!date,
+    staleTime: 15 * 60 * 1000,
+    retry: false,
+  });
+}
+
 /** V2 block-based report envelope (`GET /api/reports/{date}/structured`). */
 export function useStructuredReport(date, profile = "full", queryOptions = {}) {
   const q = encodeURIComponent(profile);

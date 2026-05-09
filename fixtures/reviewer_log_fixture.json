@@ -1,0 +1,93 @@
+[
+  {
+    "run_id": "fix-2026-05-09-a1b2",
+    "profile": "full",
+    "track": "main",
+    "revision_count": 0,
+    "python_fail_reasons": "[]",
+    "llm_fail_reasons": "[]",
+    "degraded": false,
+    "final_trade_count": 4,
+    "total_latency_ms": 18200,
+    "created_at": "2026-05-09T02:31:00+00:00",
+    "date": "2026-05-09"
+  },
+  {
+    "run_id": "fix-2026-05-08-c3d4",
+    "profile": "full",
+    "track": "main",
+    "revision_count": 1,
+    "python_fail_reasons": "[\"缺少 market_regime\"]",
+    "llm_fail_reasons": "[]",
+    "degraded": false,
+    "final_trade_count": 3,
+    "total_latency_ms": 24500,
+    "created_at": "2026-05-08T02:44:00+00:00",
+    "date": "2026-05-08"
+  },
+  {
+    "run_id": "fix-2026-05-07-e5f6",
+    "profile": "full",
+    "track": "main",
+    "revision_count": 2,
+    "python_fail_reasons": "[\"報告過短\", \"缺少 QSREC 區塊\"]",
+    "llm_fail_reasons": "[\"trade leg 3 缺少 stop price\"]",
+    "degraded": false,
+    "final_trade_count": 2,
+    "total_latency_ms": 38700,
+    "created_at": "2026-05-07T02:52:00+00:00",
+    "date": "2026-05-07"
+  },
+  {
+    "run_id": "fix-2026-05-06-g7h8",
+    "profile": "full",
+    "track": "main",
+    "revision_count": 3,
+    "python_fail_reasons": "[\"報告過短\", \"交易段含 N/A 關鍵價格\", \"新聞數不足\"]",
+    "llm_fail_reasons": "[\"macro narrative contradicts risk_off regime\", \"trade leg 1 entry above resistance\"]",
+    "degraded": true,
+    "final_trade_count": 1,
+    "total_latency_ms": 51300,
+    "created_at": "2026-05-06T03:01:00+00:00",
+    "date": "2026-05-06"
+  },
+  {
+    "run_id": "fix-2026-05-05-i9j0",
+    "profile": "full",
+    "track": "main",
+    "revision_count": 0,
+    "python_fail_reasons": "[]",
+    "llm_fail_reasons": "[]",
+    "degraded": false,
+    "final_trade_count": 5,
+    "total_latency_ms": 16400,
+    "created_at": "2026-05-05T02:28:00+00:00",
+    "date": "2026-05-05"
+  },
+  {
+    "run_id": "fix-2026-05-04-k1l2",
+    "profile": "full",
+    "track": "main",
+    "revision_count": 2,
+    "python_fail_reasons": "[\"缺少 QSREC 區塊\"]",
+    "llm_fail_reasons": "[\"sentiment score not grounded in news evidence\"]",
+    "degraded": false,
+    "final_trade_count": 3,
+    "total_latency_ms": 33100,
+    "created_at": "2026-05-04T02:39:00+00:00",
+    "date": "2026-05-04"
+  },
+  {
+    "run_id": "fix-2026-05-03-m3n4",
+    "profile": "full",
+    "track": "main",
+    "revision_count": 3,
+    "python_fail_reasons": "[\"缺少 market_regime\", \"交易段含 N/A 關鍵價格\"]",
+    "llm_fail_reasons": "[\"bear thesis internally inconsistent\", \"crypto section missing volume analysis\"]",
+    "degraded": true,
+    "final_trade_count": 2,
+    "total_latency_ms": 47800,
+    "created_at": "2026-05-03T03:15:00+00:00",
+    "date": "2026-05-03"
+  }
+]
