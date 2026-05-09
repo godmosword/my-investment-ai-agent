@@ -1634,8 +1634,10 @@ def deep_filing_analysis_node(state: ResearchGraphState) -> dict[str, Any]:
                     continue
             if not valid_citations:
                 continue
-            answers[int(idx)] = answer
-            citations[int(idx)] = valid_citations
+            from schemas import _coerce_question_key
+            ikey = _coerce_question_key(idx)
+            answers[ikey] = answer
+            citations[ikey] = valid_citations
 
         if not answers:
             return {"raw_data": {"deep_filing_analysis": "[DATA_MISSING:notebooklm_no_cited_answers]"}}

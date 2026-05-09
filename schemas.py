@@ -1191,6 +1191,21 @@ class Citation(BaseModel):
         raise ValueError("Citation.excerpt cannot be empty")
 
 
+def _coerce_question_key(key: object) -> int | str:
+    """Normalize question-index keys to int. Handles '1', 'Q1', 'q2', etc."""
+    if isinstance(key, int):
+        return key
+    s = str(key).strip()
+    try:
+        return int(s)
+    except ValueError:
+        stripped = s.lstrip("Qq")
+        try:
+            return int(stripped)
+        except ValueError:
+            return s
+
+
 class DeepFilingAnalysis(BaseModel):
     """Optional NotebookLM filing analysis; omitted from renders when absent."""
 
@@ -1213,7 +1228,13 @@ class DeepFilingAnalysis(BaseModel):
     @classmethod
     def _drop_empty_answers(cls, v: object) -> object:
         if isinstance(v, dict):
-            return {k: str(val).strip() for k, val in v.items() if str(val).strip()}
+            out: dict[int | str, str] = {}
+            for k, val in v.items():
+                text = str(val).strip()
+                if not text:
+                    continue
+                out[_coerce_question_key(k)] = text
+            return out
         return v
 
     @field_validator("citations", mode="before")
@@ -1228,13 +1249,7 @@ class DeepFilingAnalysis(BaseModel):
             return v
         out: dict[int | str, object] = {}
         for key, val in v.items():
-            if isinstance(key, str):
-                try:
-                    nk: int | str = int(key)
-                except ValueError:
-                    nk = key
-            else:
-                nk = key
+            nk: int | str = _coerce_question_key(key)
             if isinstance(val, str):
                 s = val.strip()
                 val = [{"excerpt": s}] if s else []
