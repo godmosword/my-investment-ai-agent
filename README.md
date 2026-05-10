@@ -167,7 +167,8 @@ flowchart TB
 | [`report_render.py`](report_render.py) · [`templates/telegram_report.j2`](templates/telegram_report.j2) · [`templates/profiles/`](templates/profiles/) · [`brief_profiles.py`](brief_profiles.py) · [`brief_profiles_layout.py`](brief_profiles_layout.py) · [`config/brief_layouts/`](config/brief_layouts/) | 組裝與 Telegram HTML；可選 **`REPORT_PROFILE=lite`** 或 **`crypto-only`**；可選 **`BRIEF_LAYOUT_FILE`** YAML 重排粗粒度 block 順序（預設 `full`，與凍結基線 **byte-identical**；見 `ENV_TEMPLATE.txt`、`config/brief_layouts/README.md`） |
 | [`report_html_gates.py`](report_html_gates.py) | `validate_report` |
 | [`telegram_sender.py`](telegram_sender.py) · [`bigquery_writer.py`](bigquery_writer.py) | 推送、metrics、`write_gate_failure_log` |
-| [`api.py`](api.py) · [`dashboard.py`](dashboard.py) | FastAPI、Streamlit |
+| [`api.py`](api.py) · [`api_routers/`](api_routers/) · [`dashboard.py`](dashboard.py) | FastAPI（`api.py` 掛載 incremental `APIRouter`：`health`、`metrics`）、Streamlit |
+| [`symbol_snapshot_service.py`](symbol_snapshot_service.py) | `/terminal`／Streamlit 代號快照與 `GET /api/symbols/{symbol}/snapshot` 之共用 payload 來源 |
 
 ---
 
@@ -202,9 +203,10 @@ python3 -m pytest -m smoke -q    # 與 PR CI 對齊（requirements-ci.txt）
 python3 -m pytest -v             # 全量
 python3 -m pytest -m boundary -v
 ./scripts/bench_autoresearch.sh
+./scripts/verify_graph_gate.sh     # Graph／Reviewer 變更後（等同 pytest test_reviewer_loop.py -q）
 ```
 
-PR／deploy 使用輕量 [`requirements-ci.txt`](requirements-ci.txt) 與 [`conftest.py`](conftest.py) stub。全量測試若含 Hypothesis 需另行 `pip install hypothesis`。
+PR／deploy 使用輕量 [`requirements-ci.txt`](requirements-ci.txt) 與 [`conftest.py`](conftest.py) stub。全量測試若含 Hypothesis 需另行 `pip install hypothesis`。改 [`graph/`](graph/) 或 Reviewer 閉環時亦見 [`docs/architecture/GRAPH_REVIEWER_CHANGE_CHECKLIST.md`](docs/architecture/GRAPH_REVIEWER_CHANGE_CHECKLIST.md)。
 
 ---
 
@@ -215,7 +217,8 @@ main.py, crew.py, config.py, schemas.py
 graph/
 tools/, tools_legacy.py
 report_*.py, validation_rules.py
-api.py, dashboard.py
+api.py, api_routers/, dashboard.py
+symbol_snapshot_service.py
 templates/telegram_report.j2
 docs/, scripts/, core/
 data-verification-ui/
@@ -259,6 +262,7 @@ BQ／排除 context → 雙軌研究 → assemble／render →（可選 editor�
 | 腳本 | 用途 |
 |------|------|
 | [`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh) | Lint + smoke + METRIC |
+| [`scripts/verify_graph_gate.sh`](scripts/verify_graph_gate.sh) | Graph／Reviewer：`pytest test_reviewer_loop.py -q` |
 | [`scripts/write_ml_weights.py`](scripts/write_ml_weights.py) | ML 權重 |
 | [`scripts/run_mock_smoke.sh`](scripts/run_mock_smoke.sh) | `MOCK_APIS=1` smoke |
 | `python backtest.py` | 回測 |
@@ -332,4 +336,4 @@ NotebookLM、Agency、TradingView 皆為 **repo-side scaffold**，預設關閉�
 
 ## gstack（選用）
 
-瀏覽器 QA、review、ship 等流程 — 見 [`AGENTS.md`](AGENTS.md) 與 [`gstack.md`](gstack.md)（若存在）。
+瀏覽器 QA、review、ship 等流程 — 見 [`AGENTS.md`](AGENTS.md) 與 [`gstack.md`](gstack.md)。

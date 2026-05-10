@@ -3,6 +3,11 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-10
+
+### Docs
+- **README**：對齊程式庫現況 — [`api_routers/`](api_routers/)（`health`、`metrics`）、[`symbol_snapshot_service.py`](symbol_snapshot_service.py)；開發指令補 [`scripts/verify_graph_gate.sh`](scripts/verify_graph_gate.sh) 與 [`docs/architecture/GRAPH_REVIEWER_CHANGE_CHECKLIST.md`](docs/architecture/GRAPH_REVIEWER_CHANGE_CHECKLIST.md)；精簡目錄樹與輔助腳本表；[`gstack.md`](gstack.md) 連結去掉「若存在」。
+
 ## 2026-05-08
 
 ### Fixed
