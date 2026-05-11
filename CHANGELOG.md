@@ -3,6 +3,35 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-11
+
+### Ops
+- **隊列 18–21 自檢腳本**：[`scripts/verify_ops_queue_18_21.py`](scripts/verify_ops_queue_18_21.py)（Redis PING、VAPID／admin key 提示、可選 BQ 表存在檢查）；Runbook 增 **Step 0** — [`docs/OPS_QUEUE_18_21_RUNBOOK.md`](docs/OPS_QUEUE_18_21_RUNBOOK.md)。**雲端 DDL／test-send 仍依 Runbook 由人類完成後**方可在 `TODOS` 勾選 18–21。
+
+### API（Portal M4–M7 切片）
+- **`GET /api/positions`**：聚合 `OPEN` 建議（[`_fetch_trades`](api.py)）+ [`latest_execution_intents`](execution_intents.py)（M4 MVP；28a 全鏈仍待）。
+- **`GET /api/industries/themes`**：靜態產業主題表 + 由意圖列推得之 `agreed_regime` 提示（M5）。
+- **`GET /api/analysis/{symbol}`**：並列 `quote`（yfinance）+ `snapshot`（可選失敗降級）（M6）。
+- **`GET /api/quant/signals`**：紙上／風險敘事用 **stub** 訊號列（**非**收益承諾；M7）。
+- **War-room SSE**：`GET /api/stream/war-room?watch_symbols=BTC,NVDA` 推送 **`symbol_quote`** 事件（沿用既有 yfinance [`fetch_symbol_quote`](symbol_snapshot_service.py)）。
+
+### PWA（Portal Phase 2 隊列 29）
+- **Command Bar**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx)（`AAPL`／`AAPL <GO>` → 全域 symbol + `/analysis`）；[`Shell.jsx`](data-verification-ui/src/app/layout/Shell.jsx)；[`App.jsx`](data-verification-ui/src/App.jsx) **`SymbolFocusProvider` 外層** 以便 SSE 訂閱帶 `watch_symbols`。
+- **SSE**：[`useWarRoomSse.js`](data-verification-ui/src/hooks/useWarRoomSse.js) 監聽 **`symbol_quote`** 並 invalidate **`["symbol","quote"]`**；[`useApi.js`](data-verification-ui/src/hooks/useApi.js) 新增 **`usePositionsList`**（M4 聚合）、**`useIndustryThemes`**、**`useAnalysisBundle`**、**`useQuantSignals`**。
+
+### Docs
+- **README**：補 **Portal M4–M7 讀取 API**、**Tech pulse（`TECH_PULSE_*`）**、**隊列 18–21 自檢** [`scripts/verify_ops_queue_18_21.py`](scripts/verify_ops_queue_18_21.py)、**staging 時事 smoke** 連結與驗收指令索引；見 [`README.md`](README.md)「Portal API」「輔助腳本」「開發與測試」。
+- **TODOS**：檔首同步狀態補 **README／CHANGELOG 對齊**；「已交付摘要」增列 **Portal Phase 2 + M4–M7 API 切片 + tech pulse + 營運自檢（2026-05-11）**；隊列 **29–33** 改寫為「已交付／部分交付」與 **仍待** 邊界（M7 明註 **stub**、**無** `GET /api/quant/backtest`）。
+- **Staging 時事 roundtable**：[`docs/STAGING_CURRENT_AFFAIRS_SMOKE.md`](docs/STAGING_CURRENT_AFFAIRS_SMOKE.md)（隊列 27／`BRIEF_CURRENT_AFFAIRS=1` smoke）。
+- **Tech pulse 跨 repo**：[`docs/ADR_TECH_PULSE_INTEGRATION.md`](docs/ADR_TECH_PULSE_INTEGRATION.md)（HTTP vs 共用 BQ、schema、`MOCK_APIS`）。
+
+### Tools
+- **[`tools/tech_pulse_tool.py`](tools/tech_pulse_tool.py)**：`fetch_tech_pulse_exclusion_snippet()` + in-process cache；**[`main.py`](main.py)** 可選 **`TECH_PULSE_IN_BRIEF=1`** 將摘要併入 **`exclude_context`**（`[DATA_MISSING:…]` 安全降級）。
+
+### Tests
+- **`pytest`**：[`test_api_positions_bundle.py`](test_api_positions_bundle.py)、[`test_api_stream_war_room.py`](test_api_stream_war_room.py)（`watch_symbols` 解析 smoke）、[`test_tech_pulse_tool.py`](test_tech_pulse_tool.py)。
+- **`data-verification-ui`**：[`e2e/command-bar-route.spec.js`](data-verification-ui/e2e/command-bar-route.spec.js)、[`e2e/positions-route.spec.js`](data-verification-ui/e2e/positions-route.spec.js)（M4 `positions-m4-table`／NVDA mock）。
+
 ## 2026-05-10
 
 ### Docs

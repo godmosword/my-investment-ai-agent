@@ -15,6 +15,9 @@
 | Portal PWA 驗收清單（§驗收） | [`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) |
 | 視覺化狀態／剩餘 staging backlog（§3 勾選表） | [`docs/architecture/visualization_plan.md`](docs/architecture/visualization_plan.md) |
 | 變更紀錄 | [`CHANGELOG.md`](CHANGELOG.md) |
+| Tech pulse（可選，併入日報 exclusion） | [`docs/ADR_TECH_PULSE_INTEGRATION.md`](docs/ADR_TECH_PULSE_INTEGRATION.md) · [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) `TECH_PULSE_*` |
+| Staging 時事 roundtable smoke | [`docs/STAGING_CURRENT_AFFAIRS_SMOKE.md`](docs/STAGING_CURRENT_AFFAIRS_SMOKE.md) |
+| 營運隊列 18–21 自檢（Redis／VAPID／可選 BQ） | [`scripts/verify_ops_queue_18_21.py`](scripts/verify_ops_queue_18_21.py) · [`docs/OPS_QUEUE_18_21_RUNBOOK.md`](docs/OPS_QUEUE_18_21_RUNBOOK.md) |
 | 執行路線圖 | [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) |
 | 開發導覽 | [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) |
 | 環境變數 | [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) → 複製為 `.env` |
@@ -202,6 +205,7 @@ ruff check .
 python3 -m pytest -m smoke -q    # 與 PR CI 對齊（requirements-ci.txt）
 python3 -m pytest -v             # 全量
 python3 -m pytest -m boundary -v
+python3 -m pytest test_api_positions_bundle.py test_api_stream_war_room.py test_tech_pulse_tool.py -q   # Portal M4–M7 契約 + SSE watch_symbols + tech_pulse（2026-05-11）
 ./scripts/bench_autoresearch.sh
 ./scripts/verify_graph_gate.sh     # Graph／Reviewer 變更後（等同 pytest test_reviewer_loop.py -q）
 ```
@@ -263,6 +267,7 @@ BQ／排除 context → 雙軌研究 → assemble／render →（可選 editor�
 |------|------|
 | [`scripts/bench_autoresearch.sh`](scripts/bench_autoresearch.sh) | Lint + smoke + METRIC |
 | [`scripts/verify_graph_gate.sh`](scripts/verify_graph_gate.sh) | Graph／Reviewer：`pytest test_reviewer_loop.py -q` |
+| [`scripts/verify_ops_queue_18_21.py`](scripts/verify_ops_queue_18_21.py) | 營運 18–21：Redis PING、VAPID／admin key 提示、可選 BQ 表存在（見 Runbook Step 0） |
 | [`scripts/write_ml_weights.py`](scripts/write_ml_weights.py) | ML 權重 |
 | [`scripts/run_mock_smoke.sh`](scripts/run_mock_smoke.sh) | `MOCK_APIS=1` smoke |
 | `python backtest.py` | 回測 |
@@ -282,6 +287,7 @@ BQ／排除 context → 雙軌研究 → assemble／render →（可選 editor�
 | 選幣輪動 | [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md) |
 | 邊界測試 | [`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md) |
 | 工具 ADR | [`docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md`](docs/ADR_OFFICE_HOURS_TOOLS_PLATFORM.md) |
+| Tech pulse 併入日報 | [`docs/ADR_TECH_PULSE_INTEGRATION.md`](docs/ADR_TECH_PULSE_INTEGRATION.md) |
 | 路線願景 | [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) |
 
 ---
@@ -310,7 +316,20 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 - **路由**：底部導覽「終端」→ **`/terminal`**（watchlist 存 `localStorage`；代號卡呼叫 `GET /api/symbols/{symbol}/snapshot` 與輕量 **`GET /api/symbols/{symbol}/quote`**（最新日線收盤／1D%，僅 yfinance））。
 - **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（適合 PWA 與 API 同網域反代）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。
 - **`VITE_TERMINAL_POLL_MS`**（可選）：**`/terminal`** 內 snapshot／意圖列表／War Room 輪詢間隔（毫秒），預設 **45000**；本機除錯可設 `15000`。見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)。
-- **SSE（可選）**：後端 `TERMINAL_SSE_ENABLED=1` 時提供 `GET /api/stream/war-room`；前端 **`VITE_SSE_ENABLED=1`**，若設 `API_STREAM_AUTH_KEY` 則同步 **`VITE_SSE_STREAM_KEY`**。紙上一輪：`python scripts/paper_execution_tick.py` 或 `PAPER_TICK_HTTP_ENABLED=1` 時 `POST /api/paper/execution-tick`（可選 `PAPER_TICK_API_KEY`）。
+- **SSE（可選）**：後端 `TERMINAL_SSE_ENABLED=1` 時提供 `GET /api/stream/war-room`；查詢參數 **`watch_symbols`**（CSV，例 `BTC,NVDA`）可驅動 **`symbol_quote`** 事件；前端 **`VITE_SSE_ENABLED=1`**，若設 `API_STREAM_AUTH_KEY` 則同步 **`VITE_SSE_STREAM_KEY`**。紙上一輪：`python scripts/paper_execution_tick.py` 或 `PAPER_TICK_HTTP_ENABLED=1` 時 `POST /api/paper/execution-tick`（可選 `PAPER_TICK_API_KEY`）。
+
+### Portal API（M4–M7 讀取切片，2026-05-11）
+
+五模組頁面所用 **唯讀** 聚合（詳見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-11**；完整隊列邊界見 [`TODOS.md`](TODOS.md) 隊列 29–33）：
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/api/positions` | 開倉建議聚合 + execution intents（M4；`PATCH` 等仍見 TODOS） |
+| `GET` | `/api/industries/themes` | 靜態主題表 + regime 提示（M5） |
+| `GET` | `/api/analysis/{symbol}` | quote + snapshot（snapshot 可失敗降級）（M6） |
+| `GET` | `/api/quant/signals` | 紙上敘事用 **stub** 訊號列（M7；**非**回測 API、不承諾收益） |
+
+- **日報可選 — Tech pulse**：`TECH_PULSE_IN_BRIEF=1` 時 [`main.py`](main.py) 於 `_run_pipeline_once` 將 [`tools/tech_pulse_tool.py`](tools/tech_pulse_tool.py) 摘要併入 **`exclude_context`**（與 CrewAI／LangGraph 雙軌共用）；`TECH_PULSE_URL` 與 `MOCK_APIS` 行為見 [`docs/ADR_TECH_PULSE_INTEGRATION.md`](docs/ADR_TECH_PULSE_INTEGRATION.md) 與 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
 - **產品對齊說明**：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（能力映射與驗收；非外觀複製 Terminal）。
 - **實盤價格觀測（BQ vs yfinance）**：`python scripts/symbol_price_probe.py BTC`（stdout JSON）；可選 `PRICE_PROBE_WRITE_BQ=1` + `PRICE_PROBE_LOG_TABLE=…` 寫入 BQ（建表 [`docs/SQL/price_probe_log.sql`](docs/SQL/price_probe_log.sql)）。
 - **Web Push（T4a）**：[`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md) — `WEB_PUSH_REDIS_URL`、`WEB_PUSH_VAPID_*`、`POST /api/push/test-send`（`WEB_PUSH_ADMIN_KEY`）；產鑰 `python scripts/vapid_generate.py`。
