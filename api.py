@@ -34,7 +34,7 @@ from execution_intents import (
     update_execution_intent_status,
 )
 from paper_execution import run_paper_execution_tick
-from war_room_stream import get_war_room_stream_version
+from war_room_stream import drain_graph_node_events, get_war_room_stream_version
 from symbol_snapshot_service import (
     build_symbol_snapshot,
     fetch_symbol_quote,
@@ -1512,12 +1512,23 @@ async def stream_war_room(request: Request):
     async def event_gen():
         last_fp: dict[str, Any] | None = None
         while True:
+            if await request.is_disconnected():
+                break
+
+            # Drain per-node events first — these are granular state transitions.
+            node_events = drain_graph_node_events()
+            for event in node_events:
+                payload = json.dumps(event, ensure_ascii=False)
+                yield f"event: node_complete\ndata: {payload}\n\n"
+
+            # Full war-room snapshot when fingerprint changes.
             fp = _war_room_fingerprint()
             if fp != last_fp:
                 last_fp = fp
                 body = get_war_room_latest()
                 payload = json.dumps(body, ensure_ascii=False)
-                yield f"data: {payload}\n\n"
+                yield f"event: war_room_update\ndata: {payload}\n\n"
+
             yield ": keepalive\n\n"
             await asyncio.sleep(interval)
 

@@ -20,7 +20,9 @@ from graph.graph_nodes import (
     ReviewerVerdict,
     _is_known_ticker,
     degrade_node,
+    gate_exclude_unwanted_markets,
     llm_reviewer_node,
+    market_gate_node,
     python_validate_node,
 )
 from graph.graph_crew import _route_after_llm_reviewer, _route_after_python_validate
@@ -114,6 +116,46 @@ def test_python_validate_enabled_valid_trades(monkeypatch: pytest.MonkeyPatch):
     assert result["review_issues"] == []
     assert result["trade_watch_final"] == trades
     assert "revision_count" not in result or result.get("revision_count") == 0
+
+
+def test_market_gate_blocks_taiwan_assets_and_writes_only_allowed(monkeypatch: pytest.MonkeyPatch):
+    """Taiwan assets are stripped before execution-intent persistence."""
+    trades = [
+        _valid_trade("2330"),
+        _valid_trade("00878"),
+        _valid_trade("2454.TW"),
+        _valid_trade("TSM"),
+        _valid_trade("AVGO"),
+        _valid_trade("BTC"),
+    ]
+    written: list[dict[str, Any]] = []
+    monkeypatch.setattr("graph.graph_nodes._emit_node_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "graph.graph_nodes.append_execution_intents",
+        lambda **kwargs: written.append(kwargs) or [],
+    )
+
+    result = market_gate_node(_base_state(category="AI", proposed_trades=trades))
+
+    assert [t["asset"] for t in result["proposed_trades"]] == ["TSM", "AVGO", "BTC"]
+    assert [t["asset"] for t in written[0]["proposed_trades"]] == ["TSM", "AVGO", "BTC"]
+
+
+def test_gate_exclude_unwanted_markets_allows_us_adrs_and_crypto():
+    trades = [
+        _valid_trade("2330"),
+        _valid_trade("00878"),
+        _valid_trade("2454.TPEX"),
+        _valid_trade("TSM"),
+        _valid_trade("AVGO"),
+        _valid_trade("BTC"),
+        _valid_trade("ETH"),
+    ]
+
+    allowed, blocked = gate_exclude_unwanted_markets(trades)
+
+    assert [t["asset"] for t in blocked] == ["2330", "00878", "2454.TPEX"]
+    assert [t["asset"] for t in allowed] == ["TSM", "AVGO", "BTC", "ETH"]
 
 
 @pytest.mark.smoke

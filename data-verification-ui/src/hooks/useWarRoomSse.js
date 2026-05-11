@@ -55,6 +55,7 @@ export function WarRoomSseProvider({ children }) {
     };
 
     es.onmessage = scheduleRefresh;
+    es.addEventListener("war_room_update", scheduleRefresh);
     es.onerror = () => setSseStatus("error");
 
     return () => {

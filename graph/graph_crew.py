@@ -18,6 +18,7 @@ from graph.graph_nodes import (
     degrade_node,
     final_formatter_node,
     llm_reviewer_node,
+    market_gate_node,
     news_scraper_node,
     python_validate_node,
     trade_picker_node,
@@ -78,6 +79,7 @@ def build_research_graph() -> Any:
     builder.add_node("deep_filing_analysis", deep_filing_analysis_node)
     builder.add_node("agency_researcher", agency_researcher_node)
     builder.add_node("trade_picker", trade_picker_node)
+    builder.add_node("market_gate", market_gate_node)
     builder.add_node("python_validate", python_validate_node)
     builder.add_node("llm_reviewer", llm_reviewer_node)
     builder.add_node("degrade", degrade_node)
@@ -103,8 +105,9 @@ def build_research_graph() -> Any:
     builder.add_edge("deep_filing_analysis", "agency_researcher")
     builder.add_edge("agency_researcher", "trade_picker")
 
-    # Reviewer loop replaces the former direct trade_picker → final_formatter edge.
-    builder.add_edge("trade_picker", "python_validate")
+    # market_gate sits between picker and review loop: strips Taiwan assets before any LLM review.
+    builder.add_edge("trade_picker", "market_gate")
+    builder.add_edge("market_gate", "python_validate")
     builder.add_conditional_edges(
         "python_validate",
         _route_after_python_validate,
