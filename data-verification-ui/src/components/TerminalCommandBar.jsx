@@ -2,6 +2,34 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 
 const WATCH_KEY = "terminal_sse_watch";
+const RECENT_KEY = "terminal_recent_symbols";
+const RECENT_MAX = 8;
+
+function readRecent() {
+  try {
+    const raw = String(globalThis.localStorage?.getItem(RECENT_KEY) ?? "").trim();
+    if (!raw) return [];
+    return raw
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean)
+      .slice(0, RECENT_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function pushRecent(sym) {
+  const upper = String(sym ?? "").trim().toUpperCase();
+  if (!upper) return readRecent();
+  const next = [upper, ...readRecent().filter((s) => s !== upper)].slice(0, RECENT_MAX);
+  try {
+    globalThis.localStorage?.setItem(RECENT_KEY, next.join(","));
+  } catch {
+    /* ignore */
+  }
+  return next;
+}
 
 function readWatchSet() {
   try {
@@ -47,10 +75,11 @@ function parseGoInput(raw) {
   return parts[0] ?? "";
 }
 
-export default function TerminalCommandBar() {
+export default function TerminalCommandBar({ trailing = null }) {
   const { symbol, setSymbol } = useSymbolFocus();
   const [input, setInput] = useState("");
   const [watchSet, setWatchSetState] = useState(() => readWatchSet());
+  const [recent, setRecent] = useState(() => readRecent());
 
   useEffect(() => {
     const bump = () => setWatchSetState(readWatchSet());
@@ -67,9 +96,21 @@ export default function TerminalCommandBar() {
 
   const onGo = useCallback(() => {
     const sym = parseGoInput(input);
-    if (sym) setSymbol(sym);
+    if (sym) {
+      setSymbol(sym);
+      setRecent(pushRecent(sym));
+    }
     setInput("");
   }, [input, setSymbol]);
+
+  const onPickRecent = useCallback(
+    (sym) => {
+      if (!sym) return;
+      setSymbol(sym);
+      setRecent(pushRecent(sym));
+    },
+    [setSymbol],
+  );
 
   const toggleWatch = useCallback(() => {
     if (!focused) return;
@@ -119,6 +160,29 @@ export default function TerminalCommandBar() {
         <span className="text-[12px] text-[var(--muted)]">
           關注：<span className="font-mono text-white/90">{focused}</span>
         </span>
+      ) : null}
+      {trailing ? <div className="ml-auto flex items-center">{trailing}</div> : null}
+      {recent.length > 0 ? (
+        <div
+          data-testid="terminal-command-recent"
+          className="flex w-full flex-wrap items-center gap-1 pt-1 text-[11px] text-[var(--muted)]"
+        >
+          <span className="uppercase tracking-wide">Recent</span>
+          {recent.map((sym) => (
+            <button
+              key={sym}
+              type="button"
+              onClick={() => onPickRecent(sym)}
+              className={`rounded border px-1.5 py-0.5 font-mono ${
+                focused === sym
+                  ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-200"
+                  : "border-white/15 text-white/80 hover:bg-white/5"
+              }`}
+            >
+              {sym}
+            </button>
+          ))}
+        </div>
       ) : null}
     </div>
   );

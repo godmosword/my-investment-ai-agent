@@ -58,12 +58,13 @@
 12. 前端新增視圖不破壞既有路由與底部導覽。
 13. 變更同步更新 CHANGELOG + TODOS（雙向對齊）。
 14. 不新增會破壞 Telegram HTML 白名單的輸出流程。
-15. 不引入未審核的即時付費資料依賴。
+15. 不引入未審核的即時付費資料依賴 — 已審核來源清單與審核流程見 [`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md`](REALTIME_DATA_SOURCES_GOVERNANCE.md)（2026-05-11）。
 
-### 4b) 條目 6／14 的 repo 內自動化錨點（2026-04-14）
+### 4b) 條目 6／14／15 的 repo 內自動化錨點（2026-04-14 / 2026-05-11）
 
 - **條目 6（跨頁 ticker 數值一致）**：pytest [`test_terminal_numeric_consistency.py`](../test_terminal_numeric_consistency.py)（`fetch_symbol_quote` 之 `last`／`change_pct_1d` 與 `fetch_symbol_ohlc` 最後一筆 close 於同源 yfinance 時一致）；`GET /api/symbols/{symbol}/snapshot` 回應另含 **`price_alignment`**（`symbol_snapshot_service._align_snapshot_price`；欄位含 **`ohlc_source`／`quote_source`／`daily_metrics_source`** 與 **`routes`**）與 `data_provenance.price_alignment`；可選 **`PRICE_ALIGNMENT_E2E_OVERRIDES`**（JSON，見 `ENV_TEMPLATE.txt`）。**實盤觀測**：[`scripts/symbol_price_probe.py`](../scripts/symbol_price_probe.py)（stdout JSON；可選 **`PRICE_PROBE_WRITE_BQ`** 寫入 [`docs/SQL/price_probe_log.sql`](../docs/SQL/price_probe_log.sql)）。**UI 層**：Playwright [`e2e/cross-page-btc-price.spec.js`](../data-verification-ui/e2e/cross-page-btc-price.spec.js)、[`e2e/nvda-cross-route-banner.spec.js`](../data-verification-ui/e2e/nvda-cross-route-banner.spec.js)（`npm run test:e2e`）。
 - **條目 14（Terminal 變更回歸紀錄）**：CI 步驟「Terminal contract」執行 [`scripts/ci_terminal_contract_check.sh`](../scripts/ci_terminal_contract_check.sh)（`pytest test_terminal_numeric_consistency` + PWA `npm run build`）。
+- **條目 15（即時付費資料依賴審核）**：治理文件 [`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md`](REALTIME_DATA_SOURCES_GOVERNANCE.md)（已審核來源清單、新增來源 PR 審核表、移除流程）。新增來源前須於 PR 描述完成第 3 節審核表。
 
 ### 4c) 跨路由數字口徑（T2a — snapshot vs quote）
 

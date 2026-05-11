@@ -3,6 +3,16 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-11（二）
+
+### PWA（Portal 全域 Gate Badge + Command Bar 歷史）
+- **Global Gate Badge**：[`GlobalGateBadge.jsx`](data-verification-ui/src/components/GlobalGateBadge.jsx) 讀最新日報之 reviewer-loop `gate_status`（重用 [`useReports`](data-verification-ui/src/hooks/useApi.js)／[`useGateStatus`](data-verification-ui/src/hooks/useApi.js)），於全域 Command Bar 右側顯示（pass／warn／critical／info 對應 [`GateStatusBadge`](data-verification-ui/src/components/common/GateStatusBadge.jsx) variant），點擊跳轉 `/report/:date`。
+- **Command Bar 歷史**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 新增 `terminal_recent_symbols`（localStorage，cap 8）+ Recent chips；點 chip 直接 setSymbol；隊列 **29** 仍待之「更完整 Bloomberg 感」前端切片。
+- **Shell**：[`Shell.jsx`](data-verification-ui/src/app/layout/Shell.jsx) 將 `<GlobalGateBadge />` 以 `trailing` prop 注入 Command Bar，避免雙層 border。
+
+### Docs（Bloomberg 對齊條目 15）
+- **即時／訂閱資料來源治理**：新檔 [`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md)（已審核來源清單、新增來源 PR 審核表、移除流程）；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4 條目 **15** 與 §4b 對應錨點同步。覆蓋 [`TODOS.md`](TODOS.md) §進度分析表「例外：15」之治理缺口。
+
 ## 2026-05-11
 
 ### Ops

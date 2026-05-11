@@ -15,7 +15,8 @@ test.describe("Terminal Command Bar (queue 29)", () => {
     await page.getByPlaceholder(/AAPL/i).fill("AAPL GO");
     await page.getByRole("button", { name: "GO" }).click();
 
-    await expect(bar.getByText("AAPL")).toBeVisible();
+    // Recent chip renders the symbol as a button; assert the 關注 span instead.
+    await expect(bar.locator(".font-mono", { hasText: "AAPL" }).first()).toBeVisible();
     await page.getByRole("button", { name: "WATCH" }).click();
 
     const watch = await page.evaluate(() => globalThis.localStorage.getItem("terminal_sse_watch"));
