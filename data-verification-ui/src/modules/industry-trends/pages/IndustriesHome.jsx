@@ -1,4 +1,4 @@
-import { useReports, useStructuredReports } from "../../../hooks/useApi";
+import { useReports, useStructuredReports, useIndustryThemes } from "../../../hooks/useApi";
 
 function extractIndustryTrendsBlock(structuredReport) {
   if (!structuredReport) return null;
@@ -37,6 +37,7 @@ function DayBlock({ date, report, isLoading }) {
 }
 
 export default function IndustriesHome() {
+  const { data: themePayload, isLoading: thLoading, error: thError } = useIndustryThemes(80);
   const { data: reports } = useReports(3);
   const dates = reports?.map((r) => r.report_date) ?? [];
   const structuredResults = useStructuredReports(dates, "full");
@@ -51,6 +52,43 @@ export default function IndustriesHome() {
       <div className="page-header">
         <div className="page-title">產業趨勢</div>
         <div className="page-subtitle">近 3 日日報 industry_trends 區塊</div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 12 }} data-testid="industries-m5-api">
+        <div className="card-title">產業主題 API（M5）</div>
+        <div className="page-subtitle" style={{ marginBottom: 8 }}>
+          <code>/api/industries/themes</code> — 靜態主題卡 + 意圖樣本 regime（非即時付費資料）。
+        </div>
+        {thLoading && <div className="loading" style={{ padding: "8px 0", fontSize: 12 }}>載入主題…</div>}
+        {thError && !thLoading && (
+          <div className="error-msg" style={{ fontSize: 12 }}>
+            無法載入主題：<code>{thError.message}</code>
+          </div>
+        )}
+        {!thLoading && !thError && themePayload && (
+          <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
+            <div>
+              意圖筆數：<b style={{ color: "var(--text)" }}>{themePayload.intent_count ?? 0}</b>
+              {themePayload.intent_sample_regime != null ? (
+                <>
+                  {" "}
+                  · 樣本 regime：<b style={{ color: "var(--text)" }}>{String(themePayload.intent_sample_regime)}</b>
+                </>
+              ) : null}
+            </div>
+            {(themePayload.themes ?? []).length > 0 ? (
+              <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+                {(themePayload.themes ?? []).slice(0, 12).map((t) => (
+                  <li key={t.id ?? t.label ?? JSON.stringify(t)} style={{ marginBottom: 4 }}>
+                    {typeof t === "string" ? t : t.label ?? t.id ?? "—"}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div style={{ marginTop: 8 }}>無靜態主題列。</div>
+            )}
+          </div>
+        )}
       </div>
 
       {dates.length === 0 && (

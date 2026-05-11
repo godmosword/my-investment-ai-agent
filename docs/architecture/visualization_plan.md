@@ -52,7 +52,7 @@
 
 ### V4 — Roundtable + 互動（收尾）
 
-- [x] **Mock／Playwright 結構化 smoke**：`mock-api-server` 含 `current_affairs_roundtable`／`crypto.dashboard` 時，PWA 區塊視圖可驗 **`data-section`** 與 **`current-affairs-roundtable-topic`**（**`BRIEF_CURRENT_AFFAIRS=1` staging 下 PWA ↔ Telegram** 端到端仍待手動）。
+- [x] **Mock／Playwright 結構化 smoke**：`mock-api-server` 含 `current_affairs_roundtable`／`crypto.dashboard` 時，PWA 區塊視圖可驗 **`data-section`** 與 **`current-affairs-roundtable-topic`**（**`BRIEF_CURRENT_AFFAIRS=1` staging 下 PWA ↔ Telegram** 端到端仍待手動；手順見 [`docs/STAGING_CURRENT_AFFAIRS_SMOKE.md`](../../docs/STAGING_CURRENT_AFFAIRS_SMOKE.md)）。
 - [ ] Streamlit **Gate／Roundtable** 分頁已於 v4 交付；若與 PWA **像素級**仍差異，逐項列 issue 對照（regime／typography）。
 
 ### V5 — 即時化與通知

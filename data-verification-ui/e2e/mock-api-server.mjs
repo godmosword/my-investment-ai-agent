@@ -491,6 +491,46 @@ const server = http.createServer((req, res) => {
     sendJson(res, 200, legacyReportBody(d));
     return;
   }
+  /** M4 aggregate — exact path only (before `/api/positions/open`). */
+  if (url.pathname === "/api/positions") {
+    sendJson(res, 200, [
+      {
+        report_date: "2026-04-14",
+        asset: "NVDA",
+        direction: "LONG",
+        status: "OPEN",
+        entry_price: 100,
+        confidence: 0.7,
+      },
+    ]);
+    return;
+  }
+  if (url.pathname === "/api/industries/themes" || url.pathname.startsWith("/api/industries/themes")) {
+    sendJson(res, 200, {
+      themes: [{ id: "ai-semis", label: "AI 半導體（e2e）", symbols: ["NVDA"] }],
+      intent_sample_regime: "risk_on",
+      intent_count: 2,
+    });
+    return;
+  }
+  const analysisMatch = url.pathname.match(/^\/api\/analysis\/([^/]+)$/);
+  if (analysisMatch) {
+    const sym = String(analysisMatch[1] || "").toUpperCase();
+    sendJson(res, 200, {
+      symbol: sym,
+      quote: { symbol: sym, last: 100.5 },
+      snapshot: { symbol: sym, source: "e2e_mock", as_of: "2026-04-14T00:00:00+00:00" },
+      snapshot_error: null,
+    });
+    return;
+  }
+  if (url.pathname === "/api/quant/signals") {
+    sendJson(res, 200, {
+      disclaimer: "e2e mock; not investment advice.",
+      signals: [{ id: "e2e-neutral", label: "RSI14 band (mock)", direction: "neutral", confidence: 0 }],
+    });
+    return;
+  }
   if (url.pathname === "/api/positions/open" || url.pathname.startsWith("/api/positions/open")) {
     sendJson(res, 200, []);
     return;

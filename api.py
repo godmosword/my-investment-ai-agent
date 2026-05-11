@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import time
+from collections import Counter
 
 import yaml
 from datetime import datetime
@@ -829,6 +830,76 @@ def list_open_positions(
     return _fetch_trades(status="OPEN", days=days, limit=limit)
 
 
+@app.get("/api/positions")
+def list_positions_m4(
+    days: int = Query(default=90, ge=1, le=365),
+    limit: int = Query(default=200, ge=1, le=500),
+    status: str | None = Query(
+        default=None,
+        description="Optional status filter (e.g. OPEN). Defaults to OPEN when omitted.",
+    ),
+) -> list[dict[str, Any]]:
+    """Positions list (M4). Defaults to OPEN when ``status`` is omitted."""
+    st = (status or "OPEN").strip().upper() or "OPEN"
+    return _fetch_trades(status=st, days=days, limit=limit)
+
+
+@app.get("/api/industries/themes")
+def list_industry_themes_m5(
+    limit: int = Query(default=80, ge=1, le=200),
+) -> dict[str, Any]:
+    """Industry themes (M5): static cards + dominant ``regime`` sample from execution intents."""
+    intents = latest_execution_intents(limit=limit, dedupe=True, sort_by="updated_desc")
+    regimes = [str(r.get("regime") or "").strip() for r in intents if str(r.get("regime") or "").strip()]
+    regime_sample = Counter(regimes).most_common(1)[0][0] if regimes else None
+    return {
+        "themes": _INDUSTRY_THEMES_STATIC,
+        "intent_sample_regime": regime_sample,
+        "intent_count": len(intents),
+    }
+
+
+@app.get("/api/analysis/{symbol}")
+def get_analysis_bundle_m6(
+    symbol: str,
+    days: int = Query(default=30, ge=7, le=180),
+    recommendation_limit: int = Query(default=12, ge=1, le=40),
+) -> dict[str, Any]:
+    """Analysis bundle (M6): quote + optional BigQuery snapshot (errors surfaced, no 503 on BQ-only failure)."""
+    norm = _validate_symbol(symbol)
+    quote_raw = fetch_symbol_quote(norm)
+    snap: dict[str, Any] | None = None
+    snap_error: str | None = None
+    try:
+        client = _get_bq_client()
+        snap = build_symbol_snapshot(
+            client,
+            norm,
+            days=days,
+            recommendation_limit=recommendation_limit,
+        )
+    except Exception as exc:  # noqa: BLE001
+        snap_error = str(exc)
+        logger.warning("analysis bundle snapshot failed for %s: %s", norm, exc)
+    return {"symbol": norm, "quote": quote_raw, "snapshot": snap, "snapshot_error": snap_error}
+
+
+@app.get("/api/quant/signals")
+def list_quant_signals_m7() -> dict[str, Any]:
+    """Quant signals stub (M7). Educational only — no auto-trading or performance claims."""
+    return {
+        "disclaimer": "Paper / educational only; no performance guarantee; not investment advice.",
+        "signals": [
+            {
+                "id": "placeholder-neutral",
+                "label": "RSI14 neutral band (example)",
+                "direction": "neutral",
+                "confidence": 0.0,
+            },
+        ],
+    }
+
+
 @app.get("/api/trades/performance")
 def get_trades_performance(
     days: int = Query(default=90, ge=7, le=365),
@@ -1332,6 +1403,32 @@ def _validate_symbol(symbol: str) -> str:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _parse_sse_watch_symbols_param(raw: str | None, max_n: int = 8) -> list[str]:
+    """Parse ``watch_symbols=BTC,NVDA`` for war-room SSE ``symbol_quote`` events."""
+    if not raw or not str(raw).strip():
+        return []
+    out: list[str] = []
+    for part in str(raw).split(","):
+        if len(out) >= max_n:
+            break
+        piece = part.strip()
+        if not piece:
+            continue
+        try:
+            out.append(validate_symbol_for_snapshot(piece))
+        except ValueError:
+            continue
+    return out
+
+
+_INDUSTRY_THEMES_STATIC: list[dict[str, Any]] = [
+    {"id": "ai-semis", "label": "AI 半導體", "symbols": ["NVDA", "AMD", "AVGO"]},
+    {"id": "mega-cap-tech", "label": "大型科技", "symbols": ["MSFT", "GOOGL", "META", "AAPL"]},
+    {"id": "digital-assets", "label": "數位資產", "symbols": ["BTC", "ETH", "SOL"]},
+    {"id": "enterprise-software", "label": "企業軟體", "symbols": ["ORCL", "CRM", "NOW"]},
+]
+
+
 @app.get("/api/execution-intents", response_model=list[ExecutionIntentRow])
 def list_execution_intents(
     limit: int = Query(default=50, ge=1, le=200),
@@ -1499,8 +1596,14 @@ def _war_room_fingerprint() -> dict[str, Any]:
 
 
 @app.get("/api/stream/war-room")
-async def stream_war_room(request: Request):
-    """SSE: push war-room payload when execution intents change (M4). Disabled unless ``TERMINAL_SSE_ENABLED=1``."""
+async def stream_war_room(
+    request: Request,
+    watch_symbols: str | None = Query(
+        default=None,
+        description="Comma-separated symbols (max 8) for ``symbol_quote`` SSE events.",
+    ),
+):
+    """SSE: war-room snapshot + optional per-symbol quotes (queue 29). Disabled unless ``TERMINAL_SSE_ENABLED=1``."""
     if os.getenv("TERMINAL_SSE_ENABLED", "0").lower() not in ("1", "true", "yes"):
         raise HTTPException(status_code=404, detail="SSE disabled; set TERMINAL_SSE_ENABLED=1")
     if not _sse_auth_ok(request):
@@ -1511,6 +1614,7 @@ async def stream_war_room(request: Request):
 
     async def event_gen():
         last_fp: dict[str, Any] | None = None
+        last_quote_sigs: dict[str, str] = {}
         while True:
             if await request.is_disconnected():
                 break
@@ -1528,6 +1632,24 @@ async def stream_war_room(request: Request):
                 body = get_war_room_latest()
                 payload = json.dumps(body, ensure_ascii=False)
                 yield f"event: war_room_update\ndata: {payload}\n\n"
+
+            watch_list = _parse_sse_watch_symbols_param(watch_symbols or request.query_params.get("watch_symbols"))
+            for sym in watch_list:
+                raw = fetch_symbol_quote(sym)
+                quote_obj = {
+                    "symbol": raw.get("symbol"),
+                    "last": raw.get("last"),
+                    "as_of": str(raw.get("as_of") or ""),
+                    "change_pct_1d": raw.get("change_pct_1d"),
+                    "currency": raw.get("currency"),
+                    "error": raw.get("error"),
+                    "cached": raw.get("cached"),
+                }
+                sig = json.dumps(quote_obj, ensure_ascii=False, sort_keys=True)
+                if last_quote_sigs.get(sym) != sig:
+                    last_quote_sigs[sym] = sig
+                    envelope = {"type": "symbol_quote", "symbol": sym, "quote": quote_obj}
+                    yield f"event: symbol_quote\ndata: {json.dumps(envelope, ensure_ascii=False)}\n\n"
 
             yield ": keepalive\n\n"
             await asyncio.sleep(interval)

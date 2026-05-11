@@ -1,4 +1,5 @@
-import { useQsrecStats, useExecutionIntents } from "../../../hooks/useApi";
+import { useState } from "react";
+import { useQsrecStats, useExecutionIntents, useAnalysisBundle } from "../../../hooks/useApi";
 
 const WATCHLIST = [
   { symbol: "NVDA",  name: "Nvidia",    sector: "AI 半導體" },
@@ -103,10 +104,16 @@ function WatchlistTable({ intents }) {
 }
 
 export default function AnalysisHome() {
+  const [bundleSymbol, setBundleSymbol] = useState("NVDA");
   const { data: qsrec, isLoading: qLoading, error: qError } = useQsrecStats(7);
   const { data: intents = [], isLoading: iLoading, error: iError } = useExecutionIntents(100, {
     livePoll: false,
   });
+  const {
+    data: bundle,
+    isLoading: bLoading,
+    error: bError,
+  } = useAnalysisBundle(bundleSymbol, 30, 12);
 
   const passRateColor =
     !qsrec ? "var(--text)"
@@ -119,6 +126,55 @@ export default function AnalysisHome() {
       <div className="page-header">
         <div className="page-title">投資分析</div>
         <div className="page-subtitle">觀察名單 · 模型品質（源自 QSREC reviewer_log）</div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 12 }} data-testid="analysis-m6-bundle">
+        <div className="card-title">分析 bundle（M6）</div>
+        <div className="page-subtitle" style={{ marginBottom: 8 }}>
+          <code>/api/analysis/{"{symbol}"}</code> — quote + 可選 snapshot（失敗時 <code>snapshot_error</code>）。
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, marginBottom: 8 }}>
+          <span style={{ color: "var(--muted)" }}>代碼</span>
+          <select
+            value={bundleSymbol}
+            onChange={(e) => setBundleSymbol(e.target.value)}
+            style={{ padding: "4px 8px", borderRadius: 4, background: "var(--panel)", color: "var(--text)", border: "1px solid var(--border)" }}
+          >
+            {WATCHLIST.map(({ symbol }) => (
+              <option key={symbol} value={symbol}>
+                {symbol}
+              </option>
+            ))}
+          </select>
+        </label>
+        {bLoading && <div className="loading" style={{ padding: "8px 0", fontSize: 12 }}>載入 bundle…</div>}
+        {bError && !bLoading && (
+          <div className="error-msg" style={{ fontSize: 12 }}>
+            無法載入分析：<code>{bError.message}</code>
+          </div>
+        )}
+        {!bLoading && !bError && bundle && (
+          <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
+            <div>
+              <b style={{ color: "var(--text)" }}>{bundle.symbol}</b>
+              {bundle.quote != null ? (
+                <>
+                  {" "}
+                  · last：<b style={{ color: "var(--text)" }}>{JSON.stringify(bundle.quote?.last ?? bundle.quote)}</b>
+                </>
+              ) : null}
+            </div>
+            {bundle.snapshot_error ? (
+              <div style={{ marginTop: 6, color: "var(--red, #f87171)" }}>
+                snapshot：<code>{String(bundle.snapshot_error)}</code>
+              </div>
+            ) : bundle.snapshot ? (
+              <div style={{ marginTop: 6 }}>snapshot：已載入（<code>{String(bundle.snapshot?.source ?? "ok")}</code>）</div>
+            ) : (
+              <div style={{ marginTop: 6 }}>snapshot：<span style={{ opacity: 0.75 }}>無</span></div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Model Quality — real QSREC stats */}

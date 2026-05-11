@@ -85,13 +85,13 @@ export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <WarRoomSseProvider>
-          <SymbolFocusProvider>
+        <SymbolFocusProvider>
+          <WarRoomSseProvider>
             <BrowserRouter>
               <AppRoutes />
             </BrowserRouter>
-          </SymbolFocusProvider>
-        </WarRoomSseProvider>
+          </WarRoomSseProvider>
+        </SymbolFocusProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

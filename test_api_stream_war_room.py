@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from api import app
+from api import _parse_sse_watch_symbols_param, app
 
 
 def test_sse_disabled_by_default():
@@ -35,3 +35,25 @@ def test_paper_tick_http_when_enabled(monkeypatch):
     body = r.json()
     assert body.get("ok") is True
     assert body.get("written") == 0
+
+
+def test_parse_sse_watch_symbols_empty():
+    assert _parse_sse_watch_symbols_param(None) == []
+    assert _parse_sse_watch_symbols_param("") == []
+    assert _parse_sse_watch_symbols_param("  , , ") == []
+
+
+def test_parse_sse_watch_symbols_csv():
+    assert _parse_sse_watch_symbols_param("BTC, NVDA") == ["BTC", "NVDA"]
+
+
+def test_parse_sse_watch_symbols_skips_invalid_tokens():
+    assert _parse_sse_watch_symbols_param("NVDA, BAD SYM, MSFT") == ["NVDA", "MSFT"]
+
+
+def test_parse_sse_watch_symbols_respects_max_n():
+    raw = ",".join(f"S{i}" for i in range(12))
+    out = _parse_sse_watch_symbols_param(raw, max_n=8)
+    assert len(out) == 8
+    assert out[0] == "S0"
+    assert out[-1] == "S7"

@@ -1,4 +1,4 @@
-import { useExecutionIntents, useGateStatus, useReports } from "../../../hooks/useApi";
+import { useExecutionIntents, useGateStatus, useReports, useQuantSignals } from "../../../hooks/useApi";
 import { finiteNumber, paperEntry, paperExit, isPaperClosedRow, calcStats } from "../../../utils/positionStats";
 
 const GATE_BADGE = {
@@ -87,6 +87,8 @@ export default function QuantHome() {
     sortBy: "updated_desc",
   });
 
+  const { data: quantPayload, isLoading: qSigLoading, error: qSigError } = useQuantSignals();
+
   const { data: reports } = useReports(3);
   const dates = reports?.map((r) => r.report_date) ?? [];
   // Fixed 3 calls — never conditional, satisfies React hook rules
@@ -110,6 +112,31 @@ export default function QuantHome() {
       </div>
 
       {/* QSREC gate-status — last 3 days */}
+      <div className="card" style={{ marginBottom: 12 }} data-testid="quant-m7-signals">
+        <div className="card-title">量化訊號 stub（M7）</div>
+        <div className="page-subtitle" style={{ marginBottom: 8, opacity: 0.85 }}>
+          <code>/api/quant/signals</code> — 教育／紙上敘事用，不承諾收益、不自動下單。
+        </div>
+        {qSigLoading && <div className="loading" style={{ padding: "6px 0", fontSize: 12 }}>載入訊號…</div>}
+        {qSigError && !qSigLoading && (
+          <div className="error-msg" style={{ fontSize: 12 }}>
+            無法載入訊號：<code>{qSigError.message}</code>
+          </div>
+        )}
+        {!qSigLoading && !qSigError && quantPayload && (
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--muted)" }}>
+            {(quantPayload.signals ?? []).slice(0, 8).map((s) => (
+              <li key={s.id ?? JSON.stringify(s)} style={{ marginBottom: 4 }}>
+                <span style={{ color: "var(--text)", fontWeight: 600 }}>{s.label ?? s.id}</span>
+                {s.direction != null ? (
+                  <span style={{ marginLeft: 6, opacity: 0.85 }}>({String(s.direction)})</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="card-title">QSREC 近 3 日審核結果</div>
         {gateEntries.length === 0 && (

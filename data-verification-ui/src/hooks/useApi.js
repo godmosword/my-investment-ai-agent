@@ -161,6 +161,7 @@ export function syncWarRoomRelatedQueries(
     metricsRefetchType = "none",
     reportRefetchType = "none",
     positionsRefetchType = "none",
+    positionsListRefetchType = "none",
   } = {},
 ) {
   queryClient.invalidateQueries({
@@ -182,6 +183,10 @@ export function syncWarRoomRelatedQueries(
   queryClient.invalidateQueries({
     queryKey: ["positions", "open"],
     refetchType: positionsRefetchType,
+  });
+  queryClient.invalidateQueries({
+    queryKey: ["positions", "list"],
+    refetchType: positionsListRefetchType,
   });
 }
 
@@ -377,6 +382,54 @@ export function useOpenPositions(days = 90) {
     queryKey: ["positions", "open", days],
     queryFn: () => apiFetch(`/api/positions/open?days=${days}`),
     staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+/** M4 aggregate list (defaults server-side to OPEN). */
+export function usePositionsList(days = 90, status = "OPEN") {
+  const st = (status || "OPEN").trim().toUpperCase();
+  return useQuery({
+    queryKey: ["positions", "list", days, st],
+    queryFn: () => {
+      const p = new URLSearchParams({ days: String(days) });
+      if (st) p.set("status", st);
+      return apiFetch(`/api/positions?${p}`);
+    },
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useIndustryThemes(limit = 80) {
+  return useQuery({
+    queryKey: ["industries", "themes", limit],
+    queryFn: () => apiFetch(`/api/industries/themes?limit=${limit}`),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useAnalysisBundle(symbol, days = 30, recommendationLimit = 12) {
+  const sym = (symbol ?? "").trim().toUpperCase();
+  const qs = new URLSearchParams({
+    days: String(days),
+    recommendation_limit: String(recommendationLimit),
+  });
+  return useQuery({
+    queryKey: ["analysis", "bundle", sym, days, recommendationLimit],
+    queryFn: () => apiFetch(`/api/analysis/${encodeURIComponent(sym)}?${qs}`),
+    enabled: !!sym,
+    staleTime: 3 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useQuantSignals() {
+  return useQuery({
+    queryKey: ["quant", "signals"],
+    queryFn: () => apiFetch("/api/quant/signals"),
+    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 }

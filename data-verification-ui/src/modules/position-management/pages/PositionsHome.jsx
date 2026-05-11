@@ -1,4 +1,4 @@
-import { useExecutionIntents } from "../../../hooks/useApi";
+import { useExecutionIntents, usePositionsList } from "../../../hooks/useApi";
 
 function finiteNumber(value) {
   if (value == null || (typeof value === "string" && value.trim() === "")) return null;
@@ -105,14 +105,62 @@ export default function PositionsHome() {
     sortBy: "updated_desc",
   });
 
+  const {
+    data: openRecs = [],
+    isLoading: posLoading,
+    error: posError,
+  } = usePositionsList(90, "OPEN");
+
   const stats = calcStats(rows);
 
   return (
     <div data-testid="positions-home" className="px-3 py-4 pb-24">
       <h1 className="mb-2 text-lg font-semibold">倉位管理</h1>
       <p className="mb-3 text-[13px] text-[var(--muted)]">
-        執行意圖列表（<code>/api/execution-intents</code>）；紙上前置，不下單。
+        執行意圖（<code>/api/execution-intents</code>）與 OPEN 建議聚合（<code>/api/positions</code>，M4）；紙上前置，不下單。
       </p>
+
+      <h2 className="mb-1 text-[14px] font-semibold text-white/90">OPEN 建議（M4）</h2>
+      <p className="mb-2 text-[12px] text-[var(--muted)]">
+        與 <code>/api/positions/open</code> 同源 BQ 建議列；供 Portfolio 表與 SSE 失效鍵對齊。
+      </p>
+      {posLoading && <div className="loading mb-2 text-[13px]">載入建議列…</div>}
+      {posError && (
+        <div className="error-msg mb-2 text-[13px]">
+          無法載入 <code>/api/positions</code>：<code>{posError.message}</code>
+        </div>
+      )}
+      {!posLoading && !posError && openRecs.length === 0 ? (
+        <p className="mb-4 text-[13px] text-[var(--muted)]" data-testid="positions-m4-empty">
+          目前無 OPEN 建議列。
+        </p>
+      ) : null}
+      {!posLoading && !posError && openRecs.length > 0 ? (
+        <div data-testid="positions-m4-table" className="mb-6 overflow-x-auto rounded border border-[color:var(--border)]">
+          <table className="w-full min-w-[320px] text-left text-[13px]">
+            <thead className="bg-[var(--panel)] text-[11px] uppercase text-[var(--muted)]">
+              <tr>
+                <th className="px-2 py-2">報告日</th>
+                <th className="px-2 py-2">資產</th>
+                <th className="px-2 py-2">方向</th>
+                <th className="px-2 py-2">狀態</th>
+                <th className="px-2 py-2">進場</th>
+              </tr>
+            </thead>
+            <tbody>
+              {openRecs.map((r, idx) => (
+                <tr key={`${r.asset}-${r.report_date}-${idx}`} className="border-t border-[color:var(--border)]">
+                  <td className="px-2 py-2 font-mono text-[12px]">{r.report_date ?? "—"}</td>
+                  <td className="px-2 py-2">{r.asset ?? "—"}</td>
+                  <td className="px-2 py-2">{r.direction ?? "—"}</td>
+                  <td className="px-2 py-2">{r.status ?? "—"}</td>
+                  <td className="px-2 py-2">{r.entry_price ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       {stats ? (
         <div

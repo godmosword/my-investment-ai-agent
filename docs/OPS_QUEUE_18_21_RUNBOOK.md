@@ -2,6 +2,18 @@
 
 本檔為 **GCP／Redis／VAPID／staging 驗證** 的步驟清單；**不在此 repo 內自動執行**。完成雲端步驟後，請在 [`TODOS.md`](../TODOS.md) 將 **18–21** 勾選並於 [`CHANGELOG.md`](../CHANGELOG.md) 記 `### Ops`。
 
+## Step 0（repo）：接線後自檢
+
+部署或本機設定環境變數後，可執行：
+
+```bash
+python3 scripts/verify_ops_queue_18_21.py
+# 若已開 WEB_PUSH_ENABLED=1 且應強制 Redis：
+python3 scripts/verify_ops_queue_18_21.py --strict
+```
+
+腳本會檢查（可選）Redis PING、VAPID 變數、`WEB_PUSH_ADMIN_KEY` 是否已設、以及 `WEB_PUSH_SUBSCRIPTIONS_TABLE`／`PRICE_PROBE_LOG_TABLE` 在具備 ADC 時是否存在。**不**替你執行 BQ DDL 或 `test-send` HTTP。
+
 ## 前置
 
 - 具 **BigQuery Admin** 與 **Cloud Run／後端部署** 權限之專案（`GCP_PROJECT_ID`）。
@@ -34,6 +46,16 @@
 1. 設定 `WEB_PUSH_ADMIN_KEY`（後端）與已訂閱之瀏覽器端。
 2. `POST /api/push/test-send`（Header 帶管理金鑰），小流量驗證裝置能收到通知。
 3. 確認無誤後再放量；觀測見 `PWA_WEB_PUSH.md` 與 BQ audit（若有）。
+
+## Repo 側就緒（與雲端 18–21 分開）
+
+以下項目 **已在本 repo 交付**，不取代 GCP／staging 人工步驟：
+
+- [x] **Step 0**：[`scripts/verify_ops_queue_18_21.py`](../scripts/verify_ops_queue_18_21.py)（接線後自檢）。
+- [x] **DDL 檔**：[`docs/SQL/web_push_subscriptions.sql`](SQL/web_push_subscriptions.sql)、[`docs/SQL/price_probe_log.sql`](SQL/price_probe_log.sql)。
+- [x] **程式**：[`web_push_store.py`](../web_push_store.py)、[`api.py`](../api.py) push 路由、[`scripts/vapid_generate.py`](../scripts/vapid_generate.py)、[`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md)。
+
+維運完成雲端 **18–21** 後，仍須勾選下方清單並更新 `TODOS.md`／`CHANGELOG.md`。
 
 ## 驗收勾選
 

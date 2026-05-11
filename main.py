@@ -624,6 +624,20 @@ def _run_pipeline_once(
         except Exception as _ef_err:
             logger.warning("Earnings focus injection skipped: %s", _ef_err)
 
+        try:
+            from tools import tech_pulse_tool as _tpt  # noqa: PLC0415
+
+            tp_block = _tpt.fetch_tech_pulse_exclusion_snippet()
+            if (tp_block or "").strip():
+                trimmed_exclusion = (
+                    (trimmed_exclusion or "").strip()
+                    + "\n\n【Tech pulse（external）】\n"
+                    + tp_block.strip()
+                ).strip()
+                trimmed_exclusion = _truncate_text(trimmed_exclusion, MAX_EXCLUSION_CONTEXT_CHARS)
+        except Exception as _tp_err:
+            logger.warning("Tech pulse exclusion injection skipped: %s", _tp_err)
+
         prev_recs = ""
         if not SKIP_BIGQUERY:
             try:
