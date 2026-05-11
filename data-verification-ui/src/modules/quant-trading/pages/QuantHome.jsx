@@ -1,15 +1,16 @@
 import { useExecutionIntents, useGateStatus, useReports, useQuantSignals } from "../../../hooks/useApi";
+import { DEFAULT_GATE_STATUS } from "../../../constants/gateDisplay";
 import { finiteNumber, paperEntry, paperExit, isPaperClosedRow, calcStats } from "../../../utils/positionStats";
 
 const GATE_BADGE = {
   pass:     { label: "通過",  bg: "rgba(52,211,153,0.15)", color: "var(--green)" },
   fail:     { label: "需修正", bg: "rgba(251,191,36,0.15)",  color: "#fbbf24" },
   degraded: { label: "降級",  bg: "rgba(239,68,68,0.15)",   color: "var(--red)" },
-  未審:     { label: "未審",  bg: "rgba(120,160,200,0.1)",  color: "var(--muted)" },
+  [DEFAULT_GATE_STATUS]: { label: "未審",  bg: "rgba(120,160,200,0.1)",  color: "var(--muted)" },
 };
 
 function GateBadge({ status }) {
-  const cfg = GATE_BADGE[status] ?? GATE_BADGE["未審"];
+  const cfg = GATE_BADGE[status] ?? GATE_BADGE[DEFAULT_GATE_STATUS];
   return (
     <span
       style={{
@@ -156,7 +157,7 @@ export default function QuantHome() {
             }}
           >
             <span style={{ fontSize: 13, color: "var(--muted)" }}>{date}</span>
-            <GateBadge status={gate_status ?? "未審"} />
+            <GateBadge status={gate_status ?? DEFAULT_GATE_STATUS} />
           </div>
         ))}
       </div>

@@ -3,7 +3,8 @@ import { test, expect } from "@playwright/test";
 
 /**
  * Command Bar — recent symbols history (queue 29 follow-up).
- * After a successful GO, the symbol is pushed onto localStorage `terminal_recent_symbols`
+ * After a successful GO, the symbol is pushed onto localStorage
+ * (``TERMINAL_RECENT_SYMBOLS_KEY`` in ``src/constants/terminalStorage.js`` — currently ``terminal_recent_symbols``)
  * and rendered as quick-click chips below the bar.
  */
 test.describe("Terminal Command Bar — recent symbols", () => {
@@ -13,7 +14,7 @@ test.describe("Terminal Command Bar — recent symbols", () => {
     await expect(bar).toBeVisible({ timeout: 60_000 });
 
     // Ensure clean slate.
-    await page.evaluate(() => globalThis.localStorage.removeItem("terminal_recent_symbols"));
+    await page.evaluate(() => globalThis.localStorage.removeItem("terminal_recent_symbols")); // TERMINAL_RECENT_SYMBOLS_KEY
 
     await page.getByPlaceholder(/AAPL/i).fill("AAPL GO");
     await page.getByRole("button", { name: "GO" }).click();

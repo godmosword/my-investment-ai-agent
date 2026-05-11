@@ -9,6 +9,7 @@
 - **Global Gate Badge**：[`GlobalGateBadge.jsx`](data-verification-ui/src/components/GlobalGateBadge.jsx) 讀最新日報之 reviewer-loop `gate_status`（重用 [`useReports`](data-verification-ui/src/hooks/useApi.js)／[`useGateStatus`](data-verification-ui/src/hooks/useApi.js)），於全域 Command Bar 右側顯示（pass／warn／critical／info 對應 [`GateStatusBadge`](data-verification-ui/src/components/common/GateStatusBadge.jsx) variant），點擊跳轉 `/report/:date`。
 - **Command Bar 歷史**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 新增 `terminal_recent_symbols`（localStorage，cap 8）+ Recent chips；點 chip 直接 setSymbol；隊列 **29** 仍待之「更完整 Bloomberg 感」前端切片。
 - **Shell**：[`Shell.jsx`](data-verification-ui/src/app/layout/Shell.jsx) 將 `<GlobalGateBadge />` 以 `trailing` prop 注入 Command Bar，避免雙層 border。
+- **修訂（對齊 review）**：`fail`／`degraded`／`pass` 在 `revision_count>0` 時皆顯示 **`(Nr)`**；[`global-gate-badge.spec.js`](data-verification-ui/e2e/global-gate-badge.spec.js) 增 **`gate-badge-pass`**／**`gate-badge-critical`** 斷言；[`TODOS.md`](TODOS.md) 內部 Bloomberg 勾選改 **15/15**、隊列 **34** 不再稱 §15 為「最後缺口」；[`Archive.jsx`](data-verification-ui/src/pages/Archive.jsx) 移除未啟用規則之 `eslint-disable-line react-hooks/exhaustive-deps` 註解（`npm run lint` 可完成）。
 
 ### Docs（Bloomberg 對齊條目 15）
 - **即時／訂閱資料來源治理**：新檔 [`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md)（已審核來源清單、新增來源 PR 審核表、移除流程）；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4 條目 **15** 與 §4b 對應錨點同步。覆蓋 [`TODOS.md`](TODOS.md) §進度分析表「例外：15」之治理缺口。

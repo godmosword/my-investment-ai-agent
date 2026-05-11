@@ -2,18 +2,20 @@ import { createContext, createElement, useContext, useEffect, useMemo, useState 
 import { useQueryClient } from "@tanstack/react-query";
 import { syncWarRoomRelatedQueries } from "./useApi";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
+import {
+  TERMINAL_SSE_WATCH_CHANGED_EVENT,
+  TERMINAL_SSE_WATCH_KEY,
+} from "../constants/terminalStorage";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 const SSE_ENABLED = import.meta.env.VITE_SSE_ENABLED === "1";
 const SSE_KEY = import.meta.env.VITE_SSE_STREAM_KEY ?? "";
 
-const WATCH_STORAGE = "terminal_sse_watch";
-
 const WarRoomSseStatusContext = createContext({ sseStatus: "idle" });
 
 function readWatchCsv() {
   try {
-    return String(globalThis.localStorage?.getItem(WATCH_STORAGE) ?? "").trim();
+    return String(globalThis.localStorage?.getItem(TERMINAL_SSE_WATCH_KEY) ?? "").trim();
   } catch {
     return "";
   }
@@ -36,7 +38,7 @@ function buildWatchSymbolsParam(focusSymbol) {
 
 /**
  * App-wide SSE subscription to `/api/stream/war-room` (single EventSource, includes stream_key).
- * Uses ``SymbolFocusProvider`` + ``localStorage`` ``terminal_sse_watch`` for ``watch_symbols``.
+ * Uses ``SymbolFocusProvider`` + ``localStorage`` (``TERMINAL_SSE_WATCH_KEY``) for ``watch_symbols``.
  * Children read status via `useWarRoomSseStatus` — do not open duplicate EventSources.
  */
 export function WarRoomSseProvider({ children }) {
@@ -47,10 +49,10 @@ export function WarRoomSseProvider({ children }) {
 
   useEffect(() => {
     const bump = () => setWatchRev((r) => r + 1);
-    globalThis.addEventListener("terminal_sse_watch_changed", bump);
+    globalThis.addEventListener(TERMINAL_SSE_WATCH_CHANGED_EVENT, bump);
     globalThis.addEventListener("storage", bump);
     return () => {
-      globalThis.removeEventListener("terminal_sse_watch_changed", bump);
+      globalThis.removeEventListener(TERMINAL_SSE_WATCH_CHANGED_EVENT, bump);
       globalThis.removeEventListener("storage", bump);
     };
   }, []);

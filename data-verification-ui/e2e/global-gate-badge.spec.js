@@ -39,6 +39,8 @@ test.describe("Global Gate Badge", () => {
     await expect(badge).toHaveAttribute("data-gate-status", "pass");
     await expect(badge).toHaveAttribute("href", `/report/${reportDate}`);
     await expect(badge).toContainText(reportDate);
+    await expect(badge.getByTestId("gate-badge-pass")).toBeVisible();
+    await expect(badge).toContainText("(1r)");
   });
 
   test("renders critical variant on fail", async ({ page }) => {
@@ -73,6 +75,8 @@ test.describe("Global Gate Badge", () => {
     await expect(badge).toBeVisible({ timeout: 60_000 });
     await expect(badge).toHaveAttribute("data-gate-status", "fail");
     await expect(badge).toContainText(/FAIL/);
+    await expect(badge.getByTestId("gate-badge-critical")).toBeVisible();
+    await expect(badge).toContainText("(2r)");
   });
 
   test("hidden when no reports available", async ({ page }) => {

@@ -5,6 +5,7 @@ import { regimeInfo } from "../utils/regime";
 import SymbolFocusBar from "../components/SymbolFocusBar";
 import { normalizeReportProfile } from "../components/report/reportProfiles";
 import BriefProfileStatsBar from "../components/report/BriefProfileStatsBar";
+import { DEFAULT_GATE_STATUS } from "../constants/gateDisplay";
 
 const PROFILE_STORAGE_KEY = "qsi_report_profile";
 
@@ -12,14 +13,14 @@ const GATE_BADGE_CONFIG = {
   pass:     { label: "通過", color: "var(--green, #22c55e)" },
   fail:     { label: "需修正", color: "var(--amber, #f59e0b)" },
   degraded: { label: "降級", color: "var(--red, #ef4444)" },
-  "未審":   { label: "未審", color: "var(--muted, #6b7280)" },
+  [DEFAULT_GATE_STATUS]: { label: "未審", color: "var(--muted, #6b7280)" },
 };
 
 function GateBadge({ date }) {
   const { data, isError } = useGateStatus(date);
   // Defensive: on API error fall back to grey 未審
-  const status = isError ? "未審" : (data?.gate_status ?? "未審");
-  const cfg = GATE_BADGE_CONFIG[status] ?? GATE_BADGE_CONFIG["未審"];
+  const status = isError ? DEFAULT_GATE_STATUS : (data?.gate_status ?? DEFAULT_GATE_STATUS);
+  const cfg = GATE_BADGE_CONFIG[status] ?? GATE_BADGE_CONFIG[DEFAULT_GATE_STATUS];
   return (
     <span
       style={{
@@ -150,7 +151,7 @@ export default function Archive() {
       next.set("profile", n);
       setSearchParams(next, { replace: true });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const profileQs = STRUCTURED_FLAG ? `?profile=${encodeURIComponent(profile)}` : "";
   const { data: reports, isLoading, error } = useReports(60, STRUCTURED_FLAG ? profile : null);

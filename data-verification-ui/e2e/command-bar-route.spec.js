@@ -19,7 +19,9 @@ test.describe("Terminal Command Bar (queue 29)", () => {
     await expect(bar.locator(".font-mono", { hasText: "AAPL" }).first()).toBeVisible();
     await page.getByRole("button", { name: "WATCH" }).click();
 
-    const watch = await page.evaluate(() => globalThis.localStorage.getItem("terminal_sse_watch"));
+    const watch = await page.evaluate(() =>
+      globalThis.localStorage.getItem("terminal_sse_watch"), // TERMINAL_SSE_WATCH_KEY (src/constants/terminalStorage.js)
+    );
     expect(watch).toContain("AAPL");
   });
 });

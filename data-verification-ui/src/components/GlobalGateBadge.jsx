@@ -1,16 +1,24 @@
 import { Link } from "react-router-dom";
+import { DEFAULT_GATE_STATUS } from "../constants/gateDisplay";
 import GateStatusBadge from "./common/GateStatusBadge";
 import { useGateStatus, useReports } from "../hooks/useApi";
 
 /**
  * Map reviewer-loop gate_status → GateStatusBadge variant.
- * pass→pass, fail→critical, degraded→warn, 未審→info.
+ * pass→pass, fail→critical, degraded→warn, 其他（含未審）→info.
  */
 function variantFor(status) {
   if (status === "pass") return "pass";
   if (status === "fail") return "critical";
   if (status === "degraded") return "warn";
   return "info";
+}
+
+/** Appends ` (Nr)` when revision_count > 0 (pass / fail / degraded). */
+function revisionSuffix(revisionCount) {
+  const n = Number(revisionCount);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return ` (${n}r)`;
 }
 
 /**
@@ -26,16 +34,17 @@ export default function GlobalGateBadge() {
 
   if (!date) return null;
 
-  const status = gateQ.data?.gate_status ?? "未審";
+  const status = gateQ.data?.gate_status ?? DEFAULT_GATE_STATUS;
   const variant = variantFor(status);
   const revisions = gateQ.data?.revision_count ?? 0;
+  const rev = revisionSuffix(revisions);
   const label = status === "fail"
-    ? `Gate FAIL · ${date}`
+    ? `Gate FAIL${rev} · ${date}`
     : status === "degraded"
-    ? `Gate DEGRADED · ${date}`
+    ? `Gate DEGRADED${rev} · ${date}`
     : status === "pass"
-    ? `Gate ${revisions > 0 ? `pass (${revisions}r)` : "pass"} · ${date}`
-    : `Gate 未審 · ${date}`;
+    ? `Gate pass${rev} · ${date}`
+    : `Gate ${DEFAULT_GATE_STATUS} · ${date}`;
 
   return (
     <Link

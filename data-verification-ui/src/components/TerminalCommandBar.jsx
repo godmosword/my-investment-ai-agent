@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
+import {
+  TERMINAL_RECENT_SYMBOLS_KEY,
+  TERMINAL_SSE_WATCH_CHANGED_EVENT,
+  TERMINAL_SSE_WATCH_KEY,
+} from "../constants/terminalStorage";
 
-const WATCH_KEY = "terminal_sse_watch";
-const RECENT_KEY = "terminal_recent_symbols";
 const RECENT_MAX = 8;
 
 function readRecent() {
   try {
-    const raw = String(globalThis.localStorage?.getItem(RECENT_KEY) ?? "").trim();
+    const raw = String(globalThis.localStorage?.getItem(TERMINAL_RECENT_SYMBOLS_KEY) ?? "").trim();
     if (!raw) return [];
     return raw
       .split(",")
@@ -24,7 +27,7 @@ function pushRecent(sym) {
   if (!upper) return readRecent();
   const next = [upper, ...readRecent().filter((s) => s !== upper)].slice(0, RECENT_MAX);
   try {
-    globalThis.localStorage?.setItem(RECENT_KEY, next.join(","));
+    globalThis.localStorage?.setItem(TERMINAL_RECENT_SYMBOLS_KEY, next.join(","));
   } catch {
     /* ignore */
   }
@@ -33,7 +36,7 @@ function pushRecent(sym) {
 
 function readWatchSet() {
   try {
-    const raw = String(globalThis.localStorage?.getItem(WATCH_KEY) ?? "").trim();
+    const raw = String(globalThis.localStorage?.getItem(TERMINAL_SSE_WATCH_KEY) ?? "").trim();
     if (!raw) return new Set();
     return new Set(
       raw
@@ -49,13 +52,13 @@ function readWatchSet() {
 function writeWatchSet(set) {
   const csv = [...set].filter(Boolean).slice(0, 16).join(",");
   try {
-    if (csv) globalThis.localStorage?.setItem(WATCH_KEY, csv);
-    else globalThis.localStorage?.removeItem(WATCH_KEY);
+    if (csv) globalThis.localStorage?.setItem(TERMINAL_SSE_WATCH_KEY, csv);
+    else globalThis.localStorage?.removeItem(TERMINAL_SSE_WATCH_KEY);
   } catch {
     /* ignore */
   }
   try {
-    globalThis.dispatchEvent(new CustomEvent("terminal_sse_watch_changed"));
+    globalThis.dispatchEvent(new CustomEvent(TERMINAL_SSE_WATCH_CHANGED_EVENT));
   } catch {
     /* ignore */
   }
@@ -75,6 +78,12 @@ function parseGoInput(raw) {
   return parts[0] ?? "";
 }
 
+/**
+ * Bloomberg-style command strip (GO, WATCH, recent chips).
+ *
+ * @param {object} props
+ * @param {import("react").ReactNode | null} [props.trailing] — e.g. ``GlobalGateBadge``; rendered right of the focus label inside the bar.
+ */
 export default function TerminalCommandBar({ trailing = null }) {
   const { symbol, setSymbol } = useSymbolFocus();
   const [input, setInput] = useState("");
@@ -83,10 +92,10 @@ export default function TerminalCommandBar({ trailing = null }) {
 
   useEffect(() => {
     const bump = () => setWatchSetState(readWatchSet());
-    globalThis.addEventListener("terminal_sse_watch_changed", bump);
+    globalThis.addEventListener(TERMINAL_SSE_WATCH_CHANGED_EVENT, bump);
     globalThis.addEventListener("storage", bump);
     return () => {
-      globalThis.removeEventListener("terminal_sse_watch_changed", bump);
+      globalThis.removeEventListener(TERMINAL_SSE_WATCH_CHANGED_EVENT, bump);
       globalThis.removeEventListener("storage", bump);
     };
   }, []);
