@@ -332,10 +332,44 @@ const server = http.createServer((req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, PATCH, POST, OPTIONS",
       "Access-Control-Allow-Headers": "*",
     });
     res.end();
+    return;
+  }
+  // PATCH /api/execution-intents/{signal_id} — return updated row
+  const intentPatchMatch = url.pathname.match(/^\/api\/execution-intents\/([^/]+)$/);
+  if (intentPatchMatch && req.method === "PATCH") {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      let body = {};
+      try { body = JSON.parse(Buffer.concat(chunks).toString()); } catch { /* ignore */ }
+      sendJson(res, 200, {
+        signal_id: intentPatchMatch[1],
+        created_at: "2026-04-14T00:00:00Z",
+        category: "AI",
+        regime: "x",
+        asset: "SPY",
+        direction: "LONG",
+        star_rating: 1,
+        status: body.status ?? "APPROVED_FOR_PAPER",
+        status_updated_at: new Date().toISOString(),
+        status_note: body.note ?? "",
+        reference_entry_price: body.reference_entry_price ?? null,
+        reference_target_price: body.reference_target_price ?? null,
+        reference_stop_price: body.reference_stop_price ?? null,
+        paper_fill_price: null,
+        paper_exit_price: null,
+        gate_issue_hints: [],
+      });
+    });
+    return;
+  }
+  // POST /api/run-crew
+  if (url.pathname === "/api/run-crew" && req.method === "POST") {
+    sendJson(res, 200, { ok: true, status: "started", job_id: "e2emock01" });
     return;
   }
   if (req.method !== "GET") {
@@ -415,35 +449,6 @@ const server = http.createServer((req, res) => {
           status_updated_at: "2026-04-14T00:00:00Z",
         },
       ],
-    });
-    return;
-  }
-  // PATCH /api/execution-intents/{signal_id} — return updated row
-  const intentPatchMatch = url.pathname.match(/^\/api\/execution-intents\/([^/]+)$/) ;
-  if (intentPatchMatch && req.method === "PATCH") {
-    let body = {};
-    try {
-      const chunks = [];
-      for await (const chunk of req) chunks.push(chunk);
-      body = JSON.parse(Buffer.concat(chunks).toString());
-    } catch { /* ignore */ }
-    sendJson(res, 200, {
-      signal_id: intentPatchMatch[1],
-      created_at: "2026-04-14T00:00:00Z",
-      category: "AI",
-      regime: "x",
-      asset: "SPY",
-      direction: "LONG",
-      star_rating: 1,
-      status: body.status ?? "APPROVED_FOR_PAPER",
-      status_updated_at: new Date().toISOString(),
-      status_note: body.note ?? "",
-      reference_entry_price: body.reference_entry_price ?? null,
-      reference_target_price: body.reference_target_price ?? null,
-      reference_stop_price: body.reference_stop_price ?? null,
-      paper_fill_price: null,
-      paper_exit_price: null,
-      gate_issue_hints: [],
     });
     return;
   }
@@ -555,10 +560,6 @@ const server = http.createServer((req, res) => {
       snapshot: { symbol: sym, source: "e2e_mock", as_of: "2026-04-14T00:00:00+00:00" },
       snapshot_error: null,
     });
-    return;
-  }
-  if (url.pathname === "/api/run-crew" && req.method === "POST") {
-    sendJson(res, 200, { ok: true, status: "started", job_id: "e2emock01" });
     return;
   }
   if (url.pathname === "/api/run-crew/status") {
