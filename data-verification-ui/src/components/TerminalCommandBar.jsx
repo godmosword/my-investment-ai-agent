@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
+import { useRunCrew } from "../hooks/useApi";
 import {
   TERMINAL_RECENT_SYMBOLS_KEY,
   TERMINAL_SSE_WATCH_CHANGED_EVENT,
@@ -64,6 +65,14 @@ function writeWatchSet(set) {
   }
 }
 
+/** Return true when input is a RUN / ANALYZE trigger (e.g. "RUN", "AAPL ANALYZE") */
+function isRunInput(raw) {
+  const upper = String(raw ?? "").trim().toUpperCase();
+  if (!upper) return false;
+  const parts = upper.split(/\s+/).filter(Boolean);
+  return parts[0] === "RUN" || parts[parts.length - 1] === "ANALYZE" || parts[parts.length - 1] === "RUN";
+}
+
 /** Parse `AAPL <GO>` / `aapl go` / `GO MSFT` → symbol */
 function parseGoInput(raw) {
   const s = String(raw ?? "").trim();
@@ -89,6 +98,8 @@ export default function TerminalCommandBar({ trailing = null }) {
   const [input, setInput] = useState("");
   const [watchSet, setWatchSetState] = useState(() => readWatchSet());
   const [recent, setRecent] = useState(() => readRecent());
+  const [runToast, setRunToast] = useState(null);
+  const runCrew = useRunCrew();
 
   useEffect(() => {
     const bump = () => setWatchSetState(readWatchSet());
@@ -103,14 +114,38 @@ export default function TerminalCommandBar({ trailing = null }) {
   const focused = (symbol || "").trim().toUpperCase();
   const inWatch = useMemo(() => focused && watchSet.has(focused), [focused, watchSet]);
 
+  const showToast = useCallback((msg, isError = false) => {
+    setRunToast({ msg, isError });
+    const t = setTimeout(() => setRunToast(null), 4000);
+    return () => clearTimeout(t);
+  }, []);
+
+  const onRun = useCallback(() => {
+    setInput("");
+    runCrew.mutate(
+      {},
+      {
+        onSuccess: (data) => {
+          if (data?.ok) showToast(`Crew 已啟動 (job: ${data.job_id})`);
+          else showToast(`Crew 執行中 (${data?.job_id ?? "?"})`, true);
+        },
+        onError: (err) => showToast(`Crew 觸發失敗：${err.message}`, true),
+      },
+    );
+  }, [runCrew, showToast]);
+
   const onGo = useCallback(() => {
+    if (isRunInput(input)) {
+      onRun();
+      return;
+    }
     const sym = parseGoInput(input);
     if (sym) {
       setSymbol(sym);
       setRecent(pushRecent(sym));
     }
     setInput("");
-  }, [input, setSymbol]);
+  }, [input, setSymbol, onRun]);
 
   const onPickRecent = useCallback(
     (sym) => {
@@ -144,7 +179,7 @@ export default function TerminalCommandBar({ trailing = null }) {
         onKeyDown={(e) => {
           if (e.key === "Enter") onGo();
         }}
-        placeholder="AAPL &lt;GO&gt;"
+        placeholder="AAPL &lt;GO&gt; | RUN"
         className="min-w-[140px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
         autoComplete="off"
         spellCheck={false}
@@ -156,6 +191,26 @@ export default function TerminalCommandBar({ trailing = null }) {
       >
         GO
       </button>
+      <button
+        type="button"
+        data-testid="cmd-bar-run"
+        disabled={runCrew.isPending}
+        className="rounded border border-amber-500/40 bg-amber-600/20 px-2 py-1 text-[12px] font-semibold text-amber-300 hover:bg-amber-600/40 disabled:cursor-not-allowed disabled:opacity-40"
+        onClick={onRun}
+        title="觸發研究 Crew（需 CREW_HTTP_ENABLED=1）"
+      >
+        {runCrew.isPending ? "…" : "RUN"}
+      </button>
+      {runToast ? (
+        <div
+          data-testid="cmd-bar-run-toast"
+          className={`ml-2 rounded px-2 py-1 text-[12px] ${runToast.isError ? "bg-red-900/60 text-red-300" : "bg-emerald-900/60 text-emerald-300"}`}
+          role="status"
+          aria-live="polite"
+        >
+          {runToast.msg}
+        </div>
+      ) : null}
       <button
         type="button"
         disabled={!focused}

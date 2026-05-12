@@ -1,4 +1,5 @@
-import { useExecutionIntents, useGateStatus, useReports, useQuantSignals } from "../../../hooks/useApi";
+import { useState } from "react";
+import { useExecutionIntents, useGateStatus, useReports, useQuantSignals, useQuantBacktest } from "../../../hooks/useApi";
 import { DEFAULT_GATE_STATUS } from "../../../constants/gateDisplay";
 import { finiteNumber, paperEntry, paperExit, isPaperClosedRow, calcStats } from "../../../utils/positionStats";
 
@@ -80,6 +81,61 @@ function isActiveIntent(r) {
   return true;
 }
 
+const BACKTEST_SYMBOLS = ["BTC", "SPY", "NVDA", "MSFT", "AAPL"];
+
+function BacktestPanel() {
+  const [sym, setSym] = useState("BTC");
+  const { data, isLoading, error, refetch } = useQuantBacktest(sym);
+
+  const curve = data?.equity_curve ?? [];
+  const maxVal = curve.length > 0 ? Math.max(...curve.map((p) => p.value)) : 10000;
+  const minVal = curve.length > 0 ? Math.min(...curve.map((p) => p.value)) : 9000;
+  const range = maxVal - minVal || 1;
+
+  return (
+    <div data-testid="backtest-panel" className="mb-4 rounded border border-[color:var(--border)] p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-[13px] font-semibold text-white/80">Backtest（stub）</span>
+        <select
+          value={sym}
+          onChange={(e) => setSym(e.target.value)}
+          className="rounded border border-white/15 bg-black/40 px-2 py-0.5 text-[12px] text-white"
+        >
+          {BACKTEST_SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <span className="text-[11px] text-[var(--muted)]">紙上教育用，不承諾收益</span>
+      </div>
+
+      {isLoading && <div className="text-[12px] text-[var(--muted)]">計算中…</div>}
+      {error && (
+        <div className="text-[12px] text-[var(--muted)]">
+          {error.message.startsWith("404") ? "Backtest 已停用（QUANT_BACKTEST_ENABLED 未設定）" : `錯誤：${error.message}`}
+        </div>
+      )}
+      {!isLoading && !error && data && (
+        <>
+          <div className="mb-2 flex flex-wrap gap-4 text-[12px]">
+            <span className="text-[var(--muted)]">總報酬：<b style={{ color: data.total_return >= 0 ? "var(--green)" : "var(--red)" }}>{data.total_return >= 0 ? "+" : ""}{(data.total_return * 100).toFixed(1)}%</b></span>
+            <span className="text-[var(--muted)]">最大回撤：<b style={{ color: "var(--red)" }}>{(data.max_drawdown * 100).toFixed(1)}%</b></span>
+            <span className="text-[var(--muted)]">Sharpe：<b className="text-white/80">{data.sharpe}</b></span>
+          </div>
+          {/* SVG sparkline equity curve */}
+          {curve.length > 1 ? (
+            <svg viewBox={`0 0 ${curve.length * 10} 60`} className="w-full" style={{ height: 60 }}>
+              <polyline
+                points={curve.map((p, i) => `${i * 10},${60 - ((p.value - minVal) / range) * 55}`).join(" ")}
+                fill="none"
+                stroke={data.total_return >= 0 ? "#22c55e" : "#ef4444"}
+                strokeWidth="2"
+              />
+            </svg>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function QuantHome() {
   const { data: rows = [], isLoading, error } = useExecutionIntents(200, {
     livePoll: false,
@@ -111,6 +167,9 @@ export default function QuantHome() {
         <div className="page-title">量化交易</div>
         <div className="page-subtitle">紙上模擬績效（execution_intents · 僅追蹤，不下單）</div>
       </div>
+
+      {/* Backtest panel (Q33) */}
+      <BacktestPanel />
 
       {/* QSREC gate-status — last 3 days */}
       <div className="card" style={{ marginBottom: 12 }} data-testid="quant-m7-signals">

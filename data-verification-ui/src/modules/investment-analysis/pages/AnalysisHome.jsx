@@ -1,6 +1,95 @@
 import { useState } from "react";
 import { useQsrecStats, useExecutionIntents, useAnalysisBundle } from "../../../hooks/useApi";
 
+function directionColor(dir) {
+  const d = String(dir ?? "").toUpperCase();
+  if (d === "LONG") return "var(--green, #22c55e)";
+  if (d === "SHORT") return "var(--red, #ef4444)";
+  return "var(--muted)";
+}
+
+function DeepDivePanel({ bundle }) {
+  const [open, setOpen] = useState(false);
+  if (!bundle?.snapshot) return null;
+  const snap = bundle.snapshot;
+  const recs = snap.recommendations ?? [];
+  const priceSeries = snap.price_series ?? [];
+  const lastClose = priceSeries.length > 0 ? priceSeries[priceSeries.length - 1].close : null;
+
+  return (
+    <div data-testid="deep-dive-panel" className="mb-4 rounded border border-[color:var(--border)]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] font-semibold text-white/80 hover:bg-white/5"
+        aria-expanded={open}
+      >
+        <span>Deep Dive — {bundle.symbol}</span>
+        <span className="text-[11px] text-[var(--muted)]">{open ? "▲ 收合" : "▼ 展開"}</span>
+      </button>
+
+      {open ? (
+        <div className="border-t border-[color:var(--border)] px-3 py-3">
+          <div className="mb-3 flex flex-wrap gap-4 text-[12px]">
+            <div>
+              <span className="text-[var(--muted)]">來源：</span>
+              <span className="text-white/80">{snap.source ?? "—"}</span>
+            </div>
+            <div>
+              <span className="text-[var(--muted)]">截至：</span>
+              <span className="text-white/80">{snap.as_of ? String(snap.as_of).slice(0, 10) : "—"}</span>
+            </div>
+            {lastClose != null ? (
+              <div>
+                <span className="text-[var(--muted)]">最近收盤：</span>
+                <span className="font-mono text-white/90">{lastClose.toFixed(2)}</span>
+              </div>
+            ) : null}
+            <div>
+              <span className="text-[var(--muted)]">歷史點數：</span>
+              <span className="text-white/80">{priceSeries.length}</span>
+            </div>
+          </div>
+
+          {recs.length > 0 ? (
+            <>
+              <div className="mb-1.5 text-[11px] uppercase tracking-wide text-[var(--muted)]">
+                推薦列（近 {recs.length} 筆）
+              </div>
+              <div className="overflow-x-auto rounded border border-[color:var(--border)]">
+                <table className="w-full min-w-[360px] text-left text-[12px]">
+                  <thead className="bg-[var(--panel)] text-[10px] uppercase text-[var(--muted)]">
+                    <tr>
+                      <th className="px-2 py-1.5">日期</th>
+                      <th className="px-2 py-1.5">方向</th>
+                      <th className="px-2 py-1.5">評分</th>
+                      <th className="px-2 py-1.5">摘要</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recs.slice(0, 10).map((rec, idx) => (
+                      <tr key={rec.signal_id ?? idx} className="border-t border-[color:var(--border)]">
+                        <td className="px-2 py-1.5 font-mono text-[11px]">{rec.report_date ?? "—"}</td>
+                        <td className="px-2 py-1.5 font-semibold" style={{ color: directionColor(rec.direction) }}>
+                          {rec.direction ?? "—"}
+                        </td>
+                        <td className="px-2 py-1.5">{rec.star_rating != null ? "★".repeat(Math.min(rec.star_rating, 5)) : "—"}</td>
+                        <td className="px-2 py-1.5 text-[var(--muted)]">{rec.thesis_one_liner ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <p className="text-[12px] text-[var(--muted)]">無推薦紀錄。</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const WATCHLIST = [
   { symbol: "NVDA",  name: "Nvidia",    sector: "AI 半導體" },
   { symbol: "MSFT",  name: "Microsoft", sector: "雲端 / AI" },
@@ -176,6 +265,9 @@ export default function AnalysisHome() {
           </div>
         )}
       </div>
+
+      {/* Deep Dive collapsible panel (Q32) */}
+      {!bLoading && !bError && bundle ? <DeepDivePanel bundle={bundle} /> : null}
 
       {/* Model Quality — real QSREC stats */}
       <div className="card" style={{ marginBottom: 12 }}>

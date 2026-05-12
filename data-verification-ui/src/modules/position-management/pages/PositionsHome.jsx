@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useExecutionIntents, usePositionsList } from "../../../hooks/useApi";
+import IntentUpdateModal from "../../../components/IntentUpdateModal";
 
 function finiteNumber(value) {
   if (value == null || (typeof value === "string" && value.trim() === "")) return null;
@@ -112,9 +114,11 @@ export default function PositionsHome() {
   } = usePositionsList(90, "OPEN");
 
   const stats = calcStats(rows);
+  const [editRow, setEditRow] = useState(null);
 
   return (
     <div data-testid="positions-home" className="px-3 py-4 pb-24">
+      {editRow ? <IntentUpdateModal row={editRow} onClose={() => setEditRow(null)} /> : null}
       <h1 className="mb-2 text-lg font-semibold">倉位管理</h1>
       <p className="mb-3 text-[13px] text-[var(--muted)]">
         執行意圖（<code>/api/execution-intents</code>）與 OPEN 建議聚合（<code>/api/positions</code>，M4）；紙上前置，不下單。
@@ -203,6 +207,7 @@ export default function PositionsHome() {
                 <th className="px-2 py-2">方向</th>
                 <th className="px-2 py-2">狀態</th>
                 <th className="px-2 py-2">紙上 P&L</th>
+                <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -214,6 +219,16 @@ export default function PositionsHome() {
                   <td className="px-2 py-2">{statusLabel(r.status)}</td>
                   <td className="px-2 py-2">
                     {isPaperClosedRow(r) ? <PnLArrow row={r} /> : <span style={{ color: "var(--muted)", fontSize: 11 }}>持倉中</span>}
+                  </td>
+                  <td className="px-2 py-2">
+                    <button
+                      type="button"
+                      data-testid={`intent-edit-${r.signal_id}`}
+                      onClick={() => setEditRow(r)}
+                      className="rounded border border-white/15 px-1.5 py-0.5 text-[11px] text-white/70 hover:bg-white/5"
+                    >
+                      編輯
+                    </button>
                   </td>
                 </tr>
               ))}

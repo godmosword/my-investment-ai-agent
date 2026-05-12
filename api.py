@@ -58,6 +58,10 @@ _REPO_ROOT = Path(__file__).resolve().parent
 # Prevent duplicate PAPER_* rows when two execution-tick requests arrive simultaneously
 _paper_tick_lock = asyncio.Lock()
 
+# Prevent concurrent crew runs; track last-run state for status polling
+_crew_run_lock = asyncio.Lock()
+_crew_run_state: dict[str, Any] = {"status": "idle", "job_id": None, "started_at": None, "finished_at": None, "error": None}
+
 # Module-level Jinja2 env (bytecode-cached, autoescape enabled for XSS safety)
 def _build_jinja2_env() -> "Environment":  # noqa: F821 — lazy import avoids hard dep at startup
     from jinja2 import Environment, FileSystemLoader, Markup
@@ -900,6 +904,51 @@ def list_quant_signals_m7() -> dict[str, Any]:
     }
 
 
+@app.get("/api/quant/backtest")
+def get_quant_backtest(
+    symbol: str = Query(..., description="Ticker symbol, e.g. BTC or SPY"),
+    start_date: str | None = Query(default=None, description="YYYY-MM-DD start (optional)"),
+    end_date: str | None = Query(default=None, description="YYYY-MM-DD end (optional)"),
+) -> dict[str, Any]:
+    """Backtest stub (Q33 M7). Returns a mock equity curve; paper/educational only.
+
+    Disabled unless ``QUANT_BACKTEST_ENABLED=1``.
+    Not investment advice; does not auto-trade.
+    """
+    if os.getenv("QUANT_BACKTEST_ENABLED", "0").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="Backtest disabled; set QUANT_BACKTEST_ENABLED=1")
+    norm = _validate_symbol(symbol)
+    # Stub equity curve: 30 synthetic data points seeded by symbol hash
+    import hashlib  # noqa: PLC0415
+    seed = int(hashlib.md5(norm.encode()).hexdigest()[:8], 16)  # noqa: S324
+    rng_state = seed
+    equity_curve = []
+    value = 10_000.0
+    for i in range(30):
+        rng_state = (rng_state * 1664525 + 1013904223) & 0xFFFFFFFF
+        change = ((rng_state % 2001) - 1000) / 10000  # -10% to +10% per step
+        value *= 1 + change
+        equity_curve.append({"date": f"day_{i+1:02d}", "value": round(value, 2)})
+    total_return = (value - 10_000) / 10_000
+    peak = max(p["value"] for p in equity_curve)
+    trough_after_peak = min(
+        (p["value"] for p in equity_curve if p["value"] <= peak),
+        default=value,
+    )
+    max_drawdown = (peak - trough_after_peak) / peak if peak > 0 else 0.0
+    sharpe = total_return / (max_drawdown + 0.01)  # synthetic; not statistically valid
+    return {
+        "symbol": norm,
+        "start_date": start_date,
+        "end_date": end_date,
+        "equity_curve": equity_curve,
+        "total_return": round(total_return, 4),
+        "max_drawdown": round(max_drawdown, 4),
+        "sharpe": round(sharpe, 3),
+        "disclaimer": "Synthetic stub; paper/educational only; not investment advice.",
+    }
+
+
 @app.get("/api/trades/performance")
 def get_trades_performance(
     days: int = Query(default=90, ge=7, le=365),
@@ -1677,3 +1726,67 @@ async def post_paper_execution_tick(request: Request) -> dict[str, Any]:
     async with _paper_tick_lock:
         written = run_paper_execution_tick()
     return {"ok": True, "written": len(written), "rows": written}
+
+
+def _crew_run_auth_ok(request: Request) -> bool:
+    key = os.getenv("CREW_HTTP_API_KEY", "").strip()
+    if not key:
+        return True
+    sent = request.headers.get("X-Crew-Api-Key", "").strip()
+    return sent == key
+
+
+async def _run_crew_background(job_id: str) -> None:
+    """Background coroutine: run main pipeline and update state when done."""
+    import subprocess  # noqa: PLC0415 — lazy import for optional feature
+
+    _crew_run_state.update({"status": "running", "job_id": job_id, "error": None})
+    try:
+        # Run main.py as a subprocess so it inherits the full environment (API keys, BQ creds)
+        # and does not block the FastAPI event loop.
+        result = await asyncio.create_subprocess_exec(
+            "python", str(_REPO_ROOT / "main.py"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=str(_REPO_ROOT),
+        )
+        _, _ = await result.communicate()
+        if result.returncode == 0:
+            _crew_run_state.update({"status": "done", "error": None})
+        else:
+            _crew_run_state.update({"status": "error", "error": f"exit code {result.returncode}"})
+    except Exception as exc:  # noqa: BLE001
+        logger.error("crew run %s failed: %s", job_id, exc)
+        _crew_run_state.update({"status": "error", "error": str(exc)})
+    finally:
+        _crew_run_state["finished_at"] = datetime.utcnow().isoformat()
+        _crew_run_lock.release()
+
+
+@app.post("/api/run-crew")
+async def post_run_crew(request: Request) -> dict[str, Any]:
+    """Trigger the daily research pipeline (Q29). Disabled unless ``CREW_HTTP_ENABLED=1``.
+
+    Returns 202 Accepted immediately; poll ``GET /api/run-crew/status`` for progress.
+    Concurrent calls return 409 while a run is in progress.
+    """
+    if os.getenv("CREW_HTTP_ENABLED", "0").lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="Crew HTTP trigger disabled; set CREW_HTTP_ENABLED=1")
+    if not _crew_run_auth_ok(request):
+        raise HTTPException(status_code=403, detail="Invalid or missing crew API key")
+    if _crew_run_lock.locked():
+        return {"ok": False, "status": "running", "job_id": _crew_run_state.get("job_id"), "message": "Crew run already in progress"}
+    await _crew_run_lock.acquire()
+    import uuid as _uuid
+    job_id = _uuid.uuid4().hex[:12]
+    _crew_run_state["started_at"] = datetime.utcnow().isoformat()
+    _crew_run_state["finished_at"] = None
+    # Fire-and-forget; _run_crew_background releases the lock when done.
+    asyncio.create_task(_run_crew_background(job_id))
+    return {"ok": True, "status": "started", "job_id": job_id}
+
+
+@app.get("/api/run-crew/status")
+async def get_run_crew_status() -> dict[str, Any]:
+    """Poll crew run state (Q29). Always available regardless of ``CREW_HTTP_ENABLED``."""
+    return dict(_crew_run_state)

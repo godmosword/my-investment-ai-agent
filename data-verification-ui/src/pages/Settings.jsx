@@ -1,6 +1,42 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const PREFS_KEY = "qsilicon_push_prefs";
+
+// Workspace keys to include in export/import (Q34)
+const WORKSPACE_KEYS = [
+  "qs_workspace_layout",
+  "terminal_sse_watch",
+  "terminal_recent_symbols",
+];
+
+function exportWorkspace() {
+  const data = {};
+  for (const k of WORKSPACE_KEYS) {
+    try {
+      const v = globalThis.localStorage?.getItem(k);
+      if (v != null) data[k] = v;
+    } catch { /* ignore */ }
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `qs-workspace-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importWorkspace(json) {
+  const data = JSON.parse(json);
+  let count = 0;
+  for (const k of WORKSPACE_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(data, k) && typeof data[k] === "string") {
+      globalThis.localStorage?.setItem(k, data[k]);
+      count++;
+    }
+  }
+  return count;
+}
 
 function envFlag(v) {
   const s = String(v ?? "").trim().toLowerCase();
@@ -12,6 +48,8 @@ export default function Settings() {
   const [reportDate, setReportDate] = useState("");
   const [blockId, setBlockId] = useState("");
   const [savedHint, setSavedHint] = useState("");
+  const [workspaceHint, setWorkspaceHint] = useState("");
+  const importRef = useRef(null);
 
   const pushRegister = envFlag(import.meta.env.VITE_WEB_PUSH_REGISTER);
   const vapidSet = Boolean(String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || "").trim());
@@ -149,6 +187,67 @@ export default function Settings() {
           儲存偏好
         </button>
         {savedHint ? <p className="mt-2 mb-0 text-[11px] text-emerald-300">{savedHint}</p> : null}
+      </section>
+
+      {/* Workspace export/import (Q34) */}
+      <section className="card mb-4 p-3" data-testid="workspace-section">
+        <h2 className="mb-1 text-[13px] font-semibold">工作區匯出 / 匯入（Q34）</h2>
+        <p className="mb-3 text-[11px] leading-snug text-[var(--muted)]">
+          序列化 <code className="font-mono">terminal_sse_watch</code>、<code className="font-mono">terminal_recent_symbols</code>、<code className="font-mono">qs_workspace_layout</code> 為 JSON 檔案，可跨裝置還原。
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-testid="workspace-export-btn"
+            className="rounded border border-emerald-500/40 bg-emerald-600/20 px-3 py-1.5 text-[12px] font-medium text-emerald-300 hover:bg-emerald-600/40"
+            onClick={() => {
+              try {
+                exportWorkspace();
+                setWorkspaceHint("已匯出工作區 JSON");
+                setTimeout(() => setWorkspaceHint(""), 3500);
+              } catch (e) {
+                setWorkspaceHint(`匯出失敗：${e?.message ?? e}`);
+              }
+            }}
+          >
+            匯出工作區
+          </button>
+          <button
+            type="button"
+            data-testid="workspace-import-btn"
+            className="rounded border border-white/20 px-3 py-1.5 text-[12px] font-medium text-white/70 hover:bg-white/5"
+            onClick={() => importRef.current?.click()}
+          >
+            匯入工作區
+          </button>
+          <input
+            ref={importRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            data-testid="workspace-import-input"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                try {
+                  const count = importWorkspace(String(ev.target?.result ?? ""));
+                  setWorkspaceHint(`已匯入 ${count} 個工作區設定`);
+                  setTimeout(() => setWorkspaceHint(""), 3500);
+                } catch (err) {
+                  setWorkspaceHint(`匯入失敗：${err?.message ?? err}`);
+                }
+                // Reset so the same file can be re-imported
+                e.target.value = "";
+              };
+              reader.readAsText(file);
+            }}
+          />
+        </div>
+        {workspaceHint ? (
+          <p className="mt-2 mb-0 text-[11px] text-emerald-300" role="status">{workspaceHint}</p>
+        ) : null}
       </section>
 
       <section className="card p-3">
