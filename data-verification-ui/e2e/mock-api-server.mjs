@@ -418,6 +418,35 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  // PATCH /api/execution-intents/{signal_id} — return updated row
+  const intentPatchMatch = url.pathname.match(/^\/api\/execution-intents\/([^/]+)$/) ;
+  if (intentPatchMatch && req.method === "PATCH") {
+    let body = {};
+    try {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      body = JSON.parse(Buffer.concat(chunks).toString());
+    } catch { /* ignore */ }
+    sendJson(res, 200, {
+      signal_id: intentPatchMatch[1],
+      created_at: "2026-04-14T00:00:00Z",
+      category: "AI",
+      regime: "x",
+      asset: "SPY",
+      direction: "LONG",
+      star_rating: 1,
+      status: body.status ?? "APPROVED_FOR_PAPER",
+      status_updated_at: new Date().toISOString(),
+      status_note: body.note ?? "",
+      reference_entry_price: body.reference_entry_price ?? null,
+      reference_target_price: body.reference_target_price ?? null,
+      reference_stop_price: body.reference_stop_price ?? null,
+      paper_fill_price: null,
+      paper_exit_price: null,
+      gate_issue_hints: [],
+    });
+    return;
+  }
   if (url.pathname.startsWith("/api/execution-intents/allowed-statuses")) {
     sendJson(res, 200, {
       statuses: ["PENDING_REVIEW", "APPROVED_FOR_PAPER"],
@@ -507,8 +536,12 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === "/api/industries/themes" || url.pathname.startsWith("/api/industries/themes")) {
     sendJson(res, 200, {
-      themes: [{ id: "ai-semis", label: "AI 半導體（e2e）", symbols: ["NVDA"] }],
-      intent_sample_regime: "risk_on",
+      themes: [
+        { id: "ai-semis", label: "AI 半導體（e2e）", symbols: ["NVDA"], regime_score: 4 },
+        { id: "clean-energy", label: "清潔能源（e2e）", symbols: ["ENPH"], regime_score: 1 },
+        { id: "financials", label: "金融（e2e）", symbols: ["JPM"], regime_score: -1 },
+      ],
+      intent_sample_regime: 3,
       intent_count: 2,
     });
     return;
@@ -521,6 +554,31 @@ const server = http.createServer((req, res) => {
       quote: { symbol: sym, last: 100.5 },
       snapshot: { symbol: sym, source: "e2e_mock", as_of: "2026-04-14T00:00:00+00:00" },
       snapshot_error: null,
+    });
+    return;
+  }
+  if (url.pathname === "/api/run-crew" && req.method === "POST") {
+    sendJson(res, 200, { ok: true, status: "started", job_id: "e2emock01" });
+    return;
+  }
+  if (url.pathname === "/api/run-crew/status") {
+    sendJson(res, 200, { status: "idle", job_id: null, started_at: null, finished_at: null, error: null });
+    return;
+  }
+  if (url.pathname === "/api/quant/backtest") {
+    const symbol = url.searchParams.get("symbol") ?? "BTC";
+    sendJson(res, 200, {
+      symbol: symbol.toUpperCase(),
+      equity_curve: [
+        { date: "day_01", value: 10000 },
+        { date: "day_02", value: 10150 },
+        { date: "day_03", value: 10080 },
+        { date: "day_04", value: 10320 },
+      ],
+      total_return: 0.032,
+      max_drawdown: 0.007,
+      sharpe: 4.571,
+      disclaimer: "e2e mock",
     });
     return;
   }

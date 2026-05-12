@@ -24,4 +24,31 @@ test.describe("Terminal Command Bar (queue 29)", () => {
     );
     expect(watch).toContain("AAPL");
   });
+
+  test("RUN button triggers crew and shows toast", async ({ page }) => {
+    await page.goto("/briefs", { waitUntil: "load" });
+    const bar = page.getByTestId("terminal-command-bar");
+    await expect(bar).toBeVisible({ timeout: 60_000 });
+
+    const runBtn = page.getByTestId("cmd-bar-run");
+    await expect(runBtn).toBeVisible();
+    await runBtn.click();
+
+    // Toast appears with job id from mock (e2emock01)
+    const toast = page.getByTestId("cmd-bar-run-toast");
+    await expect(toast).toBeVisible({ timeout: 5_000 });
+    await expect(toast).toContainText("e2emock01");
+  });
+
+  test("typing RUN and pressing Enter triggers crew", async ({ page }) => {
+    await page.goto("/briefs", { waitUntil: "load" });
+    const bar = page.getByTestId("terminal-command-bar");
+    await expect(bar).toBeVisible({ timeout: 60_000 });
+
+    await page.getByPlaceholder(/AAPL/i).fill("RUN");
+    await page.getByPlaceholder(/AAPL/i).press("Enter");
+
+    const toast = page.getByTestId("cmd-bar-run-toast");
+    await expect(toast).toBeVisible({ timeout: 5_000 });
+  });
 });

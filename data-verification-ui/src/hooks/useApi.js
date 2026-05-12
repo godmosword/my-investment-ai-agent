@@ -434,6 +434,17 @@ export function useQuantSignals() {
   });
 }
 
+export function useQuantBacktest(symbol) {
+  const sym = String(symbol ?? "").trim().toUpperCase();
+  return useQuery({
+    queryKey: ["quant", "backtest", sym],
+    queryFn: () => apiFetch(`/api/quant/backtest?symbol=${encodeURIComponent(sym)}`),
+    enabled: Boolean(sym),
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  });
+}
+
 export function useWarRoomLatest(options = {}) {
   const livePoll = Boolean(options.livePoll);
   return useQuery({
@@ -526,6 +537,49 @@ export function useExecutionIntentAllowedStatuses() {
     queryFn: () => apiFetch("/api/execution-intents/allowed-statuses"),
     staleTime: 60 * 60 * 1000,
     retry: 1,
+  });
+}
+
+async function apiPostJson(path, body = {}, extraHeaders = {}) {
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: mergeSiliconHeaders({ "Content-Type": "application/json", ...extraHeaders }),
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Network error (${msg})`);
+  }
+  if (!res.ok) {
+    if (res.status === 401) handleApiUnauthorized();
+    const msg = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status}: ${msg}`);
+  }
+  return res.json();
+}
+
+export function useRunCrewStatus() {
+  return useQuery({
+    queryKey: ["run-crew", "status"],
+    queryFn: () => apiFetch("/api/run-crew/status"),
+    staleTime: 5_000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "running" ? 3_000 : false;
+    },
+  });
+}
+
+export function useRunCrew() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ apiKey } = {}) =>
+      apiPostJson("/api/run-crew", {}, apiKey ? { "X-Crew-Api-Key": apiKey } : {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["run-crew", "status"] });
+    },
   });
 }
 
