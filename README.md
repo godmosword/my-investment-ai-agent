@@ -183,7 +183,7 @@ flowchart TB
 
 ## 環境變數摘錄
 
-除啟動四項外，常見還有：`NEWSAPI_KEY`、`TAVILY_API_KEY`、`COINGLASS_API_KEY`、`FRED_API_KEY`、`FINANCIAL_DATASETS_API_KEY`、`TELEGRAM_*`、`GCP_*`、可選 **`STRICT_INSTITUTIONAL_PHASE_A_GATE`**／**B**／**C**、**`STRICT_NEWS_FRESHNESS_GATE`**、**`EARNINGS_FOCUS_MODE`**（財報日／週末預告 exclusion，見 [`earnings_focus.py`](earnings_focus.py)、[`earnings_watchlist.py`](earnings_watchlist.py)）等。**權威列表**：`ENV_TEMPLATE.txt`。
+除啟動四項外，常見還有：`NEWSAPI_KEY`、`TAVILY_API_KEY`、`COINGLASS_API_KEY`、`FRED_API_KEY`、`FMP_API_KEY`、`FINANCIAL_DATASETS_API_KEY`、`TELEGRAM_*`、`GCP_*`、可選 **`STRICT_INSTITUTIONAL_PHASE_A_GATE`**／**B**／**C**、**`STRICT_NEWS_FRESHNESS_GATE`**、**`EARNINGS_FOCUS_MODE`**（財報日／週末預告 exclusion，見 [`earnings_focus.py`](earnings_focus.py)、[`earnings_watchlist.py`](earnings_watchlist.py)）等。**權威列表**：`ENV_TEMPLATE.txt`。
 
 **Mega-cap／AI 財報 watchlist**（yfinance 日曆掃描與財報聚焦共用；含矽光子／光通訊、AI 伺服器／ODM、資料中心網路等公開敘事常見標的，非即時熱度排名）：`NVDA`、`AMD`、`INTC`、`AVGO`、`MRVL`、`QCOM`、`MU`、`TSM`、`ARM`、`SMCI`、`DELL`、`HPE`、`MSFT`、`GOOGL`、`AAPL`、`META`、`AMZN`、`ORCL`、`CRM`、`NOW`、`SNOW`、`PLTR`、`CRWD`、`NET`、`ANET`、`CSCO`、`LITE`、`COHR`、`FN`。
 
@@ -207,6 +207,7 @@ python3 -m pytest -v             # 全量
 python3 -m pytest -m boundary -v
 python3 -m pytest test_api_positions_bundle.py test_api_stream_war_room.py test_tech_pulse_tool.py -q   # Portal M4–M7 契約 + SSE watch_symbols + tech_pulse（2026-05-11）
 python3 -m pytest tests/api/test_portfolio_router.py -q   # Portfolio Tracker Queue 38（CRUD / CSV / P&L）
+python3 -m pytest tests/api/test_macro_router.py -q       # Macro Dashboard Queue 39（8 指標 / cache）
 ./scripts/bench_autoresearch.sh
 ./scripts/verify_graph_gate.sh     # Graph／Reviewer 變更後（等同 pytest test_reviewer_loop.py -q）
 ```
@@ -329,6 +330,10 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 | `GET` | `/api/industries/themes` | 靜態主題表 + regime 提示（M5） |
 | `GET` | `/api/analysis/{symbol}` | quote + snapshot（snapshot 可失敗降級）（M6） |
 | `GET` | `/api/quant/signals` | 紙上敘事用 **stub** 訊號列（M7；**非**回測 API、不承諾收益） |
+
+### Macro Dashboard API（Queue 39，2026-05-13）
+
+`/dashboard` 讀 `GET /api/macro/snapshot`：8 個 macro / risk 指標（10Y、2s10s、DXY、VIX、BTC、SOXX/SPY、AI Momentum、Next Fed/CPI），每列含 `value`、`change_1d`、`change_5d`、7 點 `spark`、`source`、`as_of`。市場資料以 yfinance 為主；`next_fed_cpi` 的未來 7 天 catalyst 可選讀 `FMP_API_KEY`，未設時顯示 N/A 而不阻斷 dashboard。後端有 60 秒 in-process cache。
 
 ### Portfolio Tracker API（Queue 38，2026-05-13）
 

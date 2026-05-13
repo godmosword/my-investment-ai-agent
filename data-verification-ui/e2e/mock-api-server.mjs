@@ -131,6 +131,157 @@ const nvdaMisaligned = {
   e2e_override: true,
 };
 
+const macroSnapshotBody = {
+  as_of: "2026-05-13T00:00:00Z",
+  cache_ttl_seconds: 60,
+  cached: false,
+  indicator_order: [
+    "yields_10y",
+    "spread_2s10s",
+    "dxy",
+    "vix",
+    "btc",
+    "soxx_spy_ratio",
+    "ai_momentum",
+    "next_fed_cpi",
+  ],
+  indicators: {
+    yields_10y: {
+      id: "yields_10y",
+      label: "10Y Yield",
+      value: 4.62,
+      display: "4.62",
+      unit: "%",
+      change_1d: 1.1,
+      change_5d: 3.2,
+      change_unit: "%",
+      spark: [4.42, 4.45, 4.48, 4.5, 4.55, 4.59, 4.62],
+      source: "yfinance:^TNX",
+      as_of: "2026-05-13T00:00:00Z",
+      error: null,
+    },
+    spread_2s10s: {
+      id: "spread_2s10s",
+      label: "2s10s Spread",
+      value: 12.5,
+      display: "+12.5 bp",
+      unit: "bp",
+      change_1d: 2.1,
+      change_5d: 6.4,
+      change_unit: "bp",
+      spark: [-2, 0, 3, 5, 8, 10, 12.5],
+      source: "yfinance:^TNX/2YY=F",
+      as_of: "2026-05-13T00:00:00Z",
+      error: null,
+    },
+    dxy: {
+      id: "dxy",
+      label: "DXY",
+      value: 103.2,
+      display: "103.20",
+      unit: "index",
+      change_1d: -0.2,
+      change_5d: -0.8,
+      change_unit: "%",
+      spark: [104.1, 103.9, 103.8, 103.5, 103.4, 103.3, 103.2],
+      source: "yfinance:DX-Y.NYB",
+      as_of: "2026-05-13T00:00:00Z",
+      error: null,
+    },
+    vix: {
+      id: "vix",
+      label: "VIX",
+      value: 17.8,
+      display: "17.80",
+      unit: "index",
+      change_1d: -1.4,
+      change_5d: -5.5,
+      change_unit: "%",
+      spark: [20.5, 19.8, 19.4, 18.9, 18.3, 18.0, 17.8],
+      source: "yfinance:^VIX",
+      as_of: "2026-05-13T00:00:00Z",
+      error: null,
+    },
+    btc: {
+      id: "btc",
+      label: "BTC",
+      value: 50000.125,
+      display: "50,000.13",
+      unit: "USD",
+      change_1d: 1.2,
+      change_5d: 4.8,
+      change_unit: "%",
+      spark: [47800, 48200, 48900, 49300, 49700, 49900, 50000.125],
+      source: "yfinance:BTC-USD",
+      as_of: "2026-05-13T00:00:00Z",
+      error: null,
+    },
+    soxx_spy_ratio: {
+      id: "soxx_spy_ratio",
+      label: "SOXX / SPY",
+      value: 0.418,
+      display: "0.418",
+      unit: "ratio",
+      change_1d: 0.4,
+      change_5d: 1.8,
+      change_unit: "%",
+      spark: [0.408, 0.41, 0.412, 0.414, 0.416, 0.417, 0.418],
+      source: "yfinance:SOXX/SPY",
+      as_of: "2026-05-13T00:00:00Z",
+      error: null,
+    },
+    ai_momentum: {
+      id: "ai_momentum",
+      label: "AI Momentum",
+      value: 106.4,
+      display: "106.4",
+      unit: "index",
+      change_1d: 0.8,
+      change_5d: 3.1,
+      change_unit: "%",
+      spark: [100, 101.2, 102.8, 103.4, 104.9, 105.5, 106.4],
+      source: "yfinance:NVDA/AMD/AVGO/MSFT/AAPL/SMH",
+      as_of: "2026-05-13T00:00:00Z",
+      error: null,
+    },
+    next_fed_cpi: {
+      id: "next_fed_cpi",
+      label: "Next Fed / CPI",
+      value: 2,
+      display: "2026-05-15 · US CPI",
+      unit: "days",
+      change_1d: null,
+      change_5d: null,
+      change_unit: "days",
+      spark: [],
+      source: "financialmodelingprep",
+      as_of: "2026-05-13T00:00:00Z",
+      error: null,
+    },
+  },
+  catalysts: [
+    {
+      date: "2026-05-15",
+      name: "US CPI",
+      importance: "high",
+      estimate: "0.3%",
+      previous: "0.2%",
+      source: "financialmodelingprep",
+    },
+  ],
+  regime: {
+    score: 4,
+    label: "risk_on",
+    drivers: [
+      { name: "VIX", score: 1, note: "17.8" },
+      { name: "2s10s", score: 0, note: "+12.5bp" },
+      { name: "BTC 5D", score: 1, note: "+4.8%" },
+      { name: "AI 5D", score: 1, note: "+3.1%" },
+      { name: "DXY 5D", score: 1, note: "-0.8%" },
+    ],
+  },
+};
+
 /** Align with `brief_profiles.PROFILES` / `BLOCK_REGISTRY` (minimal mock for structured envelope). */
 const PROFILE_BLOCK_IDS = {
   full: [
@@ -378,6 +529,10 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === "/api/metrics/latest") {
     sendJson(res, 200, metricsBody);
+    return;
+  }
+  if (url.pathname === "/api/macro/snapshot") {
+    sendJson(res, 200, macroSnapshotBody);
     return;
   }
   const snapMatch = url.pathname.match(/^\/api\/symbols\/([^/]+)\/snapshot$/);

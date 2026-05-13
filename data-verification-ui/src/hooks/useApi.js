@@ -248,6 +248,15 @@ export function useMetricsHistory(days = 30) {
   });
 }
 
+export function useMacroSnapshot() {
+  return useQuery({
+    queryKey: ["macro", "snapshot"],
+    queryFn: () => apiFetch("/api/macro/snapshot"),
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
 /**
  * @param {number} [limit]
  * @param {string | null | undefined} [profile] — 與 `GET /api/reports?profile=` 對齊（full / lite / crypto-only）；省略則不篩選。

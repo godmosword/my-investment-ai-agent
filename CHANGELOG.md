@@ -5,6 +5,11 @@
 
 ## 2026-05-13
 
+### Macro Dashboard（Queue 39 Phase 2）
+- **API**：新增 [`api_routers/macro.py`](api_routers/macro.py) 並掛載 `GET /api/macro/snapshot`，回傳 8 個 dashboard 指標（10Y、2s10s、DXY、VIX、BTC、SOXX/SPY、AI Momentum、Next Fed/CPI），每列含 `value`、`change_1d`、`change_5d`、7 點 `spark`、`source`、`as_of`；內建 60 秒 in-process cache 與逐指標降級。
+- **PWA `/dashboard`**：[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) 改為 macro indicator grid + pure SVG [`Sparkline.jsx`](data-verification-ui/src/components/Sparkline.jsx) + [`CatalystCalendar.jsx`](data-verification-ui/src/components/CatalystCalendar.jsx) + regime breakdown；保留 [`TodayBtcSnapshotStrip.jsx`](data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx) 以維持 BTC price-alignment smoke。
+- **Tests**：新增 [`tests/api/test_macro_router.py`](tests/api/test_macro_router.py) 與 [`dashboard-route.spec.js`](data-verification-ui/e2e/dashboard-route.spec.js)；E2E mock server 補 `/api/macro/snapshot` deterministic fixture。
+
 ### Portfolio Tracker（Queue 38 Phase 1）
 - **API + JSONL storage**：新增 [`portfolio_holdings.py`](portfolio_holdings.py)（`PORTFOLIO_HOLDINGS_FILE`，預設 `portfolio_holdings.jsonl`；atomic rewrite）與 [`api_routers/portfolio.py`](api_routers/portfolio.py)，掛載 `GET/POST/PATCH/DELETE /api/portfolio`、`POST /api/portfolio/import`、`GET /api/portfolio/pnl`；P&L 使用 [`symbol_snapshot_service.fetch_symbol_quote`](symbol_snapshot_service.py)，單一 quote 失敗時只標記該列 `quote_unavailable`。
 - **PWA `/portfolio`**：[`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) 改為 Portfolio Tracker v1：總市值／今日損益／總損益 KPI、桌面持倉表、手機卡片、`+ 新增倉位` modal、CSV 匯入／拖放／匯出、刪除與 toast/error 狀態；新增 localStorage-only [`Watchlist.jsx`](data-verification-ui/src/components/Watchlist.jsx)。

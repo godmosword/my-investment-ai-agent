@@ -61,6 +61,7 @@
 |------|------|------|
 | `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema；實作於 [`api_routers/metrics.py`](../api_routers/metrics.py)（`APIRouter` prefix `/api/metrics`） |
 | `GET /api/metrics/history` | 歷史指標 | query：`days`；同上 |
+| `GET /api/macro/snapshot` | `/dashboard` macro snapshot | 實作於 [`api_routers/macro.py`](../api_routers/macro.py)；8 指標（10Y、2s10s、DXY、VIX、BTC、SOXX/SPY、AI Momentum、Next Fed/CPI），每列含 `value`、`change_1d`、`change_5d`、7 點 `spark`、`source`、`as_of`；60 秒 in-process cache；yfinance 指標逐列降級，FMP calendar optional |
 | `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit`；回應含 **`data_provenance`**（OHLC／BQ 來源與 as_of）；**`price_alignment`** 描述 **yfinance OHLC 尾端** vs **`/quote` 之 last**（皆 yfinance），並標 **`daily_metrics_source: bigquery`**；staging 可選 **`PRICE_ALIGNMENT_E2E_OVERRIDES`** 強制數值（見 `ENV_TEMPLATE.txt`） |
 | `GET /api/symbols/{symbol}/quote` | 輕量 **最新日線收盤** + 可選 **1D %**（僅 yfinance，無 BQ） | 失敗 **503**；伺服端快取約 **45s**；回應含 **`data_provenance.price`** |
 | `GET /api/execution-intents` | 執行意圖列表（每 `signal_id` 最新一列） | query：`limit`；可選 **`status`**（狀態字串之子字串比對，大小寫不敏感）、**`category`**（`CRYPTO`／`AI` 前綴）、**`sort_by`**（`updated_desc`｜`created_desc`｜`asset_asc`）。回應列契約至少含 **`signal_id`、`created_at`、`category`、`regime`、`asset`、`direction`、`star_rating`、`thesis_one_liner`、`status`、`status_updated_at`、`status_note`、`reference_*`、`paper_*`**；若存在本機 **`.qsilicon/last_gate_failure/validation_summary.json`**，列表列會附加唯讀 **`gate_issue_hints`**（無命中時回空陣列） |
