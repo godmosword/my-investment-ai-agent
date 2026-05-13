@@ -419,6 +419,37 @@ export function useIndustryThemes(limit = 80) {
   });
 }
 
+export function useNewsDigest({ date, limit = 20 } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (date) params.set("date", date);
+  return useQuery({
+    queryKey: ["news", "digest", date ?? "", limit],
+    queryFn: () => apiFetch(`/api/news/digest?${params}`),
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useNewsDeep(itemId) {
+  const id = String(itemId ?? "").trim();
+  return useQuery({
+    queryKey: ["news", "deep", id],
+    queryFn: () => apiFetch(`/api/news/deep/${encodeURIComponent(id)}`),
+    enabled: Boolean(id),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useNewsThemes(limit = 80) {
+  return useQuery({
+    queryKey: ["news", "themes", limit],
+    queryFn: () => apiFetch(`/api/news/themes?limit=${limit}`),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useAnalysisBundle(symbol, days = 30, recommendationLimit = 12) {
   const sym = (symbol ?? "").trim().toUpperCase();
   const qs = new URLSearchParams({

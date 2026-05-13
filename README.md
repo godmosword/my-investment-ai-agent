@@ -335,6 +335,16 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 
 `/dashboard` 讀 `GET /api/macro/snapshot`：8 個 macro / risk 指標（10Y、2s10s、DXY、VIX、BTC、SOXX/SPY、AI Momentum、Next Fed/CPI），每列含 `value`、`change_1d`、`change_5d`、7 點 `spark`、`source`、`as_of`。市場資料以 yfinance 為主；`next_fed_cpi` 的未來 7 天 catalyst 可選讀 `FMP_API_KEY`，未設時顯示 N/A 而不阻斷 dashboard。後端有 60 秒 in-process cache。
 
+### Tech News API（Queue 40，2026-05-13）
+
+`/news` 讀 Firestore-backed tech pulse digest。預設 collection 為 `TECH_PULSE_FIRESTORE_COLLECTION=tech_pulse_memory_items`，可選 `TECH_PULSE_FIRESTORE_PROJECT` 指定專案；所有新聞 item 必須有 headline 與 source，缺來源資料會被 API 過濾。
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/api/news/digest?date=YYYY-MM-DD&limit=20` | 讀 digest items；回傳 headline、Gemini take、source domain/url、time、tags、confidence |
+| `GET` | `/api/news/deep/{item_id}` | 讀單則 deep brief；含 thesis breakdown、confidence、tickers |
+| `GET` | `/api/news/themes` | 由近期 sourced items 聚合今日主題 |
+
 ### Portfolio Tracker API（Queue 38，2026-05-13）
 
 `/portfolio` 使用本機 JSONL storage（預設 `portfolio_holdings.jsonl`，可用 `PORTFOLIO_HOLDINGS_FILE` 覆寫；此檔為本機資料，不提交 repo）。CSV 唯一支援欄位順序：`symbol,shares,cost_basis,opened_at,notes`。

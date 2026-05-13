@@ -282,6 +282,49 @@ const macroSnapshotBody = {
   },
 };
 
+const newsItems = [
+  {
+    id: "e2e-ai-chip",
+    headline: "AI 半導體供應鏈拉高資本支出",
+    gemini_take: "雲端 capex 仍是 HBM 與先進封裝的主要推力。",
+    source_domain: "semianalysis.com",
+    source_url: "https://semianalysis.com/e2e-ai-chip",
+    published_at: "2026-05-13T09:30:00Z",
+    date: "2026-05-13",
+    tags: ["AI", "半導體"],
+    pillar: "半導體",
+    confidence: 0.82,
+  },
+  {
+    id: "e2e-macro-dollar",
+    headline: "美元回落支撐科技股風險偏好",
+    gemini_take: "DXY 走弱降低長久期科技股的估值壓力。",
+    source_domain: "bloomberg.com",
+    source_url: "https://bloomberg.com/e2e-macro-dollar",
+    published_at: "2026-05-13T08:00:00Z",
+    date: "2026-05-13",
+    tags: ["宏觀"],
+    pillar: "宏觀",
+    confidence: 0.64,
+  },
+];
+
+const newsThemes = [
+  { id: "AI", label: "AI", count: 1 },
+  { id: "semis", label: "半導體", count: 1 },
+  { id: "macro", label: "宏觀", count: 1 },
+];
+
+function newsDeepBody(id) {
+  const item = newsItems.find((row) => row.id === id) || newsItems[0];
+  return {
+    ...item,
+    deep_brief: "供應鏈瓶頸仍集中在 HBM、CoWoS 與先進封裝排程，對 NVDA/TSM 的訂單能見度形成支撐。",
+    thesis_breakdown: ["HBM 需求偏強", "先進封裝排程仍緊", "雲端 capex 沒有快速下修"],
+    tickers: ["NVDA", "TSM"],
+  };
+}
+
 /** Align with `brief_profiles.PROFILES` / `BLOCK_REGISTRY` (minimal mock for structured envelope). */
 const PROFILE_BLOCK_IDS = {
   full: [
@@ -533,6 +576,27 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === "/api/macro/snapshot") {
     sendJson(res, 200, macroSnapshotBody);
+    return;
+  }
+  if (url.pathname === "/api/news/digest") {
+    const limit = Number(url.searchParams.get("limit") || "20");
+    sendJson(res, 200, {
+      date: url.searchParams.get("date"),
+      limit,
+      items: newsItems.slice(0, limit),
+      themes: newsThemes,
+      source: "firestore:tech_pulse_memory_items",
+      available: true,
+    });
+    return;
+  }
+  if (url.pathname === "/api/news/themes") {
+    sendJson(res, 200, { themes: newsThemes, source: "firestore:tech_pulse_memory_items" });
+    return;
+  }
+  const newsDeepMatch = url.pathname.match(/^\/api\/news\/deep\/([^/]+)$/);
+  if (newsDeepMatch) {
+    sendJson(res, 200, newsDeepBody(decodeURIComponent(newsDeepMatch[1])));
     return;
   }
   const snapMatch = url.pathname.match(/^\/api\/symbols\/([^/]+)\/snapshot$/);

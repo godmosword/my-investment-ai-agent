@@ -5,6 +5,11 @@
 
 ## 2026-05-13
 
+### Tech News（Queue 40 Phase 3）
+- **API**：新增 [`api_routers/news.py`](api_routers/news.py) 並掛載 `GET /api/news/digest`、`GET /api/news/deep/{item_id}`、`GET /api/news/themes`；Firestore client lazy-init，預設讀 `TECH_PULSE_FIRESTORE_COLLECTION=tech_pulse_memory_items`，且正規化時過濾缺 headline/source 的 item，避免前端顯示未溯源新聞。
+- **PWA `/news`**：[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx) 從空狀態改為 digest list、AI／半導體／加密／宏觀 filter chips、每則 source domain + 時間、右側「今日主軸」與 deep brief side panel（手機全屏）。
+- **Tests**：新增 [`tests/api/test_news_router.py`](tests/api/test_news_router.py)（mock Firestore digest/deep/themes、未溯源過濾、503 降級）與 [`news-route.spec.js`](data-verification-ui/e2e/news-route.spec.js)；E2E mock server 補 `/api/news/*` deterministic fixture。
+
 ### Macro Dashboard（Queue 39 Phase 2）
 - **API**：新增 [`api_routers/macro.py`](api_routers/macro.py) 並掛載 `GET /api/macro/snapshot`，回傳 8 個 dashboard 指標（10Y、2s10s、DXY、VIX、BTC、SOXX/SPY、AI Momentum、Next Fed/CPI），每列含 `value`、`change_1d`、`change_5d`、7 點 `spark`、`source`、`as_of`；內建 60 秒 in-process cache 與逐指標降級。
 - **PWA `/dashboard`**：[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) 改為 macro indicator grid + pure SVG [`Sparkline.jsx`](data-verification-ui/src/components/Sparkline.jsx) + [`CatalystCalendar.jsx`](data-verification-ui/src/components/CatalystCalendar.jsx) + regime breakdown；保留 [`TodayBtcSnapshotStrip.jsx`](data-verification-ui/src/components/TodayBtcSnapshotStrip.jsx) 以維持 BTC price-alignment smoke。
