@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -112,17 +113,22 @@ def fetch_symbol_ohlc(symbol: str, days: int) -> list[dict[str, Any]]:
     return rows
 
 
-def fetch_symbol_quote(normalized_symbol: str) -> dict[str, Any]:
+def fetch_symbol_quote(normalized_symbol: str, *, bypass_cache: bool = False) -> dict[str, Any]:
     """Latest daily close + optional 1d % change via yfinance; short TTL cache (M3 Terminal).
 
     Does not query BigQuery. On failure returns a dict with ``last`` null and ``error`` set
     (caller maps to HTTP 503).
+
+    When ``bypass_cache`` is True (e.g. LangGraph ``llm_reviewer_node``), skip the in-process
+    quote cache read so each review run hits yfinance again; the result is still written back
+    to the cache for other readers.
     """
     now = datetime.now(timezone.utc)
     sym = normalized_symbol.strip().upper()
-    cached = _quote_cache.get(sym)
-    if cached and now - cached[0] <= _QUOTE_CACHE_TTL:
-        return {**cached[1], "cached": True}
+    if not bypass_cache:
+        cached = _quote_cache.get(sym)
+        if cached and now - cached[0] <= _QUOTE_CACHE_TTL:
+            return {**cached[1], "cached": True}
 
     try:
         import yfinance as yf
@@ -190,6 +196,88 @@ def fetch_symbol_quote(normalized_symbol: str) -> dict[str, Any]:
 
     _quote_cache_put(sym, out)
     return {**{k: v for k, v in out.items() if k != "cached"}, "cached": False}
+
+
+def _reviewer_one_symbol_line(symbol: str, *, bypass_quote_cache: bool) -> str:
+    """Single-line textual snapshot for reviewer Ground Truth (never raises)."""
+    raw_in = str(symbol).strip()
+    try:
+        sym = validate_symbol_for_snapshot(raw_in)
+    except ValueError:
+        return f"  {raw_in or '(empty)'}: [DATA_MISSING:invalid_symbol]"
+
+    try:
+        q = fetch_symbol_quote(sym, bypass_cache=bypass_quote_cache)
+        ohlc = fetch_symbol_ohlc(sym, days=10)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("reviewer ground truth fetch failed for %s: %s", sym, exc)
+        return f"  {sym}: [DATA_MISSING:{exc}]"
+
+    parts: list[str] = [f"  {sym}:"]
+    if q.get("error") or q.get("last") is None:
+        parts.append(
+            f" quote=[DATA_MISSING:{q.get('error') or 'price_unavailable'}] as_of={q.get('as_of')}"
+        )
+    else:
+        ch = q.get("change_pct_1d")
+        chs = f"{ch:+.4f}%" if ch is not None else "n/a"
+        parts.append(
+            f" last={float(q['last']):.6g} 1d={chs} as_of={q.get('as_of')} yf={q.get('underlying_symbol')}"
+        )
+    if ohlc:
+        tail = ohlc[-1]
+        window = ohlc[-5:] if len(ohlc) >= 5 else ohlc
+        hi = max(float(b["high"]) for b in window)
+        lo = min(float(b["low"]) for b in window)
+        parts.append(
+            f" ohlc_last={float(tail['close']):.6g}@{tail.get('time')} window_high={hi:.6g} low={lo:.6g}"
+        )
+    else:
+        parts.append(" ohlc=[DATA_MISSING:no_series]")
+    return "".join(parts)
+
+
+def build_reviewer_ground_truth_block(
+    symbols: list[str],
+    *,
+    category: str = "CRYPTO",
+    bypass_quote_cache: bool = True,
+) -> str:
+    """Assemble a plain-text Ground Truth block for ``llm_reviewer_node`` (no BigQuery).
+
+    Uses ``fetch_symbol_quote`` + ``fetch_symbol_ohlc`` per distinct symbol. Parallelises
+    yfinance I/O with a small thread pool. Never raises; invalid symbols and failures become
+    ``[DATA_MISSING:…]`` lines.
+    """
+    ordered = list(
+        dict.fromkeys(
+            str(s).strip().upper().lstrip("$") for s in symbols if s and str(s).strip()
+        )
+    )
+    if not ordered:
+        return "[GROUND_TRUTH: no assets to fetch]"
+
+    cat = str(category or "CRYPTO").strip().upper()
+    hdr = "crypto spot yfinance" if cat == "CRYPTO" else "US equity yfinance"
+
+    max_workers = min(4, max(1, len(ordered)))
+    lines_by_sym: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {
+            pool.submit(
+                _reviewer_one_symbol_line, s, bypass_quote_cache=bypass_quote_cache
+            ): s
+            for s in ordered
+        }
+        for fut in as_completed(futures):
+            sym_key = futures[fut]
+            try:
+                lines_by_sym[sym_key] = fut.result()
+            except Exception as exc:  # pragma: no cover
+                lines_by_sym[sym_key] = f"  {sym_key}: [DATA_MISSING:{exc}]"
+
+    body = "\n".join(lines_by_sym[s] for s in ordered if s in lines_by_sym)
+    return f"[GROUND_TRUTH — {hdr} | symbol_snapshot_service]\n{body}"
 
 
 def _last_ohlc_bar(price_series: list[dict[str, Any]]) -> dict[str, Any] | None:

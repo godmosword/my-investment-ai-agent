@@ -29,13 +29,45 @@ def get_war_room_stream_version() -> int:
         return _stream_version
 
 
-def emit_graph_node_event(node_name: str, data: dict[str, Any]) -> None:
-    """Enqueue a node-completion event; called from synchronous graph nodes."""
+def emit_graph_node_event(
+    node_name: str,
+    data: dict[str, Any],
+    *,
+    phase: str = "end",
+    summary: str | None = None,
+    run_id: str | None = None,
+    category: str | None = None,
+) -> None:
+    """Enqueue a LangGraph node telemetry event (SSE ``node_complete``).
+
+    v1 envelope: ``v``, ``kind``, ``phase``, ``node``, ``ts``, ``run_id``, ``category``,
+    ``summary``, ``payload``, plus **flat copies** of *data* for backward compatibility
+    with consumers that expect ``intent_count`` / ``allowed`` at the top level.
+    """
+    ts = datetime.now(timezone.utc).isoformat()
+    payload = dict(data)
     event: dict[str, Any] = {
+        "v": 1,
+        "kind": "graph_node",
+        "phase": phase,
         "node": node_name,
-        "ts": datetime.now(timezone.utc).isoformat(),
-        **data,
+        "ts": ts,
+        "run_id": run_id,
+        "category": category,
+        "summary": (summary or "").strip(),
+        "payload": payload,
     }
+    # Legacy flat shape (same as pre-v1): node + ts + fields from *data*
+    event.update(payload)
+    event["node"] = node_name
+    event["ts"] = ts
+    event["v"] = 1
+    event["kind"] = "graph_node"
+    event["phase"] = phase
+    event["run_id"] = run_id
+    event["category"] = category
+    event["summary"] = (summary or "").strip()
+    event["payload"] = payload
     with _events_lock:
         _node_events.append(event)
     bump_war_room_stream_version()

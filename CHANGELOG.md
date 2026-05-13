@@ -5,6 +5,12 @@
 
 ## 2026-05-13
 
+### Graph Reviewer / War Room Telemetry
+- **Market gate hardening**：[`graph/graph_nodes.py`](graph/graph_nodes.py) 的 pre-reviewer market gate 擴為非目標市場與 allowlist gate；CRYPTO track 僅允許 BTC/ETH（含 BTCUSDT 等正規化），AI track 僅允許 `assets_universe` 內美股符號，並阻擋台股 local code 與常見非美交易所 suffix。
+- **Reviewer ground truth**：[`symbol_snapshot_service.py`](symbol_snapshot_service.py) 新增 reviewer ground-truth block builder，`llm_reviewer_node` 以 yfinance quote/OHLC 快照提供可審計價格上下文，並可 bypass quote cache。
+- **War Room telemetry**：[`war_room_stream.py`](war_room_stream.py) 的 `node_complete` 事件升級為 v1 envelope（保留舊 flat 欄位）；[`useWarRoomSse.js`](data-verification-ui/src/hooks/useWarRoomSse.js) 與 [`WarRoomCard.jsx`](data-verification-ui/src/components/WarRoomCard.jsx) 新增 Pipeline 終端，顯示 LangGraph node phase、summary 與 severity。
+- **Tests**：[`test_reviewer_loop.py`](test_reviewer_loop.py)、[`test_war_room_stream.py`](test_war_room_stream.py) 覆蓋 allowlist、ground-truth block、v1 SSE envelope；`npm run test:e2e` 覆蓋 War Room regression。
+
 ### Track Record（Queue 41 Phase 4）
 - **API + calculations**：新增 [`track_record.py`](track_record.py) 與 [`api_routers/track_record.py`](api_routers/track_record.py)，掛載 `GET /api/track-record/summary`、`GET /api/track-record/closed`、`GET /api/track-record/by-tag`；以 append-only [`execution_intents.py`](execution_intents.py) 最新 `PAPER_CLOSED` rows 計算 W/L、hit rate、avg return、Sharpe 近似、max drawdown、equity curve，且每列回傳 `source`／`source_id`。
 - **Outcome snapshots**：新增 [`scripts/mark_recommendations.py`](scripts/mark_recommendations.py)、[`docs/SQL/recommendation_outcomes.sql`](docs/SQL/recommendation_outcomes.sql) 與 `RECOMMENDATION_OUTCOMES_TABLE` optional sink；只做 paper mark-to-market，不下單。

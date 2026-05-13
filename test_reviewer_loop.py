@@ -137,25 +137,44 @@ def test_market_gate_blocks_taiwan_assets_and_writes_only_allowed(monkeypatch: p
 
     result = market_gate_node(_base_state(category="AI", proposed_trades=trades))
 
-    assert [t["asset"] for t in result["proposed_trades"]] == ["TSM", "AVGO", "BTC"]
-    assert [t["asset"] for t in written[0]["proposed_trades"]] == ["TSM", "AVGO", "BTC"]
+    assert [t["asset"] for t in result["proposed_trades"]] == ["TSM", "AVGO"]
+    assert [t["asset"] for t in written[0]["proposed_trades"]] == ["TSM", "AVGO"]
 
 
-def test_gate_exclude_unwanted_markets_allows_us_adrs_and_crypto():
+def test_gate_exclude_unwanted_markets_ai_allows_equity_blocks_tw_crypto_and_hk():
     trades = [
         _valid_trade("2330"),
         _valid_trade("00878"),
         _valid_trade("2454.TPEX"),
+        _valid_trade("0700.HK"),
         _valid_trade("TSM"),
         _valid_trade("AVGO"),
         _valid_trade("BTC"),
         _valid_trade("ETH"),
     ]
 
-    allowed, blocked = gate_exclude_unwanted_markets(trades)
+    allowed, blocked = gate_exclude_unwanted_markets(trades, category="AI")
 
-    assert [t["asset"] for t in blocked] == ["2330", "00878", "2454.TPEX"]
-    assert [t["asset"] for t in allowed] == ["TSM", "AVGO", "BTC", "ETH"]
+    assert sorted(t["asset"] for t in blocked) == ["00878", "0700.HK", "2330", "2454.TPEX", "BTC", "ETH"]
+    assert [t["asset"] for t in allowed] == ["TSM", "AVGO"]
+
+
+def test_gate_exclude_unwanted_markets_crypto_strict_btc_eth():
+    trades = [
+        _valid_trade("2330"),
+        _valid_trade("00878"),
+        _valid_trade("2454.TPEX"),
+        _valid_trade("TSM"),
+        _valid_trade("AVGO"),
+        _valid_trade("BTCUSDT"),
+        _valid_trade("ETH"),
+        _valid_trade("SOL"),
+    ]
+
+    allowed, blocked = gate_exclude_unwanted_markets(trades, category="CRYPTO")
+
+    assert [t["asset"] for t in allowed] == ["BTC", "ETH"]
+    assert sorted(t["asset"] for t in blocked) == ["00878", "2330", "2454.TPEX", "AVGO", "SOL", "TSM"]
 
 
 @pytest.mark.smoke
@@ -301,18 +320,22 @@ def test_llm_reviewer_mocked_pass(monkeypatch: pytest.MonkeyPatch):
     trades = [_valid_trade()]
     state = _base_state(proposed_trades=trades)
 
-    with patch("graph.graph_nodes._get_reviewer_llm") as mock_llm_factory:
-        mock_llm = MagicMock()
-        mock_llm.with_structured_output.return_value.__ror__ = MagicMock(return_value=mock_chain)
-        mock_llm_factory.return_value = mock_llm
+    with patch(
+        "symbol_snapshot_service.build_reviewer_ground_truth_block",
+        return_value="[GROUND_TRUTH — test]\n  BTC: last=1",
+    ):
+        with patch("graph.graph_nodes._get_reviewer_llm") as mock_llm_factory:
+            mock_llm = MagicMock()
+            mock_llm.with_structured_output.return_value.__ror__ = MagicMock(return_value=mock_chain)
+            mock_llm_factory.return_value = mock_llm
 
-        # Patch ChatPromptTemplate pipeline result
-        with patch("graph.graph_nodes.ChatPromptTemplate") as mock_tpl:
-            mock_pipe = MagicMock()
-            mock_pipe.invoke.return_value = mock_verdict
-            mock_tpl.from_messages.return_value.__or__ = MagicMock(return_value=mock_pipe)
+            # Patch ChatPromptTemplate pipeline result
+            with patch("graph.graph_nodes.ChatPromptTemplate") as mock_tpl:
+                mock_pipe = MagicMock()
+                mock_pipe.invoke.return_value = mock_verdict
+                mock_tpl.from_messages.return_value.__or__ = MagicMock(return_value=mock_pipe)
 
-            result = llm_reviewer_node(state)
+                result = llm_reviewer_node(state)
 
     # Pass-through on any execution path (mock may or may not intercept)
     assert "review_issues" in result
@@ -326,11 +349,67 @@ def test_llm_reviewer_exception_pass_through(monkeypatch: pytest.MonkeyPatch):
     trades = [_valid_trade()]
     state = _base_state(proposed_trades=trades)
 
-    with patch("graph.graph_nodes._get_reviewer_llm", side_effect=RuntimeError("network error")):
-        result = llm_reviewer_node(state)
+    with patch(
+        "symbol_snapshot_service.build_reviewer_ground_truth_block",
+        return_value="[GROUND_TRUTH — test]\n  BTC: last=1",
+    ):
+        with patch("graph.graph_nodes._get_reviewer_llm", side_effect=RuntimeError("network error")):
+            result = llm_reviewer_node(state)
 
     assert result["review_issues"] == []
     assert result["trade_watch_final"] == trades
+
+
+@pytest.mark.smoke
+def test_llm_reviewer_uses_snapshot_ground_truth_not_tracker(monkeypatch: pytest.MonkeyPatch):
+    """Reviewer Ground Truth comes from symbol_snapshot_service, not tracker batch prices."""
+    monkeypatch.setenv("GRAPH_LLM_REVIEWER", "1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    mock_verdict = ReviewerVerdict(passed=True, issues=[])
+    mock_chain = MagicMock()
+    mock_chain.invoke.return_value = mock_verdict
+
+    trades = [_valid_trade("BTC"), _valid_trade("ETH", "SHORT")]
+    state = _base_state(proposed_trades=trades, category="CRYPTO")
+
+    build_gt = MagicMock(
+        return_value="[GROUND_TRUTH — crypto spot yfinance | symbol_snapshot_service]\n  stub"
+    )
+
+    with patch("symbol_snapshot_service.build_reviewer_ground_truth_block", build_gt):
+        with patch("graph.graph_nodes._get_reviewer_llm") as mock_llm_factory:
+            mock_llm = MagicMock()
+            mock_llm.with_structured_output.return_value.__ror__ = MagicMock(return_value=mock_chain)
+            mock_llm_factory.return_value = mock_llm
+
+            with patch("graph.graph_nodes.ChatPromptTemplate") as mock_tpl:
+                mock_pipe = MagicMock()
+                mock_pipe.invoke.return_value = mock_verdict
+                mock_tpl.from_messages.return_value.__or__ = MagicMock(return_value=mock_pipe)
+
+                llm_reviewer_node(state)
+
+    build_gt.assert_called_once()
+    args, kwargs = build_gt.call_args
+    assert args[0] == ["BTC", "ETH"]
+    assert kwargs.get("category") == "CRYPTO"
+    assert kwargs.get("bypass_quote_cache") is True
+
+    mock_pipe.invoke.assert_called_once()
+    inv_payload = mock_pipe.invoke.call_args[0][0]
+    assert "GROUND_TRUTH" in inv_payload["ground_truth_block"]
+    assert "symbol_snapshot_service" in inv_payload["ground_truth_block"]
+
+
+@pytest.mark.smoke
+def test_build_reviewer_ground_truth_block_data_missing_line():
+    """Invalid symbol becomes DATA_MISSING line without raising."""
+    from symbol_snapshot_service import build_reviewer_ground_truth_block
+
+    out = build_reviewer_ground_truth_block(["!!!INVALID!!!"], category="CRYPTO", bypass_quote_cache=True)
+    assert "GROUND_TRUTH" in out
+    assert "[DATA_MISSING:invalid_symbol]" in out
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -427,30 +506,56 @@ def test_route_after_llm_reviewer_fail_degrade():
 
 @pytest.mark.smoke
 def test_is_known_ticker_crypto():
-    """Major crypto tickers are recognized without any API call."""
-    assert _is_known_ticker("BTC") is True
-    assert _is_known_ticker("ETH") is True
-    assert _is_known_ticker("SOL") is True
-    assert _is_known_ticker("$BTC") is True  # $-prefix stripped
+    """CRYPTO track: only BTC/ETH (normalized) are known."""
+    assert _is_known_ticker("BTC", category="CRYPTO") is True
+    assert _is_known_ticker("ETH", category="CRYPTO") is True
+    assert _is_known_ticker("SOL", category="CRYPTO") is False
+    assert _is_known_ticker("BTCUSDT", category="CRYPTO") is True
+    assert _is_known_ticker("$BTC", category="CRYPTO") is True  # $-prefix stripped
 
 
 @pytest.mark.smoke
 def test_is_known_ticker_equity():
-    """Equity tickers from assets_universe are recognized."""
-    assert _is_known_ticker("NVDA") is True
-    assert _is_known_ticker("MSFT") is True
+    """AI track: equity universe tickers are recognized."""
+    assert _is_known_ticker("NVDA", category="AI") is True
+    assert _is_known_ticker("MSFT", category="AI") is True
 
 
 @pytest.mark.boundary
 def test_is_known_ticker_fake():
     """Fabricated ticker returns False."""
-    assert _is_known_ticker("FAKECOIN9999") is False
+    assert _is_known_ticker("FAKECOIN9999", category="CRYPTO") is False
+    assert _is_known_ticker("FAKECOIN9999", category="AI") is False
 
 
 @pytest.mark.boundary
 def test_is_known_ticker_empty():
     """Empty string returns False."""
     assert _is_known_ticker("") is False
+
+
+@pytest.mark.boundary
+def test_python_validate_rejects_sol_on_crypto_track(monkeypatch: pytest.MonkeyPatch):
+    """SOL is not in the CRYPTO two-asset allowlist."""
+    monkeypatch.setenv("GRAPH_LLM_REVIEWER", "1")
+    trades = [_valid_trade("SOL", "LONG")]
+    state = _base_state(category="CRYPTO", proposed_trades=trades)
+
+    result = python_validate_node(state)
+
+    assert any("SOL" in i["reason"] for i in result["review_issues"])
+
+
+@pytest.mark.boundary
+def test_python_validate_rejects_btc_on_ai_track(monkeypatch: pytest.MonkeyPatch):
+    """BTC must not appear on the AI equity track."""
+    monkeypatch.setenv("GRAPH_LLM_REVIEWER", "1")
+    trades = [_valid_trade("BTC", "LONG")]
+    state = _base_state(category="AI", proposed_trades=trades)
+
+    result = python_validate_node(state)
+
+    assert len(result["review_issues"]) > 0
 
 
 # ─────────────────────────────────────────────────────────────────

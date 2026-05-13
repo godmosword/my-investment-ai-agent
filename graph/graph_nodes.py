@@ -41,6 +41,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+from collections.abc import Sequence
 from typing import Any, Literal
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -85,11 +86,45 @@ def _hkt_now() -> str:
     return datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _emit_node_event(node_name: str, data: dict) -> None:
+def _emit_node_event(
+    node_name: str,
+    data: dict,
+    *,
+    phase: str = "end",
+    summary: str | None = None,
+    run_id: str | None = None,
+    category: str | None = None,
+) -> None:
     try:
-        emit_graph_node_event(node_name, data)
+        emit_graph_node_event(
+            node_name,
+            data,
+            phase=phase,
+            summary=summary,
+            run_id=run_id,
+            category=category,
+        )
     except Exception:  # never let SSE plumbing crash the graph
         pass
+
+
+def _graph_run_id(state: ResearchGraphState) -> str | None:
+    rid = state.get("graph_run_id")
+    return str(rid).strip() or None if rid is not None else None
+
+
+def _graph_category(state: ResearchGraphState) -> str | None:
+    c = state.get("category")
+    return str(c).strip() or None if c is not None else None
+
+
+def _blocked_assets_preview(assets: list[str], *, max_items: int = 3) -> str:
+    xs = [str(a).strip() for a in assets if str(a).strip()][:max_items]
+    if not xs:
+        return ""
+    if len(assets) > max_items:
+        return "、".join(xs) + f"…（共 {len(assets)} 檔）"
+    return "、".join(xs)
 
 
 def _tool_calls_enabled() -> bool:
@@ -222,67 +257,229 @@ class TradePickerOutput(BaseModel):
 
 
 # ==========================================
-# Task 2: Hard Python Gate — Taiwan Market Exclusion
+# Hard Python Gate — market boundaries (pre-reviewer)
 # ==========================================
-
-# Taiwan exchange suffixes on any symbol string are immediate blockers.
-_TW_SUFFIXES: frozenset[str] = frozenset({".TW", ".TWO", ".TWSE", ".TPEX"})
 
 # Four-to-six digit numeric strings are Taiwan local codes (e.g. "2330", "00878").
 _TW_LOCAL_CODE_RE = re.compile(r"^\d{4,6}$")
 
+# Non-US yfinance-style exchange suffixes (longest matched first).
+_NON_US_REGIONAL_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".TW",
+        ".TWO",
+        ".TWSE",
+        ".TPEX",
+        ".HK",
+        ".SS",
+        ".SZ",
+        ".T",
+        ".TO",
+        ".L",
+        ".PA",
+        ".DE",
+        ".AS",
+        ".MI",
+        ".SW",
+        ".MC",
+        ".LS",
+        ".NS",
+        ".BO",
+        ".AX",
+        ".SA",
+        ".MX",
+        ".ST",
+        ".OL",
+        ".CO",
+        ".VI",
+        ".BR",
+        ".IS",
+        ".KS",
+    }
+)
+
+_SORTED_NON_US_SUFFIXES: tuple[str, ...] = tuple(
+    sorted(_NON_US_REGIONAL_SUFFIXES, key=len, reverse=True)
+)
+
+
+def _coerce_intent_dict(row: Any) -> dict[str, Any] | None:
+    if isinstance(row, dict):
+        return row
+    if isinstance(row, TradeIntent):
+        return row.model_dump(mode="json")
+    if isinstance(row, BaseModel):
+        return row.model_dump(mode="json")
+    return None
+
+
+def _raw_asset_upper(row: dict[str, Any]) -> str:
+    return str(row.get("asset", "")).strip().upper().lstrip("$")
+
+
+def _has_non_us_regional_suffix(asset_upper: str) -> bool:
+    au = asset_upper
+    for sfx in _SORTED_NON_US_SUFFIXES:
+        if au.endswith(sfx.upper()):
+            return True
+    return False
+
+
+def _is_taiwan_local_numeric(asset_upper: str) -> bool:
+    return bool(_TW_LOCAL_CODE_RE.match(asset_upper)) and "." not in asset_upper
+
+
+def _crypto_allowlist_base(asset_upper: str) -> str | None:
+    """Map spot/perp-style symbols to BTC or ETH; strict two-asset policy."""
+    raw = asset_upper.strip().upper().lstrip("$")
+    t = raw.split("-", 1)[0] if "-" in raw else raw
+    for noise in (".P", ".PT"):
+        if t.upper().endswith(noise.upper()):
+            t = t[: -len(noise)]
+    for suf in ("USDT", "USD", "PERP"):
+        u = t.upper()
+        su = suf.upper()
+        if u.endswith(su) and len(u) > len(su):
+            t = t[: -len(suf)]
+            break
+    t = t.upper()
+    if t in ("BTC", "ETH"):
+        return t
+    return None
+
+
+def _ai_equity_symbol_for_allowlist(asset_upper: str) -> str:
+    """Strip optional .US suffix for membership in equity_universe_merged."""
+    au = asset_upper.strip().upper().lstrip("$")
+    if au.endswith(".US"):
+        return au[:-3]
+    return au
+
+
+@lru_cache(maxsize=1)
+def _equity_universe_upper() -> frozenset[str]:
+    # Mirrors ``assets_universe`` defaults when config cannot be read or returns empty.
+    _fallback = frozenset(
+        {
+            "NVDA",
+            "MSFT",
+            "AAPL",
+            "TSLA",
+            "GOOGL",
+            "GOOG",
+            "AMZN",
+            "META",
+            "AVGO",
+            "TSM",
+        }
+    )
+    try:
+        from assets_universe import equity_universe_merged
+
+        merged = frozenset(s.upper() for s in equity_universe_merged())
+        return merged if merged else _fallback
+    except Exception:
+        return _fallback
+
 
 def gate_exclude_unwanted_markets(
-    intents: list[dict],
-) -> tuple[list[dict], list[dict]]:
-    """Deterministically drop Taiwan-market assets.
+    intents: Sequence[Any],
+    *,
+    category: str = "CRYPTO",
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Deterministically drop non-target-market and out-of-allowlist assets.
 
-    Returns (allowed, blocked). Never raises; invalid/empty intents pass through
-    to be caught by python_validate_node downstream.
+    - **Regional / TW**: suffix on non-US exchanges, Taiwan local numeric codes.
+    - **CRYPTO** track: only ``BTC`` and ``ETH`` (after normalizing e.g. ``BTCUSDT``).
+    - **AI** track: only symbols in ``equity_universe_merged()`` (after optional ``.US`` strip).
 
-    Blocked if:
-      - ticker ends with a known TW exchange suffix (.TW, .TWO, ...)
-      - ticker is a 4-6 digit numeric string (local TWSE/TPEX code)
+    Returns (allowed, blocked) dict rows. Never raises.
     """
-    allowed: list[dict] = []
-    blocked: list[dict] = []
-    for intent in intents:
-        if not isinstance(intent, dict):
-            allowed.append(intent)
+    cat = str(category or "CRYPTO").strip().upper()
+    if cat not in ("CRYPTO", "AI"):
+        cat = "CRYPTO"
+
+    allowed: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+    eq_allow = _equity_universe_upper()
+
+    for raw in intents:
+        row = _coerce_intent_dict(raw)
+        if row is None:
             continue
-        asset = str(intent.get("asset", "")).strip().upper().lstrip("$")
-        is_tw = any(asset.upper().endswith(sfx.upper()) for sfx in _TW_SUFFIXES)
-        if not is_tw:
-            is_tw = bool(_TW_LOCAL_CODE_RE.match(asset))
-        if is_tw:
-            logger.warning(
-                "gate_exclude_unwanted_markets: BLOCKED %r — Taiwan market asset", asset
-            )
-            blocked.append(intent)
-        else:
-            allowed.append(intent)
+        asset_raw = _raw_asset_upper(row)
+        display = str(row.get("asset", "")).strip() or asset_raw
+
+        if not asset_raw:
+            logger.warning("[GATE] Dropped %s: empty asset", display)
+            blocked.append(row)
+            continue
+
+        if _has_non_us_regional_suffix(asset_raw) or _is_taiwan_local_numeric(asset_raw):
+            logger.warning("[GATE] Dropped %s: Non-target market", display)
+            blocked.append(row)
+            continue
+
+        if cat == "CRYPTO":
+            base = _crypto_allowlist_base(asset_raw)
+            if base is None:
+                logger.warning("[GATE] Dropped %s: Not-in-allowlist", display)
+                blocked.append(row)
+                continue
+            out = dict(row)
+            out["asset"] = base
+            allowed.append(out)
+            continue
+
+        # AI — equities universe only (no crypto legs on the AI track)
+        sym = _ai_equity_symbol_for_allowlist(asset_raw)
+        if _crypto_allowlist_base(asset_raw) is not None or sym in ("BTC", "ETH"):
+            logger.warning("[GATE] Dropped %s: Not-in-allowlist", display)
+            blocked.append(row)
+            continue
+        if sym not in eq_allow:
+            logger.warning("[GATE] Dropped %s: Not-in-allowlist", display)
+            blocked.append(row)
+            continue
+        out = dict(row)
+        out["asset"] = sym
+        allowed.append(out)
+
     return allowed, blocked
 
 
 def market_gate_node(state: ResearchGraphState) -> dict[str, Any]:
-    """Pure-Python interceptor: strip Taiwan assets before review loop.
-
-    Fail-hard: blocked assets are logged and removed; pipeline continues with
-    the cleaned intent list. If all intents are blocked, proposed_trades becomes [].
-    """
+    """Pure-Python interceptor: enforce market boundaries before review loop."""
     proposed = list(state.get("proposed_trades") or [])
+    rid = _graph_run_id(state)
+    gcat = _graph_category(state) or str(state.get("category") or "CRYPTO")
     if not proposed:
-        _emit_node_event("market_gate", {"allowed": 0, "blocked": 0})
+        _emit_node_event(
+            "market_gate",
+            {"allowed": 0, "blocked": 0},
+            summary="Gate：無待審 intent",
+            run_id=rid,
+            category=gcat,
+        )
         return {}
 
-    allowed, blocked = gate_exclude_unwanted_markets(proposed)
+    category = str(state.get("category") or "CRYPTO")
+    _emit_node_event(
+        "market_gate",
+        {"incoming_count": len(proposed)},
+        phase="begin",
+        summary=f"Gate 審核 {len(proposed)} 筆 intent（{category}）",
+        run_id=rid,
+        category=category,
+    )
+    allowed, blocked = gate_exclude_unwanted_markets(proposed, category=category)
 
     if blocked:
-        blocked_assets = [str(b.get("asset", "?")) for b in blocked]
         logger.warning(
-            "market_gate_node: stripped %d blocked asset(s): %s",
+            "[GATE] Summary: stripped %d intent(s); remaining=%d (category=%s)",
             len(blocked),
-            blocked_assets,
+            len(allowed),
+            category,
         )
 
     try:
@@ -292,14 +489,25 @@ def market_gate_node(state: ResearchGraphState) -> dict[str, Any]:
             proposed_trades=[t for t in allowed if isinstance(t, dict)],
         )
     except Exception as exc:
-        logger.warning("market_gate_node: execution intent append failed: %s", exc)
+        logger.warning("[GATE] execution intent append failed: %s", exc)
+    blocked_assets = [str(b.get("asset", "?")) for b in blocked]
+    if blocked:
+        prev = _blocked_assets_preview(blocked_assets)
+        gate_summary = f"Gate 攔截 {len(blocked)} 檔（放行 {len(allowed)}）"
+        if prev:
+            gate_summary = f"{gate_summary}：{prev}"
+    else:
+        gate_summary = f"Gate 通過 {len(allowed)} 檔、攔截 0 檔"
     _emit_node_event(
         "market_gate",
         {
             "allowed": len(allowed),
             "blocked": len(blocked),
-            "blocked_assets": [str(b.get("asset", "?")) for b in blocked],
+            "blocked_assets": blocked_assets,
         },
+        summary=gate_summary,
+        run_id=rid,
+        category=category,
     )
     return {"proposed_trades": allowed}
 
@@ -384,32 +592,25 @@ def _trade_picker_enabled() -> bool:
 
 
 def _fetch_live_ground_truth(assets: list[str], category: str) -> str:
-    """Fetch real-time spot prices for the proposed assets.
+    """Build reviewer Ground Truth from ``symbol_snapshot_service`` (quote + OHLC).
 
-    Returns a formatted Ground Truth block string. Never raises — on any failure
-    returns a clearly labelled DATA_MISSING marker so the reviewer prompt still has
-    a coherent context section.
+    Single source of truth with Terminal yfinance paths; does not use
+    ``tracker._current_prices_for_assets``. Never raises — on failure returns a
+    labelled DATA_MISSING marker.
     """
     if not assets:
         return "[GROUND_TRUTH: no assets to fetch]"
     try:
-        from tracker import _current_prices_for_assets  # lazy import
+        from symbol_snapshot_service import build_reviewer_ground_truth_block
 
-        prices = _current_prices_for_assets(assets)
+        return build_reviewer_ground_truth_block(
+            assets,
+            category=category,
+            bypass_quote_cache=True,
+        )
     except Exception as exc:
         logger.warning("_fetch_live_ground_truth failed: %s", exc)
         return f"[GROUND_TRUTH: DATA_MISSING — {exc}]"
-
-    lines: list[str] = []
-    for asset in assets:
-        price = prices.get(asset)
-        if price is not None:
-            lines.append(f"  {asset}: {price:,.6g}")
-        else:
-            lines.append(f"  {asset}: [DATA_MISSING:price_unavailable]")
-
-    category_note = "crypto spot (CoinGecko/yfinance)" if category == "CRYPTO" else "US equity last close (yfinance)"
-    return f"[GROUND_TRUTH — {category_note}]\n" + "\n".join(lines)
 
 
 def _reviewer_enabled() -> bool:
@@ -437,27 +638,24 @@ def _get_reviewer_llm() -> Any:
     )
 
 
-# Well-known crypto tickers for tier-1 ticker existence check (no API required).
-_KNOWN_CRYPTO_TICKERS: frozenset[str] = frozenset({
-    "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK",
-    "MATIC", "POL", "UNI", "AAVE", "LTC", "BCH", "ATOM", "FIL", "ARB", "OP",
-    "INJ", "SUI", "APT", "NEAR", "FTM", "ALGO", "VET", "MANA", "SAND", "AXS",
-    "BTCUSDT", "ETHUSDT", "SOLUSDT", "WBTC", "STETH", "TON", "PEPE", "WIF",
-})
+def _is_known_ticker(asset: str, *, category: str | None = None) -> bool:
+    """Same allowlist semantics as ``gate_exclude_unwanted_markets`` (regional rules omitted).
 
-
-def _is_known_ticker(asset: str) -> bool:
-    """True if ticker is in crypto whitelist OR equity universe (fail-open on import error)."""
-    ticker = asset.upper().strip().lstrip("$")
-    if not ticker:
+    Mirrors graph ``state["category"]``: ``CRYPTO`` (BTC/ETH only, after normalization)
+    or ``AI`` (``equity_universe_merged`` only). Unknown category defaults to ``CRYPTO``.
+    """
+    cat = str(category or "CRYPTO").strip().upper()
+    if cat not in ("CRYPTO", "AI"):
+        cat = "CRYPTO"
+    raw = str(asset).strip().upper().lstrip("$")
+    if not raw:
         return False
-    if ticker in _KNOWN_CRYPTO_TICKERS:
-        return True
-    try:
-        from assets_universe import equity_universe_merged
-        return ticker in equity_universe_merged()
-    except Exception:
-        return True  # fail-open: never block pipeline on universe import error
+    if cat == "CRYPTO":
+        return _crypto_allowlist_base(raw) is not None
+    sym = _ai_equity_symbol_for_allowlist(raw)
+    if _crypto_allowlist_base(raw) is not None or sym in ("BTC", "ETH"):
+        return False
+    return sym in _equity_universe_upper()
 
 
 def _safe_tool_run(tool_obj: Any, *args: Any, **kwargs: Any) -> Any:
@@ -1082,15 +1280,29 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
     into the prompt so the LLM can self-correct.
     """
     category = state.get("category", "CRYPTO")
+    rid = _graph_run_id(state)
+    gcat = _graph_category(state) or str(category)
     if not _trade_picker_enabled():
-        _emit_node_event("trade_picker", {"intent_count": 0, "category": category, "reason": "disabled"})
+        _emit_node_event(
+            "trade_picker",
+            {"intent_count": 0, "category": category, "reason": "disabled"},
+            summary="Trade picker：功能關閉",
+            run_id=rid,
+            category=gcat,
+        )
         return {"proposed_trades": [], "review_issues": []}
 
     agreed_regime = str(state.get("agreed_regime") or "")
     arbiter_summary = str(state.get("arbiter_summary") or "")
     regime_hint = f"{agreed_regime}\n{arbiter_summary}".lower().replace("-", "_")
     if "risk_off" in regime_hint:
-        _emit_node_event("trade_picker", {"intent_count": 0, "category": category, "reason": "risk_off"})
+        _emit_node_event(
+            "trade_picker",
+            {"intent_count": 0, "category": category, "reason": "risk_off"},
+            summary="Trade picker：risk-off 模式，略過產出",
+            run_id=rid,
+            category=gcat,
+        )
         return {"proposed_trades": [], "review_issues": []}
 
     price_context = state.get("price_context", "")
@@ -1104,9 +1316,12 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
     if prior_issues:
         lines = [f"  - [{i.get('field', '?')}] {i.get('reason', '?')}" for i in prior_issues[:5]]
         feedback_block = "\n審查員反饋（請修正後重新輸出）：\n" + "\n".join(lines) + "\n"
-        revision_count = int(state.get("revision_count") or 0)
-        logger.info("trade_picker_node: retry revision_count=%d with feedback", revision_count)
+        logger.info(
+            "trade_picker_node: retry revision_count=%d with feedback",
+            int(state.get("revision_count") or 0),
+        )
 
+    revision_count = int(state.get("revision_count") or 0)
     llm = _get_trade_picker_llm()
     structured_llm = llm.with_structured_output(TradePickerOutput)
     human_template = (
@@ -1129,6 +1344,14 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
             ("human", human_template),
         ]
     )
+    _emit_node_event(
+        "trade_picker",
+        {"category": category, "revision_count": revision_count},
+        phase="begin",
+        summary=f"Trade picker 呼叫 LLM（{category}，rev={revision_count}）",
+        run_id=rid,
+        category=gcat,
+    )
     try:
         out: TradePickerOutput = (prompt | structured_llm).invoke(
             {
@@ -1142,11 +1365,24 @@ def trade_picker_node(state: ResearchGraphState) -> dict[str, Any]:
         )
     except Exception as exc:
         logger.warning("trade_picker_node failed, fallback to empty: %s", exc)
-        _emit_node_event("trade_picker", {"intent_count": 0, "category": category, "reason": "error"})
+        _emit_node_event(
+            "trade_picker",
+            {"intent_count": 0, "category": category, "reason": "error"},
+            summary=f"Trade picker 失敗：{exc!s}"[:200],
+            run_id=rid,
+            category=gcat,
+        )
         return {"proposed_trades": [], "review_issues": []}
 
     intents = [intent.model_dump(mode="json") for intent in out.intents]
-    _emit_node_event("trade_picker", {"intent_count": len(intents), "category": category})
+    n = len(intents)
+    _emit_node_event(
+        "trade_picker",
+        {"intent_count": n, "category": category},
+        summary=f"Trade picker 完成：產出 {n} 筆 intent（{category}）",
+        run_id=rid,
+        category=gcat,
+    )
     # Clear prior review_issues so routing starts fresh for this new picker output.
     return {"proposed_trades": intents, "review_issues": []}
 
@@ -1159,12 +1395,14 @@ def python_validate_node(state: ResearchGraphState) -> dict[str, Any]:
       2. direction in {LONG, SHORT}
       3. star_rating in {1, 2}
       4. No duplicate tickers within the same trade_watch
-      5. Ticker existence in crypto whitelist or equity universe
+      5. Ticker allowlist: CRYPTO → BTC/ETH only; AI → equity_universe_merged only
 
     When GRAPH_LLM_REVIEWER=0 (default), this node is a transparent pass-through.
     """
     proposed = list(state.get("proposed_trades") or [])
     revision_count = int(state.get("revision_count") or 0)
+    rid = _graph_run_id(state)
+    gcat = _graph_category(state)
 
     if not _reviewer_enabled():
         _emit_node_event(
@@ -1175,6 +1413,9 @@ def python_validate_node(state: ResearchGraphState) -> dict[str, Any]:
                 "trade_count": len(proposed),
                 "reason": "reviewer_disabled",
             },
+            summary="Python 驗證：審查迴路關閉，略過",
+            run_id=rid,
+            category=gcat,
         )
         return {
             "trade_candidates": proposed,
@@ -1183,9 +1424,25 @@ def python_validate_node(state: ResearchGraphState) -> dict[str, Any]:
         }
 
     if not proposed:
-        _emit_node_event("python_validate", {"passed": True, "revision_count": revision_count, "trade_count": 0})
+        _emit_node_event(
+            "python_validate",
+            {"passed": True, "revision_count": revision_count, "trade_count": 0},
+            summary="Python 驗證：無 trade 可驗",
+            run_id=rid,
+            category=gcat,
+        )
         return {"trade_candidates": [], "review_issues": [], "trade_watch_final": []}
 
+    _emit_node_event(
+        "python_validate",
+        {"trade_count": len(proposed), "revision_count": revision_count},
+        phase="begin",
+        summary=f"Python 驗證 {len(proposed)} 筆 trade（rev={revision_count}）",
+        run_id=rid,
+        category=gcat,
+    )
+
+    category = str(state.get("category") or "CRYPTO")
     issues: list[dict[str, str]] = []
     seen: set[str] = set()
     for trade in proposed:
@@ -1206,8 +1463,8 @@ def python_validate_node(state: ResearchGraphState) -> dict[str, Any]:
             if asset in seen:
                 issues.append({"field": "asset", "reason": f"重複標的 {asset!r}（trade_watch 不允許重複）"})
             seen.add(asset)
-            if not _is_known_ticker(asset):
-                issues.append({"field": "asset", "reason": f"ticker {asset!r} 不在 crypto/equity universe 中（疑似幻覺）"})
+            if not _is_known_ticker(asset, category=category):
+                issues.append({"field": "asset", "reason": f"ticker {asset!r} 不在允許清單中（疑似幻覺）"})
 
     if issues:
         logger.warning(
@@ -1224,6 +1481,9 @@ def python_validate_node(state: ResearchGraphState) -> dict[str, Any]:
                 "trade_count": len(proposed),
                 "issue_count": len(issues),
             },
+            summary=f"Python 驗證未過：{len(issues)} 項問題（rev={revision_count}）",
+            run_id=rid,
+            category=gcat,
         )
         return {
             "trade_candidates": proposed,
@@ -1232,7 +1492,13 @@ def python_validate_node(state: ResearchGraphState) -> dict[str, Any]:
         }
 
     logger.info("python_validate_node: all checks passed (revision_count=%d)", revision_count)
-    _emit_node_event("python_validate", {"passed": True, "revision_count": revision_count, "trade_count": len(proposed)})
+    _emit_node_event(
+        "python_validate",
+        {"passed": True, "revision_count": revision_count, "trade_count": len(proposed)},
+        summary=f"Python 驗證通過：{len(proposed)} 筆（rev={revision_count}）",
+        run_id=rid,
+        category=gcat,
+    )
     return {"trade_candidates": proposed, "review_issues": [], "trade_watch_final": proposed}
 
 
@@ -1243,6 +1509,13 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
       1. thesis_one_liner direction vs trade direction consistency
          (e.g. 「看空」thesis with LONG direction is a contradiction)
       2. asset anti-hallucination: ticker should appear in news or raw_data context
+         (titles/keys only prove *presence in context*, not prices)
+      3. Price / % change / level claims: **only** the Ground Truth block (from
+         ``symbol_snapshot_service``) counts as factual market data. News titles and
+         raw_data keys must **not** be used as quote evidence. If thesis contains an
+         explicit numeric price claim that clearly conflicts with Ground Truth ``last``
+         or the latest OHLC close, set passed=false; if there is no explicit price in
+         thesis, do **not** infer or sanity-check prices (no invented numbers).
 
     When GRAPH_LLM_REVIEWER=0 or OPENAI_API_KEY missing, passes through transparently.
     Fails open (passes) on any exception to prevent pipeline stall.
@@ -1250,6 +1523,8 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
     """
     proposed = list(state.get("proposed_trades") or [])
     revision_count = int(state.get("revision_count") or 0)
+    rid = _graph_run_id(state)
+    gcat = _graph_category(state)
 
     if not _reviewer_enabled():
         _emit_node_event(
@@ -1260,11 +1535,20 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
                 "issues": [],
                 "reason": "reviewer_disabled",
             },
+            summary="LLM 審查：審查迴路關閉",
+            run_id=rid,
+            category=gcat,
         )
         return {"review_issues": [], "trade_watch_final": proposed}
 
     if not proposed:
-        _emit_node_event("llm_reviewer", {"passed": True, "revision_count": revision_count, "issues": []})
+        _emit_node_event(
+            "llm_reviewer",
+            {"passed": True, "revision_count": revision_count, "issues": []},
+            summary="LLM 審查：無 trade 可審",
+            run_id=rid,
+            category=gcat,
+        )
         return {"review_issues": [], "trade_watch_final": []}
 
     api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
@@ -1278,6 +1562,9 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
                 "issues": [],
                 "reason": "missing_api_key",
             },
+            summary="LLM 審查：未設定 API key，略過",
+            run_id=rid,
+            category=gcat,
         )
         return {"review_issues": [], "trade_watch_final": proposed}
 
@@ -1305,15 +1592,27 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
     ground_truth_block = _fetch_live_ground_truth(assets_to_fetch, category)
     logger.info("llm_reviewer_node ground_truth: %s", ground_truth_block[:200])
 
+    _emit_node_event(
+        "llm_reviewer",
+        {"trade_count": len(proposed), "revision_count": revision_count},
+        phase="begin",
+        summary=f"LLM 審查 {len(proposed)} 筆 trade（rev={revision_count}）",
+        run_id=rid,
+        category=gcat or category,
+    )
+
     prompt = ChatPromptTemplate.from_messages([
         (
             "system",
             "你是交易意圖審查員。只檢查下列事項，不做其他判斷：\n"
             "1. thesis_one_liner 的敘述方向是否與 direction 一致"
             "（含「看空」「空頭」「下跌」卻是 LONG，或含「看多」「做多」「上漲」卻是 SHORT，則為矛盾）。\n"
-            "2. asset 是否出現在新聞標題或資料鍵中（防止憑空 hallucination 的標的）。\n"
-            "3. Ground Truth（即時市價）已隨附，請以此數據為基準交叉驗證 Picker 邏輯，"
-            "若 Picker 的價格預設與 Ground Truth 明顯矛盾（差距 >20%），亦列為 issue。\n"
+            "2. asset 是否出現在新聞標題或資料鍵中（僅用於標的是否曾在脈絡出現，不得當作報價依據）。\n"
+            "3. 價格、漲跌幅、價位／技術敘述：**只能**以下方 Ground Truth 區塊內的數字為事實；"
+            "新聞標題與 raw_data 鍵名**不得**當作價格或漲跌依據。\n"
+            "4. 價格矛盾：僅當 thesis_one_liner 內含**可辨識的具體價格數字**（例如「9 萬」「90000」「$90k」），"
+            "且該宣稱與 Ground Truth 的 last 或 ohlc_last 收盤**明顯衝突**時，才列 issue（passed=false）；"
+            "若 thesis 無具體價格，**不要**自行推算或臆測價格合理性。\n"
             "若無矛盾：passed=true, issues=[]。\n"
             "若有矛盾：passed=false 並列出具體 issues（field + reason，各一行）。\n"
             "Slim schema only: passed (bool), issues (list of {field, reason}).",
@@ -1321,9 +1620,9 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
         (
             "human",
             "Trade intents:\n{trade_lines}\n\n"
-            "News titles (anti-hallucination context):\n{news_titles}\n\n"
-            "Raw data keys available:\n{raw_data_keys}\n\n"
-            "Ground Truth (real-time prices):\n{ground_truth_block}\n",
+            "News titles（僅供標的是否曾出現在脈絡，非報價依據）:\n{news_titles}\n\n"
+            "Raw data keys（僅供脈絡鍵名，非報價依據）:\n{raw_data_keys}\n\n"
+            "Ground Truth（唯一價格與簡易 OHLC 事實來源）:\n{ground_truth_block}\n",
         ),
     ])
 
@@ -1346,12 +1645,21 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
                 "issues": [],
                 "reason": "fail_open",
             },
+            summary=f"LLM 審查例外，fail-open：{exc!s}"[:200],
+            run_id=rid,
+            category=gcat or category,
         )
         return {"review_issues": [], "trade_watch_final": proposed}
 
     if verdict.passed:
         logger.info("llm_reviewer_node: passed (revision_count=%d)", revision_count)
-        _emit_node_event("llm_reviewer", {"passed": True, "revision_count": revision_count, "issues": []})
+        _emit_node_event(
+            "llm_reviewer",
+            {"passed": True, "revision_count": revision_count, "issues": []},
+            summary=f"LLM 審查通過（rev={revision_count}）",
+            run_id=rid,
+            category=gcat or category,
+        )
         return {"review_issues": [], "trade_watch_final": proposed}
 
     issues = [{"field": i.field, "reason": i.reason} for i in verdict.issues]
@@ -1361,7 +1669,13 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
         revision_count,
         issues[:3],
     )
-    _emit_node_event("llm_reviewer", {"passed": False, "revision_count": revision_count, "issues": issues[:5]})
+    _emit_node_event(
+        "llm_reviewer",
+        {"passed": False, "revision_count": revision_count, "issues": issues[:5]},
+        summary=f"LLM 審查未過：{len(issues)} 項（rev={revision_count}）",
+        run_id=rid,
+        category=gcat or category,
+    )
     return {"review_issues": issues, "revision_count": revision_count + 1}
 
 
@@ -1936,8 +2250,18 @@ def agency_researcher_node(state: ResearchGraphState) -> dict[str, Any]:
 def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
     """Final formatter with legacy fallback and native structured mode."""
     category = state["category"]
+    rid = _graph_run_id(state)
+    fmt_cat = _graph_category(state) or str(category)
     if _formatter_uses_legacy_crews():
         logger.info("--- [Node] Final Formatter (Legacy Crew) 啟動 ---")
+        _emit_node_event(
+            "final_formatter",
+            {"category": category, "degraded": bool(state.get("degraded"))},
+            phase="begin",
+            summary=f"最終排版（Legacy，{category}）",
+            run_id=rid,
+            category=fmt_cat,
+        )
         from crew import AIResearchCrew, CryptoResearchCrew
 
         use_fallback_llm = bool(state.get("use_fallback_llm", False))
@@ -1966,8 +2290,24 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
             }
             if updates:
                 section = section.model_copy(update=updates)
+        degraded = bool(state.get("degraded"))
+        _emit_node_event(
+            "final_formatter",
+            {"category": category, "degraded": degraded},
+            summary="Legacy 排版完成" + ("（degraded）" if degraded else ""),
+            run_id=rid,
+            category=fmt_cat,
+        )
         return {"final_report": section.model_dump(mode="json"), "needs_deep_dive": False}
 
+    _emit_node_event(
+        "final_formatter",
+        {"category": category, "degraded": bool(state.get("degraded"))},
+        phase="begin",
+        summary=f"最終排版（Native，{category}）",
+        run_id=rid,
+        category=fmt_cat,
+    )
     logger.info("--- [Node] Final Formatter (Native Structured Output) 啟動 ---")
     llm = _get_formatter_llm()
     packet = _build_formatter_input_packet(state)
@@ -2030,5 +2370,12 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
 
     if not state.get("degraded"):
         _write_reviewer_log_safe(state, degraded=False)
-    _emit_node_event("final_formatter", {"category": category, "degraded": bool(state.get("degraded"))})
+    degraded_end = bool(state.get("degraded"))
+    _emit_node_event(
+        "final_formatter",
+        {"category": category, "degraded": degraded_end},
+        summary="最終排版完成" + ("（degraded）" if degraded_end else ""),
+        run_id=rid,
+        category=fmt_cat,
+    )
     return {"final_report": section.model_dump(mode="json"), "needs_deep_dive": False}

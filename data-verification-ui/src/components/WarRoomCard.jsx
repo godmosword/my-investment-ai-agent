@@ -2,6 +2,15 @@
  * War Room snapshot: gate failures, scratchpad status, execution intents.
  * Extracted from Today.jsx for reuse and intent status filtering.
  */
+import { useWarRoomGraphTelemetry } from "../hooks/useWarRoomSse";
+
+function pipelineBarColor(sev) {
+  if (sev === "error") return "#c62828";
+  if (sev === "warn") return "#f9a825";
+  if (sev === "info") return "#546e7a";
+  return "#2e7d32";
+}
+
 export default function WarRoomCard({
   warRoom,
   loading,
@@ -11,6 +20,8 @@ export default function WarRoomCard({
   onIntentStatusChange,
   onWarRoomRetry,
 }) {
+  const { lines: graphTelemetryLines } = useWarRoomGraphTelemetry();
+
   if (loading) {
     return <div className="loading">載入 War Room 快照中…</div>;
   }
@@ -113,6 +124,61 @@ export default function WarRoomCard({
           <strong style={{ color: "var(--text)" }}>{intents.length}</strong>
         </div>
       </div>
+
+      {graphTelemetryLines.length > 0 ? (
+        <div style={{ marginTop: 14 }}>
+          <div className="section-header subtle" style={{ marginBottom: 6 }}>
+            Pipeline 終端
+          </div>
+          <div
+            data-testid="war-room-pipeline-terminal"
+            style={{
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              fontSize: 11,
+              lineHeight: 1.45,
+              maxHeight: 180,
+              overflowY: "auto",
+              padding: "8px 10px",
+              borderRadius: 6,
+              border: "1px solid var(--border)",
+              background: "var(--panel)",
+              color: "var(--text)",
+            }}
+          >
+            {graphTelemetryLines.map((ln, idx) => (
+              <div
+                key={ln.id}
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-start",
+                  padding: "4px 0",
+                  borderTop: idx > 0 ? "1px solid var(--border)" : undefined,
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 3,
+                    minWidth: 3,
+                    marginTop: 3,
+                    borderRadius: 2,
+                    minHeight: 14,
+                    background: pipelineBarColor(ln.severity),
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: "var(--muted)", fontSize: 10 }}>
+                    {ln.ts} · <strong style={{ color: "var(--text)" }}>{ln.node}</strong> ·{" "}
+                    {ln.phase}
+                  </div>
+                  <div style={{ wordBreak: "break-word" }}>{ln.summary || "（無摘要）"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {intents.length > 0 && (
         <div style={{ marginTop: 10, marginBottom: 8 }}>
