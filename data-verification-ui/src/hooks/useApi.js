@@ -648,6 +648,18 @@ export function usePaperPnl({ limit = 200, status = "", category = "" } = {}) {
   });
 }
 
+export function usePaperTransparencyLetter(month = "") {
+  const normalized = String(month ?? "").trim();
+  const params = new URLSearchParams();
+  if (normalized) params.set("month", normalized);
+  return useQuery({
+    queryKey: ["paper", "transparency-letter", normalized || "current"],
+    queryFn: () => apiFetch(`/api/paper/transparency-letter${params.toString() ? `?${params}` : ""}`),
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 async function apiPostJson(path, body = {}, extraHeaders = {}) {
   let res;
   try {

@@ -38,6 +38,7 @@ from execution_intents import (
 )
 from paper_lifecycle import build_paper_lifecycle_payload
 from signal_quality import enrich_signal_quality
+from transparency_letter import build_transparency_letter
 from track_record import normalize_closed_intent
 from paper_execution import run_paper_execution_tick
 from war_room_stream import drain_graph_node_events, get_war_room_stream_version
@@ -1728,6 +1729,18 @@ def get_paper_pnl(
         quote_fn=fetch_symbol_quote,
         include_quotes=True,
     )
+
+
+@app.get("/api/paper/transparency-letter")
+def get_paper_transparency_letter(
+    month: str | None = Query(default=None, description="Optional month in YYYY-MM format."),
+    limit: int = Query(default=500, ge=1, le=1000),
+) -> dict[str, Any]:
+    """Internal monthly paper transparency letter; never publishes externally."""
+    try:
+        return build_transparency_letter(month=month, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/symbols/{symbol}/quote", response_model=SymbolQuote)

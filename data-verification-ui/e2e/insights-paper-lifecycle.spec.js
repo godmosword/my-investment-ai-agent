@@ -10,6 +10,8 @@ test.describe("Insights paper lifecycle", () => {
     await expect(page.getByTestId("paper-kpi-realized")).toContainText("+10.0%");
     await expect(page.getByTestId("paper-kpi-quality")).toContainText("78.5");
     await expect(page.getByTestId("paper-quality-vs-pnl")).toContainText("A: +12.0%");
+    await expect(page.getByTestId("paper-transparency-letter")).toContainText("Monthly Transparency Letter");
+    await expect(page.getByTestId("paper-letter-publishable")).toContainText("sample 1/5");
     await expect(page.getByTestId("paper-lifecycle-table").getByText("NVDA", { exact: true })).toBeVisible();
     await expect(page.getByTestId("paper-quality-badge").first()).toContainText("A");
     await expect(page.getByTestId("paper-intent-create-toggle")).toBeVisible();

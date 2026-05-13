@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
 import ExecutionIntentsBlotter from "../../../components/ExecutionIntentsBlotter";
-import { useCreateExecutionIntent, usePaperLifecycle, usePaperPnl } from "../../../hooks/useApi";
+import {
+  useCreateExecutionIntent,
+  usePaperLifecycle,
+  usePaperPnl,
+  usePaperTransparencyLetter,
+} from "../../../hooks/useApi";
 
 const INITIAL_FORM = {
   category: "AI",
@@ -254,9 +259,74 @@ function LifecycleTable({ rows }) {
   );
 }
 
+function TransparencyLetterCard({ letter }) {
+  const summary = letter.data?.summary || {};
+  const alignment = letter.data?.alignment || {};
+  const matched = alignment.matched_symbols || [];
+  const paperOnly = alignment.paper_only_symbols || [];
+  const portfolioOnly = alignment.portfolio_only_symbols || [];
+
+  return (
+    <section className="rounded border border-white/10 bg-white/[0.03] p-3" data-testid="paper-transparency-letter">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[12px] font-semibold uppercase text-cyan-200">Monthly Transparency Letter</div>
+          <div className="mt-1 text-[18px] font-semibold text-white">{letter.data?.month || "current month"}</div>
+          <div className="mt-1 text-[12px] text-[var(--muted)]">
+            Internal-only paper letter · publishable only after minimum sample and human review.
+          </div>
+        </div>
+        <span
+          className={`rounded border px-2 py-1 text-[12px] ${
+            summary.publishable
+              ? "border-emerald-300/40 bg-emerald-400/10 text-emerald-200"
+              : "border-amber-300/40 bg-amber-400/10 text-amber-200"
+          }`}
+          data-testid="paper-letter-publishable"
+        >
+          {summary.publishable ? "sample ready" : `sample ${summary.closed_count ?? 0}/${summary.min_publishable_sample ?? 5}`}
+        </span>
+      </div>
+
+      {letter.isLoading ? (
+        <div className="mt-3 text-[13px] text-[var(--muted)]">生成透明月報…</div>
+      ) : letter.error ? (
+        <div className="mt-3 text-[13px] text-red-300" role="alert">透明月報暫時無法載入：{letter.error.message}</div>
+      ) : (
+        <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1.3fr]">
+          <div className="grid grid-cols-2 gap-2 text-[12px]">
+            <Kpi label="Closed" value={summary.closed_count ?? 0} sub={`${summary.wins ?? 0} wins / ${summary.losses ?? 0} losses`} />
+            <Kpi label="Avg Return" value={fmtPct(summary.avg_return_pct)} tone={colorFor(summary.avg_return_pct)} />
+            <Kpi label="Win Rate" value={fmtPct(summary.win_rate_pct)} />
+            <Kpi label="Avg Quality" value={fmtNum(summary.avg_quality_score)} />
+          </div>
+          <div className="rounded border border-white/10 bg-black/20 p-3">
+            <div className="text-[12px] font-semibold uppercase text-white/70">Portfolio Alignment</div>
+            <div className="mt-2 flex flex-wrap gap-2 text-[12px]">
+              <span className="rounded border border-emerald-300/30 px-2 py-1 text-emerald-200">
+                matched {matched.join(", ") || "none"}
+              </span>
+              <span className="rounded border border-cyan-300/30 px-2 py-1 text-cyan-200">
+                paper-only {paperOnly.join(", ") || "none"}
+              </span>
+              <span className="rounded border border-white/15 px-2 py-1 text-white/65">
+                portfolio-only {portfolioOnly.join(", ") || "none"}
+              </span>
+            </div>
+            <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded border border-white/10 bg-black/30 p-2 text-[11px] text-white/65">
+              {letter.data?.letter_markdown || ""}
+            </pre>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function PaperLifecycleHome() {
   const lifecycle = usePaperLifecycle();
   const pnl = usePaperPnl();
+  const letter = usePaperTransparencyLetter();
   const summary = pnl.data?.summary || lifecycle.data?.summary || {};
   const rows = useMemo(() => pnl.data?.rows || lifecycle.data?.rows || [], [pnl.data, lifecycle.data]);
 
@@ -294,6 +364,7 @@ export default function PaperLifecycleHome() {
       ) : null}
 
       <IntentCreateForm />
+      <TransparencyLetterCard letter={letter} />
 
       {lifecycle.isLoading || pnl.isLoading ? (
         <div className="rounded border border-white/10 p-3 text-[13px] text-[var(--muted)]">載入紙上生命週期…</div>

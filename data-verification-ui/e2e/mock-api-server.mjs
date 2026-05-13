@@ -721,6 +721,10 @@ const server = http.createServer((req, res) => {
         paper_fill_price: null,
         paper_exit_price: null,
         gate_issue_hints: [],
+        quality_score: 85,
+        quality_grade: "A",
+        quality_reasons: ["high_conviction", "has_entry_target_stop"],
+        quality_model: "qsi_signal_quality_v1",
       });
     });
     return;
@@ -986,6 +990,36 @@ const server = http.createServer((req, res) => {
           quality_model: "qsi_signal_quality_v1",
         },
       ],
+    });
+    return;
+  }
+  if (url.pathname === "/api/paper/transparency-letter") {
+    sendJson(res, 200, {
+      as_of: "2026-05-13T00:00:00Z",
+      month: url.searchParams.get("month") || "2026-05",
+      source: "execution_intents.jsonl+portfolio_holdings.jsonl",
+      summary: {
+        closed_count: 1,
+        wins: 1,
+        losses: 0,
+        win_rate_pct: 100,
+        avg_return_pct: 10,
+        best_return_pct: 10,
+        worst_return_pct: 10,
+        avg_quality_score: 65,
+        quality_counts: { B: 1 },
+        min_publishable_sample: 5,
+        publishable: false,
+      },
+      alignment: {
+        portfolio_symbols: ["NVDA"],
+        paper_symbols: ["BTC"],
+        matched_symbols: [],
+        paper_only_symbols: ["BTC"],
+        portfolio_only_symbols: ["NVDA"],
+      },
+      rows: [],
+      letter_markdown: "# Paper Transparency Letter — 2026-05\n\nInternal review only.",
     });
     return;
   }
