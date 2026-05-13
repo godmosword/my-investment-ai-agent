@@ -35,7 +35,7 @@
 
 下一階段產品方向是從「通用研報 tool」推進到「個人化投資決策夥伴」，但會沿用既有信任邊界：`execution_intents`／`paper_execution` 做 paper-tracked 訊號生命週期，`report_quality_agent` 與 `validate_report` 做品質與 Gate 依據，PWA War Room / Terminal 承接可審核操作面。12 週 roadmap 的主線為：paper P&L → quality-adjusted scoring → portfolio alignment → scenario / target optimizer → beta / launch。
 
-v1 僅追蹤 **paper-tracked** 訊號，不接券商、不自動下單，也不保證任何投資績效；公開績效或月度信函必須使用可回放、可審計的 paper 記錄，且不得弱化無數據幻覺、Telegram HTML 白名單或 `validate_report` 契約。Phase 2 已補 `/api/paper/lifecycle`、`/api/paper/pnl`、manual `POST /api/execution-intents`、`/insights` 紙上生命週期 tab、paper-derived quant backtest、Columns sector rotation 與 local-first workspace import/export；後續隊列見 [`TODOS.md`](TODOS.md) **28：12 週投資價值優化 Roadmap**。
+v1 僅追蹤 **paper-tracked** 訊號，不接券商、不自動下單，也不保證任何投資績效；公開績效或月度信函必須使用可回放、可審計的 paper 記錄，且不得弱化無數據幻覺、Telegram HTML 白名單或 `validate_report` 契約。Phase 2 已補 `/api/paper/lifecycle`、`/api/paper/pnl`、manual `POST /api/execution-intents`、quality-adjusted scoring、`/insights` 紙上生命週期 tab、paper-derived quant backtest、Columns sector rotation 與 local-first workspace import/export；後續隊列見 [`TODOS.md`](TODOS.md) **28：12 週投資價值優化 Roadmap**。
 
 ---
 
@@ -331,6 +331,7 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 | `GET` | `/api/paper/lifecycle` | execution-intents 紙上生命週期 summary + risk metrics |
 | `GET` | `/api/paper/pnl` | realized/unrealized paper P&L，active rows best-effort quote enrichment |
 | `POST` | `/api/execution-intents` | 手動建立 `PENDING_REVIEW` intent；append-only，不下單 |
+| `GET` | `/api/execution-intents` | 最新 intent blotter；含 quality score/grade/reasons read-model 欄位 |
 | `GET` | `/api/industries/themes` | 靜態主題表 + sector rotation + regime 提示（M5） |
 | `GET` | `/api/analysis/{symbol}` | quote + snapshot（snapshot 可失敗降級）；`/insights?symbol=` 顯示 deep dive |
 | `GET` | `/api/quant/signals` | 紙上敘事用訊號列（M7；不承諾收益） |

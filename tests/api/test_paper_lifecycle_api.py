@@ -45,6 +45,8 @@ def test_manual_execution_intent_create_list_patch(client):
 
     listed = client.get("/api/execution-intents").json()
     assert [r["signal_id"] for r in listed] == [row["signal_id"]]
+    assert listed[0]["quality_grade"] == "A"
+    assert listed[0]["quality_score"] >= 80
 
     patched = client.patch(
         f"/api/execution-intents/{row['signal_id']}",
@@ -99,6 +101,9 @@ def test_paper_lifecycle_summary_and_risk_metrics(client, tmp_path, monkeypatch)
     assert open_row["target_distance_pct"] == pytest.approx(30)
     assert open_row["stop_distance_pct"] == pytest.approx(10)
     assert open_row["r_multiple"] == pytest.approx(3)
+    assert open_row["quality_grade"] == "A"
+    assert body["summary"]["avg_quality_score"] > 0
+    assert body["summary"]["quality_counts"]["A"] == 1
 
 
 def test_paper_pnl_marks_active_rows_and_keeps_quote_errors(client, tmp_path, monkeypatch):

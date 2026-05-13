@@ -31,6 +31,28 @@ function colorFor(value) {
   return n > 0 ? "text-emerald-300" : "text-red-300";
 }
 
+function qualityTone(grade) {
+  if (grade === "A") return "border-emerald-300/40 bg-emerald-400/10 text-emerald-200";
+  if (grade === "B") return "border-cyan-300/40 bg-cyan-400/10 text-cyan-200";
+  if (grade === "C") return "border-amber-300/40 bg-amber-400/10 text-amber-200";
+  return "border-red-300/40 bg-red-400/10 text-red-200";
+}
+
+function QualityBadge({ row }) {
+  const grade = row?.quality_grade || "D";
+  const score = Number(row?.quality_score);
+  return (
+    <span
+      data-testid="paper-quality-badge"
+      className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold ${qualityTone(grade)}`}
+      title={(row?.quality_reasons || []).join(", ")}
+    >
+      {grade}
+      <span className="text-white/55">{Number.isFinite(score) ? score : "—"}</span>
+    </span>
+  );
+}
+
 function Kpi({ label, value, sub, testId, tone }) {
   return (
     <div className="rounded border border-white/10 bg-white/[0.03] p-3" data-testid={testId}>
@@ -188,6 +210,7 @@ function LifecycleTable({ rows }) {
           <tr>
             <th className="px-2 py-2">Signal</th>
             <th className="px-2 py-2">Status</th>
+            <th className="px-2 py-2">Quality</th>
             <th className="px-2 py-2">Entry / Mark</th>
             <th className="px-2 py-2">P&L</th>
             <th className="px-2 py-2">Risk</th>
@@ -203,6 +226,14 @@ function LifecycleTable({ rows }) {
                 <div className="text-[11px] text-white/60">{row.direction} · {row.category || "—"}</div>
               </td>
               <td className="px-2 py-2 text-white/75">{row.status}</td>
+              <td className="px-2 py-2">
+                <QualityBadge row={row} />
+                {Array.isArray(row.quality_reasons) && row.quality_reasons.length ? (
+                  <div className="mt-1 max-w-[150px] truncate text-[10px] text-[var(--muted)]">
+                    {row.quality_reasons.slice(0, 3).join(" · ")}
+                  </div>
+                ) : null}
+              </td>
               <td className="px-2 py-2 font-mono text-white/75">
                 {fmtNum(row.entry_price)} / {fmtNum(row.mark_price)}
                 {row.quote_error ? <div className="text-[11px] text-red-300">quote unavailable</div> : null}
@@ -246,8 +277,21 @@ export default function PaperLifecycleHome() {
         <Kpi label="Active" value={summary.active_count ?? 0} sub="approved/submitted/filled" testId="paper-kpi-active" />
         <Kpi label="Closed" value={summary.closed_count ?? 0} sub={`${summary.wins ?? 0} wins / ${summary.losses ?? 0} losses`} testId="paper-kpi-closed" />
         <Kpi label="Realized" value={fmtPct(summary.avg_realized_return_pct)} tone={colorFor(summary.avg_realized_return_pct)} testId="paper-kpi-realized" />
-        <Kpi label="Unrealized" value={fmtPct(summary.avg_unrealized_return_pct)} tone={colorFor(summary.avg_unrealized_return_pct)} testId="paper-kpi-unrealized" />
+        <Kpi label="Quality" value={fmtNum(summary.avg_quality_score)} sub={`A ${summary.quality_counts?.A ?? 0} · B ${summary.quality_counts?.B ?? 0}`} testId="paper-kpi-quality" />
       </div>
+
+      {summary.avg_return_by_quality && Object.keys(summary.avg_return_by_quality).length ? (
+        <div className="rounded border border-white/10 bg-white/[0.03] p-3" data-testid="paper-quality-vs-pnl">
+          <div className="mb-2 text-[12px] font-semibold uppercase text-cyan-200">Quality vs P&L</div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(summary.avg_return_by_quality).map(([grade, value]) => (
+              <span key={grade} className={`rounded border px-2 py-1 text-[12px] ${qualityTone(grade)}`}>
+                {grade}: {fmtPct(value)}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <IntentCreateForm />
 

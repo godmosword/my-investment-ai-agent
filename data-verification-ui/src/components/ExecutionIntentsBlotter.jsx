@@ -32,10 +32,46 @@ function formatPrice(v) {
   return Number(v).toLocaleString("en-US", { maximumFractionDigits: 6 });
 }
 
+function qualityTone(grade) {
+  if (grade === "A") return { border: "rgba(52,211,153,0.45)", background: "rgba(52,211,153,0.12)", color: "#a7f3d0" };
+  if (grade === "B") return { border: "rgba(34,211,238,0.45)", background: "rgba(34,211,238,0.12)", color: "#a5f3fc" };
+  if (grade === "C") return { border: "rgba(251,191,36,0.45)", background: "rgba(251,191,36,0.12)", color: "#fde68a" };
+  return { border: "rgba(248,113,113,0.45)", background: "rgba(248,113,113,0.12)", color: "#fecaca" };
+}
+
+function QualityBadge({ row }) {
+  const grade = row?.quality_grade || "D";
+  const score = Number(row?.quality_score);
+  const tone = qualityTone(grade);
+  return (
+    <span
+      data-testid="intent-quality-badge"
+      title={(row?.quality_reasons || []).join(", ")}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        border: `1px solid ${tone.border}`,
+        background: tone.background,
+        color: tone.color,
+        borderRadius: 4,
+        padding: "2px 6px",
+        fontSize: 11,
+        fontWeight: 700,
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+      }}
+    >
+      {grade}
+      <span style={{ color: "rgba(255,255,255,0.62)" }}>{Number.isFinite(score) ? score : "—"}</span>
+    </span>
+  );
+}
+
 export default function ExecutionIntentsBlotter() {
   const pollMs = getTerminalRefetchIntervalMs();
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [qualityFilter, setQualityFilter] = useState("all");
   const [sortBy, setSortBy] = useState("updated_desc");
   const {
     data: rows = [],
@@ -58,6 +94,7 @@ export default function ExecutionIntentsBlotter() {
   const clientPatchable = Array.isArray(allowedPayload?.client_patchable)
     ? allowedPayload.client_patchable
     : ["PENDING_REVIEW", "APPROVED_FOR_PAPER", "REJECTED", "SUPERSEDED"];
+  const visibleRows = qualityFilter === "all" ? rows : rows.filter((row) => row.quality_grade === qualityFilter);
   const hasRows = rows.length > 0;
 
   const setRefField = (signalId, field, value) => {
@@ -166,6 +203,21 @@ export default function ExecutionIntentsBlotter() {
               <option value="asset_asc">代號 A→Z</option>
             </select>
           </label>
+          <label className="page-subtitle" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            品質
+            <select
+              data-testid="intent-quality-filter"
+              className="terminal-input terminal-input--narrow"
+              value={qualityFilter}
+              onChange={(e) => setQualityFilter(e.target.value)}
+            >
+              <option value="all">全部</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+            </select>
+          </label>
         </div>
       ) : null}
 
@@ -180,6 +232,7 @@ export default function ExecutionIntentsBlotter() {
               <tr>
                 <th>資產</th>
                 <th>分類</th>
+                <th>品質</th>
                 <th>方向</th>
                 <th>狀態</th>
                 <th>更新</th>
@@ -191,7 +244,7 @@ export default function ExecutionIntentsBlotter() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.signal_id}>
                   <td>
                     <strong>{row.asset}</strong>
@@ -203,6 +256,14 @@ export default function ExecutionIntentsBlotter() {
                   <td>
                     <div><strong>{row.category || "—"}</strong></div>
                     <div className="terminal-blotter-note-read">{row.regime || "regime: —"}</div>
+                  </td>
+                  <td>
+                    <QualityBadge row={row} />
+                    {Array.isArray(row.quality_reasons) && row.quality_reasons.length > 0 ? (
+                      <div className="terminal-blotter-note-read" style={{ marginTop: 4, maxWidth: 130 }}>
+                        {row.quality_reasons.slice(0, 2).join(" · ")}
+                      </div>
+                    ) : null}
                   </td>
                   <td>{row.direction}</td>
                   <td>

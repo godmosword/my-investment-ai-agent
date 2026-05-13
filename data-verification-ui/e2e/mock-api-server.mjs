@@ -689,6 +689,10 @@ const server = http.createServer((req, res) => {
         paper_fill_price: null,
         paper_exit_price: null,
         gate_issue_hints: [],
+        quality_score: 85,
+        quality_grade: "A",
+        quality_reasons: ["high_conviction", "has_entry_target_stop"],
+        quality_model: "qsi_signal_quality_v1",
       });
     });
     return;
@@ -907,6 +911,10 @@ const server = http.createServer((req, res) => {
         status: "PENDING_REVIEW",
         status_updated_at: "2026-04-14T00:00:00Z",
         gate_issue_hints: ["SPY exposure check failed for SPY leg"],
+        quality_score: 25,
+        quality_grade: "D",
+        quality_reasons: ["base_conviction", "missing_entry", "gate_warning"],
+        quality_model: "qsi_signal_quality_v1",
       },
     ]);
     return;
@@ -928,6 +936,9 @@ const server = http.createServer((req, res) => {
         best_return_pct: 12,
         worst_return_pct: 10,
         quote_error_count: 0,
+        avg_quality_score: 78.5,
+        quality_counts: { A: 1, B: 1 },
+        avg_return_by_quality: { A: 12, B: 10 },
       },
       rows: [
         {
@@ -947,6 +958,10 @@ const server = http.createServer((req, res) => {
           target_distance_pct: 30,
           stop_distance_pct: 10,
           r_multiple: 3,
+          quality_score: 92,
+          quality_grade: "A",
+          quality_reasons: ["high_conviction", "clear_thesis", "has_entry_target_stop"],
+          quality_model: "qsi_signal_quality_v1",
         },
         {
           signal_id: "e2e-btc-short-closed",
@@ -965,6 +980,10 @@ const server = http.createServer((req, res) => {
           target_distance_pct: null,
           stop_distance_pct: null,
           r_multiple: null,
+          quality_score: 65,
+          quality_grade: "B",
+          quality_reasons: ["base_conviction", "clear_thesis", "has_entry"],
+          quality_model: "qsi_signal_quality_v1",
         },
       ],
     });

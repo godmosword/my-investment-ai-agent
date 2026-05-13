@@ -37,6 +37,7 @@ from execution_intents import (
     update_execution_intent_status,
 )
 from paper_lifecycle import build_paper_lifecycle_payload
+from signal_quality import enrich_signal_quality
 from track_record import normalize_closed_intent
 from paper_execution import run_paper_execution_tick
 from war_room_stream import drain_graph_node_events, get_war_room_stream_version
@@ -1235,6 +1236,10 @@ class ExecutionIntentRow(BaseModel):
     paper_fill_price: float | None = None
     paper_exit_price: float | None = None
     gate_issue_hints: list[str] = Field(default_factory=list)
+    quality_score: int | None = None
+    quality_grade: str | None = None
+    quality_reasons: list[str] = Field(default_factory=list)
+    quality_model: str | None = None
 
 
 def _repo_root() -> Path:
@@ -1637,7 +1642,8 @@ def list_execution_intents(
         sort_by=sort_key,
     )
     gate = _latest_gate_failure_summary()
-    return _enrich_intents_with_gate_hints(rows, gate)
+    hinted = _enrich_intents_with_gate_hints(rows, gate)
+    return [enrich_signal_quality(row) for row in hinted]
 
 
 @app.get("/api/execution-intents/allowed-statuses")

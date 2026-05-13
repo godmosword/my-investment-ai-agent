@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from execution_intents import latest_execution_intents
+from signal_quality import evaluate_signal_quality
 
 
 ACTIVE_STATUSES = {"APPROVED_FOR_PAPER", "PAPER_SUBMITTED", "PAPER_FILLED"}
@@ -106,6 +107,7 @@ def _enrich_row(
 
     ret = _return_pct(direction, entry, mark_price) if entry is not None and mark_price is not None else None
     risk = _risk_metrics(row, entry)
+    quality = evaluate_signal_quality({**row, **risk})
 
     return {
         **row,
@@ -121,6 +123,7 @@ def _enrich_row(
         "quote_as_of": quote_as_of,
         "quote_change_pct_1d": quote_change_pct_1d,
         **risk,
+        **quality,
     }
 
 
@@ -146,6 +149,21 @@ def _summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     losses = sum(1 for value in realized if value < 0)
     quote_error_count = sum(1 for row in rows if row.get("quote_error"))
     all_returns = realized + unrealized
+    quality_scores = [
+        float(row["quality_score"])
+        for row in rows
+        if row.get("quality_score") is not None
+    ]
+    quality_counts = Counter(str(row.get("quality_grade") or "—") for row in rows)
+    quality_return_rows = [
+        row
+        for row in rows
+        if row.get("quality_grade") and row.get("return_pct") is not None
+    ]
+    returns_by_quality = {}
+    for grade in sorted({str(row.get("quality_grade")) for row in quality_return_rows}):
+        vals = [float(row["return_pct"]) for row in quality_return_rows if str(row.get("quality_grade")) == grade]
+        returns_by_quality[grade] = _avg(vals)
     return {
         "total": len(rows),
         "active_count": len(active),
@@ -159,6 +177,9 @@ def _summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "best_return_pct": max(all_returns) if all_returns else 0.0,
         "worst_return_pct": min(all_returns) if all_returns else 0.0,
         "quote_error_count": quote_error_count,
+        "avg_quality_score": _avg(quality_scores),
+        "quality_counts": dict(quality_counts),
+        "avg_return_by_quality": returns_by_quality,
     }
 
 

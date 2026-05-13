@@ -8,9 +8,15 @@ test.describe("Insights paper lifecycle", () => {
     await expect(page.getByTestId("paper-lifecycle-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("paper-kpi-active")).toContainText("1");
     await expect(page.getByTestId("paper-kpi-realized")).toContainText("+10.0%");
+    await expect(page.getByTestId("paper-kpi-quality")).toContainText("78.5");
+    await expect(page.getByTestId("paper-quality-vs-pnl")).toContainText("A: +12.0%");
     await expect(page.getByTestId("paper-lifecycle-table").getByText("NVDA", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("paper-quality-badge").first()).toContainText("A");
     await expect(page.getByTestId("paper-intent-create-toggle")).toBeVisible();
     await expect(page.getByText("執行意圖（紙上前置）")).toBeVisible();
+    await expect(page.getByTestId("intent-quality-badge").first()).toContainText("D");
+    await page.getByTestId("intent-quality-filter").selectOption("D");
+    await expect(page.getByText("e2e-spy-1")).toBeVisible();
 
     await page.getByTestId("paper-intent-create-toggle").click();
     await page.getByTestId("paper-intent-asset").fill("msft");
