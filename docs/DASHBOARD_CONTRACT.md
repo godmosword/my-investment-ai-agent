@@ -66,6 +66,12 @@
 | `GET /api/execution-intents` | 執行意圖列表（每 `signal_id` 最新一列） | query：`limit`；可選 **`status`**（狀態字串之子字串比對，大小寫不敏感）、**`category`**（`CRYPTO`／`AI` 前綴）、**`sort_by`**（`updated_desc`｜`created_desc`｜`asset_asc`）。回應列契約至少含 **`signal_id`、`created_at`、`category`、`regime`、`asset`、`direction`、`star_rating`、`thesis_one_liner`、`status`、`status_updated_at`、`status_note`、`reference_*`、`paper_*`**；若存在本機 **`.qsilicon/last_gate_failure/validation_summary.json`**，列表列會附加唯讀 **`gate_issue_hints`**（無命中時回空陣列） |
 | `GET /api/execution-intents/allowed-statuses` | 意圖狀態集合 | 回傳 **`statuses`**（含紙上 `PAPER_*`）與 **`client_patchable`**（僅人審可 PATCH 子集） |
 | `PATCH /api/execution-intents/{signal_id}` | 意圖狀態轉移（append-only；**不下單**） | body：`status`、`note`、可選 **`reference_entry_price`／`reference_target_price`／`reference_stop_price`**（紙上模擬錨點）；成功回傳與 `GET /api/execution-intents` **同 shape** 的單列 |
+| `GET /api/portfolio` | Portfolio Tracker holdings | JSONL storage（`PORTFOLIO_HOLDINGS_FILE`，預設 `portfolio_holdings.jsonl`）；回傳 `{ holdings: [...] }` |
+| `POST /api/portfolio` | 新增 Portfolio holding | body：`symbol`、`shares`、`cost_basis`、`opened_at`、可選 `notes`；`symbol` 正規化為大寫，`shares > 0`、`cost_basis >= 0`、`opened_at` 為 `YYYY-MM-DD` |
+| `PATCH /api/portfolio/{holding_id}` | 更新 Portfolio holding | body 可含 `shares`、`cost_basis`、`opened_at`、`notes`；找不到回 404 |
+| `DELETE /api/portfolio/{holding_id}` | 刪除 Portfolio holding | 成功回 `{ ok: true }`；找不到回 404 |
+| `POST /api/portfolio/import` | CSV 匯入 holdings | multipart `file`；欄位必須完全為 `symbol,shares,cost_basis,opened_at,notes`，錯誤回 422 |
+| `GET /api/portfolio/pnl` | Portfolio MTM / P&L enrich | 每列呼叫 yfinance quote helper；計算 `market_value`、`pnl`、`pnl_pct`、`weight`、`total_*`；單檔 quote 失敗回該列 `error: quote_unavailable` |
 | `GET /api/stream/war-room` | **SSE**：`data:` 為 `GET /api/war-room/latest` 同源 JSON | 預設 **404**；設 **`TERMINAL_SSE_ENABLED=1`** 啟用；可選 **`API_STREAM_AUTH_KEY`**（`X-QS-Stream-Key` 或 `?stream_key=`） |
 | `POST /api/paper/execution-tick` | 紙上模擬 **一輪**（`run_paper_execution_tick`） | 預設 **404**；設 **`PAPER_TICK_HTTP_ENABLED=1`**；可選 **`PAPER_TICK_API_KEY`**（`X-Paper-Tick-Key`）；CLI 見 `scripts/paper_execution_tick.py` |
 | `GET /api/reports` | 報告列表 | query：`limit`（1–90，預設 30）、可選 **`profile`**（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；帶入 `profile` 時後端以 `LLM_RUN_LOG_TABLE` **INNER JOIN** `METRICS_TABLE`，只列該 profile 有產出的日期（共用 `resolved_profile` 解析，與 `GET /api/reports/{date}/structured` 一致） |

@@ -39,6 +39,7 @@ venv/
 # Local generated artifacts
 logs/
 daily_chart.png
+portfolio_holdings.jsonl
 # .claude：僅追蹤設定、hooks、rules；其餘（如本機 agents）仍忽略
 .claude/*
 !.claude/settings.json

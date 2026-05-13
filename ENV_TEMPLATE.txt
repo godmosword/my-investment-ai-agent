@@ -209,6 +209,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # SYMBOL_SNAPSHOT_HTTP_BASE=   # Streamlit dashboard：Symbol 快照唯讀區改打 HTTP（例 http://127.0.0.1:8000）；未設則 dashboard 以 BigQuery 直建與 GET /api/symbols/{ticker}/snapshot 相同形狀之 payload（symbol_snapshot_service.build_symbol_snapshot）
 # DASHBOARD_SYMBOL_FOCUS=BTC   # Streamlit「載入快照」輸入框預設代號（可選；見 dashboard.py）
 # EXECUTION_INTENT_STORE=.qsilicon/execution_intents.jsonl  # 執行意圖 JSONL（相對 repo 根）
+# PORTFOLIO_HOLDINGS_FILE=portfolio_holdings.jsonl  # Portfolio Tracker v1 JSONL（可設到 .qsilicon/portfolio_holdings.jsonl 或測試 tmp_path）
 # ---------- PWA Web Push（分階；見 docs/PWA_WEB_PUSH.md）----------
 # WEB_PUSH_ENABLED=0           # 1=允許 POST /api/push/subscribe（無 Redis 且無 WEB_PUSH_STORE=1 時為 log-only）
 # WEB_PUSH_REDIS_URL=          # 例 redis://:pass@host:6379/0 — 訂閱與分散式 rate limit（優先於程序內 store）

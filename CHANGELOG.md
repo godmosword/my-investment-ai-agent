@@ -5,6 +5,11 @@
 
 ## 2026-05-13
 
+### Portfolio Tracker（Queue 38 Phase 1）
+- **API + JSONL storage**：新增 [`portfolio_holdings.py`](portfolio_holdings.py)（`PORTFOLIO_HOLDINGS_FILE`，預設 `portfolio_holdings.jsonl`；atomic rewrite）與 [`api_routers/portfolio.py`](api_routers/portfolio.py)，掛載 `GET/POST/PATCH/DELETE /api/portfolio`、`POST /api/portfolio/import`、`GET /api/portfolio/pnl`；P&L 使用 [`symbol_snapshot_service.fetch_symbol_quote`](symbol_snapshot_service.py)，單一 quote 失敗時只標記該列 `quote_unavailable`。
+- **PWA `/portfolio`**：[`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) 改為 Portfolio Tracker v1：總市值／今日損益／總損益 KPI、桌面持倉表、手機卡片、`+ 新增倉位` modal、CSV 匯入／拖放／匯出、刪除與 toast/error 狀態；新增 localStorage-only [`Watchlist.jsx`](data-verification-ui/src/components/Watchlist.jsx)。
+- **Tests**：新增 [`tests/api/test_portfolio_router.py`](tests/api/test_portfolio_router.py)（CRUD、CSV round-trip、invalid CSV、P&L math、quote unavailable）與 [`portfolio-route.spec.js`](data-verification-ui/e2e/portfolio-route.spec.js)，E2E mock server 補 `/api/portfolio` 與 `/api/portfolio/pnl` deterministic NVDA fixture。
+
 ### PWA（5 板塊 Terminal Phase 0）
 - **Route contract**：[`App.jsx`](data-verification-ui/src/App.jsx) 收斂為 **`/news`、`/dashboard`、`/insights`、`/columns`、`/portfolio`** 五個 canonical routes；`/`、`/briefs`、`/terminal` 以保留 query/hash 的相容 redirect 導向 `/insights`；`/settings`、`/api-key`、`/report/:date` 保留。
 - **五板塊框架**：新增 [`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx)、[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx)、[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx)、[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx)、[`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx)。本切片只搬路由／框架：`/dashboard` 承接現有戰情室，`/insights` 承接 Terminal 工作區 + Analysis/Quant tabs，`/columns` 承接產業頁，`/portfolio` 承接倉位頁；`/news` 僅提供未接 Firestore 的空狀態。

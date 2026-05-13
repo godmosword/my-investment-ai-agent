@@ -560,6 +560,99 @@ async function apiPostJson(path, body = {}, extraHeaders = {}) {
   return res.json();
 }
 
+async function apiPostForm(path, formData) {
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: mergeSiliconHeaders(),
+      body: formData,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Network error (${msg})`);
+  }
+  if (!res.ok) {
+    if (res.status === 401) handleApiUnauthorized();
+    const msg = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status}: ${msg}`);
+  }
+  return res.json();
+}
+
+async function apiDelete(path) {
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: "DELETE",
+      headers: mergeSiliconHeaders(),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Network error (${msg})`);
+  }
+  if (!res.ok) {
+    if (res.status === 401) handleApiUnauthorized();
+    const msg = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status}: ${msg}`);
+  }
+  return res.json();
+}
+
+export function usePortfolioHoldings() {
+  return useQuery({
+    queryKey: ["portfolio", "holdings"],
+    queryFn: () => apiFetch("/api/portfolio"),
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function usePortfolioPnl() {
+  return useQuery({
+    queryKey: ["portfolio", "pnl"],
+    queryFn: () => apiFetch("/api/portfolio/pnl"),
+    staleTime: 45 * 1000,
+    retry: 1,
+  });
+}
+
+export function useAddHolding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => apiPostJson("/api/portfolio", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["portfolio"] }),
+  });
+}
+
+export function useUpdateHolding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }) => apiPatchJson(`/api/portfolio/${encodeURIComponent(id)}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["portfolio"] }),
+  });
+}
+
+export function useDeleteHolding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => apiDelete(`/api/portfolio/${encodeURIComponent(id)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["portfolio"] }),
+  });
+}
+
+export function useImportCsv() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (csvText) => {
+      const form = new FormData();
+      form.append("file", new Blob([csvText], { type: "text/csv" }), "holdings.csv");
+      return apiPostForm("/api/portfolio/import", form);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["portfolio"] }),
+  });
+}
+
 export function useRunCrewStatus() {
   return useQuery({
     queryKey: ["run-crew", "status"],

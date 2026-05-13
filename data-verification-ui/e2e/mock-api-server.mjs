@@ -321,7 +321,7 @@ function sendJson(res, code, obj) {
   res.writeHead(code, {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, PATCH, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "*",
   });
   res.end(body);
@@ -332,7 +332,7 @@ const server = http.createServer((req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, PATCH, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, PATCH, POST, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "*",
     });
     res.end();
@@ -523,6 +523,47 @@ const server = http.createServer((req, res) => {
       return;
     }
     sendJson(res, 200, legacyReportBody(d));
+    return;
+  }
+  if (url.pathname === "/api/portfolio") {
+    sendJson(res, 200, {
+      holdings: [
+        {
+          id: "1",
+          symbol: "NVDA",
+          shares: 10,
+          cost_basis: 500,
+          opened_at: "2024-01-01",
+          notes: "",
+        },
+      ],
+    });
+    return;
+  }
+  if (url.pathname === "/api/portfolio/pnl") {
+    sendJson(res, 200, {
+      total_value: 8000,
+      total_pnl: 3000,
+      total_day_pnl: 120,
+      holdings: [
+        {
+          id: "1",
+          symbol: "NVDA",
+          shares: 10,
+          cost_basis: 500,
+          opened_at: "2024-01-01",
+          notes: "",
+          last_price: 800,
+          day_change_pct: 1.5,
+          market_value: 8000,
+          cost: 5000,
+          pnl: 3000,
+          pnl_pct: 60,
+          day_pnl: 120,
+          weight: 100,
+        },
+      ],
+    });
     return;
   }
   /** M4 aggregate — exact path only (before `/api/positions/open`). */

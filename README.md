@@ -206,6 +206,7 @@ python3 -m pytest -m smoke -q    # 與 PR CI 對齊（requirements-ci.txt）
 python3 -m pytest -v             # 全量
 python3 -m pytest -m boundary -v
 python3 -m pytest test_api_positions_bundle.py test_api_stream_war_room.py test_tech_pulse_tool.py -q   # Portal M4–M7 契約 + SSE watch_symbols + tech_pulse（2026-05-11）
+python3 -m pytest tests/api/test_portfolio_router.py -q   # Portfolio Tracker Queue 38（CRUD / CSV / P&L）
 ./scripts/bench_autoresearch.sh
 ./scripts/verify_graph_gate.sh     # Graph／Reviewer 變更後（等同 pytest test_reviewer_loop.py -q）
 ```
@@ -324,10 +325,23 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 
 | 方法 | 路徑 | 說明 |
 |------|------|------|
-| `GET` | `/api/positions` | 開倉建議聚合 + execution intents（M4；`PATCH` 等仍見 TODOS） |
+| `GET` | `/api/positions` | 開倉建議聚合 + execution intents（legacy M4 read slice） |
 | `GET` | `/api/industries/themes` | 靜態主題表 + regime 提示（M5） |
 | `GET` | `/api/analysis/{symbol}` | quote + snapshot（snapshot 可失敗降級）（M6） |
 | `GET` | `/api/quant/signals` | 紙上敘事用 **stub** 訊號列（M7；**非**回測 API、不承諾收益） |
+
+### Portfolio Tracker API（Queue 38，2026-05-13）
+
+`/portfolio` 使用本機 JSONL storage（預設 `portfolio_holdings.jsonl`，可用 `PORTFOLIO_HOLDINGS_FILE` 覆寫；此檔為本機資料，不提交 repo）。CSV 唯一支援欄位順序：`symbol,shares,cost_basis,opened_at,notes`。
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/api/portfolio` | 讀取 holdings |
+| `POST` | `/api/portfolio` | 新增 holding（`symbol`、`shares`、`cost_basis`、`opened_at`、`notes?`） |
+| `PATCH` | `/api/portfolio/{holding_id}` | 更新 `shares`、`cost_basis`、`opened_at`、`notes` |
+| `DELETE` | `/api/portfolio/{holding_id}` | 刪除 holding |
+| `POST` | `/api/portfolio/import` | multipart CSV 匯入 |
+| `GET` | `/api/portfolio/pnl` | 以 yfinance quote enrich 市值、P&L、權重；單檔 quote 失敗只標該列錯誤 |
 
 - **日報可選 — Tech pulse**：`TECH_PULSE_IN_BRIEF=1` 時 [`main.py`](main.py) 於 `_run_pipeline_once` 將 [`tools/tech_pulse_tool.py`](tools/tech_pulse_tool.py) 摘要併入 **`exclude_context`**（與 CrewAI／LangGraph 雙軌共用）；`TECH_PULSE_URL` 與 `MOCK_APIS` 行為見 [`docs/ADR_TECH_PULSE_INTEGRATION.md`](docs/ADR_TECH_PULSE_INTEGRATION.md) 與 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。
 - **產品對齊說明**：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（能力映射與驗收；非外觀複製 Terminal）。

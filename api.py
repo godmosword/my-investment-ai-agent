@@ -45,6 +45,7 @@ from symbol_snapshot_service import (
 from api_deps import get_bq_client as _bq_singleton, rows_to_dicts
 from api_routers import health as health_router
 from api_routers import metrics as metrics_router
+from api_routers import portfolio as portfolio_router
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +109,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _CORS_ORIGINS],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 app.include_router(health_router.router)
 app.include_router(metrics_router.router)
+app.include_router(portfolio_router.router)
 
 
 def _qsilicon_master_key_required() -> str:
