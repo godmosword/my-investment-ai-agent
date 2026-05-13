@@ -485,6 +485,38 @@ export function useQuantBacktest(symbol) {
   });
 }
 
+export function useTrackRecordSummary() {
+  return useQuery({
+    queryKey: ["track-record", "summary"],
+    queryFn: () => apiFetch("/api/track-record/summary"),
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useTrackRecordClosed(limit = 50, offset = 0) {
+  return useQuery({
+    queryKey: ["track-record", "closed", limit, offset],
+    queryFn: () => apiFetch(`/api/track-record/closed?limit=${limit}&offset=${offset}`),
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useTrackRecordByTag(tag, limit = 50, offset = 0) {
+  const normalized = String(tag ?? "").trim().toUpperCase();
+  return useQuery({
+    queryKey: ["track-record", "by-tag", normalized, limit, offset],
+    queryFn: () =>
+      apiFetch(
+        `/api/track-record/by-tag?tag=${encodeURIComponent(normalized)}&limit=${limit}&offset=${offset}`,
+      ),
+    enabled: Boolean(normalized),
+    staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useWarRoomLatest(options = {}) {
   const livePoll = Boolean(options.livePoll);
   return useQuery({

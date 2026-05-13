@@ -325,6 +325,87 @@ function newsDeepBody(id) {
   };
 }
 
+const trackRecordRecords = [
+  {
+    signal_id: "ai-nvda-long-1",
+    asset: "NVDA",
+    direction: "LONG",
+    category: "AI",
+    status: "PAPER_CLOSED",
+    opened_at: "2026-05-10T00:00:00Z",
+    closed_at: "2026-05-11T00:00:00Z",
+    entry_price: 100,
+    exit_price: 112,
+    return_pct: 12,
+    outcome: "win",
+    thesis_one_liner: "AI demand",
+    source: "execution_intents.jsonl",
+    source_id: "ai-nvda-long-1",
+    tags: ["AI", "NVDA", "LONG", "WIN"],
+  },
+  {
+    signal_id: "crypto-btc-short-1",
+    asset: "BTC",
+    direction: "SHORT",
+    category: "CRYPTO",
+    status: "PAPER_CLOSED",
+    opened_at: "2026-05-10T00:00:00Z",
+    closed_at: "2026-05-12T00:00:00Z",
+    entry_price: 50000,
+    exit_price: 47500,
+    return_pct: 5,
+    outcome: "win",
+    thesis_one_liner: "Macro hedge",
+    source: "execution_intents.jsonl",
+    source_id: "crypto-btc-short-1",
+    tags: ["CRYPTO", "BTC", "SHORT", "WIN"],
+  },
+  {
+    signal_id: "ai-msft-long-1",
+    asset: "MSFT",
+    direction: "LONG",
+    category: "AI",
+    status: "PAPER_CLOSED",
+    opened_at: "2026-05-10T00:00:00Z",
+    closed_at: "2026-05-13T00:00:00Z",
+    entry_price: 200,
+    exit_price: 190,
+    return_pct: -5,
+    outcome: "loss",
+    thesis_one_liner: "Cloud reset",
+    source: "execution_intents.jsonl",
+    source_id: "ai-msft-long-1",
+    tags: ["AI", "MSFT", "LONG", "LOSS"],
+  },
+];
+
+function trackRecordSummary(records = trackRecordRecords) {
+  const total = records.length;
+  const wins = records.filter((row) => row.return_pct > 0).length;
+  const losses = records.filter((row) => row.return_pct < 0).length;
+  const avg = total ? records.reduce((sum, row) => sum + row.return_pct, 0) / total : 0;
+  let equity = 1;
+  const equity_curve = records
+    .slice()
+    .sort((a, b) => String(a.closed_at).localeCompare(String(b.closed_at)))
+    .map((row) => {
+      equity *= 1 + row.return_pct / 100;
+      return { signal_id: row.signal_id, closed_at: row.closed_at, value: equity, return_pct: row.return_pct };
+    });
+  return {
+    total_closed: total,
+    wins,
+    losses,
+    flats: total - wins - losses,
+    hit_rate_pct: total ? (wins / total) * 100 : 0,
+    avg_return_pct: avg,
+    sharpe: 1.12,
+    max_drawdown_pct: -5,
+    cumulative_return_pct: (equity - 1) * 100,
+    equity_curve,
+  };
+}
+
 /** Align with `brief_profiles.PROFILES` / `BLOCK_REGISTRY` (minimal mock for structured envelope). */
 const PROFILE_BLOCK_IDS = {
   full: [
@@ -782,6 +863,39 @@ const server = http.createServer((req, res) => {
           weight: 100,
         },
       ],
+    });
+    return;
+  }
+  if (url.pathname === "/api/track-record/summary") {
+    sendJson(res, 200, {
+      ...trackRecordSummary(trackRecordRecords),
+      source: "execution_intents.jsonl",
+      source_row_count: trackRecordRecords.length,
+    });
+    return;
+  }
+  if (url.pathname === "/api/track-record/closed") {
+    sendJson(res, 200, {
+      summary: trackRecordSummary(trackRecordRecords),
+      records: trackRecordRecords,
+      total: trackRecordRecords.length,
+      limit: Number(url.searchParams.get("limit") || "50"),
+      offset: Number(url.searchParams.get("offset") || "0"),
+      source: "execution_intents.jsonl",
+    });
+    return;
+  }
+  if (url.pathname === "/api/track-record/by-tag") {
+    const tag = String(url.searchParams.get("tag") || "").toUpperCase();
+    const records = trackRecordRecords.filter((row) => row.tags.includes(tag) || row.category === tag || row.outcome.toUpperCase() === tag);
+    sendJson(res, 200, {
+      summary: trackRecordSummary(records),
+      records,
+      total: records.length,
+      limit: Number(url.searchParams.get("limit") || "50"),
+      offset: Number(url.searchParams.get("offset") || "0"),
+      source: "execution_intents.jsonl",
+      tag,
     });
     return;
   }

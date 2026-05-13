@@ -5,6 +5,12 @@
 
 ## 2026-05-13
 
+### Track Record（Queue 41 Phase 4）
+- **API + calculations**：新增 [`track_record.py`](track_record.py) 與 [`api_routers/track_record.py`](api_routers/track_record.py)，掛載 `GET /api/track-record/summary`、`GET /api/track-record/closed`、`GET /api/track-record/by-tag`；以 append-only [`execution_intents.py`](execution_intents.py) 最新 `PAPER_CLOSED` rows 計算 W/L、hit rate、avg return、Sharpe 近似、max drawdown、equity curve，且每列回傳 `source`／`source_id`。
+- **Outcome snapshots**：新增 [`scripts/mark_recommendations.py`](scripts/mark_recommendations.py)、[`docs/SQL/recommendation_outcomes.sql`](docs/SQL/recommendation_outcomes.sql) 與 `RECOMMENDATION_OUTCOMES_TABLE` optional sink；只做 paper mark-to-market，不下單。
+- **PWA `/insights`**：新增 [`TrackRecordHome.jsx`](data-verification-ui/src/modules/insights/pages/TrackRecordHome.jsx)，`Track Record` tab 改為 KPI、累積曲線、closed table、AI/CRYPTO/WIN/LOSS tag slice 與 source audit。
+- **Tests**：新增 [`tests/api/test_track_record_router.py`](tests/api/test_track_record_router.py)（3 筆 closed fixture 數學 assert、pagination、by-tag、mark-to-market rows）與 [`insights-track-record.spec.js`](data-verification-ui/e2e/insights-track-record.spec.js)；E2E mock server 補 `/api/track-record/*` fixture。
+
 ### Tech News（Queue 40 Phase 3）
 - **API**：新增 [`api_routers/news.py`](api_routers/news.py) 並掛載 `GET /api/news/digest`、`GET /api/news/deep/{item_id}`、`GET /api/news/themes`；Firestore client lazy-init，預設讀 `TECH_PULSE_FIRESTORE_COLLECTION=tech_pulse_memory_items`，且正規化時過濾缺 headline/source 的 item，避免前端顯示未溯源新聞。
 - **PWA `/news`**：[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx) 從空狀態改為 digest list、AI／半導體／加密／宏觀 filter chips、每則 source domain + 時間、右側「今日主軸」與 deep brief side panel（手機全屏）。

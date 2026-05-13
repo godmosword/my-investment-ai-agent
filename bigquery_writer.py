@@ -20,6 +20,7 @@ from config import (
     GATE_FAILURE_LOG_TABLE,
     METRICS_TABLE,
     PAPER_EXECUTION_AUDIT_TABLE,
+    RECOMMENDATION_OUTCOMES_TABLE,
     PROJECT_ID,
     RECOMMENDATIONS_TABLE,
     REVIEWER_LOG_TABLE,
@@ -1026,3 +1027,75 @@ def write_paper_execution_audit_row(
         logger.warning("BigQuery credentials not configured (paper_execution_audit skipped): %s", e)
     except Exception as e:
         logger.error("Failed to write paper_execution_audit to BigQuery: %s", e)
+
+
+def write_recommendation_outcome_rows(rows: list[dict]) -> None:
+    """Optional BigQuery sink for nightly Track Record mark-to-market rows (Queue 41)."""
+    if SKIP_BIGQUERY or not rows:
+        return
+    tid = (RECOMMENDATION_OUTCOMES_TABLE or "").strip()
+    if not tid:
+        return
+    bq_project = tid.split(".", 1)[0] if "." in tid else PROJECT_ID
+    try:
+        client = bigquery.Client(project=bq_project)
+        schema = [
+            bigquery.SchemaField("signal_id", "STRING", mode="REQUIRED"),
+            bigquery.SchemaField("as_of", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("quote_as_of", "STRING"),
+            bigquery.SchemaField("asset", "STRING"),
+            bigquery.SchemaField("direction", "STRING"),
+            bigquery.SchemaField("category", "STRING"),
+            bigquery.SchemaField("status", "STRING"),
+            bigquery.SchemaField("entry_price", "FLOAT"),
+            bigquery.SchemaField("mark_price", "FLOAT"),
+            bigquery.SchemaField("exit_price", "FLOAT"),
+            bigquery.SchemaField("return_pct", "FLOAT"),
+            bigquery.SchemaField("outcome", "STRING"),
+            bigquery.SchemaField("source", "STRING"),
+            bigquery.SchemaField("created_at", "TIMESTAMP", mode="REQUIRED"),
+        ]
+        table_ref = bigquery.Table(tid, schema=schema)
+        client.create_table(table_ref, exists_ok=True)
+
+        table = client.get_table(tid)
+        existing_columns = {field.name for field in table.schema}
+        missing_fields = [field for field in schema if field.name not in existing_columns]
+        if missing_fields:
+            table.schema = list(table.schema) + missing_fields
+            client.update_table(table, ["schema"])
+            logger.info(
+                "Added missing recommendation_outcomes columns: %s",
+                ", ".join(field.name for field in missing_fields),
+            )
+
+        now = datetime.now(timezone.utc).isoformat()
+        sanitized = []
+        for row in rows:
+            sanitized.append(
+                {
+                    "signal_id": str(row.get("signal_id") or "")[:128],
+                    "as_of": row.get("as_of") or now,
+                    "quote_as_of": str(row.get("quote_as_of") or "")[:64],
+                    "asset": str(row.get("asset") or "")[:32],
+                    "direction": str(row.get("direction") or "")[:16],
+                    "category": str(row.get("category") or "")[:32],
+                    "status": str(row.get("status") or "")[:32],
+                    "entry_price": row.get("entry_price"),
+                    "mark_price": row.get("mark_price"),
+                    "exit_price": row.get("exit_price"),
+                    "return_pct": row.get("return_pct"),
+                    "outcome": str(row.get("outcome") or "")[:16],
+                    "source": str(row.get("source") or "")[:64],
+                    "created_at": now,
+                }
+            )
+        errors = client.insert_rows_json(tid, sanitized)
+        if errors:
+            logger.error("BigQuery recommendation_outcomes insert errors: %s", errors)
+        else:
+            logger.info("recommendation_outcomes written rows=%d", len(sanitized))
+    except DefaultCredentialsError as e:
+        logger.warning("BigQuery credentials not configured (recommendation_outcomes skipped): %s", e)
+    except Exception as e:
+        logger.error("Failed to write recommendation_outcomes to BigQuery: %s", e)

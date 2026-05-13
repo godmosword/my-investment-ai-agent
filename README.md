@@ -345,6 +345,16 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 | `GET` | `/api/news/deep/{item_id}` | 讀單則 deep brief；含 thesis breakdown、confidence、tickers |
 | `GET` | `/api/news/themes` | 由近期 sourced items 聚合今日主題 |
 
+### Track Record API（Queue 41，2026-05-13）
+
+`/insights` 的 Track Record tab 讀 append-only `execution_intents.jsonl` 中最新 `PAPER_CLOSED` rows，計算 paper-only W/L、hit rate、avg return、Sharpe 近似、max drawdown 與累積曲線；每列帶 `source`／`source_id` 供審計。可選 `RECOMMENDATION_OUTCOMES_TABLE` 搭配 `python scripts/mark_recommendations.py` 將 active/closed paper signals mark-to-market 寫入 BigQuery（DDL：[`docs/SQL/recommendation_outcomes.sql`](docs/SQL/recommendation_outcomes.sql)）。
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/api/track-record/summary` | Track Record KPI 與 equity curve |
+| `GET` | `/api/track-record/closed` | closed paper signals，支援 `limit`／`offset` |
+| `GET` | `/api/track-record/by-tag?tag=AI` | 依 category / asset / outcome tag 切片 |
+
 ### Portfolio Tracker API（Queue 38，2026-05-13）
 
 `/portfolio` 使用本機 JSONL storage（預設 `portfolio_holdings.jsonl`，可用 `PORTFOLIO_HOLDINGS_FILE` 覆寫；此檔為本機資料，不提交 repo）。CSV 唯一支援欄位順序：`symbol,shares,cost_basis,opened_at,notes`。

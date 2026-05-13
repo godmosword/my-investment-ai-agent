@@ -33,6 +33,8 @@ WEB_PUSH_SUBSCRIPTIONS_TABLE = os.getenv(
 PRICE_PROBE_LOG_TABLE = os.getenv("PRICE_PROBE_LOG_TABLE", "").strip()
 # Paper execution 狀態轉移稽核（隊列 28a，可選 BQ）；空字串則略過寫入。DDL 見 docs/SQL/paper_execution_audit.sql
 PAPER_EXECUTION_AUDIT_TABLE = os.getenv("PAPER_EXECUTION_AUDIT_TABLE", "").strip()
+# Recommendation outcome snapshots（隊列 41，可選 BQ）；空字串則略過寫入。DDL 見 docs/SQL/recommendation_outcomes.sql
+RECOMMENDATION_OUTCOMES_TABLE = os.getenv("RECOMMENDATION_OUTCOMES_TABLE", "").strip()
 
 # LiteLLM 模型字串（crew fallback 鏈與 _API_KEY_MAP 依此比對）
 MODEL_GROK = _env_model("MODEL_GROK", default="xai/grok-4-1-fast-reasoning")

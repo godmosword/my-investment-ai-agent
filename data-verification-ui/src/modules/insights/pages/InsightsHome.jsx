@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import DailyBriefPage from "../../daily-brief/pages/DailyBriefPage";
-import AnalysisHome from "../../investment-analysis/pages/AnalysisHome";
 import QuantHome from "../../quant-trading/pages/QuantHome";
+import TrackRecordHome from "./TrackRecordHome";
 
 const TABS = [
   { id: "daily", label: "今日建議", testId: "insights-tab-daily" },
@@ -37,7 +37,7 @@ export default function InsightsHome() {
 
       <div role="tabpanel" aria-label={activeLabel}>
         {active === "daily" ? <DailyBriefPage /> : null}
-        {active === "track-record" ? <AnalysisHome /> : null}
+        {active === "track-record" ? <TrackRecordHome /> : null}
         {active === "signals" ? <QuantHome /> : null}
       </div>
     </div>
