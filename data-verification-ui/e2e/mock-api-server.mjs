@@ -693,6 +693,34 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (url.pathname === "/api/execution-intents" && req.method === "POST") {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      let body = {};
+      try { body = JSON.parse(Buffer.concat(chunks).toString()); } catch { /* ignore */ }
+      sendJson(res, 200, {
+        signal_id: `manual-${String(body.asset || "NVDA").toLowerCase()}-long-e2e`,
+        created_at: "2026-05-13T00:00:00Z",
+        category: String(body.category || "AI").toUpperCase(),
+        regime: "",
+        asset: String(body.asset || "NVDA").toUpperCase(),
+        direction: String(body.direction || "LONG").toUpperCase(),
+        star_rating: Number(body.star_rating || 1),
+        thesis_one_liner: String(body.thesis_one_liner || ""),
+        status: "PENDING_REVIEW",
+        status_updated_at: "2026-05-13T00:00:00Z",
+        status_note: "",
+        reference_entry_price: body.reference_entry_price ?? null,
+        reference_target_price: body.reference_target_price ?? null,
+        reference_stop_price: body.reference_stop_price ?? null,
+        paper_fill_price: null,
+        paper_exit_price: null,
+        gate_issue_hints: [],
+      });
+    });
+    return;
+  }
   // POST /api/run-crew
   if (url.pathname === "/api/run-crew" && req.method === "POST") {
     sendJson(res, 200, { ok: true, status: "started", job_id: "e2emock01" });
@@ -883,6 +911,65 @@ const server = http.createServer((req, res) => {
     ]);
     return;
   }
+  if (url.pathname === "/api/paper/lifecycle" || url.pathname === "/api/paper/pnl") {
+    sendJson(res, 200, {
+      as_of: "2026-05-13T00:00:00Z",
+      source: "execution_intents.jsonl",
+      summary: {
+        total: 2,
+        active_count: 1,
+        closed_count: 1,
+        status_counts: { APPROVED_FOR_PAPER: 1, PAPER_CLOSED: 1 },
+        wins: 1,
+        losses: 0,
+        win_rate_pct: 100,
+        avg_realized_return_pct: 10,
+        avg_unrealized_return_pct: 12,
+        best_return_pct: 12,
+        worst_return_pct: 10,
+        quote_error_count: 0,
+      },
+      rows: [
+        {
+          signal_id: "e2e-nvda-long-open",
+          created_at: "2026-05-12T00:00:00Z",
+          status_updated_at: "2026-05-13T00:00:00Z",
+          category: "AI",
+          asset: "NVDA",
+          direction: "LONG",
+          star_rating: 2,
+          thesis_one_liner: "AI capex impulse",
+          status: "APPROVED_FOR_PAPER",
+          entry_price: 100,
+          mark_price: 112,
+          exit_price: null,
+          return_pct: 12,
+          target_distance_pct: 30,
+          stop_distance_pct: 10,
+          r_multiple: 3,
+        },
+        {
+          signal_id: "e2e-btc-short-closed",
+          created_at: "2026-05-10T00:00:00Z",
+          status_updated_at: "2026-05-11T00:00:00Z",
+          category: "CRYPTO",
+          asset: "BTC",
+          direction: "SHORT",
+          star_rating: 1,
+          thesis_one_liner: "ETF flow cooled",
+          status: "PAPER_CLOSED",
+          entry_price: 50,
+          mark_price: 45,
+          exit_price: 45,
+          return_pct: 10,
+          target_distance_pct: null,
+          stop_distance_pct: null,
+          r_multiple: null,
+        },
+      ],
+    });
+    return;
+  }
   if (url.pathname === "/api/brief-layouts") {
     sendJson(res, 200, { layouts: [] });
     return;
@@ -1023,12 +1110,18 @@ const server = http.createServer((req, res) => {
   if (url.pathname === "/api/industries/themes" || url.pathname.startsWith("/api/industries/themes")) {
     sendJson(res, 200, {
       themes: [
-        { id: "ai-semis", label: "AI 半導體（e2e）", symbols: ["NVDA"], regime_score: 4 },
-        { id: "clean-energy", label: "清潔能源（e2e）", symbols: ["ENPH"], regime_score: 1 },
-        { id: "financials", label: "金融（e2e）", symbols: ["JPM"], regime_score: -1 },
+        { id: "ai-semis", label: "AI 半導體（e2e）", symbols: ["NVDA"], regime_score: 4, risk_level: "medium", thesis: "AI capex impulse" },
+        { id: "clean-energy", label: "清潔能源（e2e）", symbols: ["ENPH"], regime_score: 1, risk_level: "medium", thesis: "Policy beta" },
+        { id: "financials", label: "金融（e2e）", symbols: ["JPM"], regime_score: -1, risk_level: "low", thesis: "Curve pressure" },
+      ],
+      rotation: [
+        { id: "ai-semis", label: "AI 半導體（e2e）", symbols: ["NVDA"], regime_score: 4, risk_level: "medium" },
+        { id: "clean-energy", label: "清潔能源（e2e）", symbols: ["ENPH"], regime_score: 1, risk_level: "medium" },
+        { id: "financials", label: "金融（e2e）", symbols: ["JPM"], regime_score: -1, risk_level: "low" },
       ],
       intent_sample_regime: 3,
       intent_count: 2,
+      source: "static+execution_intents.jsonl",
     });
     return;
   }
@@ -1060,6 +1153,8 @@ const server = http.createServer((req, res) => {
       total_return: 0.032,
       max_drawdown: 0.007,
       sharpe: 4.571,
+      trade_count: 3,
+      source: "execution_intents.jsonl",
       disclaimer: "e2e mock",
     });
     return;

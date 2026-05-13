@@ -624,6 +624,30 @@ export function useExecutionIntentAllowedStatuses() {
   });
 }
 
+export function usePaperLifecycle({ limit = 200, status = "", category = "" } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (status) params.set("status", status);
+  if (category) params.set("category", category);
+  return useQuery({
+    queryKey: ["paper", "lifecycle", limit, status || "all", category || "all"],
+    queryFn: () => apiFetch(`/api/paper/lifecycle?${params}`),
+    staleTime: 45 * 1000,
+    retry: 1,
+  });
+}
+
+export function usePaperPnl({ limit = 200, status = "", category = "" } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (status) params.set("status", status);
+  if (category) params.set("category", category);
+  return useQuery({
+    queryKey: ["paper", "pnl", limit, status || "all", category || "all"],
+    queryFn: () => apiFetch(`/api/paper/pnl?${params}`),
+    staleTime: 45 * 1000,
+    retry: 1,
+  });
+}
+
 async function apiPostJson(path, body = {}, extraHeaders = {}) {
   let res;
   try {
@@ -794,6 +818,18 @@ export function useRunCrew() {
   });
 }
 
+export function useCreateExecutionIntent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => apiPostJson("/api/execution-intents", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["execution-intents"] });
+      qc.invalidateQueries({ queryKey: ["paper"] });
+      qc.invalidateQueries({ queryKey: ["war-room"] });
+    },
+  });
+}
+
 export function usePatchExecutionIntent() {
   const qc = useQueryClient();
   return useMutation({
@@ -822,6 +858,7 @@ export function usePatchExecutionIntent() {
         updateWarRoomPayload(old, updatedRow),
       );
       syncWarRoomRelatedQueries(qc);
+      qc.invalidateQueries({ queryKey: ["paper"] });
     },
   });
 }

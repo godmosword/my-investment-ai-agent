@@ -18,6 +18,7 @@
 | Tech pulse（可選，併入日報 exclusion） | [`docs/ADR_TECH_PULSE_INTEGRATION.md`](docs/ADR_TECH_PULSE_INTEGRATION.md) · [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) `TECH_PULSE_*` |
 | Staging 時事 roundtable smoke | [`docs/STAGING_CURRENT_AFFAIRS_SMOKE.md`](docs/STAGING_CURRENT_AFFAIRS_SMOKE.md) |
 | 營運隊列 18–21 自檢（Redis／VAPID／可選 BQ） | [`scripts/verify_ops_queue_18_21.py`](scripts/verify_ops_queue_18_21.py) · [`docs/OPS_QUEUE_18_21_RUNBOOK.md`](docs/OPS_QUEUE_18_21_RUNBOOK.md) |
+| Reviewer production rollout（Queue 35） | [`docs/REVIEWER_PRODUCTION_ROLLOUT.md`](docs/REVIEWER_PRODUCTION_ROLLOUT.md) |
 | 執行路線圖 | [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) |
 | 開發導覽 | [`CLAUDE.md`](CLAUDE.md) · [`AGENTS.md`](AGENTS.md) |
 | 環境變數 | [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) → 複製為 `.env` |
@@ -34,7 +35,7 @@
 
 下一階段產品方向是從「通用研報 tool」推進到「個人化投資決策夥伴」，但會沿用既有信任邊界：`execution_intents`／`paper_execution` 做 paper-tracked 訊號生命週期，`report_quality_agent` 與 `validate_report` 做品質與 Gate 依據，PWA War Room / Terminal 承接可審核操作面。12 週 roadmap 的主線為：paper P&L → quality-adjusted scoring → portfolio alignment → scenario / target optimizer → beta / launch。
 
-v1 僅追蹤 **paper-tracked** 訊號，不接券商、不自動下單，也不保證任何投資績效；公開績效或月度信函必須使用可回放、可審計的 paper 記錄，且不得弱化無數據幻覺、Telegram HTML 白名單或 `validate_report` 契約。可執行隊列見 [`TODOS.md`](TODOS.md) **28：12 週投資價值優化 Roadmap**。
+v1 僅追蹤 **paper-tracked** 訊號，不接券商、不自動下單，也不保證任何投資績效；公開績效或月度信函必須使用可回放、可審計的 paper 記錄，且不得弱化無數據幻覺、Telegram HTML 白名單或 `validate_report` 契約。Phase 2 已補 `/api/paper/lifecycle`、`/api/paper/pnl`、manual `POST /api/execution-intents`、`/insights` 紙上生命週期 tab、paper-derived quant backtest、Columns sector rotation 與 local-first workspace import/export；後續隊列見 [`TODOS.md`](TODOS.md) **28：12 週投資價值優化 Roadmap**。
 
 ---
 
@@ -320,16 +321,20 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 - **`VITE_TERMINAL_POLL_MS`**（可選）：**`/insights`** 內 snapshot／意圖列表／War Room 輪詢間隔（毫秒），預設 **45000**；本機除錯可設 `15000`。見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)。
 - **SSE（可選）**：後端 `TERMINAL_SSE_ENABLED=1` 時提供 `GET /api/stream/war-room`；查詢參數 **`watch_symbols`**（CSV，例 `BTC,NVDA`）可驅動 **`symbol_quote`** 事件；前端 **`VITE_SSE_ENABLED=1`**，若設 `API_STREAM_AUTH_KEY` 則同步 **`VITE_SSE_STREAM_KEY`**。紙上一輪：`python scripts/paper_execution_tick.py` 或 `PAPER_TICK_HTTP_ENABLED=1` 時 `POST /api/paper/execution-tick`（可選 `PAPER_TICK_API_KEY`）。
 
-### Portal API（M4–M7 讀取切片，2026-05-11）
+### Portal API（M4–M7 + Phase 2 paper lifecycle）
 
-五模組頁面所用 **唯讀** 聚合（詳見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-11**；完整隊列邊界見 [`TODOS.md`](TODOS.md) 隊列 29–33）：
+五模組頁面所用聚合（詳見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-11**／**2026-05-13**；完整隊列邊界見 [`TODOS.md`](TODOS.md) 隊列 28–35）：
 
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | `GET` | `/api/positions` | 開倉建議聚合 + execution intents（legacy M4 read slice） |
-| `GET` | `/api/industries/themes` | 靜態主題表 + regime 提示（M5） |
-| `GET` | `/api/analysis/{symbol}` | quote + snapshot（snapshot 可失敗降級）（M6） |
-| `GET` | `/api/quant/signals` | 紙上敘事用 **stub** 訊號列（M7；**非**回測 API、不承諾收益） |
+| `GET` | `/api/paper/lifecycle` | execution-intents 紙上生命週期 summary + risk metrics |
+| `GET` | `/api/paper/pnl` | realized/unrealized paper P&L，active rows best-effort quote enrichment |
+| `POST` | `/api/execution-intents` | 手動建立 `PENDING_REVIEW` intent；append-only，不下單 |
+| `GET` | `/api/industries/themes` | 靜態主題表 + sector rotation + regime 提示（M5） |
+| `GET` | `/api/analysis/{symbol}` | quote + snapshot（snapshot 可失敗降級）；`/insights?symbol=` 顯示 deep dive |
+| `GET` | `/api/quant/signals` | 紙上敘事用訊號列（M7；不承諾收益） |
+| `GET` | `/api/quant/backtest` | `QUANT_BACKTEST_ENABLED=1` 時回傳 paper-derived deterministic equity curve |
 
 ### Macro Dashboard API（Queue 39，2026-05-13）
 

@@ -14,6 +14,10 @@ python3 scripts/verify_ops_queue_18_21.py --strict
 
 腳本會檢查（可選）Redis PING、VAPID 變數、`WEB_PUSH_ADMIN_KEY` 是否已設、以及 `WEB_PUSH_SUBSCRIPTIONS_TABLE`／`PRICE_PROBE_LOG_TABLE` 在具備 ADC 時是否存在。**不**替你執行 BQ DDL 或 `test-send` HTTP。
 
+## Phase 2 repo status（2026-05-13）
+
+本 repo 已補齊 staging 所需的文件錨點與 smoke 指令索引；**18–21 仍需雲端／secret 操作完成後才可勾選**。本輪沒有提交任何 VAPID private key、Redis URL、BigQuery 專案名或 admin key。
+
 ## 前置
 
 - 具 **BigQuery Admin** 與 **Cloud Run／後端部署** 權限之專案（`GCP_PROJECT_ID`）。

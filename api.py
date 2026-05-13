@@ -13,10 +13,11 @@ import logging
 import os
 import re
 import time
+import uuid
 from collections import Counter
 
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,10 +31,13 @@ from config import METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE, REVI
 from execution_intents import (
     ALLOWED_INTENT_STATUSES,
     CLIENT_PATCHABLE_STATUSES,
+    append_execution_intent_row,
     intent_store_mtime,
     latest_execution_intents,
     update_execution_intent_status,
 )
+from paper_lifecycle import build_paper_lifecycle_payload
+from track_record import normalize_closed_intent
 from paper_execution import run_paper_execution_tick
 from war_room_stream import drain_graph_node_events, get_war_room_stream_version
 from symbol_snapshot_service import (
@@ -866,10 +870,26 @@ def list_industry_themes_m5(
     intents = latest_execution_intents(limit=limit, dedupe=True, sort_by="updated_desc")
     regimes = [str(r.get("regime") or "").strip() for r in intents if str(r.get("regime") or "").strip()]
     regime_sample = Counter(regimes).most_common(1)[0][0] if regimes else None
+    rotation = sorted(
+        _INDUSTRY_THEMES_STATIC,
+        key=lambda row: (float(row.get("regime_score") or 0), len(row.get("symbols") or [])),
+        reverse=True,
+    )
     return {
         "themes": _INDUSTRY_THEMES_STATIC,
+        "rotation": [
+            {
+                "id": row["id"],
+                "label": row["label"],
+                "regime_score": row.get("regime_score", 0),
+                "risk_level": row.get("risk_level", "medium"),
+                "symbols": row.get("symbols", []),
+            }
+            for row in rotation
+        ],
         "intent_sample_regime": regime_sample,
         "intent_count": len(intents),
+        "source": "static+execution_intents.jsonl",
     }
 
 
@@ -920,7 +940,7 @@ def get_quant_backtest(
     start_date: str | None = Query(default=None, description="YYYY-MM-DD start (optional)"),
     end_date: str | None = Query(default=None, description="YYYY-MM-DD end (optional)"),
 ) -> dict[str, Any]:
-    """Backtest stub (Q33 M7). Returns a mock equity curve; paper/educational only.
+    """Backtest v1 (Q33 M7). Builds a deterministic paper curve from closed execution intents.
 
     Disabled unless ``QUANT_BACKTEST_ENABLED=1``.
     Not investment advice; does not auto-trade.
@@ -928,25 +948,51 @@ def get_quant_backtest(
     if os.getenv("QUANT_BACKTEST_ENABLED", "0").lower() not in ("1", "true", "yes"):
         raise HTTPException(status_code=404, detail="Backtest disabled; set QUANT_BACKTEST_ENABLED=1")
     norm = _validate_symbol(symbol)
-    # Stub equity curve: 30 synthetic data points seeded by symbol hash
-    import hashlib  # noqa: PLC0415
-    seed = int(hashlib.md5(norm.encode()).hexdigest()[:8], 16)  # noqa: S324
-    rng_state = seed
-    equity_curve = []
+    rows = latest_execution_intents(limit=1000, dedupe=True, sort_by="updated_desc")
+    records = []
+    for row in rows:
+        if str(row.get("asset") or "").strip().upper().lstrip("$") != norm:
+            continue
+        record = normalize_closed_intent(row)
+        if record is None:
+            continue
+        closed_at = str(record.get("closed_at") or "")
+        closed_day = closed_at[:10]
+        if start_date and closed_day and closed_day < start_date:
+            continue
+        if end_date and closed_day and closed_day > end_date:
+            continue
+        records.append(record)
+    records.sort(key=lambda record: str(record.get("closed_at") or record.get("opened_at") or ""))
+
     value = 10_000.0
-    for i in range(30):
-        rng_state = (rng_state * 1664525 + 1013904223) & 0xFFFFFFFF
-        change = ((rng_state % 2001) - 1000) / 10000  # -10% to +10% per step
-        value *= 1 + change
-        equity_curve.append({"date": f"day_{i+1:02d}", "value": round(value, 2)})
+    equity_curve = [{"date": start_date or "start", "value": round(value, 2)}]
+    peak = value
+    max_drawdown = 0.0
+    returns = []
+    for record in records:
+        ret = float(record["return_pct"]) / 100.0
+        returns.append(ret)
+        value *= 1.0 + ret
+        peak = max(peak, value)
+        drawdown = (peak - value) / peak if peak > 0 else 0.0
+        max_drawdown = max(max_drawdown, drawdown)
+        equity_curve.append(
+            {
+                "date": str(record.get("closed_at") or record.get("opened_at") or "")[:10] or f"trade_{len(equity_curve)}",
+                "value": round(value, 2),
+                "signal_id": record.get("signal_id"),
+                "return_pct": round(float(record["return_pct"]), 4),
+            }
+        )
     total_return = (value - 10_000) / 10_000
-    peak = max(p["value"] for p in equity_curve)
-    trough_after_peak = min(
-        (p["value"] for p in equity_curve if p["value"] <= peak),
-        default=value,
-    )
-    max_drawdown = (peak - trough_after_peak) / peak if peak > 0 else 0.0
-    sharpe = total_return / (max_drawdown + 0.01)  # synthetic; not statistically valid
+    if len(returns) > 1:
+        mean = sum(returns) / len(returns)
+        variance = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
+        stdev = variance ** 0.5
+        sharpe = mean / stdev * (len(returns) ** 0.5) if stdev > 0 else 0.0
+    else:
+        sharpe = 0.0
     return {
         "symbol": norm,
         "start_date": start_date,
@@ -955,7 +1001,9 @@ def get_quant_backtest(
         "total_return": round(total_return, 4),
         "max_drawdown": round(max_drawdown, 4),
         "sharpe": round(sharpe, 3),
-        "disclaimer": "Synthetic stub; paper/educational only; not investment advice.",
+        "trade_count": len(records),
+        "source": "execution_intents.jsonl",
+        "disclaimer": "Paper-derived backtest; educational only; not investment advice.",
     }
 
 
@@ -1129,6 +1177,44 @@ class ExecutionIntentStatusBody(BaseModel):
     reference_entry_price: float | None = None
     reference_target_price: float | None = None
     reference_stop_price: float | None = None
+
+
+class ExecutionIntentCreateBody(BaseModel):
+    """Manual signal intake for paper lifecycle review. Does **not** place orders."""
+
+    category: str = Field(default="AI", max_length=40)
+    regime: str = Field(default="", max_length=120)
+    asset: str = Field(..., min_length=1, max_length=24)
+    direction: str = Field(..., description="LONG or SHORT")
+    star_rating: int = Field(default=1, ge=1, le=2)
+    thesis_one_liner: str = Field(default="", max_length=500)
+    reference_entry_price: float | None = None
+    reference_target_price: float | None = None
+    reference_stop_price: float | None = None
+
+    @field_validator("asset")
+    @classmethod
+    def normalize_asset(cls, value: str) -> str:
+        normalized = str(value or "").strip().upper().lstrip("$")
+        if not normalized:
+            raise ValueError("asset is required")
+        if not re.fullmatch(r"[A-Z0-9.\-]{1,24}", normalized):
+            raise ValueError("asset must be an uppercase ticker-like symbol")
+        return normalized
+
+    @field_validator("direction")
+    @classmethod
+    def normalize_direction(cls, value: str) -> str:
+        normalized = str(value or "").strip().upper()
+        if normalized not in {"LONG", "SHORT"}:
+            raise ValueError("direction must be LONG or SHORT")
+        return normalized
+
+    @field_validator("category")
+    @classmethod
+    def normalize_category(cls, value: str) -> str:
+        normalized = str(value or "AI").strip().upper()
+        return normalized or "AI"
 
 
 class ExecutionIntentRow(BaseModel):
@@ -1481,10 +1567,42 @@ def _parse_sse_watch_symbols_param(raw: str | None, max_n: int = 8) -> list[str]
 
 
 _INDUSTRY_THEMES_STATIC: list[dict[str, Any]] = [
-    {"id": "ai-semis", "label": "AI 半導體", "symbols": ["NVDA", "AMD", "AVGO"]},
-    {"id": "mega-cap-tech", "label": "大型科技", "symbols": ["MSFT", "GOOGL", "META", "AAPL"]},
-    {"id": "digital-assets", "label": "數位資產", "symbols": ["BTC", "ETH", "SOL"]},
-    {"id": "enterprise-software", "label": "企業軟體", "symbols": ["ORCL", "CRM", "NOW"]},
+    {
+        "id": "ai-semis",
+        "label": "AI 半導體",
+        "symbols": ["NVDA", "AMD", "AVGO"],
+        "pillar": "semiconductor",
+        "regime_score": 4,
+        "risk_level": "medium",
+        "thesis": "AI capex and accelerator demand remain the primary relative-strength driver.",
+    },
+    {
+        "id": "mega-cap-tech",
+        "label": "大型科技",
+        "symbols": ["MSFT", "GOOGL", "META", "AAPL"],
+        "pillar": "ai",
+        "regime_score": 3,
+        "risk_level": "low",
+        "thesis": "Cash-flow quality offsets valuation pressure when rates are stable.",
+    },
+    {
+        "id": "digital-assets",
+        "label": "數位資產",
+        "symbols": ["BTC", "ETH", "SOL"],
+        "pillar": "crypto",
+        "regime_score": 2,
+        "risk_level": "high",
+        "thesis": "ETF flow and dollar liquidity dominate near-term beta.",
+    },
+    {
+        "id": "enterprise-software",
+        "label": "企業軟體",
+        "symbols": ["ORCL", "CRM", "NOW"],
+        "pillar": "ai",
+        "regime_score": 1,
+        "risk_level": "medium",
+        "thesis": "AI monetization helps, but seat expansion remains selective.",
+    },
 ]
 
 
@@ -1530,6 +1648,34 @@ def execution_intent_allowed_statuses() -> dict[str, Any]:
     }
 
 
+@app.post("/api/execution-intents", response_model=ExecutionIntentRow)
+def create_execution_intent(body: ExecutionIntentCreateBody) -> dict[str, Any]:
+    """Create one manual paper-review intent. Append-only; no broker/order side effects."""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    signal_id = f"manual-{body.asset.lower()}-{body.direction.lower()}-{uuid.uuid4().hex[:8]}"
+    row = {
+        "signal_id": signal_id,
+        "created_at": now,
+        "category": body.category,
+        "regime": body.regime.strip(),
+        "asset": body.asset,
+        "direction": body.direction,
+        "star_rating": body.star_rating,
+        "thesis_one_liner": body.thesis_one_liner.strip(),
+        "status": "PENDING_REVIEW",
+        "status_updated_at": now,
+        "status_note": "",
+        "reference_entry_price": body.reference_entry_price,
+        "reference_target_price": body.reference_target_price,
+        "reference_stop_price": body.reference_stop_price,
+        "paper_fill_price": None,
+        "paper_exit_price": None,
+    }
+    if not append_execution_intent_row(row):
+        raise HTTPException(status_code=500, detail="Could not append execution intent")
+    return row
+
+
 @app.patch("/api/execution-intents/{signal_id}", response_model=ExecutionIntentRow)
 def patch_execution_intent_status(
     signal_id: str,
@@ -1550,6 +1696,32 @@ def patch_execution_intent_status(
             detail="signal_id not found, invalid status, or malformed prior row",
         )
     return updated
+
+
+@app.get("/api/paper/lifecycle")
+def get_paper_lifecycle(
+    limit: int = Query(default=200, ge=1, le=500),
+    status: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+) -> dict[str, Any]:
+    """Paper lifecycle summary from execution_intents.jsonl; read-only, no quote calls."""
+    return build_paper_lifecycle_payload(limit=limit, status=status, category=category)
+
+
+@app.get("/api/paper/pnl")
+def get_paper_pnl(
+    limit: int = Query(default=200, ge=1, le=500),
+    status: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+) -> dict[str, Any]:
+    """Paper realized/unrealized P&L with best-effort quotes for active rows."""
+    return build_paper_lifecycle_payload(
+        limit=limit,
+        status=status,
+        category=category,
+        quote_fn=fetch_symbol_quote,
+        include_quotes=True,
+    )
 
 
 @app.get("/api/symbols/{symbol}/quote", response_model=SymbolQuote)

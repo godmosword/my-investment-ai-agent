@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Watchlist from "./Watchlist";
 import PriceAlertsPanel from "./PriceAlertsPanel";
+import WorkspacePanel from "./WorkspacePanel";
 
 export default function GlobalWatchlistDock() {
   const [open, setOpen] = useState(false);
@@ -30,6 +31,7 @@ export default function GlobalWatchlistDock() {
               description="跨板塊共享 · localStorage"
             />
             <PriceAlertsPanel compact />
+            <WorkspacePanel compact />
           </div>
         </div>
       ) : null}

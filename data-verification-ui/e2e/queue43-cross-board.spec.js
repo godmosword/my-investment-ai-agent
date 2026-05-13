@@ -33,5 +33,16 @@ test.describe("Queue 43 cross-board polish", () => {
     await panel.getByPlaceholder("900").fill("900");
     await panel.getByRole("button", { name: "Add" }).click();
     await expect(panel).toContainText("NVDA");
+
+    const workspace = page.getByTestId("workspace-panel");
+    await expect(workspace).toBeVisible();
+    await workspace.getByTestId("workspace-layout").selectOption("dense");
+    await expect(workspace).toContainText("Workspace layout saved");
+    await workspace
+      .getByTestId("workspace-import-text")
+      .fill('{"version":1,"keys":{"qsi_watchlist":"[\\"MSFT\\"]","terminal_recent_symbols":"MSFT","qs_workspace_layout":"focus"}}');
+    await workspace.getByTestId("workspace-import").click();
+    await expect(workspace).toContainText("Workspace imported");
+    await expect(page.getByTestId("global-watchlist")).toContainText("MSFT");
   });
 });

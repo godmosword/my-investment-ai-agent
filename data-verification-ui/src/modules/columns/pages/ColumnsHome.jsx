@@ -203,6 +203,9 @@ function RelatedThemes({ themes, activePillar }) {
                 className="rounded border border-white/10 bg-white/[0.03] px-3 py-2"
               >
                 <div className="text-[13px] font-medium text-white/85">{label}</div>
+                {theme?.thesis ? (
+                  <div className="mt-1 text-[11px] leading-snug text-white/55">{theme.thesis}</div>
+                ) : null}
                 {symbols.length ? (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {symbols.slice(0, 4).map((symbol) => (
@@ -217,6 +220,58 @@ function RelatedThemes({ themes, activePillar }) {
           })
         ) : (
           <div className="text-[13px] text-[var(--muted)]">尚無相關主題卡。</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function scoreColor(score) {
+  const n = Number(score);
+  if (!Number.isFinite(n) || n === 0) return "bg-white/10 text-white/60";
+  if (n >= 3) return "bg-emerald-400/15 text-emerald-200";
+  if (n > 0) return "bg-cyan-400/15 text-cyan-200";
+  return "bg-red-400/15 text-red-200";
+}
+
+function SectorRotation({ rotation, source }) {
+  const rows = Array.isArray(rotation) ? rotation.slice(0, 6) : [];
+  return (
+    <div className="card p-4" data-testid="columns-sector-rotation">
+      <div className="flex items-center justify-between gap-2">
+        <div className="card-title">Sector Rotation</div>
+        <span className="text-[10px] text-[var(--muted)]">{source || "static"}</span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {rows.length ? rows.map((row) => {
+          const score = Number(row.regime_score || 0);
+          const width = `${Math.min(100, Math.max(8, Math.abs(score) * 22))}%`;
+          return (
+            <div key={row.id} data-testid="columns-rotation-row" className="rounded border border-white/10 bg-white/[0.03] p-2">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-[13px] font-semibold text-white/85">{row.label}</span>
+                <span className={`rounded px-2 py-0.5 text-[11px] font-mono ${scoreColor(score)}`}>
+                  {score >= 0 ? "+" : ""}{score}
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded bg-white/10">
+                <div className={score >= 0 ? "h-full bg-emerald-300/80" : "h-full bg-red-300/80"} style={{ width }} />
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {(row.symbols || []).slice(0, 4).map((symbol) => (
+                  <a
+                    key={symbol}
+                    href={`/insights?symbol=${encodeURIComponent(String(symbol).toUpperCase())}`}
+                    className="font-mono text-[11px] text-cyan-200 hover:text-cyan-100"
+                  >
+                    {symbol}
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        }) : (
+          <div className="text-[13px] text-[var(--muted)]">尚無 rotation 資料。</div>
         )}
       </div>
     </div>
@@ -271,6 +326,7 @@ export default function ColumnsHome() {
         </section>
 
         <div className="space-y-3">
+          <SectorRotation rotation={themesQuery.data?.rotation ?? []} source={themesQuery.data?.source} />
           <RelatedThemes themes={themesQuery.data?.themes ?? []} activePillar={activePillar} />
           {selected ? <DeepBriefPanel item={selected} onClose={() => setSelected(null)} /> : null}
         </div>

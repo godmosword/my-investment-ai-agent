@@ -95,7 +95,7 @@ function BacktestPanel() {
   return (
     <div data-testid="backtest-panel" className="mb-4 rounded border border-[color:var(--border)] p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-[13px] font-semibold text-white/80">Backtest（stub）</span>
+        <span className="text-[13px] font-semibold text-white/80">Backtest（paper-derived）</span>
         <select
           value={sym}
           onChange={(e) => setSym(e.target.value)}
@@ -118,6 +118,9 @@ function BacktestPanel() {
             <span className="text-[var(--muted)]">總報酬：<b style={{ color: data.total_return >= 0 ? "var(--green)" : "var(--red)" }}>{data.total_return >= 0 ? "+" : ""}{(data.total_return * 100).toFixed(1)}%</b></span>
             <span className="text-[var(--muted)]">最大回撤：<b style={{ color: "var(--red)" }}>{(data.max_drawdown * 100).toFixed(1)}%</b></span>
             <span className="text-[var(--muted)]">Sharpe：<b className="text-white/80">{data.sharpe}</b></span>
+            {data.trade_count != null ? (
+              <span className="text-[var(--muted)]">Trades：<b className="text-white/80">{data.trade_count}</b></span>
+            ) : null}
           </div>
           {/* SVG sparkline equity curve */}
           {curve.length > 1 ? (
@@ -173,7 +176,7 @@ export default function QuantHome() {
 
       {/* QSREC gate-status — last 3 days */}
       <div className="card" style={{ marginBottom: 12 }} data-testid="quant-m7-signals">
-        <div className="card-title">量化訊號 stub（M7）</div>
+        <div className="card-title">量化訊號（M7）</div>
         <div className="page-subtitle" style={{ marginBottom: 8, opacity: 0.85 }}>
           <code>/api/quant/signals</code> — 教育／紙上敘事用，不承諾收益、不自動下單。
         </div>
