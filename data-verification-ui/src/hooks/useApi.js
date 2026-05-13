@@ -441,6 +441,18 @@ export function useNewsDeep(itemId) {
   });
 }
 
+export function useNewsDeepList({ pillar, limit = 20 } = {}) {
+  const normalized = String(pillar ?? "").trim().toLowerCase();
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (normalized) params.set("pillar", normalized);
+  return useQuery({
+    queryKey: ["news", "deep-list", normalized, limit],
+    queryFn: () => apiFetch(`/api/news/deep?${params}`),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useNewsThemes(limit = 80) {
   return useQuery({
     queryKey: ["news", "themes", limit],
@@ -722,6 +734,40 @@ export function useImportCsv() {
       return apiPostForm("/api/portfolio/import", form);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["portfolio"] }),
+  });
+}
+
+export function usePriceAlerts() {
+  return useQuery({
+    queryKey: ["price-alerts"],
+    queryFn: () => apiFetch("/api/push/price-alerts"),
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useCreatePriceAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => apiPostJson("/api/push/price-alerts", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["price-alerts"] }),
+  });
+}
+
+export function useDeletePriceAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => apiDelete(`/api/push/price-alerts/${encodeURIComponent(id)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["price-alerts"] }),
+  });
+}
+
+export function useCheckPriceAlerts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sendPush = false } = {}) =>
+      apiPostJson(`/api/push/price-alerts/check?send_push=${sendPush ? "true" : "false"}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["price-alerts"] }),
   });
 }
 

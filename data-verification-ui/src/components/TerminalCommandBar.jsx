@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 import { useRunCrew } from "../hooks/useApi";
 import {
@@ -8,6 +9,20 @@ import {
 } from "../constants/terminalStorage";
 
 const RECENT_MAX = 8;
+const BOARD_ROUTES = {
+  NEWS: "/news",
+  科技即時報: "/news",
+  DASHBOARD: "/dashboard",
+  數據儀表板: "/dashboard",
+  INSIGHTS: "/insights",
+  TERMINAL: "/insights",
+  BRIEFS: "/insights",
+  投資觀點: "/insights",
+  COLUMNS: "/columns",
+  科技專欄: "/columns",
+  PORTFOLIO: "/portfolio",
+  持倉: "/portfolio",
+};
 
 function readRecent() {
   try {
@@ -87,6 +102,21 @@ function parseGoInput(raw) {
   return parts[0] ?? "";
 }
 
+function parseBoardRoute(raw) {
+  const upper = String(raw ?? "")
+    .trim()
+    .replace(/<GO>/gi, "")
+    .replace(/\s+GO$/i, "")
+    .trim()
+    .toUpperCase();
+  if (!upper) return "";
+  if (upper.startsWith("/")) {
+    const path = upper.toLowerCase();
+    if (["/news", "/dashboard", "/insights", "/columns", "/portfolio"].includes(path)) return path;
+  }
+  return BOARD_ROUTES[upper] || "";
+}
+
 /**
  * Bloomberg-style command strip (GO, WATCH, recent chips).
  *
@@ -94,6 +124,7 @@ function parseGoInput(raw) {
  * @param {import("react").ReactNode | null} [props.trailing] — e.g. ``GlobalGateBadge``; rendered right of the focus label inside the bar.
  */
 export default function TerminalCommandBar({ trailing = null }) {
+  const navigate = useNavigate();
   const { symbol, setSymbol } = useSymbolFocus();
   const [input, setInput] = useState("");
   const [watchSet, setWatchSetState] = useState(() => readWatchSet());
@@ -139,21 +170,29 @@ export default function TerminalCommandBar({ trailing = null }) {
       onRun();
       return;
     }
+    const route = parseBoardRoute(input);
+    if (route) {
+      navigate(route);
+      setInput("");
+      return;
+    }
     const sym = parseGoInput(input);
     if (sym) {
       setSymbol(sym);
       setRecent(pushRecent(sym));
+      navigate(`/insights?symbol=${encodeURIComponent(sym)}`);
     }
     setInput("");
-  }, [input, setSymbol, onRun]);
+  }, [input, setSymbol, onRun, navigate]);
 
   const onPickRecent = useCallback(
     (sym) => {
       if (!sym) return;
       setSymbol(sym);
       setRecent(pushRecent(sym));
+      navigate(`/insights?symbol=${encodeURIComponent(sym)}`);
     },
-    [setSymbol],
+    [setSymbol, navigate],
   );
 
   const toggleWatch = useCallback(() => {
@@ -179,14 +218,14 @@ export default function TerminalCommandBar({ trailing = null }) {
         onKeyDown={(e) => {
           if (e.key === "Enter") onGo();
         }}
-        placeholder="AAPL &lt;GO&gt; | RUN"
-        className="min-w-[140px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
+        placeholder="AAPL &lt;GO&gt; | /columns | RUN"
+        className="min-h-[44px] min-w-[160px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
         autoComplete="off"
         spellCheck={false}
       />
       <button
         type="button"
-        className="rounded bg-emerald-700/80 px-2 py-1 text-[12px] font-semibold text-white hover:bg-emerald-600"
+        className="min-h-[44px] rounded bg-emerald-700/80 px-3 py-1 text-[12px] font-semibold text-white hover:bg-emerald-600"
         onClick={onGo}
       >
         GO
@@ -195,7 +234,7 @@ export default function TerminalCommandBar({ trailing = null }) {
         type="button"
         data-testid="cmd-bar-run"
         disabled={runCrew.isPending}
-        className="rounded border border-amber-500/40 bg-amber-600/20 px-2 py-1 text-[12px] font-semibold text-amber-300 hover:bg-amber-600/40 disabled:cursor-not-allowed disabled:opacity-40"
+        className="min-h-[44px] rounded border border-amber-500/40 bg-amber-600/20 px-3 py-1 text-[12px] font-semibold text-amber-300 hover:bg-amber-600/40 disabled:cursor-not-allowed disabled:opacity-40"
         onClick={onRun}
         title="觸發研究 Crew（需 CREW_HTTP_ENABLED=1）"
       >
@@ -214,7 +253,7 @@ export default function TerminalCommandBar({ trailing = null }) {
       <button
         type="button"
         disabled={!focused}
-        className="rounded border border-white/20 px-2 py-1 text-[12px] text-white/90 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+        className="min-h-[44px] rounded border border-white/20 px-3 py-1 text-[12px] text-white/90 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
         onClick={toggleWatch}
         title="納入 SSE watch_symbols（最多 8 個由後端截斷）"
       >
@@ -237,7 +276,7 @@ export default function TerminalCommandBar({ trailing = null }) {
               key={sym}
               type="button"
               onClick={() => onPickRecent(sym)}
-              className={`rounded border px-1.5 py-0.5 font-mono ${
+              className={`min-h-[32px] rounded border px-2 py-0.5 font-mono ${
                 focused === sym
                   ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-200"
                   : "border-white/15 text-white/80 hover:bg-white/5"

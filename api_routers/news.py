@@ -17,6 +17,22 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 DEFAULT_COLLECTION = "tech_pulse_memory_items"
 _firestore_client: Any | None = None
 
+PILLAR_ALIASES: dict[str, tuple[str, ...]] = {
+    "ai": ("ai", "人工智慧", "artificial intelligence", "openai", "gemini", "llm"),
+    "semiconductor": (
+        "semiconductor",
+        "semiconductors",
+        "semis",
+        "semi",
+        "chip",
+        "chips",
+        "hbm",
+        "半導體",
+        "先進封裝",
+    ),
+    "crypto": ("crypto", "cryptocurrency", "bitcoin", "btc", "ethereum", "eth", "加密", "區塊鏈"),
+}
+
 
 def _collection_name() -> str:
     configured = (os.getenv("TECH_PULSE_FIRESTORE_COLLECTION") or DEFAULT_COLLECTION).strip()
@@ -99,6 +115,59 @@ def _as_list(value: Any) -> list[str]:
     return items
 
 
+def _normalize_pillar(value: Any) -> str:
+    text = str(value or "").strip().casefold()
+    if not text:
+        return ""
+    for canonical, aliases in PILLAR_ALIASES.items():
+        if text == canonical or text in aliases:
+            return canonical
+    return ""
+
+
+def _text_has_alias(haystack: str, alias: str) -> bool:
+    needle = alias.casefold()
+    if not needle:
+        return False
+    if re.fullmatch(r"[a-z0-9]+", needle):
+        return re.search(rf"\b{re.escape(needle)}\b", haystack) is not None
+    return needle in haystack
+
+
+def _estimate_reading_minutes(text: str) -> int:
+    if not text.strip():
+        return 0
+    word_count = len(re.findall(r"[A-Za-z0-9]+", text))
+    cjk_count = len(re.findall(r"[\u4e00-\u9fff]", text))
+    minutes = max(word_count / 220, cjk_count / 500)
+    return max(1, int(minutes + 0.999))
+
+
+def _infer_pillar_key(
+    *,
+    data: dict[str, Any],
+    tags: list[str],
+    headline: str,
+    take: str,
+    deep_text: str = "",
+) -> str:
+    for value in (
+        data.get("pillar"),
+        data.get("theme"),
+        data.get("primary_theme"),
+        *tags,
+    ):
+        normalized = _normalize_pillar(value)
+        if normalized:
+            return normalized
+
+    haystack = " ".join([headline, take, deep_text, *tags]).casefold()
+    for canonical, aliases in PILLAR_ALIASES.items():
+        if any(_text_has_alias(haystack, alias) for alias in aliases):
+            return canonical
+    return ""
+
+
 def _source_fields(data: dict[str, Any]) -> tuple[str, str]:
     source = data.get("source")
     source_url = _first_text(data, ("source_url", "url", "link", "canonical_url"))
@@ -143,10 +212,13 @@ def _normalize_item(
     pillar = _first_text(data, ("pillar", "theme", "primary_theme"))
     if pillar and pillar not in tags:
         tags.append(pillar)
+    pillar_key = _infer_pillar_key(data=data, tags=tags, headline=headline, take=take)
 
     item: dict[str, Any] = {
         "id": item_id,
+        "title": headline,
         "headline": headline,
+        "summary": take,
         "gemini_take": take,
         "source_domain": source_domain,
         "source_url": source_url,
@@ -154,15 +226,28 @@ def _normalize_item(
         "date": _first_text(data, ("date",)) or published_at[:10],
         "tags": tags,
         "pillar": pillar,
+        "pillar_key": pillar_key,
         "confidence": _as_float(data.get("confidence") or data.get("confidence_score")),
     }
     if include_deep:
         thesis = data.get("thesis_breakdown") or data.get("thesis") or data.get("bullets") or []
+        deep_text = _first_text(data, ("deep_brief", "brief", "analysis", "body", "content", "full_text", "article"))
+        deep_pillar_key = _infer_pillar_key(
+            data=data,
+            tags=tags,
+            headline=headline,
+            take=take,
+            deep_text=deep_text,
+        )
         item.update(
             {
-                "deep_brief": _first_text(data, ("deep_brief", "brief", "analysis", "body")),
+                "deep_brief": deep_text,
+                "body": deep_text,
+                "content": deep_text,
                 "thesis_breakdown": _as_list(thesis),
                 "tickers": _as_list(data.get("tickers") or data.get("symbols")),
+                "reading_minutes": _estimate_reading_minutes(deep_text or take),
+                "pillar_key": deep_pillar_key or pillar_key,
             }
         )
     return item
@@ -215,6 +300,42 @@ def _load_digest_items(limit: int, date_filter: str | None = None) -> list[dict[
     return sorted(items, key=_sort_key, reverse=True)[:limit]
 
 
+def _item_has_deep_content(item: dict[str, Any]) -> bool:
+    return bool(str(item.get("deep_brief") or item.get("body") or item.get("content") or "").strip())
+
+
+def _item_matches_pillar(item: dict[str, Any], pillar: str | None) -> bool:
+    canonical = _normalize_pillar(pillar)
+    if not canonical:
+        return True
+    if item.get("pillar_key") == canonical:
+        return True
+    tags = [str(tag) for tag in item.get("tags") or []]
+    if any(_normalize_pillar(tag) == canonical for tag in tags):
+        return True
+    haystack = " ".join(
+        [
+            str(item.get("headline") or item.get("title") or ""),
+            str(item.get("gemini_take") or item.get("summary") or ""),
+            str(item.get("deep_brief") or item.get("body") or item.get("content") or ""),
+            str(item.get("pillar") or ""),
+            *tags,
+        ]
+    ).casefold()
+    return any(_text_has_alias(haystack, alias) for alias in PILLAR_ALIASES[canonical])
+
+
+def _load_deep_items(limit: int, pillar: str | None = None) -> list[dict[str, Any]]:
+    docs = _query_stream(min(max(limit * 5, 80), 250))
+    items: list[dict[str, Any]] = []
+    for doc in docs:
+        doc_id, data = _to_dict(doc)
+        item = _normalize_item(data, doc_id, include_deep=True)
+        if item and _item_has_deep_content(item) and _item_matches_pillar(item, pillar):
+            items.append(item)
+    return sorted(items, key=_sort_key, reverse=True)[:limit]
+
+
 def _theme_counts(items: list[dict[str, Any]], limit: int = 12) -> list[dict[str, Any]]:
     counts: Counter[str] = Counter()
     labels: dict[str, str] = {}
@@ -250,6 +371,27 @@ def get_news_digest(
         "limit": limit,
         "items": items,
         "themes": _theme_counts(items),
+        "source": f"firestore:{_collection_name()}",
+        "available": True,
+    }
+
+
+@router.get("/deep")
+def get_news_deep_list(
+    pillar: str | None = Query(default=None, description="Optional pillar: ai, semiconductor, crypto"),
+    limit: int = Query(default=20, ge=1, le=50),
+) -> dict[str, Any]:
+    canonical_pillar = _normalize_pillar(pillar)
+    if pillar and not canonical_pillar:
+        raise HTTPException(status_code=422, detail="pillar must be one of ai, semiconductor, crypto")
+    try:
+        items = _load_deep_items(limit, canonical_pillar or None)
+    except Exception as exc:
+        raise _firestore_unavailable(exc) from exc
+    return {
+        "pillar": canonical_pillar or None,
+        "limit": limit,
+        "items": items,
         "source": f"firestore:{_collection_name()}",
         "available": True,
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "qsi_watchlist";
+const WATCHLIST_CHANGED_EVENT = "qsi_watchlist_changed";
 const MAX_ITEMS = 20;
 
 function normalizeSymbol(raw) {
@@ -17,54 +18,76 @@ function readWatchlist() {
   }
 }
 
-function writeWatchlist(items) {
+function writeWatchlist(items, notify = false) {
   try {
     globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, MAX_ITEMS)));
   } catch {
     /* ignore */
   }
+  if (notify) {
+    try {
+      globalThis.dispatchEvent(new CustomEvent(WATCHLIST_CHANGED_EVENT));
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
-export default function Watchlist() {
+export default function Watchlist({
+  title = "Watchlist",
+  description = "LocalStorage v1 · 最多 20 個代號",
+  dataTestId = "portfolio-watchlist",
+  compact = false,
+} = {}) {
   const [items, setItems] = useState(() => readWatchlist());
   const [draft, setDraft] = useState("");
 
   useEffect(() => {
-    writeWatchlist(items);
-  }, [items]);
+    const sync = () => setItems(readWatchlist());
+    globalThis.addEventListener(WATCHLIST_CHANGED_EVENT, sync);
+    globalThis.addEventListener("storage", sync);
+    return () => {
+      globalThis.removeEventListener(WATCHLIST_CHANGED_EVENT, sync);
+      globalThis.removeEventListener("storage", sync);
+    };
+  }, []);
 
   const add = () => {
     const symbol = normalizeSymbol(draft);
     if (!symbol || items.includes(symbol) || items.length >= MAX_ITEMS) return;
-    setItems((prev) => [...prev, symbol]);
+    const next = [...items, symbol].slice(0, MAX_ITEMS);
+    writeWatchlist(next, true);
+    setItems(next);
     setDraft("");
   };
 
   const remove = (symbol) => {
-    setItems((prev) => prev.filter((item) => item !== symbol));
+    const next = items.filter((item) => item !== symbol);
+    writeWatchlist(next, true);
+    setItems(next);
   };
 
   return (
-    <section className="card p-3" data-testid="portfolio-watchlist">
+    <section className="card p-3" data-testid={dataTestId}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="card-title">Watchlist</div>
-          <div className="text-[12px] text-[var(--muted)]">LocalStorage v1 · 最多 20 個代號</div>
+          <div className="card-title">{title}</div>
+          {description ? <div className="text-[12px] text-[var(--muted)]">{description}</div> : null}
         </div>
-        <div className="flex min-w-[220px] flex-1 justify-end gap-2">
+        <div className={`flex flex-1 justify-end gap-2 ${compact ? "min-w-full" : "min-w-[220px]"}`}>
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value.toUpperCase())}
             onKeyDown={(e) => {
               if (e.key === "Enter") add();
             }}
-            className="min-w-0 rounded border border-white/15 bg-black/25 px-2 py-1.5 text-[13px] text-white"
+            className="min-h-[44px] min-w-0 rounded border border-white/15 bg-black/25 px-2 py-1.5 text-[13px] text-white"
             placeholder="新增代號"
             maxLength={16}
           />
           <button
             type="button"
-            className="rounded bg-emerald-700 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-emerald-600"
+            className="min-h-[44px] rounded bg-emerald-700 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-emerald-600"
             onClick={add}
           >
             Add
@@ -84,7 +107,7 @@ export default function Watchlist() {
               {symbol}
               <button
                 type="button"
-                className="text-white/50 hover:text-red-300"
+                className="min-h-[28px] min-w-[28px] text-white/50 hover:text-red-300"
                 onClick={() => remove(symbol)}
                 aria-label={`移除 ${symbol}`}
               >

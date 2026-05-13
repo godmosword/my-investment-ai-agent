@@ -63,6 +63,7 @@
 | `GET /api/metrics/history` | 歷史指標 | query：`days`；同上 |
 | `GET /api/macro/snapshot` | `/dashboard` macro snapshot | 實作於 [`api_routers/macro.py`](../api_routers/macro.py)；8 指標（10Y、2s10s、DXY、VIX、BTC、SOXX/SPY、AI Momentum、Next Fed/CPI），每列含 `value`、`change_1d`、`change_5d`、7 點 `spark`、`source`、`as_of`；60 秒 in-process cache；yfinance 指標逐列降級，FMP calendar optional |
 | `GET /api/news/digest` | `/news` 科技即時報 digest | 實作於 [`api_routers/news.py`](../api_routers/news.py)；query：可選 `date=YYYY-MM-DD`、`limit`；讀 Firestore collection（`TECH_PULSE_FIRESTORE_COLLECTION`，預設 `tech_pulse_memory_items`）；只回傳有 headline 與 source 的 item |
+| `GET /api/news/deep` | `/columns` 科技專欄 deep brief list | query：可選 `pillar=ai\|semiconductor\|crypto`、`limit`；沿用 Firestore collection 與 source filter；回傳 list items 含 `title`、`summary`、`body`／`content`、`source_domain`、`source_url`、`tickers`、`reading_minutes`、`pillar_key` |
 | `GET /api/news/deep/{item_id}` | `/news` deep brief side panel | 回傳單則 headline、Gemini take、source、time、confidence、`deep_brief`、`thesis_breakdown`、`tickers`；找不到或缺來源回 404 |
 | `GET /api/news/themes` | `/news` 今日主軸 | 由近期 sourced items 的 tags/pillar 聚合 `{ id, label, count }[]` |
 | `GET /api/track-record/summary` | `/insights` Track Record KPI | 實作於 [`api_routers/track_record.py`](../api_routers/track_record.py)；讀最新 `PAPER_CLOSED` execution intents，回傳 W/L、hit rate、avg return、Sharpe 近似、max drawdown、equity curve；paper-only |
@@ -90,6 +91,10 @@
 | `GET /healthz` | 存活探測 | [`api_routers/health.py`](../api_routers/health.py) |
 | `POST /api/push/subscribe` | Web Push 訂閱 | 預設 **501**；`WEB_PUSH_ENABLED=1` 時：可設 **`WEB_PUSH_REDIS_URL`**（分散式儲存 + **Redis** rate limit）、或 **`WEB_PUSH_STORE=1`**（程序內）；可選 **`WEB_PUSH_BQ_PERSIST`**／**`WEB_PUSH_BQ_AUDIT`**。推送 payload 目前以 `title`／`body`／`url` 為主；**預留擴充**：`report_date`（`YYYY-MM-DD`）與 `block_id`（對應 `block_registry`），供 SW `notificationclick` 深連結至 `/report/:date#block=<block_id>`（**實作中／待 PR**，見 Phase 5）。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
 | `POST /api/push/test-send` | 管理端 **測試推送**（`pywebpush`） | 預設 **404**；須 **`WEB_PUSH_ADMIN_KEY`** + Header **`X-Web-Push-Admin-Key`** + **`WEB_PUSH_VAPID_PRIVATE_KEY`** + 已存完整訂閱 |
+| `GET /api/push/price-alerts` | Price alert queue | JSONL storage（`PRICE_ALERTS_FILE`，預設 `price_alerts.jsonl`）；回傳 `{ alerts }` |
+| `POST /api/push/price-alerts` | 新增 price alert | body：`symbol`、`direction=above\|below`、`target_price > 0`、可選 `note`；`symbol` 經 `validate_symbol_for_snapshot` 正規化 |
+| `DELETE /api/push/price-alerts/{id}` | 刪除 price alert | 成功回 `{ ok: true }`；找不到回 404 |
+| `POST /api/push/price-alerts/check` | 檢查 price alerts | query：`send_push`（預設 true）；逐 alert 呼叫 yfinance quote helper，比對 threshold，觸發後寫 `triggered_at`；`send_push=true` 時接既有 `web_push_store.send_test_push` |
 
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
 Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。

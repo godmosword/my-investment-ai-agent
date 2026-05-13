@@ -107,12 +107,27 @@ def client(monkeypatch):
             },
         ),
         FakeDoc(
+            "crypto-etf",
+            {
+                "headline": "Bitcoin ETF 資金流回溫",
+                "gemini_take": "加密資產風險偏好改善，但仍需觀察美元與實質利率。",
+                "source_url": "https://cointelegraph.com/mock-bitcoin-etf",
+                "published_at": "2026-05-13T10:00:00Z",
+                "tags": ["Crypto", "BTC"],
+                "pillar": "crypto",
+                "confidence": 0.71,
+                "content": "Bitcoin ETF 資金流回溫，使 BTC 現貨買盤重新成為風險偏好的觀察窗口。",
+                "tickers": ["BTC"],
+            },
+        ),
+        FakeDoc(
             "unsourced",
             {
                 "headline": "沒有來源的新聞不得出現",
                 "gemini_take": "這筆資料應被 API 過濾。",
                 "published_at": "2026-05-13T07:00:00Z",
                 "tags": ["AI"],
+                "deep_brief": "沒有來源的 deep brief 不得出現。",
             },
         ),
     ]
@@ -142,6 +157,38 @@ def test_news_deep_returns_thesis_and_confidence(client):
     assert body["confidence"] == pytest.approx(0.82)
     assert body["thesis_breakdown"] == ["HBM 需求偏強", "先進封裝排程仍緊"]
     assert body["tickers"] == ["NVDA", "TSM"]
+    assert body["title"] == body["headline"]
+    assert body["body"] == body["deep_brief"]
+    assert body["reading_minutes"] >= 1
+
+
+def test_news_deep_list_filters_by_pillar_and_skips_unsourced(client):
+    response = client.get("/api/news/deep?pillar=semiconductor&limit=10")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pillar"] == "semiconductor"
+    ids = [item["id"] for item in body["items"]]
+    assert ids == ["ai-chip"]
+    item = body["items"][0]
+    assert item["source_domain"] == "semianalysis.com"
+    assert item["title"] == "AI 半導體供應鏈拉高資本支出"
+    assert item["summary"] == "雲端 capex 仍是先進封裝與 HBM 的核心推力。"
+    assert item["body"] == "供應鏈的瓶頸仍集中在先進封裝。"
+    assert item["reading_minutes"] >= 1
+    assert "unsourced" not in ids
+
+
+def test_news_deep_list_accepts_crypto_aliases(client):
+    response = client.get("/api/news/deep?pillar=BTC&limit=10")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pillar"] == "crypto"
+    assert [item["id"] for item in body["items"]] == ["crypto-etf"]
+
+
+def test_news_deep_list_rejects_unknown_pillar(client):
+    response = client.get("/api/news/deep?pillar=macro")
+    assert response.status_code == 422
 
 
 def test_news_themes_counts_tags(client):

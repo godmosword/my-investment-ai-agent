@@ -48,6 +48,7 @@ from api_routers import macro as macro_router
 from api_routers import metrics as metrics_router
 from api_routers import news as news_router
 from api_routers import portfolio as portfolio_router
+from api_routers import price_alerts as price_alerts_router
 from api_routers import track_record as track_record_router
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,7 @@ app.include_router(macro_router.router)
 app.include_router(metrics_router.router)
 app.include_router(news_router.router)
 app.include_router(portfolio_router.router)
+app.include_router(price_alerts_router.router)
 app.include_router(track_record_router.router)
 
 

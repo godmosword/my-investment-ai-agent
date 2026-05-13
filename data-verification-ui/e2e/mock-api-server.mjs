@@ -285,7 +285,9 @@ const macroSnapshotBody = {
 const newsItems = [
   {
     id: "e2e-ai-chip",
+    title: "AI 半導體供應鏈拉高資本支出",
     headline: "AI 半導體供應鏈拉高資本支出",
+    summary: "雲端 capex 仍是 HBM 與先進封裝的主要推力。",
     gemini_take: "雲端 capex 仍是 HBM 與先進封裝的主要推力。",
     source_domain: "semianalysis.com",
     source_url: "https://semianalysis.com/e2e-ai-chip",
@@ -293,11 +295,39 @@ const newsItems = [
     date: "2026-05-13",
     tags: ["AI", "半導體"],
     pillar: "半導體",
+    pillar_key: "semiconductor",
     confidence: 0.82,
+    body: "供應鏈瓶頸仍集中在 HBM、CoWoS 與先進封裝排程，對 NVDA/TSM 的訂單能見度形成支撐。",
+    deep_brief: "供應鏈瓶頸仍集中在 HBM、CoWoS 與先進封裝排程，對 NVDA/TSM 的訂單能見度形成支撐。",
+    reading_minutes: 4,
+    thesis_breakdown: ["HBM 需求偏強", "先進封裝排程仍緊", "雲端 capex 沒有快速下修"],
+    tickers: ["NVDA", "TSM"],
+  },
+  {
+    id: "e2e-crypto-etf",
+    title: "Bitcoin ETF 資金流回溫",
+    headline: "Bitcoin ETF 資金流回溫",
+    summary: "ETF flow 重新回到正值，BTC 風險偏好改善。",
+    gemini_take: "ETF flow 重新回到正值，BTC 風險偏好改善。",
+    source_domain: "cointelegraph.com",
+    source_url: "https://cointelegraph.com/e2e-bitcoin-etf",
+    published_at: "2026-05-13T09:00:00Z",
+    date: "2026-05-13",
+    tags: ["Crypto", "BTC"],
+    pillar: "crypto",
+    pillar_key: "crypto",
+    confidence: 0.71,
+    body: "Bitcoin ETF 資金流回溫，使 BTC 現貨買盤重新成為風險偏好的觀察窗口。",
+    deep_brief: "Bitcoin ETF 資金流回溫，使 BTC 現貨買盤重新成為風險偏好的觀察窗口。",
+    reading_minutes: 3,
+    thesis_breakdown: ["ETF flow 轉正", "DXY 回落有利高 beta 資產"],
+    tickers: ["BTC"],
   },
   {
     id: "e2e-macro-dollar",
+    title: "美元回落支撐科技股風險偏好",
     headline: "美元回落支撐科技股風險偏好",
+    summary: "DXY 走弱降低長久期科技股的估值壓力。",
     gemini_take: "DXY 走弱降低長久期科技股的估值壓力。",
     source_domain: "bloomberg.com",
     source_url: "https://bloomberg.com/e2e-macro-dollar",
@@ -312,8 +342,28 @@ const newsItems = [
 const newsThemes = [
   { id: "AI", label: "AI", count: 1 },
   { id: "semis", label: "半導體", count: 1 },
+  { id: "crypto", label: "Crypto", count: 1 },
   { id: "macro", label: "宏觀", count: 1 },
 ];
+
+function newsItemMatchesPillar(item, pillar) {
+  if (!pillar) return true;
+  const wanted = pillar === "semiconductor" ? ["semiconductor", "semis", "半導體", "hbm", "chip"] : [pillar];
+  const text = [item.pillar_key, item.pillar, item.headline, item.summary, ...(item.tags || [])]
+    .join(" ")
+    .toLowerCase();
+  return wanted.some((term) => text.includes(term.toLowerCase()));
+}
+
+function newsDeepListBody(pillar, limit) {
+  return {
+    pillar: pillar || null,
+    limit,
+    items: newsItems.filter((item) => item.deep_brief && newsItemMatchesPillar(item, pillar)).slice(0, limit),
+    source: "firestore:tech_pulse_memory_items",
+    available: true,
+  };
+}
 
 function newsDeepBody(id) {
   const item = newsItems.find((row) => row.id === id) || newsItems[0];
@@ -555,6 +605,7 @@ const snapshotBtcMisaligned = baseSnapshot("BTC", BTC_OHLC_LAST_MIS, btcMisalign
 const snapshotBtcAlignmentNa = baseSnapshot("BTC", BTC_LAST, btcAlignmentNa);
 const snapshotSpy = baseSnapshot("SPY", SPY_OHLC_LAST, spyMisaligned);
 const snapshotNvda = baseSnapshot("NVDA", NVDA_OHLC_LAST, nvdaMisaligned);
+const priceAlerts = [];
 
 function quoteBody(symbol, last) {
   return {
@@ -647,6 +698,52 @@ const server = http.createServer((req, res) => {
     sendJson(res, 200, { ok: true, status: "started", job_id: "e2emock01" });
     return;
   }
+  if (url.pathname === "/api/push/price-alerts" && req.method === "POST") {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      let body = {};
+      try { body = JSON.parse(Buffer.concat(chunks).toString()); } catch { /* ignore */ }
+      const alert = {
+        id: `alert-${priceAlerts.length + 1}`,
+        symbol: String(body.symbol || "NVDA").toUpperCase(),
+        direction: String(body.direction || "above").toLowerCase(),
+        target_price: Number(body.target_price || 900),
+        note: String(body.note || ""),
+        created_at: "2026-05-13T00:00:00Z",
+        last_checked_at: "",
+        last_price: null,
+        triggered_at: "",
+      };
+      priceAlerts.push(alert);
+      sendJson(res, 200, { alert });
+    });
+    return;
+  }
+  if (url.pathname === "/api/push/price-alerts/check" && req.method === "POST") {
+    const checked = priceAlerts.map((alert) => ({
+      ...alert,
+      last_checked_at: "2026-05-13T00:01:00Z",
+      last_price: 950,
+      triggered_at: alert.direction === "above" && Number(alert.target_price) <= 950 ? "2026-05-13T00:01:00Z" : "",
+    }));
+    priceAlerts.splice(0, priceAlerts.length, ...checked);
+    sendJson(res, 200, {
+      checked: checked.length,
+      triggered: checked.filter((alert) => alert.triggered_at).length,
+      alerts: checked,
+      push_results: [],
+    });
+    return;
+  }
+  const priceAlertDeleteMatch = url.pathname.match(/^\/api\/push\/price-alerts\/([^/]+)$/);
+  if (priceAlertDeleteMatch && req.method === "DELETE") {
+    const id = decodeURIComponent(priceAlertDeleteMatch[1]);
+    const index = priceAlerts.findIndex((alert) => alert.id === id);
+    if (index >= 0) priceAlerts.splice(index, 1);
+    sendJson(res, index >= 0 ? 200 : 404, index >= 0 ? { ok: true } : { detail: "not found" });
+    return;
+  }
   if (req.method !== "GET") {
     sendJson(res, 405, { error: "method" });
     return;
@@ -657,6 +754,10 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === "/api/macro/snapshot") {
     sendJson(res, 200, macroSnapshotBody);
+    return;
+  }
+  if (url.pathname === "/api/push/price-alerts") {
+    sendJson(res, 200, { alerts: priceAlerts });
     return;
   }
   if (url.pathname === "/api/news/digest") {
@@ -673,6 +774,12 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === "/api/news/themes") {
     sendJson(res, 200, { themes: newsThemes, source: "firestore:tech_pulse_memory_items" });
+    return;
+  }
+  if (url.pathname === "/api/news/deep") {
+    const pillar = String(url.searchParams.get("pillar") || "").toLowerCase();
+    const limit = Number(url.searchParams.get("limit") || "20");
+    sendJson(res, 200, newsDeepListBody(pillar, limit));
     return;
   }
   const newsDeepMatch = url.pathname.match(/^\/api\/news\/deep\/([^/]+)$/);

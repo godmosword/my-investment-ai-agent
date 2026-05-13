@@ -342,8 +342,20 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 | 方法 | 路徑 | 說明 |
 |------|------|------|
 | `GET` | `/api/news/digest?date=YYYY-MM-DD&limit=20` | 讀 digest items；回傳 headline、Gemini take、source domain/url、time、tags、confidence |
+| `GET` | `/api/news/deep?pillar=ai\|semiconductor\|crypto&limit=20` | 科技專欄 deep brief list；回傳 title、summary、body/content、source、tickers、reading_minutes |
 | `GET` | `/api/news/deep/{item_id}` | 讀單則 deep brief；含 thesis breakdown、confidence、tickers |
 | `GET` | `/api/news/themes` | 由近期 sourced items 聚合今日主題 |
+
+### Columns / Cross-board Terminal（Queues 42–43，2026-05-13）
+
+`/columns` 已接 AI／半導體／Crypto 三支柱 Deep Brief，相關主題仍讀 `GET /api/industries/themes`。全域 Command Bar 支援 5 板塊跳轉與 `/insights?symbol=...` deep-link；右下角 shared monitor 提供 localStorage Watchlist 與 price alert queue。
+
+| 方法 | 路徑 | 說明 |
+|------|------|------|
+| `GET` | `/api/push/price-alerts` | 讀 JSONL price alerts（`PRICE_ALERTS_FILE` 可覆寫） |
+| `POST` | `/api/push/price-alerts` | 新增 alert：`symbol`、`direction=above|below`、`target_price`、`note?` |
+| `DELETE` | `/api/push/price-alerts/{id}` | 刪除 alert |
+| `POST` | `/api/push/price-alerts/check?send_push=false` | 以 yfinance quote helper 檢查 threshold；`send_push=true` 時接既有 Web Push send path |
 
 ### Track Record API（Queue 41，2026-05-13）
 

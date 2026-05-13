@@ -2,6 +2,7 @@ import ModuleNav from "./ModuleNav";
 import SideNav from "./SideNav";
 import TerminalCommandBar from "../../components/TerminalCommandBar";
 import GlobalGateBadge from "../../components/GlobalGateBadge";
+import GlobalWatchlistDock from "../../components/GlobalWatchlistDock";
 
 export default function Shell({ children, hideModuleNav = false }) {
   return (
@@ -13,6 +14,7 @@ export default function Shell({ children, hideModuleNav = false }) {
           <TerminalCommandBar trailing={<GlobalGateBadge />} />
         ) : null}
         {children}
+        {!hideModuleNav ? <GlobalWatchlistDock /> : null}
       </div>
     </div>
   );

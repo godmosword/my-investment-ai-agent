@@ -214,6 +214,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # DASHBOARD_SYMBOL_FOCUS=BTC   # Streamlit「載入快照」輸入框預設代號（可選；見 dashboard.py）
 # EXECUTION_INTENT_STORE=.qsilicon/execution_intents.jsonl  # 執行意圖 JSONL（相對 repo 根）
 # PORTFOLIO_HOLDINGS_FILE=portfolio_holdings.jsonl  # Portfolio Tracker v1 JSONL（可設到 .qsilicon/portfolio_holdings.jsonl 或測試 tmp_path）
+# PRICE_ALERTS_FILE=price_alerts.jsonl  # Queue 43 price alert JSONL queue（可設到 .qsilicon/price_alerts.jsonl 或測試 tmp_path）
 # RECOMMENDATION_OUTCOMES_TABLE=  # 可選；Track Record nightly mark-to-market BQ sink（見 docs/SQL/recommendation_outcomes.sql）
 # ---------- PWA Web Push（分階；見 docs/PWA_WEB_PUSH.md）----------
 # WEB_PUSH_ENABLED=0           # 1=允許 POST /api/push/subscribe（無 Redis 且無 WEB_PUSH_STORE=1 時為 log-only）

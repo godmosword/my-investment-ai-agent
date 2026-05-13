@@ -5,6 +5,12 @@
 
 ## 2026-05-13
 
+### Columns + Cross-board Terminal（Queues 42–43）
+- **Deep Brief list API**：[`api_routers/news.py`](api_routers/news.py) 新增 `GET /api/news/deep?pillar=ai|semiconductor|crypto&limit=...`，沿用 Firestore lazy-init 與未溯源 item 過濾；回傳 list items 含 `title`、`summary`、`body`/`content`、`tickers`、`reading_minutes`、`pillar_key`。
+- **PWA `/columns`**：[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) 從 industry wrapper 升級為 AI／半導體／Crypto pillar tabs、Deep Brief 卡片流、相關主題卡、手機全屏 side panel 與 ticker chips deep-link 至 `/insights?symbol=...`。
+- **Command Bar / Watchlist / Alerts**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 支援 5 板塊跳轉與 symbol lookup deep-link；新增 [`GlobalWatchlistDock.jsx`](data-verification-ui/src/components/GlobalWatchlistDock.jsx) 將 [`Watchlist.jsx`](data-verification-ui/src/components/Watchlist.jsx) 提升為跨板塊浮層；新增 [`price_alerts.py`](price_alerts.py) + [`api_routers/price_alerts.py`](api_routers/price_alerts.py) 的 JSONL price alert queue（`GET/POST/DELETE /api/push/price-alerts`、`POST /check`），check 時使用 yfinance quote helper，觸發後可接既有 Web Push send path。
+- **Theme / tests**：新增 [`theme/terminal.css`](data-verification-ui/src/theme/terminal.css) 套 Shell 深色 terminal palette 且保留既有 Tailwind tokens；測試新增 [`tests/api/test_price_alerts_router.py`](tests/api/test_price_alerts_router.py) 與 [`queue43-cross-board.spec.js`](data-verification-ui/e2e/queue43-cross-board.spec.js)，並擴充 [`tests/api/test_news_router.py`](tests/api/test_news_router.py)／[`industries-route.spec.js`](data-verification-ui/e2e/industries-route.spec.js)。
+
 ### Graph Reviewer / War Room Telemetry
 - **Market gate hardening**：[`graph/graph_nodes.py`](graph/graph_nodes.py) 的 pre-reviewer market gate 擴為非目標市場與 allowlist gate；CRYPTO track 僅允許 BTC/ETH（含 BTCUSDT 等正規化），AI track 僅允許 `assets_universe` 內美股符號，並阻擋台股 local code 與常見非美交易所 suffix。
 - **Reviewer ground truth**：[`symbol_snapshot_service.py`](symbol_snapshot_service.py) 新增 reviewer ground-truth block builder，`llm_reviewer_node` 以 yfinance quote/OHLC 快照提供可審計價格上下文，並可 bypass quote cache。

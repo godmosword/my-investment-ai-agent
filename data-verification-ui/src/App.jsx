@@ -1,10 +1,10 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BottomNav from "./components/BottomNav";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { WarRoomSseProvider } from "./hooks/useWarRoomSse";
-import { SymbolFocusProvider } from "./context/SymbolFocusContext";
+import { SymbolFocusProvider, useSymbolFocus } from "./context/SymbolFocusContext";
 import Shell from "./app/layout/Shell";
 import Report from "./pages/Report";
 import Settings from "./pages/Settings";
@@ -30,11 +30,23 @@ function RedirectWithSearch({ to }) {
   return <Navigate to={`${to}${search}${hash}`} replace />;
 }
 
+function SymbolQuerySync() {
+  const { search } = useLocation();
+  const { setSymbol } = useSymbolFocus();
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const symbol = String(params.get("symbol") || "").trim().toUpperCase();
+    if (symbol) setSymbol(symbol);
+  }, [search, setSymbol]);
+  return null;
+}
+
 function AppRoutes() {
   const { pathname } = useLocation();
   const hideChrome = pathname === "/api-key";
   return (
     <Shell hideModuleNav={hideChrome}>
+      <SymbolQuerySync />
       <main className="page-content">
         <Routes>
           <Route path="/" element={<RedirectWithSearch to="/insights" />} />
