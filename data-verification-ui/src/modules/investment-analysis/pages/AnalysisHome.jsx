@@ -322,7 +322,7 @@ export default function AnalysisHome() {
       </div>
 
       <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, opacity: 0.65 }}>
-        完整分析請見 <code>/briefs</code> 日報終端或 Telegram 戰報。
+        完整分析請見 <code>/insights</code> 投資觀點或 Telegram 戰報。
       </div>
     </>
   );

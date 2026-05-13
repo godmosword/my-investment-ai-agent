@@ -1,9 +1,10 @@
 // @ts-check
 import { test, expect } from "@playwright/test";
 
-test.describe("Industries route /industries (Q31)", () => {
+test.describe("Columns route /columns (Q31)", () => {
   test("loads industry themes and sector rotation panel", async ({ page }) => {
-    await page.goto("/industries", { waitUntil: "load" });
+    await page.goto("/columns", { waitUntil: "load" });
+    await expect(page.getByTestId("columns-home")).toBeVisible({ timeout: 60_000 });
 
     // M5 API card
     await expect(page.getByTestId("industries-m5-api")).toBeVisible({ timeout: 60_000 });
@@ -16,7 +17,7 @@ test.describe("Industries route /industries (Q31)", () => {
   });
 
   test("sector rotation chips have regime labels", async ({ page }) => {
-    await page.goto("/industries", { waitUntil: "load" });
+    await page.goto("/columns", { waitUntil: "load" });
     const panel = page.getByTestId("sector-rotation-panel");
     await expect(panel).toBeVisible({ timeout: 60_000 });
 

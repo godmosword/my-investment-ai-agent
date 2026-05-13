@@ -1,9 +1,10 @@
 // @ts-check
 import { test, expect } from "@playwright/test";
 
-test.describe("Positions route (/positions)", () => {
+test.describe("Portfolio route (/portfolio)", () => {
   test("loads execution intents table from mock API", async ({ page }) => {
-    await page.goto("/positions", { waitUntil: "load" });
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("positions-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole("heading", { name: "倉位管理" })).toBeVisible();
     await expect(page.getByTestId("positions-m4-table")).toBeVisible();
@@ -13,7 +14,7 @@ test.describe("Positions route (/positions)", () => {
   });
 
   test("edit button opens IntentUpdateModal (Q30)", async ({ page }) => {
-    await page.goto("/positions", { waitUntil: "load" });
+    await page.goto("/portfolio", { waitUntil: "load" });
     await expect(page.getByTestId("positions-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText("e2e-spy-1")).toBeVisible();
 
@@ -27,7 +28,7 @@ test.describe("Positions route (/positions)", () => {
   });
 
   test("IntentUpdateModal PATCH submits and closes (Q30)", async ({ page }) => {
-    await page.goto("/positions", { waitUntil: "load" });
+    await page.goto("/portfolio", { waitUntil: "load" });
     await expect(page.getByText("e2e-spy-1")).toBeVisible({ timeout: 60_000 });
 
     await page.getByTestId("intent-edit-e2e-spy-1").click();

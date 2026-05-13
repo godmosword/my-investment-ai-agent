@@ -3,11 +3,11 @@ import globals from "globals";
 
 /** 與 `TERMINAL_FRONTEND_PLAN.md`／隊列 26 模組邊界一致。 */
 const MODULES = [
-  "daily-brief",
-  "investment-analysis",
-  "position-management",
-  "industry-trends",
-  "quant-trading",
+  "news",
+  "dashboard",
+  "insights",
+  "columns",
+  "portfolio",
 ];
 
 const zones = [];

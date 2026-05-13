@@ -75,7 +75,7 @@ export default function StructuredReportView({
       <SymbolFocusBar compact />
       <div className="page-header" data-testid="structured-report-view">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <Link to="/archive" style={{ color: "var(--muted)", textDecoration: "none", fontSize: 14 }}>
+          <Link to="/insights" style={{ color: "var(--muted)", textDecoration: "none", fontSize: 14 }}>
             ← 返回
           </Link>
         </div>

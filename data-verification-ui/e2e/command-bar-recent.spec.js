@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
  */
 test.describe("Terminal Command Bar — recent symbols", () => {
   test("GO pushes symbol onto recent chips and persists to localStorage", async ({ page }) => {
-    await page.goto("/briefs", { waitUntil: "load" });
+    await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
 

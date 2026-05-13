@@ -1,11 +1,11 @@
 import { NavLink } from "react-router-dom";
 
 const TABS = [
-  { to: "/today",    icon: "📊", label: "今日" },
-  { to: "/charts",   icon: "📈", label: "圖表" },
-  { to: "/trades",   icon: "💼", label: "交易" },
-  { to: "/briefs",   icon: "🖥️", label: "日報" },
-  { to: "/archive",  icon: "🗄",  label: "存檔" },
+  { to: "/news",      icon: "📰", label: "新聞" },
+  { to: "/dashboard", icon: "📊", label: "儀表" },
+  { to: "/insights",  icon: "🖥️", label: "觀點" },
+  { to: "/columns",   icon: "🏭", label: "專欄" },
+  { to: "/portfolio", icon: "📌", label: "組合" },
   { to: "/settings", icon: "⚙️", label: "設定" },
 ];
 
@@ -16,7 +16,7 @@ export default function BottomNav() {
         <NavLink
           key={to}
           to={to}
-          end={to === "/today"}
+          end
           className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
           aria-label={label}
         >

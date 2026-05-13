@@ -34,7 +34,7 @@
 
 ### Streamlit ↔ PWA 同形約束（T2c）
 
-1. `dashboard.py` 的 Symbol 快照唯讀區與 PWA **`/briefs`**（日報模組 canonical）及 **`/terminal`**（與 `/briefs` 同實作、供既有連結／E2E）應共用同一 payload 語意：
+1. `dashboard.py` 的 Symbol 快照唯讀區與 PWA **`/insights`**（5 板塊 Terminal canonical；`/briefs`、`/terminal` 相容導向）應共用同一 payload 語意：
    - 未設 `SYMBOL_SNAPSHOT_HTTP_BASE`：Streamlit 直接呼叫 `symbol_snapshot_service.build_symbol_snapshot`
    - 有設 `SYMBOL_SNAPSHOT_HTTP_BASE`：Streamlit 改打 `GET /api/symbols/{symbol}/snapshot`
 2. 兩條路徑都必須維持以下鍵存在且語意一致：`symbol`、`latest_metrics`、`history`、`price_series`、`event_markers`、`recommendations`、`report_links`、`data_provenance`、`price_alignment`。
@@ -81,7 +81,7 @@
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
 Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。
 
-**PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/briefs`**／**`/terminal`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。可選 **`VITE_TERMINAL_QUERY_COALESCE=1`**（預設）讓同頁多卡之 `snapshot`／`quote`／`intents` 輪詢 **微錯開**，降低 burst（設 **`0`** 關閉）。**2026-04-21 起的 T3c 約束**：`PATCH /api/execution-intents/{signal_id}` 成功後，前端需先**寫回 react-query cache**，僅對**活躍**的 `execution-intents`／`war-room` query 做即時 refetch；`metrics/latest`／`report`／`positions/open` 只標記 stale，不可每次 mutation 都同步全頁重抓。  
+**PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/insights`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）；`/briefs`、`/terminal` 保留相容 redirect。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。可選 **`VITE_TERMINAL_QUERY_COALESCE=1`**（預設）讓同頁多卡之 `snapshot`／`quote`／`intents` 輪詢 **微錯開**，降低 burst（設 **`0`** 關閉）。**2026-04-21 起的 T3c 約束**：`PATCH /api/execution-intents/{signal_id}` 成功後，前端需先**寫回 react-query cache**，僅對**活躍**的 `execution-intents`／`war-room` query 做即時 refetch；`metrics/latest`／`report`／`positions/open` 只標記 stale，不可每次 mutation 都同步全頁重抓。
 可選 **`VITE_WEB_PUSH_REGISTER=1`** + **`VITE_WEB_PUSH_VAPID_PUBLIC_KEY`**（URL-safe base64）在 SW 就緒後嘗試 `pushManager.subscribe` 並 `POST /api/push/subscribe`（後端須 `WEB_PUSH_ENABLED=1`）；預設關閉。  
 可選 **`VITE_SSE_ENABLED=1`** + **`VITE_SSE_STREAM_KEY`**（與後端 `API_STREAM_AUTH_KEY` 對齊）以 **EventSource** 訂閱 `/api/stream/war-room` 並同步 React Query（後端須 `TERMINAL_SSE_ENABLED=1`）。**T3c 約束**：SSE **message** 應節流後再刷新活躍 `war-room`／`execution-intents`；SSE **error** 僅視為連線退化，不可反覆 invalidate 全頁 query，以保留 polling 作為降級路徑。  
 可選 **`VITE_STRUCTURED_REPORT=1`**：`/report/:date` 改載 **`GET /api/reports/{date}/structured`** 並以區塊順序渲染（結構化本文未入庫時以 **`legacy`** 欄位填 placeholder）；預設關閉時維持僅 **`GET /api/reports/{date}`**。結構化模式下可選 query **`?profile=`**（`full`｜`lite`｜`crypto-only`）切換前端版型（與 structured 端點之 `profile` 對齊）；無效值正規化為 **`full`**。

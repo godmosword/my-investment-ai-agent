@@ -10,13 +10,13 @@ export default function ApiKeyPage() {
 
   const returnPath = useMemo(() => {
     const raw = (params.get("return") || "").trim();
-    if (!raw || raw === "/api-key") return "/briefs";
+    if (!raw || raw === "/api-key") return "/insights";
     try {
       const u = new URL(raw, window.location.origin);
-      if (u.pathname === "/api-key") return "/briefs";
+      if (u.pathname === "/api-key") return "/insights";
       return `${u.pathname}${u.search}${u.hash}`;
     } catch {
-      return "/briefs";
+      return "/insights";
     }
   }, [params]);
 

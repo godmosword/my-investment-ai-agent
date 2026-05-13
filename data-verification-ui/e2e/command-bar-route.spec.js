@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Terminal Command Bar (queue 29)", () => {
   test("AAPL GO sets focus and WATCH persists terminal_sse_watch", async ({ page }) => {
-    await page.goto("/briefs", { waitUntil: "load" });
+    await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
 
@@ -26,7 +26,7 @@ test.describe("Terminal Command Bar (queue 29)", () => {
   });
 
   test("RUN button triggers crew and shows toast", async ({ page }) => {
-    await page.goto("/briefs", { waitUntil: "load" });
+    await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
 
@@ -41,7 +41,7 @@ test.describe("Terminal Command Bar (queue 29)", () => {
   });
 
   test("typing RUN and pressing Enter triggers crew", async ({ page }) => {
-    await page.goto("/briefs", { waitUntil: "load" });
+    await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
 

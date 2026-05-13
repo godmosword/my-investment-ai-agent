@@ -4,18 +4,11 @@ import { useWarRoomSseStatus } from "../../hooks/useWarRoomSse";
 const SSE_ENABLED = import.meta.env.VITE_SSE_ENABLED === "1";
 
 const PRIMARY_TABS = [
-  { to: "/today",   icon: "📊", label: "今日戰情室" },
-  { to: "/charts",  icon: "📈", label: "圖表" },
-  { to: "/trades",  icon: "💼", label: "交易記錄" },
-  { to: "/briefs",  icon: "🖥️", label: "日報終端" },
-  { to: "/archive", icon: "🗄",  label: "存檔" },
-];
-
-const MODULE_TABS = [
-  { to: "/analysis",  icon: "🔬", label: "投資分析" },
-  { to: "/positions", icon: "📌", label: "倉位管理" },
-  { to: "/industries",icon: "🏭", label: "產業趨勢" },
-  { to: "/quant",     icon: "⚡", label: "量化交易" },
+  { to: "/news",      icon: "📰", label: "科技即時報" },
+  { to: "/dashboard", icon: "📊", label: "數據儀表板" },
+  { to: "/insights",  icon: "🖥️", label: "投資觀點" },
+  { to: "/columns",   icon: "🏭", label: "科技專欄" },
+  { to: "/portfolio", icon: "📌", label: "Portfolio" },
 ];
 
 const SYSTEM_TABS = [
@@ -76,15 +69,9 @@ export default function SideNav() {
         </div>
       </div>
 
-      <div className="side-nav__section">主功能</div>
+      <div className="side-nav__section">五板塊</div>
       {PRIMARY_TABS.map(({ to, icon, label }) => (
-        <NavItem key={to} to={to} icon={icon} label={label} end={to === "/today"} />
-      ))}
-
-      <div className="side-nav__divider" />
-      <div className="side-nav__section">分析模組</div>
-      {MODULE_TABS.map(({ to, icon, label }) => (
-        <NavItem key={to} to={to} icon={icon} label={label} />
+        <NavItem key={to} to={to} icon={icon} label={label} end />
       ))}
 
       <div className="side-nav__divider" />

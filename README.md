@@ -52,8 +52,8 @@ v1 僅追蹤 **paper-tracked** 訊號，不接券商、不自動下單，也不�
 |------|------------|------------|
 | 戰情室 UI | `streamlit run dashboard.py --server.port 8501 --server.headless true` — 可選 **`DASHBOARD_AUTO_REFRESH_SEC`**（秒，預設 **300**）；頂層 **`st.tabs`**：`Overview`、`Profile / LLM`、`Gate（7 日）`、`Roundtable`（細節見 [`CHANGELOG.md`](CHANGELOG.md) **2026-04-18** `### Added`） | 否（BQ 區塊降級） |
 | PWA 版型 | `cd data-verification-ui && npm install && VITE_GLASSBOX_MOCK=1 npm run dev` | 否 |
-| PWA Terminal（代號快照／K 線） | 同上；開啟 **`/terminal`** 或 **`/briefs`**（與 `/terminal` 同工作區；Portal Phase 1，見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-04**）。接實盤 API 時設 **`VITE_API_URL`**（例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`）；可選 **`VITE_QSILICON_KEY`** → `X-Q-Silicon-Key`（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)） | 否（mock）；是（讀 BQ 需本機 `uvicorn` + GCP） |
-| PWA E2E（Playwright） | `cd data-verification-ui && npm run test:e2e`（內建 mock API + `VITE_E2E=1` 建置；Bloomberg §6 Today vs `/terminal` BTC 價） | 否（需下載 Chromium） |
+| PWA Terminal（代號快照／K 線） | 同上；開啟 **`/insights`**（`/briefs`、`/terminal` 會相容導向此頁；5 板塊 Phase 0 見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-13**）。接實盤 API 時設 **`VITE_API_URL`**（例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`）；可選 **`VITE_QSILICON_KEY`** → `X-Q-Silicon-Key`（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)） | 否（mock）；是（讀 BQ 需本機 `uvicorn` + GCP） |
+| PWA E2E（Playwright） | `cd data-verification-ui && npm run test:e2e`（內建 mock API + `VITE_E2E=1` 建置；Bloomberg §6 Dashboard vs `/insights` BTC 價） | 否（需下載 Chromium） |
 | 對齊 CI | `ruff check .` · `python3 -m pytest -m smoke -q` · `./scripts/ci_terminal_contract_check.sh`（quote／OHLC 契約 + PWA build；GitHub Actions 對 `data-verification-ui/package.json` 啟用 **npm cache**） | 否（PWA build 需 Node） |
 | 乾跑管線 | `SKIP_TELEGRAM=1 SKIP_BIGQUERY=1 python main.py` | 是（啟動四項 LLM／資料 key，見下） |
 | LangGraph 路徑 | `USE_LANGGRAPH_ENGINE=1 python main.py` | 與上同；見 [LangGraph](#langgraph-可選) |
@@ -63,7 +63,7 @@ v1 僅追蹤 **paper-tracked** 訊號，不接券商、不自動下單，也不�
 
 **常見狀況**：`main.py` 單次 **15–30+ 分鐘**屬正常；Gate 擋報看終端 `issues`，可開 `GATE_FAILURE_ARTIFACTS=1`；CoinGlass `401`／`Upgrade plan` 多為方案不含端點（見 [CoinGlass](#coinglass-api-v4)）。
 
-**Terminal / Streamlit 口徑提醒**：`/terminal` 與 Streamlit Symbol 快照都以 [`symbol_snapshot_service.py`](symbol_snapshot_service.py) 為 payload 真相來源；若設 **`SYMBOL_SNAPSHOT_HTTP_BASE`**，Streamlit 會改打同一條 FastAPI snapshot 路徑。`latest_metrics`（BigQuery）與 `quote`（yfinance）**不是同一來源**，畫面需以 `data_provenance` / `price_alignment` 為準。
+**Terminal / Streamlit 口徑提醒**：`/insights`（以及相容導向的 `/briefs`、`/terminal`）與 Streamlit Symbol 快照都以 [`symbol_snapshot_service.py`](symbol_snapshot_service.py) 為 payload 真相來源；若設 **`SYMBOL_SNAPSHOT_HTTP_BASE`**，Streamlit 會改打同一條 FastAPI snapshot 路徑。`latest_metrics`（BigQuery）與 `quote`（yfinance）**不是同一來源**，畫面需以 `data_provenance` / `price_alignment` 為準。
 
 ---
 
@@ -171,7 +171,7 @@ flowchart TB
 | [`report_html_gates.py`](report_html_gates.py) | `validate_report` |
 | [`telegram_sender.py`](telegram_sender.py) · [`bigquery_writer.py`](bigquery_writer.py) | 推送、metrics、`write_gate_failure_log` |
 | [`api.py`](api.py) · [`api_routers/`](api_routers/) · [`dashboard.py`](dashboard.py) | FastAPI（`api.py` 掛載 incremental `APIRouter`：`health`、`metrics`）、Streamlit |
-| [`symbol_snapshot_service.py`](symbol_snapshot_service.py) | `/terminal`／Streamlit 代號快照與 `GET /api/symbols/{symbol}/snapshot` 之共用 payload 來源 |
+| [`symbol_snapshot_service.py`](symbol_snapshot_service.py) | `/insights`／Streamlit 代號快照與 `GET /api/symbols/{symbol}/snapshot` 之共用 payload 來源 |
 
 ---
 
@@ -313,9 +313,9 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 
 - **離線／快取**：生產用 Service Worker 以 Workbox 註冊路由 — **`/api` NetworkOnly**（不快取 API），導覽／同源靜態 **NetworkFirst**。說明見 [`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md)（CHANGELOG **2026-04-18**）。
 
-- **路由**：底部導覽「終端」→ **`/terminal`**（watchlist 存 `localStorage`；代號卡呼叫 `GET /api/symbols/{symbol}/snapshot` 與輕量 **`GET /api/symbols/{symbol}/quote`**（最新日線收盤／1D%，僅 yfinance））。
+- **路由**：底部導覽五板塊為 **`/news`**、**`/dashboard`**、**`/insights`**、**`/columns`**、**`/portfolio`**；`/insights` 承接 Terminal 工作區（watchlist 存 `localStorage`；代號卡呼叫 `GET /api/symbols/{symbol}/snapshot` 與輕量 **`GET /api/symbols/{symbol}/quote`**（最新日線收盤／1D%，僅 yfinance））。
 - **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（適合 PWA 與 API 同網域反代）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。
-- **`VITE_TERMINAL_POLL_MS`**（可選）：**`/terminal`** 內 snapshot／意圖列表／War Room 輪詢間隔（毫秒），預設 **45000**；本機除錯可設 `15000`。見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)。
+- **`VITE_TERMINAL_POLL_MS`**（可選）：**`/insights`** 內 snapshot／意圖列表／War Room 輪詢間隔（毫秒），預設 **45000**；本機除錯可設 `15000`。見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)。
 - **SSE（可選）**：後端 `TERMINAL_SSE_ENABLED=1` 時提供 `GET /api/stream/war-room`；查詢參數 **`watch_symbols`**（CSV，例 `BTC,NVDA`）可驅動 **`symbol_quote`** 事件；前端 **`VITE_SSE_ENABLED=1`**，若設 `API_STREAM_AUTH_KEY` 則同步 **`VITE_SSE_STREAM_KEY`**。紙上一輪：`python scripts/paper_execution_tick.py` 或 `PAPER_TICK_HTTP_ENABLED=1` 時 `POST /api/paper/execution-tick`（可選 `PAPER_TICK_API_KEY`）。
 
 ### Portal API（M4–M7 讀取切片，2026-05-11）

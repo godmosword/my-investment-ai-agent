@@ -1,11 +1,11 @@
 import { NavLink } from "react-router-dom";
 
 const MODULES = [
-  { to: "/briefs", label: "日報", short: "日報" },
-  { to: "/analysis", label: "投資分析", short: "分析" },
-  { to: "/positions", label: "倉位", short: "倉位" },
-  { to: "/industries", label: "產業", short: "產業" },
-  { to: "/quant", label: "量化", short: "量化" },
+  { to: "/news", label: "科技即時報", short: "新聞" },
+  { to: "/dashboard", label: "數據儀表板", short: "儀表" },
+  { to: "/insights", label: "投資觀點", short: "觀點" },
+  { to: "/columns", label: "科技專欄", short: "專欄" },
+  { to: "/portfolio", label: "Portfolio", short: "組合" },
 ];
 
 export default function ModuleNav() {

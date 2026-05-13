@@ -32,7 +32,7 @@ test.describe("Global Gate Badge", () => {
       });
     });
 
-    await page.goto("/briefs", { waitUntil: "load" });
+    await page.goto("/insights", { waitUntil: "load" });
 
     const badge = page.getByTestId("global-gate-badge");
     await expect(badge).toBeVisible({ timeout: 60_000 });
@@ -69,7 +69,7 @@ test.describe("Global Gate Badge", () => {
       });
     });
 
-    await page.goto("/briefs", { waitUntil: "load" });
+    await page.goto("/insights", { waitUntil: "load" });
 
     const badge = page.getByTestId("global-gate-badge");
     await expect(badge).toBeVisible({ timeout: 60_000 });
@@ -81,7 +81,7 @@ test.describe("Global Gate Badge", () => {
 
   test("hidden when no reports available", async ({ page }) => {
     // Default mock returns []; just navigate and assert hidden state.
-    await page.goto("/briefs", { waitUntil: "load" });
+    await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("global-gate-badge")).toHaveCount(0);

@@ -2,8 +2,8 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Bloomberg §6 — NVDA cross-route banner (mock BQ + divergent OHLC/quote)", () => {
-  test("Terminal shows mismatch banner and BQ vs yfinance note for NVDA", async ({ page }) => {
-    await page.goto("/terminal?e2e_symbols=NVDA", { waitUntil: "load" });
+  test("Insights shows mismatch banner and BQ vs yfinance note for NVDA", async ({ page }) => {
+    await page.goto("/insights?e2e_symbols=NVDA", { waitUntil: "load" });
     const loading = page.getByText("載入終端…");
     if ((await loading.count()) > 0) {
       await loading.waitFor({ state: "hidden", timeout: 90_000 });

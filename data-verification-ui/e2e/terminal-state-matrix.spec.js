@@ -13,7 +13,7 @@ async function waitTerminalReady(page, activeSymbolsPattern) {
   );
 }
 
-test.describe("Terminal T1/T2 state matrix", () => {
+test.describe("Insights T1/T2 state matrix", () => {
   test("keeps snapshot content when quote fails for one symbol", async ({ page }) => {
     await page.addInitScript(() => {
       try {
@@ -22,7 +22,7 @@ test.describe("Terminal T1/T2 state matrix", () => {
         /* ignore */
       }
     });
-    await page.goto("/terminal?e2e_symbols=BTC,SPY", { waitUntil: "load" });
+    await page.goto("/insights?e2e_symbols=BTC,SPY", { waitUntil: "load" });
     await waitTerminalReady(page, /BTC.*SPY|SPY.*BTC/);
 
     await expect(page.getByTestId("terminal-quote-degraded-SPY")).toBeVisible({ timeout: 60_000 });
@@ -38,7 +38,7 @@ test.describe("Terminal T1/T2 state matrix", () => {
         /* ignore */
       }
     });
-    await page.goto("/terminal?e2e_symbols=BTC,SPY", { waitUntil: "load" });
+    await page.goto("/insights?e2e_symbols=BTC,SPY", { waitUntil: "load" });
     await waitTerminalReady(page, /BTC.*SPY|SPY.*BTC/);
 
     await expect(page.getByTestId("terminal-snapshot-error-SPY")).toBeVisible({ timeout: 60_000 });
@@ -54,7 +54,7 @@ test.describe("Terminal T1/T2 state matrix", () => {
         /* ignore */
       }
     });
-    await page.goto("/terminal?e2e_btc=1", { waitUntil: "load" });
+    await page.goto("/insights?e2e_btc=1", { waitUntil: "load" });
     await waitTerminalReady(page, /BTC/);
 
     await expect(page.getByTestId("terminal-price-alignment-status-BTC")).toContainText(/對齊狀態：N\/A/);

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 
 /**
- * Cross-page strip: shared focus ticker (localStorage) + quick jump to Terminal.
+ * Cross-page strip: shared focus ticker (localStorage) + quick jump to Insights.
  */
 export default function SymbolFocusBar({ compact = false }) {
   const { symbol, setSymbol } = useSymbolFocus();
@@ -45,8 +45,8 @@ export default function SymbolFocusBar({ compact = false }) {
       ) : (
         <span className="symbol-focus-bar__hint">未設定（各頁可獨立瀏覽）</span>
       )}
-      <Link to="/terminal" className="symbol-focus-bar__link">
-        Terminal →
+      <Link to="/insights" className="symbol-focus-bar__link">
+        Insights →
       </Link>
     </div>
   );

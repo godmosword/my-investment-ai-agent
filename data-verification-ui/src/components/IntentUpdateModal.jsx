@@ -29,7 +29,7 @@ export default function IntentUpdateModal({ row, onClose }) {
       setStopPrice(row.reference_stop_price != null ? String(row.reference_stop_price) : "");
       patchMutation.reset();
     }
-  }, [row]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [row]);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };

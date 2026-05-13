@@ -135,7 +135,7 @@ export default function Settings() {
       <section className="card mb-4 p-3">
         <h2 className="mb-2 text-[13px] font-semibold">Portal／日報路由</h2>
         <p className="mb-2 text-[12px] leading-snug text-[var(--muted)]">
-          <span className="font-semibold text-[var(--fg)]">日報</span> canonical 路徑為 <code className="font-mono">/briefs</code>；<code className="font-mono">/terminal</code> 與其同頁（相容既有連結與 E2E）。五模組導覽見頂欄 Shell。
+          <span className="font-semibold text-[var(--fg)]">投資觀點</span> canonical 路徑為 <code className="font-mono">/insights</code>；<code className="font-mono">/briefs</code> 與 <code className="font-mono">/terminal</code> 會相容導向此頁。五板塊導覽見頂欄 Shell。
         </p>
         <p className="m-0 text-[11px] leading-snug text-[var(--muted)]">
           API 基底與選用主金鑰：<code className="font-mono">VITE_API_URL</code>、<code className="font-mono">VITE_QSILICON_KEY</code>（送 <code className="font-mono">X-Q-Silicon-Key</code>；401 觸發全域事件）。

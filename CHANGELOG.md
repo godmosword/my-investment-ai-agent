@@ -3,6 +3,16 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-13
+
+### PWA（5 板塊 Terminal Phase 0）
+- **Route contract**：[`App.jsx`](data-verification-ui/src/App.jsx) 收斂為 **`/news`、`/dashboard`、`/insights`、`/columns`、`/portfolio`** 五個 canonical routes；`/`、`/briefs`、`/terminal` 以保留 query/hash 的相容 redirect 導向 `/insights`；`/settings`、`/api-key`、`/report/:date` 保留。
+- **五板塊框架**：新增 [`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx)、[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx)、[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx)、[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx)、[`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx)。本切片只搬路由／框架：`/dashboard` 承接現有戰情室，`/insights` 承接 Terminal 工作區 + Analysis/Quant tabs，`/columns` 承接產業頁，`/portfolio` 承接倉位頁；`/news` 僅提供未接 Firestore 的空狀態。
+- **導覽與相容文案**：[`SideNav.jsx`](data-verification-ui/src/app/layout/SideNav.jsx)、[`ModuleNav.jsx`](data-verification-ui/src/app/layout/ModuleNav.jsx)、[`BottomNav.jsx`](data-verification-ui/src/components/BottomNav.jsx) 改為五板塊導覽；內部連結從舊 `/today`／`/terminal`／`/archive` 改指 `/dashboard`／`/insights`；[`eslint.config.js`](data-verification-ui/eslint.config.js) 模組邊界改列新五板塊。
+
+### Tests
+- **Playwright route migration**：既有 E2E 從 `/today`、`/terminal`、`/briefs`、`/positions`、`/industries` 改到 `/dashboard`、`/insights`、`/portfolio`、`/columns`；新增 [`five-routes-smoke.spec.js`](data-verification-ui/e2e/five-routes-smoke.spec.js) 與 `/briefs`／`/terminal` alias redirect smoke。
+
 ## 2026-05-11（二）
 
 ### PWA（Portal 全域 Gate Badge + Command Bar 歷史）

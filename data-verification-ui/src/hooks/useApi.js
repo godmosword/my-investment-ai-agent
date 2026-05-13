@@ -12,7 +12,7 @@ function handleApiUnauthorized() {
     /* ignore */
   }
   try {
-    const path = globalThis.location?.pathname || "/briefs";
+    const path = globalThis.location?.pathname || "/insights";
     const q = globalThis.location?.search || "";
     const ret = encodeURIComponent(`${path}${q}`);
     globalThis.location?.assign(`/api-key?return=${ret}`);
@@ -74,7 +74,7 @@ function e2eSymbolQuery(symbol, endpoint) {
   return qstr ? `?${qstr}` : "";
 }
 
-/** Terminal `/terminal` 輪詢間隔（ms）；可由 `VITE_TERMINAL_POLL_MS` 覆寫，預設 45s，最小 5s、最大 5min。 */
+/** Insights Terminal workspace 輪詢間隔（ms）；可由 `VITE_TERMINAL_POLL_MS` 覆寫，預設 45s，最小 5s、最大 5min。 */
 export function getTerminalRefetchIntervalMs() {
   const raw = import.meta.env.VITE_TERMINAL_POLL_MS;
   if (raw === "" || raw === undefined || raw === null) return 45_000;
