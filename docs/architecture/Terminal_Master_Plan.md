@@ -28,7 +28,7 @@
 | [`notebooklm_research.md`](notebooklm_research.md) | 🟡 Repo-side 主流程 scaffold 已接，live client 仍未接 | 新增 `DeepFilingAnalysis`／`Citation`、`deep_filing_analysis_node`、`deep_filing_block`、多題 helper、可選 BQ cost log；`notebooklm_query()` 仍是預設關閉／未接 live client stub。 |
 | [`agency_agents_research.md`](agency_agents_research.md) | 🟡 Repo-side 主流程 scaffold 已接 | 新增 template parser、`AgencyResearchOutput`／`AgencyDeliverable`、`agency_researcher_node`、Crew backstory opt-in 注入、`agency_finance_block`；完整多 Agent 模板庫仍屬長線。 |
 | [`tradingview_mcp_research.md`](tradingview_mcp_research.md) | 🟡 Repo-side bridge 已接，外部 MCP 未安裝 | 新增 `tools/tradingview.py`、mock fixture、Crew／LangGraph tool tail、sample setup；不修改 `~/.claude`、不安裝外部 MCP server。 |
-| [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) | ✅ 狀態索引 + Phase 0 | 本檔 §0 矩陣對齊各檔 ✅／🟡；§0 下 **Phase 0** 為架構目錄判讀治理（權威順序、研究≠承諾）。 |
+| [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) | ✅ 狀態索引 + Phase 0–2 | 本檔 §0 矩陣對齊各檔 ✅／🟡；§0 下 **Phase 0** 為架構目錄判讀治理；**Phase 2**（Portal 產品切片）見 §0 Phase 2 小節與 [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) 現況。 |
 
 ### Phase 0 — `architecture/` 判讀與治理（已定案）
 
@@ -39,6 +39,12 @@
 ### Phase 1 — 日報可信／隊列 27（staging 對照）
 
 **Repo 側**：執行稿、環境核對表、**TODOS／CHANGELOG 回填模板**見 [`STAGING_CURRENT_AFFAIRS_SMOKE.md`](../STAGING_CURRENT_AFFAIRS_SMOKE.md)。**不在 CI 自動執行**；通過與否由 staging 營運於 [`TODOS.md`](../../TODOS.md) 隊列 **27** 或同步狀態行關帳。**可選同日**：Reviewer rollout（隊列 35）見 [`REVIEWER_PRODUCTION_ROLLOUT.md`](../REVIEWER_PRODUCTION_ROLLOUT.md) 與 [`scripts/verify_reviewer_rollout_env.py`](../../scripts/verify_reviewer_rollout_env.py)，與本 smoke **非**硬性綁定。
+
+### Phase 2 — Portal「產品面」可驗收切片（2026-05-14）
+
+**定義**：讀者摸得到、且不破離線／即時資料紅線的增量；每塊以 Playwright 或既有契約測試封頂。
+
+**已落檔／落碼**：[`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) 現況行；Command Bar **`terminal-crew-status-hud`**（輪詢 **`GET /api/run-crew/status`**）；Workspace **`storage` + `qsi_workspace_changed`** 跨分頁同步（[`workspaceSync.js`](../../data-verification-ui/src/constants/workspaceSync.js)）；E2E [`workspace-cross-tab.spec.js`](../../data-verification-ui/e2e/workspace-cross-tab.spec.js)。**仍列 backlog**（`TODOS` 隊列 29／34）：權限細節、排程型 digest 等。
 
 ---
 
@@ -76,5 +82,6 @@
 
 ## 修訂紀錄
 
+- **2026-05-14**：§0 下新增 **Phase 2**（Portal 產品切片：Crew HUD、Workspace 跨分頁）；本檔矩陣狀態欄改為 **Phase 0–2**。
 - **2026-05-06**：新增並更新 `architecture/` 文件狀態矩陣；同日補上 NotebookLM／Agency／TradingView repo-side scaffold 與視覺化主要 repo backlog。
 - **2026-04-18**：初版 — 總表連結、`architecture/` 三檔看法；與 [`TODOS.md`](../../TODOS.md)、[`CHANGELOG.md`](../../CHANGELOG.md) 對齊。

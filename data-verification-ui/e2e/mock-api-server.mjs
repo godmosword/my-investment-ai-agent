@@ -16,6 +16,9 @@ const NVDA_OHLC_LAST = 880;
 const NVDA_QUOTE_LAST = 900.125;
 const NVDA_REL_DIFF = Math.abs(NVDA_QUOTE_LAST - NVDA_OHLC_LAST) / NVDA_OHLC_LAST;
 
+/** Phase 2 HUD: after POST /api/run-crew, status is ``running`` briefly (same browser clock). */
+let mockCrewLastStartMs = 0;
+
 function enrichAlignment(align) {
   return {
     ...align,
@@ -755,6 +758,7 @@ const server = http.createServer((req, res) => {
   }
   // POST /api/run-crew
   if (url.pathname === "/api/run-crew" && req.method === "POST") {
+    mockCrewLastStartMs = Date.now();
     sendJson(res, 200, { ok: true, status: "started", job_id: "e2emock01" });
     return;
   }
@@ -1301,6 +1305,17 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === "/api/run-crew/status") {
+    const within = mockCrewLastStartMs > 0 && Date.now() - mockCrewLastStartMs < 12_000;
+    if (within) {
+      sendJson(res, 200, {
+        status: "running",
+        job_id: "e2emock01",
+        started_at: new Date(mockCrewLastStartMs).toISOString(),
+        finished_at: null,
+        error: null,
+      });
+      return;
+    }
     sendJson(res, 200, { status: "idle", job_id: null, started_at: null, finished_at: null, error: null });
     return;
   }

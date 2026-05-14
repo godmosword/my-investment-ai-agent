@@ -802,7 +802,7 @@ export function useRunCrewStatus() {
     staleTime: 5_000,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === "running" ? 3_000 : false;
+      return status === "running" ? 2_000 : false;
     },
   });
 }

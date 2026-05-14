@@ -38,6 +38,11 @@ test.describe("Terminal Command Bar (queue 29)", () => {
     const toast = page.getByTestId("cmd-bar-run-toast");
     await expect(toast).toBeVisible({ timeout: 5_000 });
     await expect(toast).toContainText("e2emock01");
+
+    const hud = page.getByTestId("terminal-crew-status-hud");
+    await expect(hud).toBeVisible({ timeout: 5_000 });
+    await expect(hud).toContainText("running");
+    await expect(hud).toContainText("e2emock01");
   });
 
   test("typing RUN and pressing Enter triggers crew", async ({ page }) => {

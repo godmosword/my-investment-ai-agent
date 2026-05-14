@@ -6,6 +6,7 @@ import {
   usePriceAlerts,
   usePriceAlertDigest,
 } from "../hooks/useApi";
+import { emitWorkspaceChanged, QSI_WORKSPACE_CHANGED_EVENT } from "../constants/workspaceSync";
 
 const WORKSPACE_KEYS = [
   "qsi_watchlist",
@@ -79,6 +80,7 @@ function savePanels(panels) {
   } catch {
     /* ignore */
   }
+  emitWorkspaceChanged();
 }
 
 const SIZE_STORE_KEY = "qs_workspace_size_weights_v1";
@@ -104,6 +106,7 @@ function writeSizeStoreObj(obj) {
   } catch {
     /* ignore */
   }
+  emitWorkspaceChanged();
 }
 
 function equalSplitWeights(panelKeys) {
@@ -241,6 +244,33 @@ export default function WorkspacePanel({ compact = false } = {}) {
     setPanels(readPanels());
   }, []);
 
+  const applyWorkspaceFromStorage = useCallback(() => {
+    try {
+      setLayout(globalThis.localStorage?.getItem("qs_workspace_layout") || "balanced");
+    } catch {
+      setLayout("balanced");
+    }
+    const nextPanels = readPanels();
+    setPanels(nextPanels);
+    const store = readSizeStoreObj();
+    const saved = store[bpLabel] || {};
+    setWeights(weightsForPanels(nextPanels, saved));
+  }, [bpLabel]);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (!e.key || !WORKSPACE_KEYS.includes(e.key)) return;
+      applyWorkspaceFromStorage();
+    };
+    const onLocal = () => applyWorkspaceFromStorage();
+    globalThis.addEventListener("storage", onStorage);
+    globalThis.addEventListener(QSI_WORKSPACE_CHANGED_EVENT, onLocal);
+    return () => {
+      globalThis.removeEventListener("storage", onStorage);
+      globalThis.removeEventListener(QSI_WORKSPACE_CHANGED_EVENT, onLocal);
+    };
+  }, [applyWorkspaceFromStorage]);
+
   const digest = useMemo(() => {
     const alertRows = alerts.data?.alerts ?? [];
     const d = alertDigest.data;
@@ -268,6 +298,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
     } catch {
       /* ignore */
     }
+    emitWorkspaceChanged();
     setMessage("Workspace layout saved");
   };
 
@@ -308,6 +339,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
     try {
       const parsed = JSON.parse(importText);
       writeWorkspace(parsed);
+      emitWorkspaceChanged();
       setLayout(globalThis.localStorage?.getItem("qs_workspace_layout") || "balanced");
       setPanels(readPanels());
       setImportText("");
@@ -323,6 +355,9 @@ export default function WorkspacePanel({ compact = false } = {}) {
         <div>
           <div className="card-title">Workspace</div>
           <div className="text-[12px] text-[var(--muted)]">local layout · panel order · cross-board digest</div>
+          <div className="text-[10px] text-white/45" data-testid="workspace-cross-tab-sync-hint">
+            跨分頁／多視窗：另開同源分頁修改此區會經 localStorage 自動同步（Phase 2）。
+          </div>
         </div>
         <button
           type="button"
