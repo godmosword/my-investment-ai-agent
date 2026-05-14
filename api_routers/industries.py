@@ -7,8 +7,8 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
+import execution_intents
 from api_routers.industry_themes_static import INDUSTRY_THEMES_STATIC
-from execution_intents import latest_execution_intents
 
 router = APIRouter(prefix="/api/industries", tags=["industries"])
 
@@ -18,7 +18,9 @@ def list_industry_themes_m5(
     limit: int = Query(default=80, ge=1, le=200),
 ) -> dict[str, Any]:
     """Industry themes (M5): static cards + dominant ``regime`` sample from execution intents."""
-    intents = latest_execution_intents(limit=limit, dedupe=True, sort_by="updated_desc")
+    intents = execution_intents.latest_execution_intents(
+        limit=limit, dedupe=True, sort_by="updated_desc"
+    )
     regimes = [str(r.get("regime") or "").strip() for r in intents if str(r.get("regime") or "").strip()]
     regime_sample = Counter(regimes).most_common(1)[0][0] if regimes else None
     rotation = sorted(

@@ -25,8 +25,9 @@ def test_positions_m4_defaults_to_open(monkeypatch):
 
 
 def test_industries_themes_m5(monkeypatch):
+    # Patch on execution_intents (not a stale ``from … import`` binding in the router).
     monkeypatch.setattr(
-        "api_routers.industries.latest_execution_intents",
+        "execution_intents.latest_execution_intents",
         lambda **kwargs: [{"regime": "risk_on"}, {"regime": "risk_off"}],
     )
     client = TestClient(app)
