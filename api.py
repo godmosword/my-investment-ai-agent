@@ -631,17 +631,32 @@ def get_report_html(
     return HTMLResponse(content=html, headers=headers)
 
 
+def _env_truthy(var_name: str) -> bool:
+    return os.getenv(var_name, "").strip().lower() in ("1", "true", "yes")
+
+
+def _brief_layouts_runtime_hints() -> dict[str, Any]:
+    """Read-only server env for layout/dynamic-render UX (no pipeline side effects)."""
+    layout_file = (os.getenv("BRIEF_LAYOUT_FILE") or "").strip()
+    return {
+        "brief_layout_file": layout_file or None,
+        "brief_dynamic_render": _env_truthy("BRIEF_DYNAMIC_RENDER"),
+        "report_profile": ((os.getenv("REPORT_PROFILE") or "").strip() or None),
+    }
+
+
 @app.get("/api/brief-layouts")
 def list_brief_layout_yaml_files() -> dict[str, Any]:
     """List ``*.yaml`` under ``config/brief_layouts/`` (modularization Phase 4b).
 
     Read-only inventory for PWA layout UX (``visualization_plan`` V3). Filenames are
     examples or operator-supplied layouts; merging still happens server-side via
-    ``BRIEF_LAYOUT_FILE``.
+    ``BRIEF_LAYOUT_FILE``. Response includes ``runtime_hints`` (server env snapshot;
+    no secrets).
     """
     layouts_dir = _REPO_ROOT / "config" / "brief_layouts"
     if not layouts_dir.is_dir():
-        return {"layouts": []}
+        return {"layouts": [], "runtime_hints": _brief_layouts_runtime_hints()}
 
     layouts: list[dict[str, Any]] = []
     for path in sorted(layouts_dir.glob("*.yaml")):
@@ -677,7 +692,7 @@ def list_brief_layout_yaml_files() -> dict[str, Any]:
             if isinstance(blocks_raw, list):
                 entry["blocks"] = [str(b).strip() for b in blocks_raw if b is not None and str(b).strip()]
         layouts.append(entry)
-    return {"layouts": layouts}
+    return {"layouts": layouts, "runtime_hints": _brief_layouts_runtime_hints()}
 
 
 @app.get("/api/reports/qsrec-stats")

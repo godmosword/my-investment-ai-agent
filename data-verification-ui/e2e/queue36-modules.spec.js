@@ -25,6 +25,8 @@ test.describe("Queue 36 — module smoke (Analysis / Quant / Industries / Archiv
     await expect(page.getByText("產業趨勢")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("industries-brief-layouts-hint")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("industries-brief-layouts-hint")).toContainText("example_lite_reorder");
+    await expect(page.getByTestId("industries-brief-runtime-hint")).toBeVisible();
+    await expect(page.getByTestId("industries-brief-runtime-hint")).toContainText("REPORT_PROFILE=lite");
     await expect(page.getByText("2026-05-09").first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/mock sector view|industry_trends/i).first()).toBeVisible();
   });

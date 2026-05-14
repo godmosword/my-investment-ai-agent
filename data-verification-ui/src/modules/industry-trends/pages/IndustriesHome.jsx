@@ -100,6 +100,18 @@ export default function IndustriesHome() {
       .join(", ");
   }, [briefLayouts?.layouts]);
 
+  const runtimeHints = briefLayouts?.runtime_hints;
+  const runtimeLine = useMemo(() => {
+    if (!runtimeHints || typeof runtimeHints !== "object") return "";
+    const prof = runtimeHints.report_profile != null ? String(runtimeHints.report_profile) : "—";
+    const dyn = runtimeHints.brief_dynamic_render === true ? "on" : "off";
+    const lf =
+      typeof runtimeHints.brief_layout_file === "string" && runtimeHints.brief_layout_file.trim()
+        ? runtimeHints.brief_layout_file.trim()
+        : "（未設）";
+    return `REPORT_PROFILE=${prof} · BRIEF_DYNAMIC_RENDER=${dyn} · BRIEF_LAYOUT_FILE=${lf}`;
+  }, [runtimeHints]);
+
   const hasAnyTrends = structuredResults.some(
     (r) => !r.isLoading && extractIndustryTrendsBlock(r.data)
   );
@@ -133,7 +145,20 @@ export default function IndustriesHome() {
             </>
           )}{" "}
           — 對照營運 <code className="text-cyan-200/90">BRIEF_LAYOUT_FILE</code>／
-          <code className="text-cyan-200/90">BRIEF_DYNAMIC_RENDER</code>（此頁不推斷管線 env）。
+          <code className="text-cyan-200/90">BRIEF_DYNAMIC_RENDER</code>／
+          <code className="text-cyan-200/90">REPORT_PROFILE</code>
+          。
+          {runtimeLine ? (
+            <div
+              className="mt-2 border-t border-white/10 pt-2 text-[10px] text-white/50"
+              data-testid="industries-brief-runtime-hint"
+              title={runtimeLine}
+            >
+              後端啟用態（唯讀）：<code className="text-emerald-200/85">{runtimeLine}</code>
+            </div>
+          ) : (
+            <span>（此頁不推斷管線 env）。</span>
+          )}
         </div>
       ) : null}
 

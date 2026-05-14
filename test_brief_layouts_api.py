@@ -17,6 +17,13 @@ def test_brief_layouts_returns_yaml_inventory(client):
     assert r.status_code == 200
     body = r.json()
     assert "layouts" in body
+    assert "runtime_hints" in body
+    rh = body["runtime_hints"]
+    assert isinstance(rh, dict)
+    assert "brief_layout_file" in rh
+    assert "brief_dynamic_render" in rh
+    assert isinstance(rh["brief_dynamic_render"], bool)
+    assert "report_profile" in rh
     assert isinstance(body["layouts"], list)
     names = {item["filename"] for item in body["layouts"]}
     assert "example_lite_reorder.yaml" in names
