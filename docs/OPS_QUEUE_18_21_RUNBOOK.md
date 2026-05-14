@@ -12,6 +12,8 @@ python3 scripts/verify_ops_queue_18_21.py
 python3 scripts/verify_ops_queue_18_21.py --strict
 ```
 
+Reviewer 隊列 **35**（LangGraph reviewer rollout）之 env 自檢（不取代 staging 三日 watch）：[`docs/REVIEWER_PRODUCTION_ROLLOUT.md`](../docs/REVIEWER_PRODUCTION_ROLLOUT.md) 與 `python3 scripts/verify_reviewer_rollout_env.py`（可選 `--strict`）。
+
 腳本會檢查（可選）Redis PING、VAPID 變數、`WEB_PUSH_ADMIN_KEY` 是否已設、以及 `WEB_PUSH_SUBSCRIPTIONS_TABLE`／`PRICE_PROBE_LOG_TABLE` 在具備 ADC 時是否存在。**不**替你執行 BQ DDL 或 `test-send` HTTP。
 
 ## Phase 2 repo status（2026-05-13）

@@ -1193,6 +1193,36 @@ const server = http.createServer((req, res) => {
     sendJson(res, 200, { status: "idle", job_id: null, started_at: null, finished_at: null, error: null });
     return;
   }
+  if (url.pathname === "/api/scenario/suggestions") {
+    sendJson(res, 200, {
+      enabled: true,
+      as_of: "2026-05-14T00:00:00Z",
+      sources: { execution_intents: "EXECUTION_INTENT_STORE", portfolio_holdings: "PORTFOLIO_HOLDINGS_FILE" },
+      disclaimer: "e2e mock; internal planning only.",
+      portfolio: { positions: 1, concentration_hhi: 1, top_symbols: [{ symbol: "NVDA", weight_pct: 100 }] },
+      paper: { active_open_count: 0, active_by_asset: {}, overlap_with_portfolio: [] },
+      track_record_summary: { closed_count: 0, win_rate_pct: 0, avg_return_pct: 0 },
+      scenarios: [
+        {
+          id: "defensive",
+          label: "Defensive tilt",
+          notional_shift_pct: -5,
+          rationale_codes: ["HIGH_HHI"],
+          notes: "mock",
+        },
+        { id: "base", label: "Hold structure", notional_shift_pct: 0, rationale_codes: ["NEUTRAL"], notes: "mock" },
+        {
+          id: "opportunistic",
+          label: "Opportunistic trim",
+          notional_shift_pct: 0,
+          rationale_codes: ["NEUTRAL"],
+          notes: "mock",
+        },
+      ],
+      target_hints: [],
+    });
+    return;
+  }
   if (url.pathname === "/api/quant/backtest") {
     const symbol = url.searchParams.get("symbol") ?? "BTC";
     sendJson(res, 200, {

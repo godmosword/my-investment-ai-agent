@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 import { useRunCrew } from "../hooks/useApi";
@@ -14,6 +14,8 @@ const BOARD_ROUTES = {
   科技即時報: "/news",
   DASHBOARD: "/dashboard",
   數據儀表板: "/dashboard",
+  MACRO: "/dashboard",
+  MRKT: "/dashboard",
   INSIGHTS: "/insights",
   TERMINAL: "/insights",
   BRIEFS: "/insights",
@@ -126,6 +128,7 @@ function parseBoardRoute(raw) {
 export default function TerminalCommandBar({ trailing = null }) {
   const navigate = useNavigate();
   const { symbol, setSymbol } = useSymbolFocus();
+  const inputRef = useRef(null);
   const [input, setInput] = useState("");
   const [watchSet, setWatchSetState] = useState(() => readWatchSet());
   const [recent, setRecent] = useState(() => readRecent());
@@ -140,6 +143,23 @@ export default function TerminalCommandBar({ trailing = null }) {
       globalThis.removeEventListener(TERMINAL_SSE_WATCH_CHANGED_EVENT, bump);
       globalThis.removeEventListener("storage", bump);
     };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        const tag = String(e.target?.tagName || "").toLowerCase();
+        if (tag === "input" || tag === "textarea" || e.target?.isContentEditable) return;
+        e.preventDefault();
+        try {
+          inputRef.current?.focus();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    globalThis.addEventListener("keydown", onKey);
+    return () => globalThis.removeEventListener("keydown", onKey);
   }, []);
 
   const focused = (symbol || "").trim().toUpperCase();
@@ -218,10 +238,11 @@ export default function TerminalCommandBar({ trailing = null }) {
         onKeyDown={(e) => {
           if (e.key === "Enter") onGo();
         }}
-        placeholder="AAPL &lt;GO&gt; | /columns | RUN"
+        placeholder="AAPL &lt;GO&gt; | /columns | MACRO | RUN"
         className="min-h-[44px] min-w-[160px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
         autoComplete="off"
         spellCheck={false}
+        ref={inputRef}
       />
       <button
         type="button"

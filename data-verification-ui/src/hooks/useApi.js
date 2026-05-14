@@ -210,6 +210,30 @@ async function apiFetch(path) {
   }
 }
 
+/** GET /api/scenario/suggestions — 404（功能關閉）回 `{ disabled: true }`，其餘錯誤仍拋出。 */
+async function apiFetchScenarioSuggestions() {
+  let res;
+  try {
+    res = await fetch(`${BASE}/api/scenario/suggestions`, { headers: mergeSiliconHeaders() });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Network error (${msg})`);
+  }
+  if (res.status === 404) {
+    return { disabled: true };
+  }
+  if (!res.ok) {
+    if (res.status === 401) handleApiUnauthorized();
+    const msg = await res.text().catch(() => res.statusText);
+    throw new Error(`${res.status}: ${msg}`);
+  }
+  try {
+    return await res.json();
+  } catch (e) {
+    throw new Error("Invalid JSON from API");
+  }
+}
+
 async function apiPatchJson(path, body) {
   let res;
   try {
@@ -657,6 +681,15 @@ export function usePaperTransparencyLetter(month = "") {
     queryFn: () => apiFetch(`/api/paper/transparency-letter${params.toString() ? `?${params}` : ""}`),
     staleTime: 2 * 60 * 1000,
     retry: 1,
+  });
+}
+
+export function useScenarioSuggestions() {
+  return useQuery({
+    queryKey: ["scenario", "suggestions"],
+    queryFn: () => apiFetchScenarioSuggestions(),
+    staleTime: 60 * 1000,
+    retry: false,
   });
 }
 

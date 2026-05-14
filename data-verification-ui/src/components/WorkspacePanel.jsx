@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useIndustryThemes,
   usePaperLifecycle,
@@ -12,6 +12,7 @@ const WORKSPACE_KEYS = [
   "terminal_sse_watch",
   "qs_workspace_layout",
   "qs_workspace_panels",
+  "qs_workspace_size_weights_v1",
 ];
 const EVENT_KEYS = {
   qsi_watchlist: "qsi_watchlist_changed",
@@ -79,6 +80,70 @@ function savePanels(panels) {
   }
 }
 
+const SIZE_STORE_KEY = "qs_workspace_size_weights_v1";
+
+function readSizeStoreObj() {
+  try {
+    const raw = globalThis.localStorage?.getItem(SIZE_STORE_KEY);
+    if (!raw) return { sm: {}, md: {} };
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== "object") return { sm: {}, md: {} };
+    return {
+      sm: typeof o.sm === "object" && o.sm ? o.sm : {},
+      md: typeof o.md === "object" && o.md ? o.md : {},
+    };
+  } catch {
+    return { sm: {}, md: {} };
+  }
+}
+
+function writeSizeStoreObj(obj) {
+  try {
+    globalThis.localStorage?.setItem(SIZE_STORE_KEY, JSON.stringify(obj));
+  } catch {
+    /* ignore */
+  }
+}
+
+function equalSplitWeights(panelKeys) {
+  const keys = panelKeys.filter((k) => PANEL_LABELS[k]);
+  const n = keys.length || 1;
+  const base = Math.floor(100 / n);
+  let rem = 100 - base * n;
+  const out = {};
+  for (const k of keys) {
+    out[k] = base + (rem > 0 ? 1 : 0);
+    if (rem > 0) rem -= 1;
+  }
+  return out;
+}
+
+/** Saved per-breakpoint panel height % for preview stack; sum 100, min 5 each when n>1. */
+function weightsForPanels(panelKeys, savedBp) {
+  const keys = panelKeys.filter((k) => PANEL_LABELS[k]);
+  if (!keys.length) return {};
+  if (keys.length === 1) return { [keys[0]]: 100 };
+  const d = equalSplitWeights(keys);
+  for (const k of keys) {
+    const v = Number(savedBp[k]);
+    if (Number.isFinite(v) && v >= 5 && v <= 95) d[k] = Math.round(v);
+  }
+  let sum = keys.reduce((s, k) => s + (d[k] || 0), 0);
+  let diff = 100 - sum;
+  const last = keys[keys.length - 1];
+  d[last] = (d[last] || 0) + diff;
+  if (d[last] < 5) {
+    const bump = 5 - d[last];
+    d[last] = 5;
+    const first = keys[0];
+    d[first] = Math.max(5, (d[first] || 0) - bump);
+    sum = keys.reduce((s, k) => s + (d[k] || 0), 0);
+    diff = 100 - sum;
+    d[last] = (d[last] || 0) + diff;
+  }
+  return d;
+}
+
 function money(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
@@ -98,6 +163,72 @@ export default function WorkspacePanel({ compact = false } = {}) {
   const paper = usePaperLifecycle();
   const themes = useIndustryThemes(8);
   const alerts = usePriceAlerts();
+
+  const [bpLabel, setBpLabel] = useState("sm");
+  const [weights, setWeights] = useState({});
+  const weightsRef = useRef({});
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    weightsRef.current = weights;
+  }, [weights]);
+
+  useEffect(() => {
+    const mq = globalThis.matchMedia?.("(min-width:768px)");
+    if (!mq) return undefined;
+    const sync = () => setBpLabel(mq.matches ? "md" : "sm");
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    const store = readSizeStoreObj();
+    const saved = store[bpLabel] || {};
+    setWeights(weightsForPanels(panels, saved));
+  }, [panels, bpLabel]);
+
+  const startDividerDrag = useCallback(
+    (index) => (e) => {
+      e.preventDefault();
+      const top = panels[index];
+      const bot = panels[index + 1];
+      if (!top || !bot) return;
+      const wTop = weightsRef.current[top] ?? Math.floor(100 / panels.length);
+      const wBot = weightsRef.current[bot] ?? Math.floor(100 / panels.length);
+      dragRef.current = { top, bot, startY: e.clientY, wTop, wBot };
+      const onMove = (ev) => {
+        const d = dragRef.current;
+        if (!d) return;
+        const dy = ev.clientY - d.startY;
+        const delta = Math.round(dy / 5);
+        let nTop = d.wTop - delta;
+        let nBot = d.wBot + delta;
+        const MIN = 5;
+        if (nTop < MIN) {
+          nBot -= MIN - nTop;
+          nTop = MIN;
+        }
+        if (nBot < MIN) {
+          nTop -= MIN - nBot;
+          nBot = MIN;
+        }
+        setWeights((prev) => ({ ...prev, [d.top]: nTop, [d.bot]: nBot }));
+      };
+      const onUp = () => {
+        dragRef.current = null;
+        globalThis.removeEventListener("pointermove", onMove);
+        globalThis.removeEventListener("pointerup", onUp);
+        const store = readSizeStoreObj();
+        store[bpLabel] = { ...weightsRef.current };
+        writeSizeStoreObj(store);
+        setMessage(`Panel heights saved (${bpLabel})`);
+      };
+      globalThis.addEventListener("pointermove", onMove);
+      globalThis.addEventListener("pointerup", onUp, { once: true });
+    },
+    [panels, bpLabel],
+  );
 
   useEffect(() => {
     try {
@@ -273,12 +404,34 @@ export default function WorkspacePanel({ compact = false } = {}) {
             </div>
           ))}
         </div>
-        <div className={`mt-2 grid gap-1 ${layout === "dense" ? "grid-cols-2" : "grid-cols-1"}`}>
-          {panels.map((key) => (
-            <div key={key} className="rounded border border-cyan-300/20 bg-cyan-400/5 px-2 py-1 text-[11px] text-cyan-100">
-              {PANEL_LABELS[key]}
-            </div>
-          ))}
+        <div className="mt-2 flex h-44 flex-col overflow-hidden rounded border border-cyan-300/15 bg-black/20 p-1" data-testid="workspace-panel-stack">
+          {panels.flatMap((key, idx) => {
+            const w = weights[key] ?? Math.floor(100 / Math.max(panels.length, 1));
+            const tile = (
+              <div
+                key={`tile-${key}`}
+                style={{ flex: `${w} 1 0%`, minHeight: 0 }}
+                className="flex min-h-[28px] items-center justify-center rounded border border-cyan-300/20 bg-cyan-400/5 px-2 text-[11px] text-cyan-100"
+                data-testid={`workspace-panel-tile-${key}`}
+              >
+                {PANEL_LABELS[key]} · {w}%
+              </div>
+            );
+            if (idx >= panels.length - 1) return [tile];
+            const divider = (
+              <div
+                key={`div-${idx}`}
+                role="separator"
+                aria-orientation="horizontal"
+                data-testid={`workspace-divider-${idx}`}
+                className="group relative z-[1] h-3 shrink-0 cursor-row-resize touch-none"
+                onPointerDown={startDividerDrag(idx)}
+              >
+                <div className="absolute inset-x-6 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-white/25 group-hover:bg-cyan-400/60" />
+              </div>
+            );
+            return [tile, divider];
+          })}
         </div>
       </div>
 
