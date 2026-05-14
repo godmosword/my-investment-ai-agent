@@ -269,3 +269,8 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # Secrets 設定於 GitHub → Settings → Secrets and variables → Actions：
 #   GCP_SA_KEY                  已有（與主流程共用）
 #   PAPER_EXECUTION_AUDIT_TABLE 可選：project.dataset.paper_execution_audit（BQ 稽核；DDL 見 docs/SQL/paper_execution_audit.sql）
+
+# ---------- Push Alert Digest（M4；.github/workflows/push-digest-tick.yml；每 30 分鐘） ----------
+# PRICE_ALERTS_TELEGRAM_ENABLED=0  # 1=check_price_alerts 命中後額外送 Telegram；自然去重（alert.triggered_at 永久標記）
+# PRICE_ALERTS_FILE=.qsilicon/price_alerts.jsonl  # alert 條件 JSONL（PWA 透過 /api/push/price-alerts 建立）
+# 排程使用既有 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID。

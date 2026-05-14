@@ -1,0 +1,77 @@
+name: Push Alert Digest Tick (M4)
+
+# 自動掃 price_alerts.jsonl 條件：比對最新報價，命中則送 Telegram + Web Push。
+# 自然去重：alert.triggered_at 永久標記，已觸發者下輪自動跳過。
+#
+# 預設啟用排程（每 30 分鐘）。若需暫停，在 GitHub → Actions 停用本 workflow 即可。
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # 每 30 分鐘
+  workflow_dispatch:
+
+concurrency:
+  group: push-digest-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-22.04
+
+    env:
+      PRICE_ALERTS_TELEGRAM_ENABLED: '1'
+      TELEGRAM_BOT_TOKEN:           ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID:             ${{ secrets.TELEGRAM_CHAT_ID }}
+      # 預設使用 repo 內 .qsilicon/price_alerts.jsonl（隊列由 PWA 透過 /api/push/price-alerts 建立）。
+      PRICE_ALERTS_FILE:            .qsilicon/price_alerts.jsonl
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-push-tick.txt
+
+      - name: Install push tick dependencies
+        run: pip install --no-cache-dir -r requirements-push-tick.txt
+
+      - name: Run push alert digest tick
+        run: |
+          python - <<'EOF'
+          import logging, json, sys
+          logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+          import price_alerts
+          from api_routers.price_alerts import _triggered, _send_telegram, _telegram_enabled
+          from symbol_snapshot_service import fetch_symbol_quote
+
+          alerts = price_alerts.load_alerts()
+          checked = 0
+          triggered = 0
+          telegram_sent = 0
+          for alert in alerts:
+              if alert.get("triggered_at"):
+                  continue
+              checked += 1
+              symbol = str(alert.get("symbol") or "").upper()
+              quote = fetch_symbol_quote(symbol)
+              if quote.get("error") or quote.get("last") is None:
+                  price_alerts.mark_checked(str(alert.get("id")), last_price=None, triggered=False, error="quote_unavailable")
+                  continue
+              last_price = float(quote["last"])
+              hit = _triggered(alert, last_price)
+              updated = price_alerts.mark_checked(str(alert.get("id")), last_price=last_price, triggered=hit, error="")
+              if hit:
+                  triggered += 1
+                  if _telegram_enabled():
+                      result = _send_telegram(updated or alert, last_price)
+                      if result.get("ok"):
+                          telegram_sent += 1
+                      print(json.dumps({"alert_id": alert.get("id"), "symbol": symbol, "last_price": last_price, "telegram": result}))
+
+          print(f"METRIC push_digest_checked={checked} triggered={triggered} telegram_sent={telegram_sent}")
+          sys.exit(0)
+          EOF

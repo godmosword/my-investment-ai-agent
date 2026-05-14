@@ -68,6 +68,71 @@ def test_price_alert_check_triggers_with_mocked_quote(tmp_path, monkeypatch):
     assert updated["triggered_at"]
 
 
+def test_price_alert_check_telegram_send(tmp_path, monkeypatch):
+    """Triggered alert with PRICE_ALERTS_TELEGRAM_ENABLED=1 sends Telegram once."""
+    monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
+    monkeypatch.setenv("PRICE_ALERTS_TELEGRAM_ENABLED", "1")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "fake-chat")
+    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
+    monkeypatch.setattr(
+        router,
+        "fetch_symbol_quote",
+        lambda symbol: {"symbol": symbol, "last": 950.0, "error": None},
+    )
+    sent: list[dict] = []
+
+    def fake_send(alert, last_price):
+        sent.append({"alert_id": alert["id"], "last_price": last_price})
+        return {"ok": True}
+
+    monkeypatch.setattr(router, "_send_telegram", fake_send)
+    client = TestClient(app)
+
+    alert = client.post(
+        "/api/push/price-alerts",
+        json={"symbol": "NVDA", "direction": "above", "target_price": 900},
+    ).json()["alert"]
+
+    body = client.post("/api/push/price-alerts/check?send_push=false").json()
+    assert body["triggered"] == 1
+    assert len(sent) == 1
+    assert sent[0]["alert_id"] == alert["id"]
+    assert body["telegram_results"][0]["ok"] is True
+
+    # Second tick: alert already triggered, no Telegram resend (natural dedupe).
+    # ``triggered`` is cumulative (includes prior-tick hits), but telegram is not re-sent.
+    body2 = client.post("/api/push/price-alerts/check?send_push=false").json()
+    assert body2["telegram_results"] == []
+    assert len(sent) == 1
+
+
+def test_price_alert_telegram_disabled_skips_send(tmp_path, monkeypatch):
+    monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
+    monkeypatch.delenv("PRICE_ALERTS_TELEGRAM_ENABLED", raising=False)
+    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
+    monkeypatch.setattr(
+        router,
+        "fetch_symbol_quote",
+        lambda symbol: {"symbol": symbol, "last": 950.0, "error": None},
+    )
+    sent: list[dict] = []
+    monkeypatch.setattr(
+        router,
+        "_send_telegram",
+        lambda alert, last_price: sent.append(alert) or {"ok": True},
+    )
+    client = TestClient(app)
+    client.post(
+        "/api/push/price-alerts",
+        json={"symbol": "NVDA", "direction": "above", "target_price": 900},
+    )
+    body = client.post("/api/push/price-alerts/check?send_push=false").json()
+    assert body["triggered"] == 1
+    assert body["telegram_results"] == []
+    assert sent == []
+
+
 def test_price_alert_check_quote_unavailable(tmp_path, monkeypatch):
     monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
     monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)

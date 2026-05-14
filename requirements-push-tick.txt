@@ -1,0 +1,9 @@
+# 僅供 push-digest-tick GitHub Action 使用（M4/M5 Price Alert digest）。
+# 包含 yfinance（symbol_snapshot_service）、pyTelegramBotAPI（telegram digest 推送）。
+# 不包含 CrewAI / LiteLLM 以縮短安裝時間。
+pydantic>=2.7.0
+yfinance>=0.2.50
+pandas>=2.2.0
+numpy>=1.26.0
+requests>=2.32.0
+pyTelegramBotAPI>=4.16.0
