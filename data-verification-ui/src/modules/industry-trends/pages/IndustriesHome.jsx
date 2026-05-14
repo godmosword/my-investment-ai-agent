@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useBriefLayouts, useReports, useStructuredReports, useIndustryThemes } from "../../../hooks/useApi";
 
 // Map regime score to a color class
@@ -89,6 +90,16 @@ export default function IndustriesHome() {
   const themes = themePayload?.themes ?? [];
   const intentSampleRegime = themePayload?.intent_sample_regime ?? null;
 
+  const layoutFilenamePreview = useMemo(() => {
+    const rows = briefLayouts?.layouts;
+    if (!Array.isArray(rows) || !rows.length) return "";
+    return rows
+      .map((r) => (r && typeof r.filename === "string" ? r.filename.trim() : ""))
+      .filter(Boolean)
+      .slice(0, 12)
+      .join(", ");
+  }, [briefLayouts?.layouts]);
+
   const hasAnyTrends = structuredResults.some(
     (r) => !r.isLoading && extractIndustryTrendsBlock(r.data)
   );
@@ -106,10 +117,23 @@ export default function IndustriesHome() {
           className="card mb-3 text-[11px] leading-relaxed text-white/55"
           data-testid="industries-brief-layouts-hint"
         >
-          日報版面庫：<b className="text-white/80">{briefLayouts.layouts.length}</b> 支{" "}
-          <code className="text-cyan-200/90">config/brief_layouts/*.yaml</code>
-          （對照營運 <code className="text-cyan-200/90">BRIEF_LAYOUT_FILE</code>／
-          <code className="text-cyan-200/90">BRIEF_DYNAMIC_RENDER</code>；此頁不推斷管線 env）。
+          日報版面庫：<b className="text-white/80">{briefLayouts.layouts.length}</b> 支
+          {layoutFilenamePreview ? (
+            <>
+              {" "}
+              （<code className="text-cyan-200/90" data-testid="industries-brief-layout-filenames">
+                {layoutFilenamePreview}
+              </code>
+              {briefLayouts.layouts.length > 12 ? "…" : ""}）
+            </>
+          ) : (
+            <>
+              {" "}
+              <code className="text-cyan-200/90">config/brief_layouts/*.yaml</code>
+            </>
+          )}{" "}
+          — 對照營運 <code className="text-cyan-200/90">BRIEF_LAYOUT_FILE</code>／
+          <code className="text-cyan-200/90">BRIEF_DYNAMIC_RENDER</code>（此頁不推斷管線 env）。
         </div>
       ) : null}
 
