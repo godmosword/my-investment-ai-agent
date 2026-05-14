@@ -46,6 +46,18 @@
 
 **已落檔／落碼**：[`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) 現況行；Command Bar **`terminal-crew-status-hud`**（輪詢 **`GET /api/run-crew/status`**）；Workspace **`storage` + `qsi_workspace_changed`** 跨分頁同步（[`workspaceSync.js`](../../data-verification-ui/src/constants/workspaceSync.js)）；E2E [`workspace-cross-tab.spec.js`](../../data-verification-ui/e2e/workspace-cross-tab.spec.js)。**仍列 backlog**（`TODOS` 隊列 29／34）：權限細節、排程型 digest 等。
 
+### Phase 3 — Backlog Go-Live（M4／M5 閉環；2026-05-14）
+
+**定義**：以排程＋SSE 把後端 backlog 收成 production main 上的可驗收切片；研究稿（NotebookLM／Agency／TradingView）仍 🟡，**不在本階段**。
+
+**已落碼（slices 1–5；CHANGELOG **2026-05-14** `### Backlog Go-Live`）**：
+- **M5 自動紙上撮合**：[`.github/workflows/paper-execution-tick.yml`](../../.github/workflows/paper-execution-tick.yml)（每 15 分鐘）+ [`requirements-paper-tick.txt`](../../requirements-paper-tick.txt)；可選 `PAPER_EXECUTION_AUDIT_TABLE` 寫 BQ。
+- **M4 push digest**：[`.github/workflows/push-digest-tick.yml`](../../.github/workflows/push-digest-tick.yml)（每 30 分鐘）；`PRICE_ALERTS_TELEGRAM_ENABLED=1` 啟用，`triggered_at` 自然去重。
+- **M4 SSE price_alert**：[`war_room_stream.py`](../../war_room_stream.py) deque + `event: price_alert`；PWA [`PriceAlertToaster.jsx`](../../data-verification-ui/src/components/PriceAlertToaster.jsx) 訂閱 `PRICE_ALERT_SSE_EVENT`。
+- **Contract smoke 擴充**：[`tests/api/test_api_contract_smoke.py`](../../tests/api/test_api_contract_smoke.py) +3 斷言（paper-tick 404、push-check shape、SSE 404）。
+
+**仍列 backlog**：SSE 短期 token TTL（`POST /api/stream/token`，原 slice 3 範圍縮減項）、`SSE_MAX_EVENTS_PER_SEC` 顯式限流；以及四模組 UI 之深化（4a–4d 模組本身已是 MVP，可用 hooks 為主）。
+
 ---
 
 ## 1. 執行順序（維護者）
@@ -82,6 +94,7 @@
 
 ## 修訂紀錄
 
+- **2026-05-14（Phase 3）**：§0 下新增 **Phase 3 Backlog Go-Live**（M4 SSE 閉環、M5／M4 排程、contract smoke 擴充）；slices 1–5 commit SHA 見 CHANGELOG **2026-05-14** `### Backlog Go-Live`。
 - **2026-05-14**：§0 下新增 **Phase 2**（Portal 產品切片：Crew HUD、Workspace 跨分頁）；本檔矩陣狀態欄改為 **Phase 0–2**。
 - **2026-05-06**：新增並更新 `architecture/` 文件狀態矩陣；同日補上 NotebookLM／Agency／TradingView repo-side scaffold 與視覺化主要 repo backlog。
 - **2026-04-18**：初版 — 總表連結、`architecture/` 三檔看法；與 [`TODOS.md`](../../TODOS.md)、[`CHANGELOG.md`](../../CHANGELOG.md) 對齊。

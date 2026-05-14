@@ -105,6 +105,37 @@ def test_price_alerts_digest_contract(client, tmp_path, monkeypatch):
     assert body.get("symbols") == []
 
 
+def test_paper_execution_tick_disabled_by_default(client, monkeypatch):
+    """``POST /api/paper/execution-tick`` 404s unless ``PAPER_TICK_HTTP_ENABLED=1`` (M5 slice 1)."""
+    monkeypatch.delenv("PAPER_TICK_HTTP_ENABLED", raising=False)
+    r = client.post("/api/paper/execution-tick")
+    assert r.status_code == 404
+
+
+def test_price_alerts_check_contract(client, tmp_path, monkeypatch):
+    """``POST /api/push/price-alerts/check`` returns digest-shaped envelope (M4 slice 2)."""
+    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
+    monkeypatch.delenv("PRICE_ALERTS_TELEGRAM_ENABLED", raising=False)
+    monkeypatch.delenv("SSE_PRICE_ALERT_ENABLED", raising=False)
+    monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "pa.jsonl"))
+    (tmp_path / "pa.jsonl").write_text("", encoding="utf-8")
+    r = client.post("/api/push/price-alerts/check?send_push=false")
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("checked") == 0
+    assert body.get("triggered") == 0
+    assert body.get("alerts") == []
+    assert body.get("push_results") == []
+    assert body.get("telegram_results") == []
+
+
+def test_war_room_stream_disabled_by_default(client, monkeypatch):
+    """``GET /api/stream/war-room`` 404s unless ``TERMINAL_SSE_ENABLED=1`` (M4 slice 3)."""
+    monkeypatch.delenv("TERMINAL_SSE_ENABLED", raising=False)
+    r = client.get("/api/stream/war-room")
+    assert r.status_code == 404
+
+
 def test_run_crew_status_contract(client, monkeypatch):
     monkeypatch.delenv("CREW_HTTP_ENABLED", raising=False)
     r = client.get("/api/run-crew/status")

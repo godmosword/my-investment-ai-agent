@@ -5,6 +5,15 @@
 
 ## 2026-05-14
 
+### Backlog Go-Live（M4 / M5 closed loop；slices 1–5）
+- **M5 自動紙上撮合排程（slice 1）**：新增 [`.github/workflows/paper-execution-tick.yml`](.github/workflows/paper-execution-tick.yml)（每 15 分鐘 + `workflow_dispatch`）與 [`requirements-paper-tick.txt`](requirements-paper-tick.txt) 最小依賴；直接呼叫 `run_paper_execution_tick()`，**不下單**；可選 `PAPER_EXECUTION_AUDIT_TABLE` 寫 BQ 稽核列。
+- **M4 Push Alert digest 排程（slice 2）**：新增 [`.github/workflows/push-digest-tick.yml`](.github/workflows/push-digest-tick.yml)（每 30 分鐘）與 [`requirements-push-tick.txt`](requirements-push-tick.txt)；`api_routers/price_alerts.py` 命中後可送 Telegram（`PRICE_ALERTS_TELEGRAM_ENABLED=1`），自然去重（`triggered_at` 永久標記）。`POST /api/push/price-alerts/check` 回應新增 `telegram_results` 欄位。
+- **M4 SSE price_alert 閉環（slice 3）**：[`war_room_stream.py`](war_room_stream.py) 新增 `emit_price_alert_event` / `drain_price_alert_events`（bounded deque maxlen=64）；`/api/stream/war-room` 排放 `event: price_alert`；`SSE_PRICE_ALERT_ENABLED=1` 啟用後端 publish。
+- **PWA price-alert toast（slice 4 補完）**：新增 [`PriceAlertToaster.jsx`](data-verification-ui/src/components/PriceAlertToaster.jsx) 掛在 `WarRoomSseProvider` 內，訂閱 `PRICE_ALERT_SSE_EVENT`；TTL 8s、最多 4 則、可點擊 dismiss。`useWarRoomSse.js` 補 `price_alert` listener 並 dispatch CustomEvent。
+- **Contract smoke 擴充（slice 5）**：[`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py) 新增 paper-execution-tick 預設 404、price-alerts/check shape、war-room SSE 預設 404 三組斷言。
+- **ENV 文件**：[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 `PRICE_ALERTS_TELEGRAM_ENABLED`、`SSE_PRICE_ALERT_ENABLED`、`PRICE_ALERTS_FILE` 與兩條排程 workflow secret 對齊。
+- **校正**：原計畫將 `investment-analysis` / `position-management` / `industry-trends` / `quant-trading` 四模組標為 placeholder，實則先前 `eec74e0`／`53fa790` 已落 MVP（共 ~1,113 行），slice 4 無需重寫。
+
 ### Portal / API（Queues 28d MVP, 29, 34 partial, 9 starter）
 - **28d Scenario + target hints（read-only）**：新增 [`scenario_optimizer.py`](scenario_optimizer.py) 與 [`api_routers/scenario.py`](api_routers/scenario.py) 掛載 `GET /api/scenario/suggestions`（預設 **404**；`SCENARIO_OPTIMIZER_ENABLED=1` 啟用）；輸出僅來自 `execution_intents` + `portfolio_holdings` 成本口徑權重／HHI／closed summary／active overlap，含三組 `scenarios` 與 `target_hints`（intent 內 `reference_*` 錨點距離 %）；**不下單**、不含即時報價抓取。PWA [`ScenarioPlannerHome.jsx`](data-verification-ui/src/modules/insights/pages/ScenarioPlannerHome.jsx)、[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 支援 `/insights?tab=scenario`；[`useApi.js`](data-verification-ui/src/hooks/useApi.js) 以 404 降級為「功能關閉」態。
 - **Workspace（Queue 34）**：[`WorkspacePanel.jsx`](data-verification-ui/src/components/WorkspacePanel.jsx) 預覽條改為 **flex 高度比** + **垂直 divider pointer drag**；`qs_workspace_size_weights_v1` 內存 `{ sm, md }` 每面板高度百分比並隨 breakpoint 切換；匯出／匯入 workspace JSON 納入該鍵。
