@@ -14,7 +14,7 @@ import os
 import re
 import time
 import yaml
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
