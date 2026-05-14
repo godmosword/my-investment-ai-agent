@@ -80,7 +80,13 @@ test.describe("Global Gate Badge", () => {
   });
 
   test("hidden when no reports available", async ({ page }) => {
-    // Default mock returns []; just navigate and assert hidden state.
+    await page.route(/\/api\/reports\?/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([]),
+      });
+    });
     await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });

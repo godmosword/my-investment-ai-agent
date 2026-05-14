@@ -12,6 +12,7 @@
 - **Ops / Reviewer rollout 自檢**：新增 [`scripts/verify_reviewer_rollout_env.py`](scripts/verify_reviewer_rollout_env.py)；[`docs/REVIEWER_PRODUCTION_ROLLOUT.md`](docs/REVIEWER_PRODUCTION_ROLLOUT.md)、[`docs/OPS_QUEUE_18_21_RUNBOOK.md`](docs/OPS_QUEUE_18_21_RUNBOOK.md) 補交叉引用。
 - **API contract smoke（隊列 9 起點）**：新增 [`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py)（`/healthz`、`/api/metrics/latest` 容忍 skip、`/api/scenario/suggestions` 啟用時 shape）。
 - **Tests / E2E / mock**：[`tests/api/test_scenario_optimizer_api.py`](tests/api/test_scenario_optimizer_api.py)；[`data-verification-ui/e2e/insights-scenario.spec.js`](data-verification-ui/e2e/insights-scenario.spec.js)；[`data-verification-ui/e2e/mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 補 `/api/scenario/suggestions` fixture。
+- **Queue 36 E2E + T5b（本日續）**：PWA 路由 **`/analysis`**、**`/industries`**、**`/archive`**；Playwright [`queue36-modules.spec.js`](data-verification-ui/e2e/queue36-modules.spec.js)；mock 擴充 `qsrec-stats`、`gate-status`、`/api/reports` 三日列表、structured `industry_trends` 區塊、**`GET /api/execution-intents/gate-index`**；[`global-gate-badge.spec.js`](data-verification-ui/e2e/global-gate-badge.spec.js) 無報告情境改 route stub。**後端**：`GET /api/execution-intents/gate-index` 唯讀索引；[`tests/api/test_gate_intent_index_api.py`](tests/api/test_gate_intent_index_api.py)。
 - **Docs / env**：[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 補 scenario 端點列；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 `SCENARIO_OPTIMIZER_ENABLED`。
 
 ## 2026-05-13

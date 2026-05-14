@@ -148,14 +148,16 @@ export default function IndustriesHome() {
         </div>
       )}
 
-      {dates.map((date, i) => (
-        <DayBlock
-          key={date}
-          date={date}
-          report={structuredResults[i]?.data}
-          isLoading={structuredResults[i]?.isLoading ?? true}
-        />
-      ))}
+      <div data-testid="industries-trends-stack">
+        {dates.map((date, i) => (
+          <DayBlock
+            key={date}
+            date={date}
+            report={structuredResults[i]?.data}
+            isLoading={structuredResults[i]?.isLoading ?? true}
+          />
+        ))}
+      </div>
 
       {allLoaded && !hasAnyTrends && dates.length > 0 && (
         <div className="card" style={{ color: "var(--muted)", fontSize: 13 }}>

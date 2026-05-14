@@ -14,6 +14,9 @@ import DashboardHome from "./modules/dashboard/pages/DashboardHome";
 import InsightsHome from "./modules/insights/pages/InsightsHome";
 import ColumnsHome from "./modules/columns/pages/ColumnsHome";
 import PortfolioHome from "./modules/portfolio/pages/PortfolioHome";
+import AnalysisHome from "./modules/investment-analysis/pages/AnalysisHome";
+import IndustriesHome from "./modules/industry-trends/pages/IndustriesHome";
+import Archive from "./pages/Archive";
 
 const DesignShowcase = import.meta.env.DEV ? lazy(() => import("./pages/DesignShowcase")) : null;
 
@@ -57,6 +60,9 @@ function AppRoutes() {
           <Route path="/insights" element={<InsightsHome />} />
           <Route path="/columns" element={<ColumnsHome />} />
           <Route path="/portfolio" element={<PortfolioHome />} />
+          <Route path="/analysis" element={<AnalysisHome />} />
+          <Route path="/industries" element={<IndustriesHome />} />
+          <Route path="/archive" element={<Archive />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/api-key" element={<ApiKeyPage />} />
           <Route path="/report/:date" element={<Report />} />
