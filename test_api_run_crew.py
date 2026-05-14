@@ -3,7 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from api import app, _crew_run_state, _crew_run_lock
+from api import app
+from api_routers.run_crew import _crew_run_state, _crew_run_lock
 
 
 @pytest.fixture(autouse=True)
