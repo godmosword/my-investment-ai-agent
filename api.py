@@ -14,8 +14,6 @@ import os
 import re
 import time
 import uuid
-from collections import Counter
-
 import yaml
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +55,7 @@ from api_routers import portfolio as portfolio_router
 from api_routers import price_alerts as price_alerts_router
 from api_routers import scenario as scenario_router
 from api_routers import track_record as track_record_router
+from api_routers import industries as industries_router
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +131,7 @@ app.include_router(portfolio_router.router)
 app.include_router(price_alerts_router.router)
 app.include_router(scenario_router.router)
 app.include_router(track_record_router.router)
+app.include_router(industries_router.router)
 
 
 def _qsilicon_master_key_required() -> str:
@@ -866,37 +866,6 @@ def list_positions_m4(
     return _fetch_trades(status=st, days=days, limit=limit)
 
 
-@app.get("/api/industries/themes")
-def list_industry_themes_m5(
-    limit: int = Query(default=80, ge=1, le=200),
-) -> dict[str, Any]:
-    """Industry themes (M5): static cards + dominant ``regime`` sample from execution intents."""
-    intents = latest_execution_intents(limit=limit, dedupe=True, sort_by="updated_desc")
-    regimes = [str(r.get("regime") or "").strip() for r in intents if str(r.get("regime") or "").strip()]
-    regime_sample = Counter(regimes).most_common(1)[0][0] if regimes else None
-    rotation = sorted(
-        _INDUSTRY_THEMES_STATIC,
-        key=lambda row: (float(row.get("regime_score") or 0), len(row.get("symbols") or [])),
-        reverse=True,
-    )
-    return {
-        "themes": _INDUSTRY_THEMES_STATIC,
-        "rotation": [
-            {
-                "id": row["id"],
-                "label": row["label"],
-                "regime_score": row.get("regime_score", 0),
-                "risk_level": row.get("risk_level", "medium"),
-                "symbols": row.get("symbols", []),
-            }
-            for row in rotation
-        ],
-        "intent_sample_regime": regime_sample,
-        "intent_count": len(intents),
-        "source": "static+execution_intents.jsonl",
-    }
-
-
 @app.get("/api/analysis/{symbol}")
 def get_analysis_bundle_m6(
     symbol: str,
@@ -1572,46 +1541,6 @@ def _parse_sse_watch_symbols_param(raw: str | None, max_n: int = 8) -> list[str]
         except ValueError:
             continue
     return out
-
-
-_INDUSTRY_THEMES_STATIC: list[dict[str, Any]] = [
-    {
-        "id": "ai-semis",
-        "label": "AI 半導體",
-        "symbols": ["NVDA", "AMD", "AVGO"],
-        "pillar": "semiconductor",
-        "regime_score": 4,
-        "risk_level": "medium",
-        "thesis": "AI capex and accelerator demand remain the primary relative-strength driver.",
-    },
-    {
-        "id": "mega-cap-tech",
-        "label": "大型科技",
-        "symbols": ["MSFT", "GOOGL", "META", "AAPL"],
-        "pillar": "ai",
-        "regime_score": 3,
-        "risk_level": "low",
-        "thesis": "Cash-flow quality offsets valuation pressure when rates are stable.",
-    },
-    {
-        "id": "digital-assets",
-        "label": "數位資產",
-        "symbols": ["BTC", "ETH", "SOL"],
-        "pillar": "crypto",
-        "regime_score": 2,
-        "risk_level": "high",
-        "thesis": "ETF flow and dollar liquidity dominate near-term beta.",
-    },
-    {
-        "id": "enterprise-software",
-        "label": "企業軟體",
-        "symbols": ["ORCL", "CRM", "NOW"],
-        "pillar": "ai",
-        "regime_score": 1,
-        "risk_level": "medium",
-        "thesis": "AI monetization helps, but seat expansion remains selective.",
-    },
-]
 
 
 @app.get("/api/execution-intents/gate-index")

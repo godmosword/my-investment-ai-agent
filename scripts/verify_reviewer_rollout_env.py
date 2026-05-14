@@ -14,6 +14,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import urllib.error
+import urllib.request
 
 
 def _truthy(name: str) -> bool:
@@ -38,12 +40,48 @@ def _check_bq_table_fqtn(fqtn: str) -> tuple[bool, str]:
         return False, f"BigQuery: {exc}"
 
 
+def _probe_qsrec_stats(base_url: str) -> tuple[bool, str]:
+    """Optional HTTP GET for queue 35 shape check (staging API base, no auth)."""
+    raw = (base_url or "").strip().rstrip("/")
+    if not raw.startswith("http://") and not raw.startswith("https://"):
+        return False, "probe-api-base must be an absolute http(s) URL"
+    url = f"{raw}/api/reports/qsrec-stats"
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 — operator-supplied staging URL
+            payload = resp.read()
+    except urllib.error.HTTPError as exc:
+        return False, f"qsrec-stats HTTP {exc.code}: {exc.reason}"
+    except urllib.error.URLError as exc:
+        return False, f"qsrec-stats URL error: {exc.reason}"
+    except Exception as exc:  # noqa: BLE001
+        return False, f"qsrec-stats probe failed: {exc}"
+    try:
+        import json
+
+        data = json.loads(payload.decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return False, f"qsrec-stats invalid JSON: {exc}"
+    if not isinstance(data, dict):
+        return False, "qsrec-stats: expected JSON object"
+    for key in ("days", "total_days", "pass_rate_pct"):
+        if key not in data:
+            return False, f"qsrec-stats: missing key {key!r}"
+    return True, f"qsrec-stats OK ({url})"
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument(
         "--strict",
         action="store_true",
         help="Require USE_LANGGRAPH_ENGINE=1",
+    )
+    p.add_argument(
+        "--probe-api-base",
+        metavar="URL",
+        default="",
+        help="Optional staging API origin; GET /api/reports/qsrec-stats and validate JSON shape.",
     )
     args = p.parse_args()
     failures: list[str] = []
@@ -61,6 +99,13 @@ def main() -> int:
     print(f"[35] {msg}")
     if not ok:
         failures.append(msg)
+
+    probe = (args.probe_api_base or "").strip()
+    if probe:
+        ok2, msg2 = _probe_qsrec_stats(probe)
+        print(f"[35] {msg2}")
+        if not ok2:
+            failures.append(msg2)
 
     if failures:
         print("\nFAILED:", file=sys.stderr)

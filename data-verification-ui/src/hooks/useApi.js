@@ -1,7 +1,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { mergeSiliconHeaders } from "../lib/siliconApiHeaders";
+import { siliconGetJson, siliconSendJson, siliconFetchRaw } from "../lib/siliconApiClient";
 
-const BASE = import.meta.env.VITE_API_URL ?? "";
 const E2E_MODE = import.meta.env.VITE_E2E === "1";
 
 function handleApiUnauthorized() {
@@ -191,30 +191,14 @@ export function syncWarRoomRelatedQueries(
 }
 
 async function apiFetch(path) {
-  let res;
-  try {
-    res = await fetch(`${BASE}${path}`, { headers: mergeSiliconHeaders() });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`Network error (${msg})`);
-  }
-  if (!res.ok) {
-    if (res.status === 401) handleApiUnauthorized();
-    const msg = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status}: ${msg}`);
-  }
-  try {
-    return await res.json();
-  } catch (e) {
-    throw new Error("Invalid JSON from API");
-  }
+  return siliconGetJson(path, handleApiUnauthorized);
 }
 
 /** GET /api/scenario/suggestions — 404（功能關閉）回 `{ disabled: true }`，其餘錯誤仍拋出。 */
 async function apiFetchScenarioSuggestions() {
   let res;
   try {
-    res = await fetch(`${BASE}/api/scenario/suggestions`, { headers: mergeSiliconHeaders() });
+    res = await siliconFetchRaw("/api/scenario/suggestions", { method: "GET" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(`Network error (${msg})`);
@@ -235,23 +219,7 @@ async function apiFetchScenarioSuggestions() {
 }
 
 async function apiPatchJson(path, body) {
-  let res;
-  try {
-    res = await fetch(`${BASE}${path}`, {
-      method: "PATCH",
-      headers: mergeSiliconHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`Network error (${msg})`);
-  }
-  if (!res.ok) {
-    if (res.status === 401) handleApiUnauthorized();
-    const msg = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status}: ${msg}`);
-  }
-  return res.json();
+  return siliconSendJson(path, "PATCH", body, {}, handleApiUnauthorized);
 }
 
 export function useMetricsLatest() {
@@ -694,31 +662,14 @@ export function useScenarioSuggestions() {
 }
 
 async function apiPostJson(path, body = {}, extraHeaders = {}) {
-  let res;
-  try {
-    res = await fetch(`${BASE}${path}`, {
-      method: "POST",
-      headers: mergeSiliconHeaders({ "Content-Type": "application/json", ...extraHeaders }),
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`Network error (${msg})`);
-  }
-  if (!res.ok) {
-    if (res.status === 401) handleApiUnauthorized();
-    const msg = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status}: ${msg}`);
-  }
-  return res.json();
+  return siliconSendJson(path, "POST", body, extraHeaders, handleApiUnauthorized);
 }
 
 async function apiPostForm(path, formData) {
   let res;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await siliconFetchRaw(path, {
       method: "POST",
-      headers: mergeSiliconHeaders(),
       body: formData,
     });
   } catch (e) {
@@ -734,22 +685,7 @@ async function apiPostForm(path, formData) {
 }
 
 async function apiDelete(path) {
-  let res;
-  try {
-    res = await fetch(`${BASE}${path}`, {
-      method: "DELETE",
-      headers: mergeSiliconHeaders(),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(`Network error (${msg})`);
-  }
-  if (!res.ok) {
-    if (res.status === 401) handleApiUnauthorized();
-    const msg = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status}: ${msg}`);
-  }
-  return res.json();
+  return siliconSendJson(path, "DELETE", undefined, {}, handleApiUnauthorized);
 }
 
 export function usePortfolioHoldings() {
@@ -815,11 +751,24 @@ export function usePriceAlerts() {
   });
 }
 
+/** Read-only aggregate for workspace digest (no quote fetches). */
+export function usePriceAlertDigest() {
+  return useQuery({
+    queryKey: ["price-alerts", "digest"],
+    queryFn: () => apiFetch("/api/push/price-alerts/digest"),
+    staleTime: 45 * 1000,
+    retry: 1,
+  });
+}
+
 export function useCreatePriceAlert() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body) => apiPostJson("/api/push/price-alerts", body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["price-alerts"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["price-alerts"] });
+      qc.invalidateQueries({ queryKey: ["price-alerts", "digest"] });
+    },
   });
 }
 
@@ -827,7 +776,10 @@ export function useDeletePriceAlert() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id) => apiDelete(`/api/push/price-alerts/${encodeURIComponent(id)}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["price-alerts"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["price-alerts"] });
+      qc.invalidateQueries({ queryKey: ["price-alerts", "digest"] });
+    },
   });
 }
 
@@ -836,7 +788,10 @@ export function useCheckPriceAlerts() {
   return useMutation({
     mutationFn: ({ sendPush = false } = {}) =>
       apiPostJson(`/api/push/price-alerts/check?send_push=${sendPush ? "true" : "false"}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["price-alerts"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["price-alerts"] });
+      qc.invalidateQueries({ queryKey: ["price-alerts", "digest"] });
+    },
   });
 }
 

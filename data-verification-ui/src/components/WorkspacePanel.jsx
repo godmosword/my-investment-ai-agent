@@ -4,6 +4,7 @@ import {
   usePaperLifecycle,
   usePortfolioPnl,
   usePriceAlerts,
+  usePriceAlertDigest,
 } from "../hooks/useApi";
 
 const WORKSPACE_KEYS = [
@@ -163,6 +164,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
   const paper = usePaperLifecycle();
   const themes = useIndustryThemes(8);
   const alerts = usePriceAlerts();
+  const alertDigest = usePriceAlertDigest();
 
   const [bpLabel, setBpLabel] = useState("sm");
   const [weights, setWeights] = useState({});
@@ -241,6 +243,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
 
   const digest = useMemo(() => {
     const alertRows = alerts.data?.alerts ?? [];
+    const d = alertDigest.data;
     const themeRows = themes.data?.themes ?? [];
     return {
       portfolioValue: portfolio.data?.total_value,
@@ -248,10 +251,15 @@ export default function WorkspacePanel({ compact = false } = {}) {
       paperActive: paper.data?.summary?.active_count ?? 0,
       paperClosed: paper.data?.summary?.closed_count ?? 0,
       topTheme: themeRows[0]?.label || "—",
-      alertsTotal: alertRows.length,
-      alertsTriggered: alertRows.filter((item) => item.triggered_at).length,
+      alertsTotal: d?.total ?? alertRows.length,
+      alertsTriggered: d?.triggered ?? alertRows.filter((item) => item.triggered_at).length,
+      alertsPending: d?.pending,
+      alertSymbolsFull: Array.isArray(d?.symbols) ? d.symbols.join(", ") : "",
+      alertSymbolsShort: Array.isArray(d?.symbols) ? d.symbols.slice(0, 6).join(", ") : "",
+      alertSymbolsMore: Array.isArray(d?.symbols) && d.symbols.length > 6,
+      alertDigestAsOf: d?.as_of ?? "",
     };
-  }, [alerts.data, paper.data, portfolio.data, themes.data]);
+  }, [alerts.data, alertDigest.data, paper.data, portfolio.data, themes.data]);
 
   const updateLayout = (value) => {
     setLayout(value);
@@ -363,6 +371,22 @@ export default function WorkspacePanel({ compact = false } = {}) {
             <div className="text-[var(--muted)]">Alerts</div>
             <div className="text-white">{digest.alertsTotal} total</div>
             <div className="text-amber-200">{digest.alertsTriggered} triggered</div>
+            {digest.alertsPending != null ? (
+              <div className="text-white/60">{digest.alertsPending} pending</div>
+            ) : null}
+            {digest.alertSymbolsShort ? (
+              <div className="truncate text-[11px] text-white/50" title={digest.alertSymbolsFull}>
+                {digest.alertSymbolsShort}
+                {digest.alertSymbolsMore ? "…" : ""}
+              </div>
+            ) : null}
+            {digest.alertDigestAsOf ? (
+              <div className="text-[10px] text-white/40" data-testid="workspace-alert-digest-asof">
+                digest as_of {new Date(digest.alertDigestAsOf).toLocaleString("zh-TW", { hour12: false })}
+              </div>
+            ) : alertDigest.isError ? (
+              <div className="text-[10px] text-amber-100/80">digest API 不可用</div>
+            ) : null}
           </div>
         </div>
       </div>

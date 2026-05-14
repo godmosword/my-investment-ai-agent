@@ -31,6 +31,18 @@ def test_price_alert_create_list_delete(tmp_path, monkeypatch):
     assert client.get("/api/push/price-alerts").json()["alerts"] == []
 
 
+def test_price_alert_digest_empty_store(tmp_path, monkeypatch):
+    monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
+    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
+    client = TestClient(app)
+    r = client.get("/api/push/price-alerts/digest")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["schema_version"] == "qsi_price_alert_digest_v1"
+    assert body["total"] == 0
+    assert body["symbols"] == []
+
+
 def test_price_alert_check_triggers_with_mocked_quote(tmp_path, monkeypatch):
     monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
     monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)

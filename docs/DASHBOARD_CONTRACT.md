@@ -94,6 +94,7 @@
 | `POST /api/push/subscribe` | Web Push 訂閱 | 預設 **501**；`WEB_PUSH_ENABLED=1` 時：可設 **`WEB_PUSH_REDIS_URL`**（分散式儲存 + **Redis** rate limit）、或 **`WEB_PUSH_STORE=1`**（程序內）；可選 **`WEB_PUSH_BQ_PERSIST`**／**`WEB_PUSH_BQ_AUDIT`**。推送 payload 目前以 `title`／`body`／`url` 為主；**預留擴充**：`report_date`（`YYYY-MM-DD`）與 `block_id`（對應 `block_registry`），供 SW `notificationclick` 深連結至 `/report/:date#block=<block_id>`（**實作中／待 PR**，見 Phase 5）。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
 | `POST /api/push/test-send` | 管理端 **測試推送**（`pywebpush`） | 預設 **404**；須 **`WEB_PUSH_ADMIN_KEY`** + Header **`X-Web-Push-Admin-Key`** + **`WEB_PUSH_VAPID_PRIVATE_KEY`** + 已存完整訂閱 |
 | `GET /api/push/price-alerts` | Price alert queue | JSONL storage（`PRICE_ALERTS_FILE`，預設 `price_alerts.jsonl`）；回傳 `{ alerts }` |
+| `GET /api/push/price-alerts/digest` | Price alert 唯讀彙總 | 回傳 `schema_version=qsi_price_alert_digest_v1`、`total`／`pending`／`triggered`、`symbols[]`、`last_triggered_at`、`as_of`（不抓 quote） |
 | `POST /api/push/price-alerts` | 新增 price alert | body：`symbol`、`direction=above\|below`、`target_price > 0`、可選 `note`；`symbol` 經 `validate_symbol_for_snapshot` 正規化 |
 | `DELETE /api/push/price-alerts/{id}` | 刪除 price alert | 成功回 `{ ok: true }`；找不到回 404 |
 | `POST /api/push/price-alerts/check` | 檢查 price alerts | query：`send_push`（預設 true）；逐 alert 呼叫 yfinance quote helper，比對 threshold，觸發後寫 `triggered_at`；`send_push=true` 時接既有 `web_push_store.send_test_push` |

@@ -77,6 +77,29 @@ def delete_alert(alert_id: str) -> bool:
     return True
 
 
+def build_alert_digest() -> dict[str, Any]:
+    """Read-only aggregate for workspace / digest UIs (queue 34)."""
+    rows = load_alerts()
+    triggered = [r for r in rows if str(r.get("triggered_at") or "").strip()]
+    pending = [r for r in rows if not str(r.get("triggered_at") or "").strip()]
+    symbols = sorted({str(r.get("symbol") or "").upper() for r in rows if str(r.get("symbol") or "").strip()})
+    last_triggered: str | None = None
+    if triggered:
+        last_triggered = max(
+            (str(r.get("triggered_at") or "") for r in triggered),
+            default="",
+        ) or None
+    return {
+        "schema_version": "qsi_price_alert_digest_v1",
+        "as_of": _now_iso(),
+        "total": len(rows),
+        "pending": len(pending),
+        "triggered": len(triggered),
+        "symbols": symbols,
+        "last_triggered_at": last_triggered,
+    }
+
+
 def mark_checked(
     alert_id: str,
     *,

@@ -14,6 +14,14 @@
 - **Tests / E2E / mock**：[`tests/api/test_scenario_optimizer_api.py`](tests/api/test_scenario_optimizer_api.py)；[`data-verification-ui/e2e/insights-scenario.spec.js`](data-verification-ui/e2e/insights-scenario.spec.js)；[`data-verification-ui/e2e/mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 補 `/api/scenario/suggestions` fixture。
 - **Queue 36 E2E + T5b（本日續）**：PWA 路由 **`/analysis`**、**`/industries`**、**`/archive`**；Playwright [`queue36-modules.spec.js`](data-verification-ui/e2e/queue36-modules.spec.js)；mock 擴充 `qsrec-stats`、`gate-status`、`/api/reports` 三日列表、structured `industry_trends` 區塊、**`GET /api/execution-intents/gate-index`**；[`global-gate-badge.spec.js`](data-verification-ui/e2e/global-gate-badge.spec.js) 無報告情境改 route stub。**後端**：`GET /api/execution-intents/gate-index` 唯讀索引；[`tests/api/test_gate_intent_index_api.py`](tests/api/test_gate_intent_index_api.py)。
 - **Docs / env**：[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 補 scenario 端點列；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 `SCENARIO_OPTIMIZER_ENABLED`。
+- **Industries APIRouter（隊列 26b 切片）**：[`api_routers/industries.py`](api_routers/industries.py) + [`api_routers/industry_themes_static.py`](api_routers/industry_themes_static.py) 承載 `GET /api/industries/themes`；[`api.py`](api.py) `include_router`。
+- **Price alerts digest（隊列 34）**：[`price_alerts.build_alert_digest`](price_alerts.py) 與 `GET /api/push/price-alerts/digest`；[`WorkspacePanel.jsx`](data-verification-ui/src/components/WorkspacePanel.jsx) 經 [`usePriceAlertDigest`](data-verification-ui/src/hooks/useApi.js) 顯示 pending／symbols／`as_of`；mock [`digest`](data-verification-ui/e2e/mock-api-server.mjs)；[`tests/api/test_price_alerts_router.py`](tests/api/test_price_alerts_router.py) 擴充。
+- **Command Bar RUN**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 4.5s 節流與 429 友善訊息。
+- **Dashboard 離線提示（隊列 27 切片）**：[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) 寫入／讀取 `localStorage` **`qsi_offline_macro_as_of_hint`**；[`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md) 補充說明。
+- **前端 API 薄封裝（隊列 26c）**：[`src/lib/siliconApiClient.js`](data-verification-ui/src/lib/siliconApiClient.js)；[`useApi.js`](data-verification-ui/src/hooks/useApi.js) 的 `apiFetch`／`apiPostJson`／`apiPatchJson`／`apiDelete`／`apiPostForm`／scenario GET 改走該層。
+- **合約 smoke 擴充（隊列 9）**：[`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py) 覆蓋 macro（容忍 503）、paper lifecycle、track-record summary、execution-intents 列表、gate-index、price digest。
+- **Reviewer rollout 腳本（隊列 35）**：[`scripts/verify_reviewer_rollout_env.py`](scripts/verify_reviewer_rollout_env.py) 新增 `--probe-api-base`（可選驗證 staging `GET /api/reports/qsrec-stats` JSON shape）。
+- **營運 env 註記**：[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 `BRIEF_DYNAMIC_RENDER` staging 風險一句話。
 
 ## 2026-05-13
 
