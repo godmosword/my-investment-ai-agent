@@ -7,6 +7,8 @@
 > **三條產出線**：Telegram HTML 日報、Streamlit War Room（[`dashboard.py`](../../dashboard.py)）、PWA Terminal（[`data-verification-ui/`](../../data-verification-ui/)）。
 >
 > 關聯：[`DASHBOARD_CONTRACT.md`](../DASHBOARD_CONTRACT.md)、[`BLOOMBERG_ALIGNMENT.md`](../BLOOMBERG_ALIGNMENT.md)、[`TERMINAL_MID_TIER_ROADMAP.md`](../TERMINAL_MID_TIER_ROADMAP.md)、[`DAILY_BRIEF_V2.md`](../DAILY_BRIEF_V2.md)、[`PWA_WEB_PUSH.md`](../PWA_WEB_PUSH.md)、[`PWA_OFFLINE.md`](../PWA_OFFLINE.md)。
+>
+> **Phase 1（隊列 27）**：staging 端到端執行稿、環境核對與 **TODOS／CHANGELOG 回填模板**見 [`STAGING_CURRENT_AFFAIRS_SMOKE.md`](../STAGING_CURRENT_AFFAIRS_SMOKE.md)（與 [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) **Phase 1** 小節對齊）。
 
 ---
 
@@ -38,6 +40,11 @@
 
 ## 3) 剩餘 Backlog（可驗收）
 
+### Phase 1 — 隊列 27（staging 關帳，repo 已備執行稿）
+
+- **Repo**：[`STAGING_CURRENT_AFFAIRS_SMOKE.md`](../STAGING_CURRENT_AFFAIRS_SMOKE.md)（環境表、步驟、完成標準、回填剪貼範本）；總表對齊見 [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) **Phase 1**。
+- **人類 staging**：`BRIEF_CURRENT_AFFAIRS=1` 下跑通後，依該檔「回填到哪裡」更新 `TODOS.md` 隊列 **27** 或頂部同步狀態；可選 `CHANGELOG` `### Ops`。
+
 ### V2 — 結構化 Report（補齊）
 
 - [x] **`exec_summary`／`market_mode`**：`ExecSummaryBlock`／`MarketModeBlock`；`structuredBlockContent` 輸出結構化 payload（命題／條列、制度／敘事／評分卡），legacy 以 `fallbackText` 承接舊版摘要。
@@ -52,7 +59,7 @@
 
 ### V4 — Roundtable + 互動（收尾）
 
-- [x] **Mock／Playwright 結構化 smoke**：`mock-api-server` 含 `current_affairs_roundtable`／`crypto.dashboard` 時，PWA 區塊視圖可驗 **`data-section`** 與 **`current-affairs-roundtable-topic`**（**`BRIEF_CURRENT_AFFAIRS=1` staging 下 PWA ↔ Telegram** 端到端仍待手動；手順見 [`docs/STAGING_CURRENT_AFFAIRS_SMOKE.md`](../../docs/STAGING_CURRENT_AFFAIRS_SMOKE.md)）。
+- [x] **Mock／Playwright 結構化 smoke**：`mock-api-server` 含 `current_affairs_roundtable`／`crypto.dashboard` 時，PWA 區塊視圖可驗 **`data-section`** 與 **`current-affairs-roundtable-topic`**。**Phase 1**：端到端 staging 手順／回填模板見 [`docs/STAGING_CURRENT_AFFAIRS_SMOKE.md`](../../docs/STAGING_CURRENT_AFFAIRS_SMOKE.md)（**人類**關帳；非 CI）。
 - [ ] Streamlit **Gate／Roundtable** 分頁已於 v4 交付；若與 PWA **像素級**仍差異，逐項列 issue 對照（regime／typography）。
 
 ### V5 — 即時化與通知

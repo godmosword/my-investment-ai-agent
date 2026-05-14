@@ -23,7 +23,7 @@
 | [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) | ✅ Portal Phase 1 已閉環 | Vite PWA、`/briefs`／`/terminal`、Shell、master key、401、eslint 模組邊界已對齊 2026-05-04／05／06。 |
 | [`REVIEWER_LOOP_DESIGN.md`](REVIEWER_LOOP_DESIGN.md) | ✅ 第一版已落地 | `trade_picker → python_validate → llm_reviewer → retry/degrade → final_formatter`、`write_reviewer_log`、`test_reviewer_loop.py` 已入庫。 |
 | [`GRAPH_REVIEWER_CHANGE_CHECKLIST.md`](GRAPH_REVIEWER_CHANGE_CHECKLIST.md) | ✅ 維護檢查清單 | Reviewer／`graph/` 變更時的必跑測試與紅線，非新功能 backlog。 |
-| [`visualization_plan.md`](visualization_plan.md) | 🟡 主要 repo backlog 已補，仍有 staging／離線細項 | 2026-05-06 補 `deep_filing_block`／`agency_finance_block` JSX、全區塊 `data-section`、DailyBriefReport JSON 持久化／可選 BQ、Streamlit snapshot provenance／price alignment helper；仍留 roundtable staging smoke 與預快取細節。 |
+| [`visualization_plan.md`](visualization_plan.md) | 🟡 主要 repo backlog 已補，仍有 staging／離線細項 | 2026-05-06 補 `deep_filing_block`／`agency_finance_block` JSX、全區塊 `data-section`、DailyBriefReport JSON 持久化／可選 BQ、Streamlit snapshot provenance／price alignment helper；**Phase 1**：隊列 27 staging 執行稿／回填模板見 [`STAGING_CURRENT_AFFAIRS_SMOKE.md`](../STAGING_CURRENT_AFFAIRS_SMOKE.md)；仍留預快取／離線細節。 |
 | [`AI_CONTEXT.md`](AI_CONTEXT.md) | 🟡 協作 context | 行為準則與紅線有效；現況段需以 CHANGELOG 校正；`qsilicon/` 邊界仍屬長線方向。 |
 | [`notebooklm_research.md`](notebooklm_research.md) | 🟡 Repo-side 主流程 scaffold 已接，live client 仍未接 | 新增 `DeepFilingAnalysis`／`Citation`、`deep_filing_analysis_node`、`deep_filing_block`、多題 helper、可選 BQ cost log；`notebooklm_query()` 仍是預設關閉／未接 live client stub。 |
 | [`agency_agents_research.md`](agency_agents_research.md) | 🟡 Repo-side 主流程 scaffold 已接 | 新增 template parser、`AgencyResearchOutput`／`AgencyDeliverable`、`agency_researcher_node`、Crew backstory opt-in 注入、`agency_finance_block`；完整多 Agent 模板庫仍屬長線。 |
@@ -35,6 +35,10 @@
 1. **權威順序（事實）**：已交付行為 → 根目錄 [`CHANGELOG.md`](../../CHANGELOG.md) → [`TODOS.md`](../../TODOS.md)（已交付摘要／隊列）→ 程式碼。**本節上方矩陣**為 `docs/architecture/` **單一索引**：✅＝已閉環或維護導覽；🟡＝仍有 backlog、staging 細項、或 **研究／optional scaffold**。
 2. **研究稿 ≠ 產品承諾**：`notebooklm_research`／`agency_agents_research`／`tradingview_mcp_research` 等標 🟡 之檔案，**不**視為預設上線範圍。若要列入產品里程碑，須另有 **ENV／紅線（含資料源治理 [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](../REALTIME_DATA_SOURCES_GOVERNANCE.md)）／驗收** 一句話，並落入 [`TODOS.md`](../../TODOS.md) 隊列（避免「讀架構＝全部要做」）。
 3. **[`AI_CONTEXT.md`](AI_CONTEXT.md)**：承載協作紅線、工程原則與願景；**「現況／版本」細節**以 `CHANGELOG.md` 與程式為準，本檔與 `AI_CONTEXT` **不**承擔逐 commit 對帳。
+
+### Phase 1 — 日報可信／隊列 27（staging 對照）
+
+**Repo 側**：執行稿、環境核對表、**TODOS／CHANGELOG 回填模板**見 [`STAGING_CURRENT_AFFAIRS_SMOKE.md`](../STAGING_CURRENT_AFFAIRS_SMOKE.md)。**不在 CI 自動執行**；通過與否由 staging 營運於 [`TODOS.md`](../../TODOS.md) 隊列 **27** 或同步狀態行關帳。**可選同日**：Reviewer rollout（隊列 35）見 [`REVIEWER_PRODUCTION_ROLLOUT.md`](../REVIEWER_PRODUCTION_ROLLOUT.md) 與 [`scripts/verify_reviewer_rollout_env.py`](../../scripts/verify_reviewer_rollout_env.py)，與本 smoke **非**硬性綁定。
 
 ---
 

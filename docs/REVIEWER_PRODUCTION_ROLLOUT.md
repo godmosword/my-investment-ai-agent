@@ -13,6 +13,7 @@ the reviewer path in production scheduling.
 - Repo-side env ping (optional): `python3 scripts/verify_reviewer_rollout_env.py` (BQ table existence when creds present).
 - Telegram HTML and `validate_report` gates remain enabled; reviewer never
   replaces those gates.
+- **Optional same-day coupling (Queue 27)**: if staging is already running a `full` daily with `BRIEF_CURRENT_AFFAIRS=1`, operators may run the current-affairs staging smoke in parallel; it is **not** a prerequisite for this rollout. See [`STAGING_CURRENT_AFFAIRS_SMOKE.md`](STAGING_CURRENT_AFFAIRS_SMOKE.md).
 
 ## Three-day staging watch
 
