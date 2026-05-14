@@ -1095,6 +1095,11 @@ const server = http.createServer((req, res) => {
           parse_error: null,
         },
       ],
+      runtime_hints: {
+        brief_layout_file: "config/brief_layouts/example_lite_reorder.yaml",
+        brief_dynamic_render: false,
+        report_profile: "lite",
+      },
     });
     return;
   }

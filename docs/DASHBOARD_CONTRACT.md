@@ -87,7 +87,7 @@
 | `GET /api/reports` | 報告列表 | query：`limit`（1–90，預設 30）、可選 **`profile`**（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；帶入 `profile` 時後端以 `LLM_RUN_LOG_TABLE` **INNER JOIN** `METRICS_TABLE`，只列該 profile 有產出的日期（共用 `resolved_profile` 解析，與 `GET /api/reports/{date}/structured` 一致） |
 | `GET /api/reports/{report_date}` | 單日報告內容 | BigQuery legacy 列 + `recommendations` |
 | `GET /api/reports/{report_date}/structured` | V2 區塊化報告封套 | query：`profile`（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；回傳 **`block_ids`**、**`block_registry`**、**`legacy`**、**`daily_brief_report`**（見下 **`DAILY_BRIEF_JSON_DIR`**／本機 archive／`logs/run_*`）、**`structured_body_available`**、**`structured_source`**（有結構化本文時之相對路徑或絕對路徑）、**`gate_summary`**（`validate_structured_report` + 可選 **`.qsilicon/last_gate_failure`**；含 **`issues_by_block`**／**`issues_unmapped`**） |
-| `GET /api/brief-layouts` | 列 `config/brief_layouts/*.yaml`（唯讀；V3 layout UX）；後端會 **safe_load** 並附預覽 | 回傳 **`layouts`**: `{ filename, path, applies_to_profile?, blocks?, parse_error? }[]` |
+| `GET /api/brief-layouts` | 列 `config/brief_layouts/*.yaml`（唯讀；V3 layout UX）；後端會 **safe_load** 並附預覽；另附 **`runtime_hints`**（`BRIEF_LAYOUT_FILE`／`BRIEF_DYNAMIC_RENDER`／`REPORT_PROFILE` 之伺服器啟用態，不含機密） | 回傳 **`layouts`**: `{ filename, path, applies_to_profile?, blocks?, parse_error? }[]`；**`runtime_hints`**: `{ brief_layout_file, brief_dynamic_render, report_profile }` |
 | `GET /api/trades` | 交易列表 | |
 | `GET /api/trades/performance` | 績效彙總 | |
 | `GET /healthz` | 存活探測 | [`api_routers/health.py`](../api_routers/health.py) |
