@@ -61,6 +61,12 @@ def list_price_alerts() -> dict[str, Any]:
     return {"alerts": price_alerts.load_alerts()}
 
 
+@router.get("/digest")
+def get_price_alerts_digest() -> dict[str, Any]:
+    """Read-only summary for Terminal workspace digest (no quote fetches)."""
+    return price_alerts.build_alert_digest()
+
+
 @router.post("")
 def create_price_alert(body: PriceAlertBody) -> dict[str, Any]:
     alert = price_alerts.add_alert(body.model_dump())

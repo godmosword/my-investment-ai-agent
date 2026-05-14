@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import CatalystCalendar from "../../../components/CatalystCalendar";
 import Sparkline from "../../../components/Sparkline";
 import TodayBtcSnapshotStrip from "../../../components/TodayBtcSnapshotStrip";
@@ -91,6 +92,40 @@ export default function DashboardHome() {
   const data = macro.data;
   const order = data?.indicator_order ?? [];
   const indicators = order.map((id) => data?.indicators?.[id]).filter(Boolean);
+  const [offlineHint, setOfflineHint] = useState("");
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof globalThis.navigator !== "undefined" ? globalThis.navigator.onLine : true,
+  );
+
+  useEffect(() => {
+    const bump = () => setIsOnline(Boolean(globalThis.navigator?.onLine));
+    globalThis.addEventListener?.("online", bump);
+    globalThis.addEventListener?.("offline", bump);
+    return () => {
+      globalThis.removeEventListener?.("online", bump);
+      globalThis.removeEventListener?.("offline", bump);
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      setOfflineHint(String(globalThis.localStorage?.getItem("qsi_offline_macro_as_of_hint") ?? "").trim());
+    } catch {
+      setOfflineHint("");
+    }
+  }, []);
+
+  useEffect(() => {
+    const asOf = data?.as_of;
+    if (!asOf || typeof asOf !== "string") return;
+    try {
+      globalThis.localStorage?.setItem("qsi_offline_macro_as_of_hint", asOf);
+    } catch {
+      /* ignore */
+    }
+  }, [data?.as_of]);
+
+  const showOfflineStrip = !isOnline && Boolean(offlineHint);
 
   return (
     <div data-testid="dashboard-home" className="px-3 py-4 pb-24 md:px-0 md:pb-0">
@@ -101,6 +136,13 @@ export default function DashboardHome() {
           {data?.cached ? " · cached" : ""}
         </div>
       </div>
+
+      {showOfflineStrip ? (
+        <div className="error-msg mb-3" role="status" data-testid="dashboard-offline-asof-hint">
+          離線中：macro 最近一次成功載入為{" "}
+          <code>{new Date(offlineHint).toLocaleString("zh-TW", { hour12: false })}</code>（僅供參考，非即時）。
+        </div>
+      ) : null}
 
       <TodayBtcSnapshotStrip />
 

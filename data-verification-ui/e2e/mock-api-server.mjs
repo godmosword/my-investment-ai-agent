@@ -808,6 +808,22 @@ const server = http.createServer((req, res) => {
     sendJson(res, 405, { error: "method" });
     return;
   }
+  if (url.pathname === "/api/push/price-alerts/digest") {
+    const triggered = priceAlerts.filter((a) => String(a.triggered_at || "").trim());
+    const pending = priceAlerts.filter((a) => !String(a.triggered_at || "").trim());
+    const symbols = [...new Set(priceAlerts.map((a) => String(a.symbol || "").toUpperCase()))].sort();
+    const lastT = triggered.map((a) => String(a.triggered_at)).sort().pop() || null;
+    sendJson(res, 200, {
+      schema_version: "qsi_price_alert_digest_v1",
+      as_of: "2026-05-13T00:00:00Z",
+      total: priceAlerts.length,
+      pending: pending.length,
+      triggered: triggered.length,
+      symbols,
+      last_triggered_at: lastT,
+    });
+    return;
+  }
   if (url.pathname === "/api/metrics/latest") {
     sendJson(res, 200, metricsBody);
     return;

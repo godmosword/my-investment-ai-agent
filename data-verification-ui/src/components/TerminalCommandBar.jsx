@@ -129,6 +129,8 @@ export default function TerminalCommandBar({ trailing = null }) {
   const navigate = useNavigate();
   const { symbol, setSymbol } = useSymbolFocus();
   const inputRef = useRef(null);
+  const lastCrewRunAtRef = useRef(0);
+  const crewThrottleMs = 4500;
   const [input, setInput] = useState("");
   const [watchSet, setWatchSetState] = useState(() => readWatchSet());
   const [recent, setRecent] = useState(() => readRecent());
@@ -172,6 +174,14 @@ export default function TerminalCommandBar({ trailing = null }) {
   }, []);
 
   const onRun = useCallback(() => {
+    if (runCrew.isPending) return;
+    const now = Date.now();
+    if (now - lastCrewRunAtRef.current < crewThrottleMs) {
+      const waitS = Math.ceil((crewThrottleMs - (now - lastCrewRunAtRef.current)) / 1000);
+      showToast(`請勿重複觸發 Crew（約 ${waitS}s 後可再試）`, true);
+      return;
+    }
+    lastCrewRunAtRef.current = now;
     setInput("");
     runCrew.mutate(
       {},
@@ -180,10 +190,14 @@ export default function TerminalCommandBar({ trailing = null }) {
           if (data?.ok) showToast(`Crew 已啟動 (job: ${data.job_id})`);
           else showToast(`Crew 執行中 (${data?.job_id ?? "?"})`, true);
         },
-        onError: (err) => showToast(`Crew 觸發失敗：${err.message}`, true),
+        onError: (err) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (String(msg).startsWith("429:")) showToast("觸發過於頻繁（429），請稍後再試。", true);
+          else showToast(`Crew 觸發失敗：${msg}`, true);
+        },
       },
     );
-  }, [runCrew, showToast]);
+  }, [runCrew, showToast, crewThrottleMs]);
 
   const onGo = useCallback(() => {
     if (isRunInput(input)) {

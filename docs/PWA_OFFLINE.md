@@ -12,6 +12,8 @@ War Room PWA 使用 **InjectManifest** Service Worker：`workbox-precaching` 快
 
 若要在 UI 標示資料新鮮度，請以 **API 回應**中的 **`as_of`／`report_date`** 為準（而非 Service Worker 快取時間）。離線時應提示網路不可用，並保留最後一次成功載入的時間戳（若有）。
 
+數據儀表板（`DashboardHome`）在 macro snapshot 成功時，會將 `data.as_of` 寫入 `localStorage` 鍵 **`qsi_offline_macro_as_of_hint`**；當 `navigator.onLine === false` 時顯示「離線中：macro 最近一次成功載入為 …」提示（**非即時**，僅供閱讀者理解資料可能過期）。
+
 ## 本地開發
 
 `vite` dev server 下若未啟用 SW，以上行為以瀏覽器實際註冊的 SW 為準；正式環境請以 **`npm run build`** 後預覽驗證。

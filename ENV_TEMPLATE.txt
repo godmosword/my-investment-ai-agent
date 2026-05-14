@@ -77,6 +77,7 @@ TELEGRAM_CHAT_ID=
 # TECH_PULSE_FIRESTORE_COLLECTION=tech_pulse_memory_items  # /api/news digest/deep/themes 的 Firestore collection
 # TECH_PULSE_FIRESTORE_PROJECT=   # 可選；未設時使用 google-cloud-firestore 預設 credentials/project
 # BRIEF_DYNAMIC_RENDER=0   # 1=當 `BRIEF_LAYOUT_FILE` 使 `profile_block_ids("full")` 與內建順序不同時，`full` 走 macro 動態串接（預設 0 維持 Phase 0 **byte-identical**）。
+# Staging：`BRIEF_DYNAMIC_RENDER=1` 前請在非生產跑 `validate_report`／`scripts/verify_graph_gate.sh` 與 `test_dynamic_full_render.py`；確認 `STRICT_*` Gate 與 Telegram 白名單無誤擋。風險：與靜態 `telegram_full.j2` 路徑分歧，回歸須比對 HTML 區塊順序與錨點。
 # STRICT_LITE_EXEC_SUMMARY_PASS6_GATE=0   # 1=`lite` 執行摘要「→」要點 ≤3 條、每條 ≤40 字（見 `report_html_gates.py`）。
 # BRIEF_LAYOUT_FILE=   # 可選；指向 YAML，與內建 `PROFILES` merge 粗粒度 **block 順序**（白名單、同集合重排）。專案根相對或絕對路徑。見 `config/brief_layouts/README.md`。
 # DAILY_BRIEF_JSON_DIR=   # 可選；管線成功 assemble 後寫 `YYYY-MM-DD.json`（`DailyBriefReport` 之 JSON）；未設則寫 `.qsilicon/daily_brief_reports/{date}.json`，供 `GET /api/reports/{date}/structured` 填充 **`daily_brief_report`**。亦會嘗試 **`logs/run_YYYYMMDD_*/raw_data.json`**。見根目錄 `DESIGN.md`、`docs/DASHBOARD_CONTRACT.md`。
