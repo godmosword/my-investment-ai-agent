@@ -31,7 +31,7 @@
 
 - **Command Bar Crew HUD**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 使用 **`useRunCrewStatus`** 輪詢 **`GET /api/run-crew/status`**（`running` 時 **2s** refetch，見 [`useApi.js`](data-verification-ui/src/hooks/useApi.js)）；RUN 提交中或後端 `running` 時顯示 **`data-testid="terminal-crew-status-hud"`**；mock [`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 於 POST run-crew 後短窗回傳 `running`；E2E [`command-bar-route.spec.js`](data-verification-ui/e2e/command-bar-route.spec.js) 擴充 HUD 斷言。
 - **Workspace 跨分頁同步**：[`workspaceSync.js`](data-verification-ui/src/constants/workspaceSync.js)（**`qsi_workspace_changed`**）；[`WorkspacePanel.jsx`](data-verification-ui/src/components/WorkspacePanel.jsx) 監聽 **`storage`** 與同頁自訂事件以同步 layout／panels／`qs_workspace_size_weights_v1`；E2E [`workspace-cross-tab.spec.js`](data-verification-ui/e2e/workspace-cross-tab.spec.js)。
-- **架構現況**：[`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) 補 Phase 2 錨點。
+- **架構／導覽**：[`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) 現況補 Phase 2 錨點；[`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) §0 新增 **Phase 2** 小節與矩陣 **Phase 0–2**；[`README.md`](README.md) 新增「Portal 架構 Phase 2」小節（與 12 週 Roadmap「Phase 2」用語區隔）。
 
 ### Docs（`docs/architecture/` Phase 0–1）
 
