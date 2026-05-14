@@ -27,6 +27,12 @@
 - **產業頁 × 日報模組化（Queue 31 切片）**：[`IndustriesHome.jsx`](data-verification-ui/src/modules/industry-trends/pages/IndustriesHome.jsx) 顯示 `GET /api/brief-layouts` 庫存提示；mock／[`queue36-modules.spec.js`](data-verification-ui/e2e/queue36-modules.spec.js) 斷言；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4d。
 - **`GET /api/brief-layouts` runtime_hints（Queue 31 儀表切片）**：[`api.py`](api.py) 回傳唯讀 **`runtime_hints`**（`BRIEF_LAYOUT_FILE`／`BRIEF_DYNAMIC_RENDER`／`REPORT_PROFILE`）；[`IndustriesHome.jsx`](data-verification-ui/src/modules/industry-trends/pages/IndustriesHome.jsx) 顯示「後端啟用態」；[`test_brief_layouts_api.py`](test_brief_layouts_api.py)、[`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs)、[`queue36-modules.spec.js`](data-verification-ui/e2e/queue36-modules.spec.js)；[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。
 
+### PWA — Portal Phase 2 產品切片（Queues 29／34）
+
+- **Command Bar Crew HUD**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 使用 **`useRunCrewStatus`** 輪詢 **`GET /api/run-crew/status`**（`running` 時 **2s** refetch，見 [`useApi.js`](data-verification-ui/src/hooks/useApi.js)）；RUN 提交中或後端 `running` 時顯示 **`data-testid="terminal-crew-status-hud"`**；mock [`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 於 POST run-crew 後短窗回傳 `running`；E2E [`command-bar-route.spec.js`](data-verification-ui/e2e/command-bar-route.spec.js) 擴充 HUD 斷言。
+- **Workspace 跨分頁同步**：[`workspaceSync.js`](data-verification-ui/src/constants/workspaceSync.js)（**`qsi_workspace_changed`**）；[`WorkspacePanel.jsx`](data-verification-ui/src/components/WorkspacePanel.jsx) 監聽 **`storage`** 與同頁自訂事件以同步 layout／panels／`qs_workspace_size_weights_v1`；E2E [`workspace-cross-tab.spec.js`](data-verification-ui/e2e/workspace-cross-tab.spec.js)。
+- **架構現況**：[`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) 補 Phase 2 錨點。
+
 ### Docs（`docs/architecture/` Phase 0–1）
 
 - **Phase 0**：於 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0** 下新增 **Phase 0** 小節：權威順序、研究稿≠產品承諾、`AI_CONTEXT` 與事實敘述分工。

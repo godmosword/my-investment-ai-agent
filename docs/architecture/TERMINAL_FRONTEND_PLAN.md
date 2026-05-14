@@ -21,7 +21,7 @@
 
 ## 目錄結構
 
-> **現況（2026-05）**：repo 為 **Vite + React（`.jsx`）**，入口 **`src/main.jsx`** → **`src/app/App.jsx`**／**`Router.jsx`**；佈局 **`app/layout/Shell.jsx`** + **`ModuleNav.jsx`**。共用 HTTP：**[`lib/siliconApiHeaders.js`](../../data-verification-ui/src/lib/siliconApiHeaders.js)** + **[`hooks/useApi.js`](../../data-verification-ui/src/hooks/useApi.js)**（`X-Q-Silicon-Key`、401→`/api-key`）；**無** `shared/api/client.ts`（設計稿 axios 路徑仍列於下方 Prompt／驗收清單「設計錨點」）。後端增量路由見 repo 根目錄 **[`api_routers/`](../../api_routers/)**（`CHANGELOG` **2026-05-06**）。
+> **現況（2026-05）**：repo 為 **Vite + React（`.jsx`）**，入口 **`src/main.jsx`** → **`src/app/App.jsx`**／**`Router.jsx`**；佈局 **`app/layout/Shell.jsx`** + **`ModuleNav.jsx`**。共用 HTTP：**[`lib/siliconApiHeaders.js`](../../data-verification-ui/src/lib/siliconApiHeaders.js)** + **[`hooks/useApi.js`](../../data-verification-ui/src/hooks/useApi.js)**（`X-Q-Silicon-Key`、401→`/api-key`）；**無** `shared/api/client.ts`（設計稿 axios 路徑仍列於下方 Prompt／驗收清單「設計錨點」）。後端增量路由見 repo 根目錄 **[`api_routers/`](../../api_routers/)**（`CHANGELOG` **2026-05-06**）。**Phase 2（2026-05-14）**：Command Bar **`terminal-crew-status-hud`**（輪詢 `GET /api/run-crew/status`）；Workspace **`storage` + `qsi_workspace_changed`** 跨分頁同步（[`workspaceSync.js`](../../data-verification-ui/src/constants/workspaceSync.js)）。
 
 ```
 data-verification-ui/

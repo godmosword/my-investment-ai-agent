@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
-import { useRunCrew } from "../hooks/useApi";
+import { useRunCrew, useRunCrewStatus } from "../hooks/useApi";
 import {
   TERMINAL_RECENT_SYMBOLS_KEY,
   TERMINAL_SSE_WATCH_CHANGED_EVENT,
@@ -127,6 +128,7 @@ function parseBoardRoute(raw) {
  */
 export default function TerminalCommandBar({ trailing = null }) {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { symbol, setSymbol } = useSymbolFocus();
   const inputRef = useRef(null);
   const lastCrewRunAtRef = useRef(0);
@@ -136,6 +138,15 @@ export default function TerminalCommandBar({ trailing = null }) {
   const [recent, setRecent] = useState(() => readRecent());
   const [runToast, setRunToast] = useState(null);
   const runCrew = useRunCrew();
+  const crewStatus = useRunCrewStatus();
+
+  useEffect(() => {
+    if (!runCrew.isPending) return undefined;
+    const id = setInterval(() => {
+      qc.invalidateQueries({ queryKey: ["run-crew", "status"] });
+    }, 800);
+    return () => clearInterval(id);
+  }, [runCrew.isPending, qc]);
 
   useEffect(() => {
     const bump = () => setWatchSetState(readWatchSet());
@@ -166,6 +177,7 @@ export default function TerminalCommandBar({ trailing = null }) {
 
   const focused = (symbol || "").trim().toUpperCase();
   const inWatch = useMemo(() => focused && watchSet.has(focused), [focused, watchSet]);
+  const crewHudActive = runCrew.isPending || crewStatus.data?.status === "running";
 
   const showToast = useCallback((msg, isError = false) => {
     setRunToast({ msg, isError });
@@ -283,6 +295,26 @@ export default function TerminalCommandBar({ trailing = null }) {
           aria-live="polite"
         >
           {runToast.msg}
+        </div>
+      ) : null}
+      {crewHudActive ? (
+        <div
+          data-testid="terminal-crew-status-hud"
+          className="w-full rounded border border-amber-500/25 bg-amber-950/35 px-2 py-1 text-[11px] leading-snug text-amber-100/90"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="font-semibold text-amber-200/95">Crew</span>
+          {runCrew.isPending ? " · 提交中…" : ` · ${String(crewStatus.data?.status || "—")}`}
+          {crewStatus.data?.job_id ? (
+            <span className="font-mono text-amber-100/85"> · {String(crewStatus.data.job_id)}</span>
+          ) : null}
+          {crewStatus.data?.started_at ? (
+            <span className="text-amber-100/70"> · {String(crewStatus.data.started_at)}</span>
+          ) : null}
+          {crewStatus.data?.error ? (
+            <span className="text-red-300/90"> · err {String(crewStatus.data.error)}</span>
+          ) : null}
         </div>
       ) : null}
       <button
