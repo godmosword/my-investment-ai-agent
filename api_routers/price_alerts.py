@@ -64,6 +64,29 @@ def _telegram_enabled() -> bool:
     return os.getenv("PRICE_ALERTS_TELEGRAM_ENABLED", "").strip() in {"1", "true", "TRUE"}
 
 
+def _sse_alert_enabled() -> bool:
+    return os.getenv("SSE_PRICE_ALERT_ENABLED", "").strip() in {"1", "true", "TRUE"}
+
+
+def _publish_sse_alert(alert: dict[str, Any], last_price: float) -> None:
+    """Enqueue triggered alert to in-process SSE queue (best-effort, never raises)."""
+    if not _sse_alert_enabled():
+        return
+    try:
+        from war_room_stream import emit_price_alert_event
+
+        emit_price_alert_event(
+            alert_id=str(alert.get("id") or ""),
+            symbol=str(alert.get("symbol") or "").upper(),
+            direction=str(alert.get("direction") or "").lower(),
+            target_price=float(alert.get("target_price") or 0),
+            last_price=last_price,
+            note=str(alert.get("note") or ""),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("price_alert SSE publish failed: %s", exc)
+
+
 def _send_telegram(alert: dict[str, Any], last_price: float) -> dict[str, Any]:
     """Send single triggered alert as plain-text Telegram message.
 
@@ -162,6 +185,8 @@ def check_price_alerts(
                 telegram_results.append(
                     {"alert_id": updated["id"], **_send_telegram(updated, last_price)}
                 )
+            if hit:
+                _publish_sse_alert(updated, last_price)
     return {
         "checked": len(checked),
         "triggered": sum(1 for row in checked if row.get("triggered_at")),

@@ -33,7 +33,11 @@ from paper_lifecycle import build_paper_lifecycle_payload
 from transparency_letter import build_transparency_letter
 from track_record import normalize_closed_intent
 from paper_execution import run_paper_execution_tick
-from war_room_stream import drain_graph_node_events, get_war_room_stream_version
+from war_room_stream import (
+    drain_graph_node_events,
+    drain_price_alert_events,
+    get_war_room_stream_version,
+)
 from symbol_snapshot_service import (
     build_symbol_snapshot,
     fetch_symbol_quote,
@@ -1517,6 +1521,12 @@ async def stream_war_room(
             for event in node_events:
                 payload = json.dumps(event, ensure_ascii=False)
                 yield f"event: node_complete\ndata: {payload}\n\n"
+
+            # Drain price-alert events (M4 slice 3): triggered alerts → PWA toast.
+            alert_events = drain_price_alert_events()
+            for event in alert_events:
+                payload = json.dumps(event, ensure_ascii=False)
+                yield f"event: price_alert\ndata: {payload}\n\n"
 
             # Full war-room snapshot when fingerprint changes.
             fp = _war_room_fingerprint()

@@ -22,6 +22,9 @@ const SSE_KEY = import.meta.env.VITE_SSE_STREAM_KEY ?? "";
 
 const WarRoomSseStatusContext = createContext({ sseStatus: "idle" });
 
+/** Bus event for price-alert SSE notifications; consumers (toaster, badge) subscribe via window. */
+export const PRICE_ALERT_SSE_EVENT = "qsilicon:price-alert-sse";
+
 /** @typedef {{ id: string, ts: string, phase: string, node: string, summary: string, payload: object, severity: string }} GraphTelemetryLine */
 
 const WarRoomGraphLogContext = createContext({
@@ -208,10 +211,22 @@ export function WarRoomSseProvider({ children }) {
       }
     };
 
+    const onPriceAlert = (ev) => {
+      try {
+        const d = JSON.parse(ev.data);
+        globalThis.dispatchEvent(
+          new CustomEvent(PRICE_ALERT_SSE_EVENT, { detail: d }),
+        );
+      } catch {
+        /* ignore malformed */
+      }
+    };
+
     es.onmessage = scheduleRefresh;
     es.addEventListener("war_room_update", scheduleRefresh);
     es.addEventListener("symbol_quote", onSymbolQuote);
     es.addEventListener("node_complete", onNodeComplete);
+    es.addEventListener("price_alert", onPriceAlert);
     es.onerror = () => setSseStatus("error");
 
     return () => {
@@ -224,6 +239,7 @@ export function WarRoomSseProvider({ children }) {
       }
       es.removeEventListener("symbol_quote", onSymbolQuote);
       es.removeEventListener("node_complete", onNodeComplete);
+      es.removeEventListener("price_alert", onPriceAlert);
       es.close();
     };
   }, [qc, symbol, watchRev, scheduleGraphAppend]);

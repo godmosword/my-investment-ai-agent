@@ -107,6 +107,57 @@ def test_price_alert_check_telegram_send(tmp_path, monkeypatch):
     assert len(sent) == 1
 
 
+def test_price_alert_check_publishes_sse_event(tmp_path, monkeypatch):
+    """Triggered alert with SSE_PRICE_ALERT_ENABLED=1 enqueues war-room SSE event."""
+    from war_room_stream import drain_price_alert_events
+
+    drain_price_alert_events(max_items=1000)  # clear buffer
+    monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
+    monkeypatch.setenv("SSE_PRICE_ALERT_ENABLED", "1")
+    monkeypatch.delenv("PRICE_ALERTS_TELEGRAM_ENABLED", raising=False)
+    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
+    monkeypatch.setattr(
+        router,
+        "fetch_symbol_quote",
+        lambda symbol: {"symbol": symbol, "last": 950.0, "error": None},
+    )
+    client = TestClient(app)
+    alert = client.post(
+        "/api/push/price-alerts",
+        json={"symbol": "NVDA", "direction": "above", "target_price": 900, "note": "test"},
+    ).json()["alert"]
+
+    client.post("/api/push/price-alerts/check?send_push=false").json()
+    drained = drain_price_alert_events()
+    assert len(drained) == 1
+    assert drained[0]["alert_id"] == alert["id"]
+    assert drained[0]["symbol"] == "NVDA"
+    assert drained[0]["last_price"] == 950.0
+    assert drained[0]["note"] == "test"
+
+
+def test_price_alert_sse_disabled_skips_publish(tmp_path, monkeypatch):
+    from war_room_stream import drain_price_alert_events
+
+    drain_price_alert_events(max_items=1000)
+    monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
+    monkeypatch.delenv("SSE_PRICE_ALERT_ENABLED", raising=False)
+    monkeypatch.delenv("PRICE_ALERTS_TELEGRAM_ENABLED", raising=False)
+    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
+    monkeypatch.setattr(
+        router,
+        "fetch_symbol_quote",
+        lambda symbol: {"symbol": symbol, "last": 950.0, "error": None},
+    )
+    client = TestClient(app)
+    client.post(
+        "/api/push/price-alerts",
+        json={"symbol": "NVDA", "direction": "above", "target_price": 900},
+    )
+    client.post("/api/push/price-alerts/check?send_push=false")
+    assert drain_price_alert_events() == []
+
+
 def test_price_alert_telegram_disabled_skips_send(tmp_path, monkeypatch):
     monkeypatch.setenv("PRICE_ALERTS_FILE", str(tmp_path / "alerts.jsonl"))
     monkeypatch.delenv("PRICE_ALERTS_TELEGRAM_ENABLED", raising=False)

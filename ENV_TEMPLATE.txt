@@ -274,3 +274,4 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # PRICE_ALERTS_TELEGRAM_ENABLED=0  # 1=check_price_alerts 命中後額外送 Telegram；自然去重（alert.triggered_at 永久標記）
 # PRICE_ALERTS_FILE=.qsilicon/price_alerts.jsonl  # alert 條件 JSONL（PWA 透過 /api/push/price-alerts 建立）
 # 排程使用既有 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID。
+# SSE_PRICE_ALERT_ENABLED=0  # 1=命中後同時 publish 到 /api/stream/war-room 的 event: price_alert（PWA 即時 toast；bounded deque maxlen=64）

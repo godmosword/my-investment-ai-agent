@@ -15,6 +15,8 @@ _stream_version = 0
 
 # Per-node event queue: bounded deque protects against unbounded growth.
 _node_events: deque[dict[str, Any]] = deque(maxlen=200)
+# Price-alert event queue: bounded deque mirrors graph node pattern (M4 slice 3).
+_price_alert_events: deque[dict[str, Any]] = deque(maxlen=64)
 _events_lock = threading.RLock()
 
 
@@ -79,4 +81,44 @@ def drain_graph_node_events(max_items: int = 50) -> list[dict[str, Any]]:
     with _events_lock:
         while _node_events and len(out) < max_items:
             out.append(_node_events.popleft())
+    return out
+
+
+def emit_price_alert_event(
+    *,
+    alert_id: str,
+    symbol: str,
+    direction: str,
+    target_price: float,
+    last_price: float,
+    note: str = "",
+) -> None:
+    """Enqueue a triggered-alert event for SSE ``price_alert`` (M4 slice 3).
+
+    Bounded deque drops oldest when buffer (maxlen=64) is full — natural
+    backpressure for slow consumers without unbounded memory growth.
+    """
+    ts = datetime.now(timezone.utc).isoformat()
+    event = {
+        "v": 1,
+        "kind": "price_alert",
+        "ts": ts,
+        "alert_id": alert_id,
+        "symbol": symbol,
+        "direction": direction,
+        "target_price": target_price,
+        "last_price": last_price,
+        "note": note,
+    }
+    with _events_lock:
+        _price_alert_events.append(event)
+    bump_war_room_stream_version()
+
+
+def drain_price_alert_events(max_items: int = 16) -> list[dict[str, Any]]:
+    """Pop and return up to *max_items* pending price-alert events (FIFO)."""
+    out: list[dict[str, Any]] = []
+    with _events_lock:
+        while _price_alert_events and len(out) < max_items:
+            out.append(_price_alert_events.popleft())
     return out
