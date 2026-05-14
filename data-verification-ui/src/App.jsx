@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BottomNav from "./components/BottomNav";
 import ErrorBoundary from "./components/ErrorBoundary";
+import PriceAlertToaster from "./components/PriceAlertToaster";
 import { WarRoomSseProvider } from "./hooks/useWarRoomSse";
 import { SymbolFocusProvider, useSymbolFocus } from "./context/SymbolFocusContext";
 import Shell from "./app/layout/Shell";
@@ -92,6 +93,7 @@ export default function App() {
             <BrowserRouter>
               <AppRoutes />
             </BrowserRouter>
+            <PriceAlertToaster />
           </WarRoomSseProvider>
         </SymbolFocusProvider>
       </QueryClientProvider>
