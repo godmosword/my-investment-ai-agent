@@ -198,7 +198,7 @@ def test_execution_intents_filter_sort(tmp_path, monkeypatch):
     ]
     store.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     monkeypatch.setattr("execution_intents._store_path", lambda: store)
-    monkeypatch.setattr("api._latest_gate_failure_summary", lambda: None)
+    monkeypatch.setattr("api_routers.execution_intents._latest_gate_failure_summary", lambda: None)
     client = TestClient(app)
     r = client.get("/api/execution-intents?limit=10&status=PENDING")
     assert r.status_code == 200
@@ -231,7 +231,7 @@ def test_execution_intents_list_normalizes_legacy_shape(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setattr("execution_intents._store_path", lambda: store)
-    monkeypatch.setattr("api._latest_gate_failure_summary", lambda: None)
+    monkeypatch.setattr("api_routers.execution_intents._latest_gate_failure_summary", lambda: None)
 
     client = TestClient(app)
     r = client.get("/api/execution-intents?limit=10")
@@ -302,7 +302,7 @@ def test_patch_execution_intent_writes_audit_when_table_configured(tmp_path, mon
         calls.append(kw)
 
     monkeypatch.setenv("PAPER_EXECUTION_AUDIT_TABLE", "proj.ds.paper_execution_audit")
-    monkeypatch.setattr("api.bigquery_writer.write_paper_execution_audit_row", capture)
+    monkeypatch.setattr("api_routers.execution_intents.bigquery_writer.write_paper_execution_audit_row", capture)
     client = TestClient(app)
     r = client.patch(
         "/api/execution-intents/audit-patch-1",
@@ -336,7 +336,7 @@ def test_execution_intents_gate_issue_hints(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("execution_intents._store_path", lambda: store)
     monkeypatch.setattr(
-        "api._latest_gate_failure_summary",
+        "api_routers.execution_intents._latest_gate_failure_summary",
         lambda: {"issues": ["check SPY spread", "unrelated line"]},
     )
     client = TestClient(app)
@@ -367,7 +367,7 @@ def test_gate_issue_hints_no_false_positive_substring(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("execution_intents._store_path", lambda: store)
     monkeypatch.setattr(
-        "api._latest_gate_failure_summary",
+        "api_routers.execution_intents._latest_gate_failure_summary",
         lambda: {"issues": ["PASSSETS validation ok"]},
     )
     client = TestClient(app)

@@ -26,7 +26,7 @@ def test_positions_m4_defaults_to_open(monkeypatch):
 
 def test_industries_themes_m5(monkeypatch):
     monkeypatch.setattr(
-        "api.latest_execution_intents",
+        "api_routers.industries.latest_execution_intents",
         lambda **kwargs: [{"regime": "risk_on"}, {"regime": "risk_off"}],
     )
     client = TestClient(app)

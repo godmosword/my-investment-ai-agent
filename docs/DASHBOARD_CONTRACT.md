@@ -71,7 +71,7 @@
 | `GET /api/track-record/by-tag` | `/insights` Track Record 切片 | query：`tag`（如 `AI`、`CRYPTO`、`WIN`、`LOSS`）；回傳同 shape summary + records |
 | `GET /api/scenario/suggestions` | `/insights`「情境建議」分頁（隊列 **28d**） | 實作於 [`api_routers/scenario.py`](../api_routers/scenario.py)；**預設 404**；`SCENARIO_OPTIMIZER_ENABLED=1` 時回傳決定性 read model（`execution_intents` + `portfolio_holdings` 成本口徑權重、HHI、三組 `scenarios` 文案、`target_hints` 僅用 intent 內 **`reference_*`** 錨點算距離 **%**）；**不含**即時報價、**不**下單；與公開績效敘事仍須遵守 paper-only 審計邊界 |
 | `GET /api/symbols/{symbol}/snapshot` | 單一代號快照（Terminal-style） | query：`days`、`recommendation_limit`；回應含 **`data_provenance`**（OHLC／BQ 來源與 as_of）；**`price_alignment`** 描述 **yfinance OHLC 尾端** vs **`/quote` 之 last**（皆 yfinance），並標 **`daily_metrics_source: bigquery`**；staging 可選 **`PRICE_ALIGNMENT_E2E_OVERRIDES`** 強制數值（見 `ENV_TEMPLATE.txt`） |
-| `GET /api/symbols/{symbol}/quote` | 輕量 **最新日線收盤** + 可選 **1D %**（僅 yfinance，無 BQ） | 失敗 **503**；伺服端快取約 **45s**；回應含 **`data_provenance.price`** |
+| `GET /api/symbols/{symbol}/quote` | 輕量 **最新日線收盤** + 可選 **1D %**（僅 yfinance，無 BQ） | 失敗 **503**；伺服端快取約 **45s**；回應含 **`data_provenance.price`**，其中 `ttl_seconds=45` |
 | `GET /api/execution-intents` | 執行意圖列表（每 `signal_id` 最新一列） | query：`limit`；可選 **`status`**（狀態字串之子字串比對，大小寫不敏感）、**`category`**（`CRYPTO`／`AI` 前綴）、**`sort_by`**（`updated_desc`｜`created_desc`｜`asset_asc`）。回應列契約至少含 **`signal_id`、`created_at`、`category`、`regime`、`asset`、`direction`、`star_rating`、`thesis_one_liner`、`status`、`status_updated_at`、`status_note`、`reference_*`、`paper_*`**；若存在本機 **`.qsilicon/last_gate_failure/validation_summary.json`**，列表列會附加唯讀 **`gate_issue_hints`**（無命中時回空陣列） |
 | `GET /api/execution-intents/gate-index` | **T5b** 唯讀索引：最近一次 gate artifact 的 issue 預覽 × 意圖列命中摘要 | query：`limit`（1–200，預設 200）。回傳 **`schema_version`**（`qsi_gate_intent_index_v1`）、**`gate_artifact_present`**、**`gate_issue_preview`**、**`gate_issue_count`**、**`intent_scanned`**、**`intent_rows_with_hints`**、**`matches`**（每筆含 `signal_id`、`asset`、`status`、`hint_count`、`gate_issue_hints`）；**非 OMS**、不含下單或成交斷言 |
 | `GET /api/execution-intents/allowed-statuses` | 意圖狀態集合 | 回傳 **`statuses`**（含紙上 `PAPER_*`）與 **`client_patchable`**（僅人審可 PATCH 子集） |
@@ -83,6 +83,8 @@
 | `POST /api/portfolio/import` | CSV 匯入 holdings | multipart `file`；欄位必須完全為 `symbol,shares,cost_basis,opened_at,notes`，錯誤回 422 |
 | `GET /api/portfolio/pnl` | Portfolio MTM / P&L enrich | 每列呼叫 yfinance quote helper；計算 `market_value`、`pnl`、`pnl_pct`、`weight`、`total_*`；單檔 quote 失敗回該列 `error: quote_unavailable` |
 | `GET /api/stream/war-room` | **SSE**：`data:` 為 `GET /api/war-room/latest` 同源 JSON | 預設 **404**；設 **`TERMINAL_SSE_ENABLED=1`** 啟用；可選 **`API_STREAM_AUTH_KEY`**（`X-QS-Stream-Key` 或 `?stream_key=`） |
+| `GET /api/run-crew/status` | Crew HTTP trigger 狀態 | 永遠可讀；回傳 `status`、`job_id`、`started_at`、`finished_at`、`error`，另含 `age_seconds`、`is_stale`、`stale_after_seconds`（預設 1800；可用 `CREW_STATUS_STALE_SEC` 覆寫） |
+| `POST /api/run-crew` | Crew HTTP trigger | 預設 **404**；設 **`CREW_HTTP_ENABLED=1`**；可選 **`CREW_HTTP_API_KEY`**（`X-Crew-Api-Key`）；同時只能跑一個 job |
 | `POST /api/paper/execution-tick` | 紙上模擬 **一輪**（`run_paper_execution_tick`） | 預設 **404**；設 **`PAPER_TICK_HTTP_ENABLED=1`**；可選 **`PAPER_TICK_API_KEY`**（`X-Paper-Tick-Key`）；CLI 見 `scripts/paper_execution_tick.py` |
 | `GET /api/reports` | 報告列表 | query：`limit`（1–90，預設 30）、可選 **`profile`**（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；帶入 `profile` 時後端以 `LLM_RUN_LOG_TABLE` **INNER JOIN** `METRICS_TABLE`，只列該 profile 有產出的日期（共用 `resolved_profile` 解析，與 `GET /api/reports/{date}/structured` 一致） |
 | `GET /api/reports/{report_date}` | 單日報告內容 | BigQuery legacy 列 + `recommendations` |
@@ -101,6 +103,8 @@
 
 PWA 應與上述鍵名一致；若前端另有聚合，請在 PR 中更新本表。  
 Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol}/snapshot`（唯讀聚合），避免重複資料組裝邏輯。實作上 [`dashboard.py`](../dashboard.py) 預設以 [`symbol_snapshot_service.build_symbol_snapshot`](../symbol_snapshot_service.py) 與 API **同形**；若設環境變數 **`SYMBOL_SNAPSHOT_HTTP_BASE`**（例 `http://127.0.0.1:8000`），則改以 HTTP 取得該 JSON。可選 **`DASHBOARD_SYMBOL_FOCUS`** 作為「載入快照」預設代號。
+
+Ship readiness checklist 見 [`PORTAL_SHIP_CHECKLIST.md`](PORTAL_SHIP_CHECKLIST.md)。其中 18–21／35 為雲端與 staging signoff，不由本地 contract tests 自動關閉。
 
 **PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/insights`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）；`/briefs`、`/terminal` 保留相容 redirect。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。可選 **`VITE_TERMINAL_QUERY_COALESCE=1`**（預設）讓同頁多卡之 `snapshot`／`quote`／`intents` 輪詢 **微錯開**，降低 burst（設 **`0`** 關閉）。**2026-04-21 起的 T3c 約束**：`PATCH /api/execution-intents/{signal_id}` 成功後，前端需先**寫回 react-query cache**，僅對**活躍**的 `execution-intents`／`war-room` query 做即時 refetch；`metrics/latest`／`report`／`positions/open` 只標記 stale，不可每次 mutation 都同步全頁重抓。
 可選 **`VITE_WEB_PUSH_REGISTER=1`** + **`VITE_WEB_PUSH_VAPID_PUBLIC_KEY`**（URL-safe base64）在 SW 就緒後嘗試 `pushManager.subscribe` 並 `POST /api/push/subscribe`（後端須 `WEB_PUSH_ENABLED=1`）；預設關閉。  

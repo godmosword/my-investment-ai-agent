@@ -13,6 +13,7 @@
 | Terminal 總表（中段 M1–M5 + Portal 長線 + 架構看法） | [`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) |
 | Architecture 狀態索引（已落地／repo-side scaffold／研究稿） | [`docs/architecture/Terminal_Master_Plan.md#0-architecture-文件狀態矩陣`](docs/architecture/Terminal_Master_Plan.md#0-architecture-文件狀態矩陣) |
 | Portal PWA 驗收清單（§驗收） | [`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) |
+| Portal ship checklist（API／PWA／staging signoff） | [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md) |
 | 視覺化狀態／剩餘 staging backlog（§3 勾選表） | [`docs/architecture/visualization_plan.md`](docs/architecture/visualization_plan.md) |
 | 變更紀錄 | [`CHANGELOG.md`](CHANGELOG.md) |
 | Tech pulse（可選，併入日報 exclusion） | [`docs/ADR_TECH_PULSE_INTEGRATION.md`](docs/ADR_TECH_PULSE_INTEGRATION.md) · [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) `TECH_PULSE_*` |
@@ -29,7 +30,7 @@
 
 ### Portal 架構 Phase 2 產品切片（2026-05-14）
 
-與 [`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 Phase 2** 對齊（**註**：此處指架構治理下的 Portal 切片，**非**下方 12 週 Roadmap 段落裡的「Phase 2」紙上管線里程碑）：PWA Command Bar 顯示 **Crew 執行狀態**（輪詢 **`GET /api/run-crew/status`**，`data-testid="terminal-crew-status-hud"`）；Shared Monitor 內 Workspace 支援 **同源多分頁** 以 `localStorage` 的 **`storage`** 事件與自訂事件 **`qsi_workspace_changed`** 同步 layout／panels／高度權重（[`data-verification-ui/src/constants/workspaceSync.js`](data-verification-ui/src/constants/workspaceSync.js)）。Playwright：[`command-bar-route.spec.js`](data-verification-ui/e2e/command-bar-route.spec.js)（含 HUD）、[`workspace-cross-tab.spec.js`](data-verification-ui/e2e/workspace-cross-tab.spec.js)。變更摘要見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-14**「PWA — Portal Phase 2」。
+與 [`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 Phase 2** 對齊（**註**：此處指架構治理下的 Portal 切片，**非**下方 12 週 Roadmap 段落裡的「Phase 2」紙上管線里程碑）：PWA Command Bar 顯示 **Crew 執行狀態**（輪詢 **`GET /api/run-crew/status`**，`data-testid="terminal-crew-status-hud"`）；Shared Monitor 內 Workspace 支援 **同源多分頁** 以 `localStorage` 的 **`storage`** 事件與自訂事件 **`qsi_workspace_changed`** 同步 layout／panels／高度權重（[`data-verification-ui/src/constants/workspaceSync.js`](data-verification-ui/src/constants/workspaceSync.js)）。Portal ship readiness 另補 `execution-intents`、`symbols`、`run-crew` router 拆分與 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)；**18–21／35** 仍須 staging operator 完成雲端 signoff 後才可關帳。Playwright：[`command-bar-route.spec.js`](data-verification-ui/e2e/command-bar-route.spec.js)（含 HUD）、[`workspace-cross-tab.spec.js`](data-verification-ui/e2e/workspace-cross-tab.spec.js)。變更摘要見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-14**「PWA — Portal Phase 2」。
 
 ### 日報模組化（計畫文件 + 已落地切片）
 

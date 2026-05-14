@@ -103,3 +103,14 @@ def test_price_alerts_digest_contract(client, tmp_path, monkeypatch):
     assert body.get("pending") == 0
     assert body.get("triggered") == 0
     assert body.get("symbols") == []
+
+
+def test_run_crew_status_contract(client, monkeypatch):
+    monkeypatch.delenv("CREW_HTTP_ENABLED", raising=False)
+    r = client.get("/api/run-crew/status")
+    assert r.status_code == 200
+    body = r.json()
+    assert "status" in body
+    assert "age_seconds" in body
+    assert "is_stale" in body
+    assert body.get("stale_after_seconds") == 1800

@@ -99,7 +99,7 @@ class _FakeBQClient:
 
 
 def test_symbol_snapshot_success(monkeypatch):
-    monkeypatch.setattr("api._get_bq_client", lambda: _FakeBQClient())
+    monkeypatch.setattr("api_routers.symbols.get_bq_client", lambda: _FakeBQClient())
     monkeypatch.setattr(
         "symbol_snapshot_service.fetch_symbol_ohlc",
         lambda _symbol, days: [
@@ -157,7 +157,7 @@ def test_symbol_snapshot_bigquery_failure(monkeypatch):
         def query(self, _sql: str):
             raise RuntimeError("boom")
 
-    monkeypatch.setattr("api._get_bq_client", lambda: _BoomClient())
+    monkeypatch.setattr("api_routers.symbols.get_bq_client", lambda: _BoomClient())
     client = TestClient(app)
     response = client.get("/api/symbols/BTC/snapshot")
     assert response.status_code == 503

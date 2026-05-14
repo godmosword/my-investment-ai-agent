@@ -7,7 +7,7 @@ from api import app
 
 def test_symbol_quote_success(monkeypatch):
     monkeypatch.setattr(
-        "api.fetch_symbol_quote",
+        "api_routers.symbols.fetch_symbol_quote",
         lambda _sym: {
             "symbol": "BTC",
             "as_of": "2026-04-12T00:00:00Z",
@@ -28,11 +28,12 @@ def test_symbol_quote_success(monkeypatch):
     assert body["last"] == 95000.5
     assert body["change_pct_1d"] == 1.25
     assert body["data_provenance"]["price"]["source"] == "yfinance"
+    assert body["data_provenance"]["price"]["ttl_seconds"] == 45
 
 
 def test_symbol_quote_503_when_unavailable(monkeypatch):
     monkeypatch.setattr(
-        "api.fetch_symbol_quote",
+        "api_routers.symbols.fetch_symbol_quote",
         lambda _sym: {
             "symbol": "ZZZ",
             "as_of": "2026-04-12T00:00:00Z",

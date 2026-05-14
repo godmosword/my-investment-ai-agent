@@ -13,7 +13,6 @@ import logging
 import os
 import re
 import time
-import uuid
 import yaml
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,17 +25,11 @@ from google.cloud import bigquery
 from pydantic import BaseModel, Field, field_validator
 
 from config import METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE, REVIEWER_LOG_TABLE
-import bigquery_writer
 from execution_intents import (
-    ALLOWED_INTENT_STATUSES,
-    CLIENT_PATCHABLE_STATUSES,
-    append_execution_intent_row,
     intent_store_mtime,
     latest_execution_intents,
-    update_execution_intent_status,
 )
 from paper_lifecycle import build_paper_lifecycle_payload
-from signal_quality import enrich_signal_quality
 from transparency_letter import build_transparency_letter
 from track_record import normalize_closed_intent
 from paper_execution import run_paper_execution_tick
@@ -54,9 +47,16 @@ from api_routers import metrics as metrics_router
 from api_routers import news as news_router
 from api_routers import portfolio as portfolio_router
 from api_routers import price_alerts as price_alerts_router
+from api_routers import run_crew as run_crew_router
 from api_routers import scenario as scenario_router
+from api_routers import symbols as symbols_router
 from api_routers import track_record as track_record_router
 from api_routers import industries as industries_router
+from api_routers.execution_intents import (
+    _enrich_intents_with_gate_hints,
+    _latest_gate_failure_summary,
+)
+from api_routers import execution_intents as execution_intents_router
 
 logger = logging.getLogger(__name__)
 
@@ -69,10 +69,6 @@ _REPO_ROOT = Path(__file__).resolve().parent
 
 # Prevent duplicate PAPER_* rows when two execution-tick requests arrive simultaneously
 _paper_tick_lock = asyncio.Lock()
-
-# Prevent concurrent crew runs; track last-run state for status polling
-_crew_run_lock = asyncio.Lock()
-_crew_run_state: dict[str, Any] = {"status": "idle", "job_id": None, "started_at": None, "finished_at": None, "error": None}
 
 # Module-level Jinja2 env (bytecode-cached, autoescape enabled for XSS safety)
 def _build_jinja2_env() -> "Environment":  # noqa: F821 — lazy import avoids hard dep at startup
@@ -130,9 +126,12 @@ app.include_router(metrics_router.router)
 app.include_router(news_router.router)
 app.include_router(portfolio_router.router)
 app.include_router(price_alerts_router.router)
+app.include_router(run_crew_router.router)
 app.include_router(scenario_router.router)
+app.include_router(symbols_router.router)
 app.include_router(track_record_router.router)
 app.include_router(industries_router.router)
+app.include_router(execution_intents_router.router)
 
 
 def _qsilicon_master_key_required() -> str:
@@ -1130,106 +1129,6 @@ class WarRoomSnapshot(BaseModel):
     execution_intents: list[dict[str, Any]] = Field(default_factory=list)
 
 
-class SymbolSnapshot(BaseModel):
-    symbol: str
-    as_of: str | None = None
-    source: str = "bigquery"
-    latest_metrics: dict[str, Any]
-    history: list[dict[str, Any]]
-    price_series: list[dict[str, Any]]
-    event_markers: list[dict[str, Any]]
-    recommendations: list[dict[str, Any]]
-    report_links: list[dict[str, str]]
-    data_provenance: dict[str, Any] = Field(default_factory=dict)
-    price_alignment: dict[str, Any] | None = None
-
-
-class SymbolQuote(BaseModel):
-    """Lightweight last close + 1d % change (yfinance only; M3 Terminal KPI strip)."""
-
-    symbol: str
-    as_of: str
-    source: str = "yfinance"
-    underlying_symbol: str
-    last: float | None = None
-    currency: str | None = None
-    change_pct_1d: float | None = None
-    cached: bool = False
-    data_provenance: dict[str, Any] = Field(default_factory=dict)
-
-
-class ExecutionIntentStatusBody(BaseModel):
-    """Human / War Room workflow: advance intent lifecycle (no order placement)."""
-
-    status: str = Field(..., description="One of CLIENT_PATCHABLE_STATUSES (case-insensitive).")
-    note: str = Field(default="", max_length=2000)
-    reference_entry_price: float | None = None
-    reference_target_price: float | None = None
-    reference_stop_price: float | None = None
-
-
-class ExecutionIntentCreateBody(BaseModel):
-    """Manual signal intake for paper lifecycle review. Does **not** place orders."""
-
-    category: str = Field(default="AI", max_length=40)
-    regime: str = Field(default="", max_length=120)
-    asset: str = Field(..., min_length=1, max_length=24)
-    direction: str = Field(..., description="LONG or SHORT")
-    star_rating: int = Field(default=1, ge=1, le=2)
-    thesis_one_liner: str = Field(default="", max_length=500)
-    reference_entry_price: float | None = None
-    reference_target_price: float | None = None
-    reference_stop_price: float | None = None
-
-    @field_validator("asset")
-    @classmethod
-    def normalize_asset(cls, value: str) -> str:
-        normalized = str(value or "").strip().upper().lstrip("$")
-        if not normalized:
-            raise ValueError("asset is required")
-        if not re.fullmatch(r"[A-Z0-9.\-]{1,24}", normalized):
-            raise ValueError("asset must be an uppercase ticker-like symbol")
-        return normalized
-
-    @field_validator("direction")
-    @classmethod
-    def normalize_direction(cls, value: str) -> str:
-        normalized = str(value or "").strip().upper()
-        if normalized not in {"LONG", "SHORT"}:
-            raise ValueError("direction must be LONG or SHORT")
-        return normalized
-
-    @field_validator("category")
-    @classmethod
-    def normalize_category(cls, value: str) -> str:
-        normalized = str(value or "AI").strip().upper()
-        return normalized or "AI"
-
-
-class ExecutionIntentRow(BaseModel):
-    signal_id: str
-    created_at: str
-    category: str
-    regime: str = ""
-    asset: str
-    direction: str
-    star_rating: int
-    thesis_one_liner: str = ""
-    status: str
-    status_updated_at: str = ""
-    status_note: str = ""
-    reference_entry_price: float | None = None
-    reference_target_price: float | None = None
-    reference_stop_price: float | None = None
-    paper_fill_price: float | None = None
-    paper_exit_price: float | None = None
-    gate_issue_hints: list[str] = Field(default_factory=list)
-    quality_score: int | None = None
-    quality_grade: str | None = None
-    quality_reasons: list[str] = Field(default_factory=list)
-    quality_model: str | None = None
-
-
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent
 
@@ -1455,64 +1354,6 @@ def _latest_scratchpad_summary() -> dict[str, Any] | None:
     }
 
 
-def _latest_gate_failure_summary() -> dict[str, Any] | None:
-    out_dir = _repo_root() / ".qsilicon" / "last_gate_failure"
-    summary = _read_json_if_exists(out_dir / "validation_summary.json")
-    if summary is None:
-        return None
-    issues_path = out_dir / "issues.txt"
-    return {
-        **summary,
-        "issues_path": str(issues_path) if issues_path.is_file() else None,
-        "artifact_dir": str(out_dir),
-    }
-
-
-def _gate_line_matches_intent(line: str, asset_u: str, signal_id: str) -> bool:
-    """Avoid substring false positives (e.g. ``ASSET`` inside ``PASSSETS``) where possible."""
-    if not asset_u:
-        return False
-    lu = line.upper()
-    if len(asset_u) >= 2:
-        try:
-            if re.search(rf"\b{re.escape(asset_u)}\b", lu):
-                return True
-        except re.error:
-            pass
-    sid = (signal_id or "").upper()
-    parts = {p for p in re.split(r"[^A-Z0-9]+", sid) if len(p) >= 2}
-    if asset_u in parts and asset_u in lu:
-        return True
-    return asset_u in lu
-
-
-def _enrich_intents_with_gate_hints(
-    intents: list[dict[str, Any]],
-    gate_failure: dict[str, Any] | None,
-) -> list[dict[str, Any]]:
-    """Read-only cross-hints (T5b): match gate issue lines to ``asset`` / ``signal_id`` segments."""
-    issues_raw = (gate_failure or {}).get("issues") if isinstance(gate_failure, dict) else None
-    if not intents or not isinstance(issues_raw, list) or not issues_raw:
-        return intents
-    issues = [str(x).strip() for x in issues_raw if str(x).strip()]
-    if not issues:
-        return intents
-    out: list[dict[str, Any]] = []
-    for row in intents:
-        asset = str(row.get("asset") or "").strip().upper()
-        sid = str(row.get("signal_id") or "").strip()
-        if not asset:
-            out.append(row)
-            continue
-        matched = [line for line in issues if _gate_line_matches_intent(line, asset, sid)]
-        if not matched:
-            out.append(row)
-            continue
-        merged = {**row, "gate_issue_hints": matched[:8]}
-        out.append(merged)
-    return out
-
-
 def _sse_auth_ok(request: Request) -> bool:
     key = (os.getenv("API_STREAM_AUTH_KEY") or "").strip()
     if not key:
@@ -1559,168 +1400,6 @@ def _parse_sse_watch_symbols_param(raw: str | None, max_n: int = 8) -> list[str]
     return out
 
 
-@app.get("/api/execution-intents/gate-index")
-def get_gate_intent_readonly_index(
-    limit: int = Query(default=200, ge=1, le=200),
-) -> dict[str, Any]:
-    """T5b read-only index: last gate-failure issue lines × latest intents (hint matches only).
-
-    Does not read broker state; does not infer prices. For internal hygiene dashboards.
-    """
-    gate = _latest_gate_failure_summary()
-    rows = latest_execution_intents(
-        limit=limit,
-        dedupe=True,
-        sort_by="updated_desc",
-    )
-    hinted = _enrich_intents_with_gate_hints(rows, gate)
-    matches: list[dict[str, Any]] = []
-    for r in hinted:
-        hints = r.get("gate_issue_hints")
-        if isinstance(hints, list) and hints:
-            matches.append(
-                {
-                    "signal_id": r.get("signal_id"),
-                    "asset": r.get("asset"),
-                    "status": r.get("status"),
-                    "hint_count": len(hints),
-                    "gate_issue_hints": hints,
-                }
-            )
-    preview: list[str] = []
-    issue_total: int | None = None
-    if isinstance(gate, dict):
-        raw_issues = gate.get("issues")
-        if isinstance(raw_issues, list):
-            preview = [str(x).strip() for x in raw_issues if str(x).strip()][:12]
-        ic = gate.get("issue_count")
-        if ic is not None:
-            try:
-                issue_total = int(ic)
-            except (TypeError, ValueError):
-                issue_total = None
-    return {
-        "schema_version": "qsi_gate_intent_index_v1",
-        "readme": (
-            "Read-only hygiene crosswalk (gate issues × intent assets). "
-            "Not OMS; does not assert fills or prices."
-        ),
-        "gate_artifact_present": bool(gate),
-        "gate_issue_preview": preview,
-        "gate_issue_count": issue_total if issue_total is not None else len(preview),
-        "intent_scanned": len(hinted),
-        "intent_rows_with_hints": len(matches),
-        "matches": matches[:80],
-    }
-
-
-@app.get("/api/execution-intents", response_model=list[ExecutionIntentRow])
-def list_execution_intents(
-    limit: int = Query(default=50, ge=1, le=200),
-    status: str | None = Query(
-        default=None,
-        description="Optional case-insensitive substring filter on intent status (e.g. PAPER).",
-    ),
-    category: str | None = Query(
-        default=None,
-        description="Optional prefix filter: CRYPTO or AI (case-insensitive).",
-    ),
-    sort_by: str = Query(
-        default="updated_desc",
-        description="Sort: updated_desc (default), created_desc, asset_asc.",
-    ),
-) -> list[dict[str, Any]]:
-    """Latest execution intent per ``signal_id`` (append-only JSONL collapsed for Terminal blotter)."""
-    sort_key = (sort_by or "updated_desc").strip().lower()
-    if sort_key not in {"updated_desc", "created_desc", "asset_asc"}:
-        raise HTTPException(
-            status_code=400,
-            detail="sort_by must be one of: updated_desc, created_desc, asset_asc",
-        )
-    rows = latest_execution_intents(
-        limit=limit,
-        dedupe=True,
-        status=status,
-        category=category,
-        sort_by=sort_key,
-    )
-    gate = _latest_gate_failure_summary()
-    hinted = _enrich_intents_with_gate_hints(rows, gate)
-    return [enrich_signal_quality(row) for row in hinted]
-
-
-@app.get("/api/execution-intents/allowed-statuses")
-def execution_intent_allowed_statuses() -> dict[str, Any]:
-    return {
-        "statuses": sorted(ALLOWED_INTENT_STATUSES),
-        "client_patchable": sorted(CLIENT_PATCHABLE_STATUSES),
-    }
-
-
-@app.post("/api/execution-intents", response_model=ExecutionIntentRow)
-def create_execution_intent(body: ExecutionIntentCreateBody) -> dict[str, Any]:
-    """Create one manual paper-review intent. Append-only; no broker/order side effects."""
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    signal_id = f"manual-{body.asset.lower()}-{body.direction.lower()}-{uuid.uuid4().hex[:8]}"
-    row = {
-        "signal_id": signal_id,
-        "created_at": now,
-        "category": body.category,
-        "regime": body.regime.strip(),
-        "asset": body.asset,
-        "direction": body.direction,
-        "star_rating": body.star_rating,
-        "thesis_one_liner": body.thesis_one_liner.strip(),
-        "status": "PENDING_REVIEW",
-        "status_updated_at": now,
-        "status_note": "",
-        "reference_entry_price": body.reference_entry_price,
-        "reference_target_price": body.reference_target_price,
-        "reference_stop_price": body.reference_stop_price,
-        "paper_fill_price": None,
-        "paper_exit_price": None,
-    }
-    if not append_execution_intent_row(row):
-        raise HTTPException(status_code=500, detail="Could not append execution intent")
-    return row
-
-
-@app.patch("/api/execution-intents/{signal_id}", response_model=ExecutionIntentRow)
-def patch_execution_intent_status(
-    signal_id: str,
-    body: ExecutionIntentStatusBody,
-) -> dict[str, Any]:
-    """Append-only status transition (review / paper handoff). Does **not** send orders."""
-    out = update_execution_intent_status(
-        signal_id,
-        body.status,
-        note=body.note,
-        reference_entry_price=body.reference_entry_price,
-        reference_target_price=body.reference_target_price,
-        reference_stop_price=body.reference_stop_price,
-    )
-    if out is None:
-        raise HTTPException(
-            status_code=404,
-            detail="signal_id not found, invalid status, or malformed prior row",
-        )
-    updated, prev_for_audit = out
-    if prev_for_audit is not None:
-        note_s = (body.note or "").strip()
-        reason = note_s[:240] if note_s else f"patch:{prev_for_audit}->{updated.get('status')}"
-        bigquery_writer.write_paper_execution_audit_row(
-            signal_id=str(updated.get("signal_id") or signal_id),
-            new_status=str(updated.get("status") or ""),
-            reason=reason,
-            quote_as_of="",
-            asset=str(updated.get("asset") or ""),
-            direction=str(updated.get("direction") or ""),
-            source="http_patch",
-            prev_status=prev_for_audit,
-        )
-    return updated
-
-
 @app.get("/api/paper/lifecycle")
 def get_paper_lifecycle(
     limit: int = Query(default=200, ge=1, le=500),
@@ -1757,58 +1436,6 @@ def get_paper_transparency_letter(
         return build_transparency_letter(month=month, limit=limit)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.get("/api/symbols/{symbol}/quote", response_model=SymbolQuote)
-def get_symbol_quote(symbol: str) -> dict[str, Any]:
-    """Terminal-style last price strip; no BigQuery. Cached ~45s server-side."""
-    normalized_symbol = _validate_symbol(symbol)
-    raw = fetch_symbol_quote(normalized_symbol)
-    if raw.get("error") or raw.get("last") is None:
-        raise HTTPException(
-            status_code=503,
-            detail=str(raw.get("error") or "quote_unavailable"),
-        )
-    provenance = {
-        "price": {
-            "source": "yfinance",
-            "as_of": raw.get("as_of"),
-            "interval": "1d",
-            "underlying_symbol": raw.get("underlying_symbol"),
-        }
-    }
-    return {
-        "symbol": raw["symbol"],
-        "as_of": str(raw.get("as_of") or ""),
-        "source": "yfinance",
-        "underlying_symbol": str(raw.get("underlying_symbol") or ""),
-        "last": raw.get("last"),
-        "currency": raw.get("currency"),
-        "change_pct_1d": raw.get("change_pct_1d"),
-        "cached": bool(raw.get("cached")),
-        "data_provenance": provenance,
-    }
-
-
-@app.get("/api/symbols/{symbol}/snapshot", response_model=SymbolSnapshot)
-def get_symbol_snapshot(
-    symbol: str,
-    days: int = Query(default=30, ge=7, le=180),
-    recommendation_limit: int = Query(default=12, ge=1, le=40),
-) -> dict[str, Any]:
-    """Terminal-style symbol snapshot for PWA focus cards/workspace."""
-    normalized_symbol = _validate_symbol(symbol)
-    try:
-        client = _get_bq_client()
-        return build_symbol_snapshot(
-            client,
-            normalized_symbol,
-            days=days,
-            recommendation_limit=recommendation_limit,
-        )
-    except Exception as exc:
-        logger.error("BigQuery symbols/%s/snapshot failed: %s", normalized_symbol, exc)
-        raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
 
 
 @app.post("/api/push/subscribe")
@@ -1943,67 +1570,3 @@ async def post_paper_execution_tick(request: Request) -> dict[str, Any]:
     async with _paper_tick_lock:
         written = run_paper_execution_tick()
     return {"ok": True, "written": len(written), "rows": written}
-
-
-def _crew_run_auth_ok(request: Request) -> bool:
-    key = os.getenv("CREW_HTTP_API_KEY", "").strip()
-    if not key:
-        return True
-    sent = request.headers.get("X-Crew-Api-Key", "").strip()
-    return sent == key
-
-
-async def _run_crew_background(job_id: str) -> None:
-    """Background coroutine: run main pipeline and update state when done."""
-    import subprocess  # noqa: PLC0415 — lazy import for optional feature
-
-    _crew_run_state.update({"status": "running", "job_id": job_id, "error": None})
-    try:
-        # Run main.py as a subprocess so it inherits the full environment (API keys, BQ creds)
-        # and does not block the FastAPI event loop.
-        result = await asyncio.create_subprocess_exec(
-            "python", str(_REPO_ROOT / "main.py"),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=str(_REPO_ROOT),
-        )
-        _, _ = await result.communicate()
-        if result.returncode == 0:
-            _crew_run_state.update({"status": "done", "error": None})
-        else:
-            _crew_run_state.update({"status": "error", "error": f"exit code {result.returncode}"})
-    except Exception as exc:  # noqa: BLE001
-        logger.error("crew run %s failed: %s", job_id, exc)
-        _crew_run_state.update({"status": "error", "error": str(exc)})
-    finally:
-        _crew_run_state["finished_at"] = datetime.utcnow().isoformat()
-        _crew_run_lock.release()
-
-
-@app.post("/api/run-crew")
-async def post_run_crew(request: Request) -> dict[str, Any]:
-    """Trigger the daily research pipeline (Q29). Disabled unless ``CREW_HTTP_ENABLED=1``.
-
-    Returns 202 Accepted immediately; poll ``GET /api/run-crew/status`` for progress.
-    Concurrent calls return 409 while a run is in progress.
-    """
-    if os.getenv("CREW_HTTP_ENABLED", "0").lower() not in ("1", "true", "yes"):
-        raise HTTPException(status_code=404, detail="Crew HTTP trigger disabled; set CREW_HTTP_ENABLED=1")
-    if not _crew_run_auth_ok(request):
-        raise HTTPException(status_code=403, detail="Invalid or missing crew API key")
-    if _crew_run_lock.locked():
-        return {"ok": False, "status": "running", "job_id": _crew_run_state.get("job_id"), "message": "Crew run already in progress"}
-    await _crew_run_lock.acquire()
-    import uuid as _uuid
-    job_id = _uuid.uuid4().hex[:12]
-    _crew_run_state["started_at"] = datetime.utcnow().isoformat()
-    _crew_run_state["finished_at"] = None
-    # Fire-and-forget; _run_crew_background releases the lock when done.
-    asyncio.create_task(_run_crew_background(job_id))
-    return {"ok": True, "status": "started", "job_id": job_id}
-
-
-@app.get("/api/run-crew/status")
-async def get_run_crew_status() -> dict[str, Any]:
-    """Poll crew run state (Q29). Always available regardless of ``CREW_HTTP_ENABLED``."""
-    return dict(_crew_run_state)
