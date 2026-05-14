@@ -527,6 +527,26 @@ function validateReportDateParam(s) {
   return !Number.isNaN(d.getTime());
 }
 
+/** E2E：與 gate-status mock 對齊的最近三日（有別於 legacyReportBody 的 2026-04-14）。 */
+const E2E_REPORT_LIST_DATES = ["2026-05-09", "2026-05-08", "2026-05-07"];
+
+function mockReportListRows(limit) {
+  const lim = Math.min(Math.max(Number(limit) || 30, 1), 90);
+  const n = Math.min(E2E_REPORT_LIST_DATES.length, lim);
+  return E2E_REPORT_LIST_DATES.slice(0, n).map((report_date) => ({
+    report_date,
+    timestamp: `${report_date}T00:00:00Z`,
+    dxy: 100,
+    etf_flow_millions: 1,
+    avg_risk_score: 2.5,
+    mvrv_z_score: 1,
+    regime_score: 2,
+    sentiment_score: 0.1,
+    sopr: 1,
+    exchange_netflow: -1,
+  }));
+}
+
 function legacyReportBody(reportDate) {
   return {
     report_date: reportDate,
@@ -595,6 +615,10 @@ function structuredEnvelope(reportDate, profileResolved) {
       structured_validation: null,
       last_gate_artifact_dir: null,
       last_gate_issues_path: null,
+    },
+    blocks: [`industry_trends — e2e mock sector view (${reportDate})`],
+    metadata: {
+      industry_trends: `Semis / AI capex — mock industry_trends line for ${reportDate}.`,
     },
     legacy,
   };
@@ -902,6 +926,27 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (url.pathname === "/api/execution-intents/gate-index") {
+    sendJson(res, 200, {
+      schema_version: "qsi_gate_intent_index_v1",
+      readme: "e2e mock gate × intent index",
+      gate_artifact_present: true,
+      gate_issue_preview: ["SPY exposure check failed for SPY leg"],
+      gate_issue_count: 1,
+      intent_scanned: 1,
+      intent_rows_with_hints: 1,
+      matches: [
+        {
+          signal_id: "e2e-spy-1",
+          asset: "SPY",
+          status: "PENDING_REVIEW",
+          hint_count: 1,
+          gate_issue_hints: ["SPY exposure check failed for SPY leg"],
+        },
+      ],
+    });
+    return;
+  }
   if (url.pathname.startsWith("/api/execution-intents")) {
     sendJson(res, 200, [
       {
@@ -1040,6 +1085,51 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (url.pathname === "/api/reports/qsrec-stats" || url.pathname.startsWith("/api/reports/qsrec-stats")) {
+    const days = Number(url.searchParams.get("days") || "7") || 7;
+    sendJson(res, 200, {
+      days,
+      total_days: 5,
+      pass_count: 4,
+      degraded_count: 1,
+      fail_count: 0,
+      pass_rate_pct: 80.0,
+      avg_trade_count: 3.2,
+    });
+    return;
+  }
+  const gateStatusMatch = url.pathname.match(/^\/api\/reports\/(\d{4}-\d{2}-\d{2})\/gate-status$/);
+  if (gateStatusMatch) {
+    const d = gateStatusMatch[1];
+    const statusByDate = {
+      "2026-05-09": { gate_status: "pass", degraded: false, revision_count: 0, final_trade_count: 4 },
+      "2026-05-08": { gate_status: "fail", degraded: false, revision_count: 2, final_trade_count: 3 },
+      "2026-05-07": { gate_status: "degraded", degraded: true, revision_count: 0, final_trade_count: 2 },
+    };
+    const row = statusByDate[d];
+    if (row) {
+      sendJson(res, 200, { run_id: `e2e-${d}`, ...row });
+      return;
+    }
+    sendJson(res, 200, { gate_status: "未審" });
+    return;
+  }
+  const analysisMatch = url.pathname.match(/^\/api\/analysis\/([^/]+)$/);
+  if (analysisMatch) {
+    const sym = analysisMatch[1].toUpperCase();
+    const last = sym === "BTC" ? BTC_LAST : sym === "NVDA" ? 100.5 : 100;
+    const snap =
+      sym === "NVDA"
+        ? { symbol: sym, source: "e2e_mock", as_of: "2026-04-14T00:00:00+00:00" }
+        : null;
+    sendJson(res, 200, {
+      symbol: sym,
+      quote: { symbol: sym, last, source: "e2e_mock" },
+      snapshot: snap,
+      snapshot_error: null,
+    });
+    return;
+  }
   const structuredMatch = url.pathname.match(/^\/api\/reports\/(\d{4}-\d{2}-\d{2})\/structured$/);
   if (structuredMatch) {
     const reportDate = structuredMatch[1];
@@ -1059,7 +1149,8 @@ const server = http.createServer((req, res) => {
   }
   const reportsListMatch = url.pathname.match(/^\/api\/reports\/?$/);
   if (reportsListMatch) {
-    sendJson(res, 200, []);
+    const lim = Number(url.searchParams.get("limit") || "30") || 30;
+    sendJson(res, 200, mockReportListRows(lim));
     return;
   }
   const reportDayMatch = url.pathname.match(/^\/api\/reports\/(\d{4}-\d{2}-\d{2})$/);
@@ -1175,17 +1266,6 @@ const server = http.createServer((req, res) => {
       intent_sample_regime: 3,
       intent_count: 2,
       source: "static+execution_intents.jsonl",
-    });
-    return;
-  }
-  const analysisMatch = url.pathname.match(/^\/api\/analysis\/([^/]+)$/);
-  if (analysisMatch) {
-    const sym = String(analysisMatch[1] || "").toUpperCase();
-    sendJson(res, 200, {
-      symbol: sym,
-      quote: { symbol: sym, last: 100.5 },
-      snapshot: { symbol: sym, source: "e2e_mock", as_of: "2026-04-14T00:00:00+00:00" },
-      snapshot_error: null,
     });
     return;
   }

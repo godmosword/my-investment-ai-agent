@@ -1614,6 +1614,61 @@ _INDUSTRY_THEMES_STATIC: list[dict[str, Any]] = [
 ]
 
 
+@app.get("/api/execution-intents/gate-index")
+def get_gate_intent_readonly_index(
+    limit: int = Query(default=200, ge=1, le=200),
+) -> dict[str, Any]:
+    """T5b read-only index: last gate-failure issue lines × latest intents (hint matches only).
+
+    Does not read broker state; does not infer prices. For internal hygiene dashboards.
+    """
+    gate = _latest_gate_failure_summary()
+    rows = latest_execution_intents(
+        limit=limit,
+        dedupe=True,
+        sort_by="updated_desc",
+    )
+    hinted = _enrich_intents_with_gate_hints(rows, gate)
+    matches: list[dict[str, Any]] = []
+    for r in hinted:
+        hints = r.get("gate_issue_hints")
+        if isinstance(hints, list) and hints:
+            matches.append(
+                {
+                    "signal_id": r.get("signal_id"),
+                    "asset": r.get("asset"),
+                    "status": r.get("status"),
+                    "hint_count": len(hints),
+                    "gate_issue_hints": hints,
+                }
+            )
+    preview: list[str] = []
+    issue_total: int | None = None
+    if isinstance(gate, dict):
+        raw_issues = gate.get("issues")
+        if isinstance(raw_issues, list):
+            preview = [str(x).strip() for x in raw_issues if str(x).strip()][:12]
+        ic = gate.get("issue_count")
+        if ic is not None:
+            try:
+                issue_total = int(ic)
+            except (TypeError, ValueError):
+                issue_total = None
+    return {
+        "schema_version": "qsi_gate_intent_index_v1",
+        "readme": (
+            "Read-only hygiene crosswalk (gate issues × intent assets). "
+            "Not OMS; does not assert fills or prices."
+        ),
+        "gate_artifact_present": bool(gate),
+        "gate_issue_preview": preview,
+        "gate_issue_count": issue_total if issue_total is not None else len(preview),
+        "intent_scanned": len(hinted),
+        "intent_rows_with_hints": len(matches),
+        "matches": matches[:80],
+    }
+
+
 @app.get("/api/execution-intents", response_model=list[ExecutionIntentRow])
 def list_execution_intents(
     limit: int = Query(default=50, ge=1, le=200),

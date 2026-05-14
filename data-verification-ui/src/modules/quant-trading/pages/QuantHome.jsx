@@ -200,7 +200,7 @@ export default function QuantHome() {
         )}
       </div>
 
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card" style={{ marginBottom: 12 }} data-testid="quant-qsrec-gate-panel">
         <div className="card-title">QSREC 近 3 日審核結果</div>
         {gateEntries.length === 0 && (
           <div className="page-subtitle" style={{ opacity: 0.75 }}>

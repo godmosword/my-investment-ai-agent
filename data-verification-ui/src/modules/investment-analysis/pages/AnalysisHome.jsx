@@ -284,7 +284,7 @@ export default function AnalysisHome() {
           </div>
         )}
         {!qLoading && !qError && !!qsrec?.total_days && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div data-testid="analysis-qsrec-kpis" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <QsrecKpi
               label="通過率"
               value={`${qsrec.pass_rate_pct}%`}
