@@ -1,0 +1,9 @@
+# 僅供 paper-execution-tick GitHub Action 使用（M5 紙上撮合）。
+# 包含 pydantic（execution_intents）、yfinance（symbol_snapshot_service）、BigQuery（audit log）。
+# 不包含 CrewAI / LiteLLM 以縮短安裝時間。
+pydantic>=2.7.0
+yfinance>=0.2.50
+pandas>=2.2.0
+numpy>=1.26.0
+requests>=2.32.0
+google-cloud-bigquery>=3.14.0

@@ -1,0 +1,58 @@
+name: Paper Execution Tick (M5)
+
+# 自動執行紙上撮合模擬：掃描 APPROVED_FOR_PAPER 意圖、比對報價、寫入 PAPER_FILLED / PAPER_CLOSED。
+# 不下單；僅 append-only JSONL + 可選 BQ 稽核。
+#
+# 預設啟用排程（每 15 分鐘）。若需暫停，在 GitHub → Actions 停用本 workflow 即可。
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # 每 15 分鐘
+  workflow_dispatch:          # 支援手動觸發
+
+concurrency:
+  group: paper-execution-tick
+  cancel-in-progress: false   # 不取消進行中的 tick，等它跑完再起下一輪
+
+jobs:
+  tick:
+    runs-on: ubuntu-22.04
+
+    env:
+      GCP_PROJECT_ID:                      ${{ secrets.GCP_PROJECT_ID }}
+      GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GCP_SA_KEY }}
+      # 可選：設定後每次 tick 寫 BQ 稽核列（docs/SQL/paper_execution_audit.sql）
+      PAPER_EXECUTION_AUDIT_TABLE:         ${{ secrets.PAPER_EXECUTION_AUDIT_TABLE }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-paper-tick.txt
+
+      - name: Install paper tick dependencies
+        run: pip install --no-cache-dir -r requirements-paper-tick.txt
+
+      - name: Write GCP credentials file
+        if: ${{ env.GOOGLE_APPLICATION_CREDENTIALS_JSON != '' }}
+        run: |
+          echo "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > /tmp/gcp_sa_key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp_sa_key.json" >> "$GITHUB_ENV"
+
+      - name: Run paper execution tick
+        run: |
+          python - <<'EOF'
+          import logging, json, sys
+          logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+          from paper_execution import run_paper_execution_tick
+          written = run_paper_execution_tick()
+          print(f"METRIC paper_tick_written={len(written)}")
+          for row in written:
+              print(json.dumps({"signal_id": row.get("signal_id"), "status": row.get("status"), "asset": row.get("asset")}))
+          sys.exit(0)
+          EOF

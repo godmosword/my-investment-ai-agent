@@ -265,3 +265,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # TERMINAL_SSE_POLL_SEC=2      # SSE 迴圈 sleep 秒數（0.5–30）
 # PAPER_TICK_HTTP_ENABLED=0    # 1=啟用 POST /api/paper/execution-tick（紙上模擬一輪；見 M5）
 # PAPER_TICK_API_KEY=          # 非空時上述 POST 須 Header X-Paper-Tick-Key
+# --- GitHub Actions 自動排程（.github/workflows/paper-execution-tick.yml） ---
+# Secrets 設定於 GitHub → Settings → Secrets and variables → Actions：
+#   GCP_SA_KEY                  已有（與主流程共用）
+#   PAPER_EXECUTION_AUDIT_TABLE 可選：project.dataset.paper_execution_audit（BQ 稽核；DDL 見 docs/SQL/paper_execution_audit.sql）
