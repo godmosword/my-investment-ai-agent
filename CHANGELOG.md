@@ -27,6 +27,10 @@
 - **產業頁 × 日報模組化（Queue 31 切片）**：[`IndustriesHome.jsx`](data-verification-ui/src/modules/industry-trends/pages/IndustriesHome.jsx) 顯示 `GET /api/brief-layouts` 庫存提示；mock／[`queue36-modules.spec.js`](data-verification-ui/e2e/queue36-modules.spec.js) 斷言；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4d。
 - **`GET /api/brief-layouts` runtime_hints（Queue 31 儀表切片）**：[`api.py`](api.py) 回傳唯讀 **`runtime_hints`**（`BRIEF_LAYOUT_FILE`／`BRIEF_DYNAMIC_RENDER`／`REPORT_PROFILE`）；[`IndustriesHome.jsx`](data-verification-ui/src/modules/industry-trends/pages/IndustriesHome.jsx) 顯示「後端啟用態」；[`test_brief_layouts_api.py`](test_brief_layouts_api.py)、[`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs)、[`queue36-modules.spec.js`](data-verification-ui/e2e/queue36-modules.spec.js)；[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md)。
 
+### Docs（`docs/architecture/` Phase 0 判讀治理）
+- 於 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0** 下新增 **Phase 0** 小節：權威順序、研究稿≠產品承諾、`AI_CONTEXT` 與事實敘述分工。
+- [`TODOS.md`](TODOS.md) 檔首、`AI_CONTEXT.md`、`CLAUDE.md` 交叉引用同一規則。
+
 ### Phase 2 TODO（Queues 28a, 30–35）
 - **Paper lifecycle + P&L**：新增 [`paper_lifecycle.py`](paper_lifecycle.py) 與 API `GET /api/paper/lifecycle`、`GET /api/paper/pnl`，從 append-only [`execution_intents.py`](execution_intents.py) 聚合 status counts、realized/unrealized paper return、risk metrics、R multiple、quote failure rows；新增 `POST /api/execution-intents` 手動建立 `PENDING_REVIEW` intent（不下單）。
 - **Quality-adjusted scoring（Queue 28b）**：新增 [`signal_quality.py`](signal_quality.py) deterministic read model，依 review-time 資訊（star rating、thesis、entry/target/stop、R multiple、regime、gate hints、status）輸出 `quality_score`／`quality_grade`／`quality_reasons`；`GET /api/execution-intents`、`GET /api/paper/lifecycle`、`GET /api/paper/pnl` 皆回傳 quality 欄位，且不使用事後 P&L 避免 hindsight leakage。

@@ -2,6 +2,8 @@
 
 > 本檔案為與 AI 助手（Claude / Cursor / Gemini 等）協作時的 context load。
 > 每次新 session 起始時，請將本檔內容貼入或 reference。
+>
+> **`docs/architecture/` 判讀（Phase 0）**：「研究 vs 已交付」與矩陣 ✅／🟡 收斂規則見 [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) **§0** 與其下 **Phase 0** 小節；本檔不重複維護版本年表。
 
 ---
 

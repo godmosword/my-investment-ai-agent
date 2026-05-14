@@ -28,7 +28,13 @@
 | [`notebooklm_research.md`](notebooklm_research.md) | 🟡 Repo-side 主流程 scaffold 已接，live client 仍未接 | 新增 `DeepFilingAnalysis`／`Citation`、`deep_filing_analysis_node`、`deep_filing_block`、多題 helper、可選 BQ cost log；`notebooklm_query()` 仍是預設關閉／未接 live client stub。 |
 | [`agency_agents_research.md`](agency_agents_research.md) | 🟡 Repo-side 主流程 scaffold 已接 | 新增 template parser、`AgencyResearchOutput`／`AgencyDeliverable`、`agency_researcher_node`、Crew backstory opt-in 注入、`agency_finance_block`；完整多 Agent 模板庫仍屬長線。 |
 | [`tradingview_mcp_research.md`](tradingview_mcp_research.md) | 🟡 Repo-side bridge 已接，外部 MCP 未安裝 | 新增 `tools/tradingview.py`、mock fixture、Crew／LangGraph tool tail、sample setup；不修改 `~/.claude`、不安裝外部 MCP server。 |
-| [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) | ✅ 狀態索引 | 本檔負責對齊上述狀態，避免研究稿被誤讀為已全部完成。 |
+| [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) | ✅ 狀態索引 + Phase 0 | 本檔 §0 矩陣對齊各檔 ✅／🟡；§0 下 **Phase 0** 為架構目錄判讀治理（權威順序、研究≠承諾）。 |
+
+### Phase 0 — `architecture/` 判讀與治理（已定案）
+
+1. **權威順序（事實）**：已交付行為 → 根目錄 [`CHANGELOG.md`](../../CHANGELOG.md) → [`TODOS.md`](../../TODOS.md)（已交付摘要／隊列）→ 程式碼。**本節上方矩陣**為 `docs/architecture/` **單一索引**：✅＝已閉環或維護導覽；🟡＝仍有 backlog、staging 細項、或 **研究／optional scaffold**。
+2. **研究稿 ≠ 產品承諾**：`notebooklm_research`／`agency_agents_research`／`tradingview_mcp_research` 等標 🟡 之檔案，**不**視為預設上線範圍。若要列入產品里程碑，須另有 **ENV／紅線（含資料源治理 [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](../REALTIME_DATA_SOURCES_GOVERNANCE.md)）／驗收** 一句話，並落入 [`TODOS.md`](../../TODOS.md) 隊列（避免「讀架構＝全部要做」）。
+3. **[`AI_CONTEXT.md`](AI_CONTEXT.md)**：承載協作紅線、工程原則與願景；**「現況／版本」細節**以 `CHANGELOG.md` 與程式為準，本檔與 `AI_CONTEXT` **不**承擔逐 commit 對帳。
 
 ---
 
