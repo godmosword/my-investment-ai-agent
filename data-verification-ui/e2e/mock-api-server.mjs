@@ -1085,7 +1085,17 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === "/api/brief-layouts") {
-    sendJson(res, 200, { layouts: [] });
+    sendJson(res, 200, {
+      layouts: [
+        {
+          filename: "example_lite_reorder.yaml",
+          path: "config/brief_layouts/example_lite_reorder.yaml",
+          applies_to_profile: "lite",
+          blocks: ["header", "macro", "crypto", "us_equities"],
+          parse_error: null,
+        },
+      ],
+    });
     return;
   }
   if (url.pathname === "/api/reports/profile-stats" || url.pathname.startsWith("/api/reports/profile-stats")) {

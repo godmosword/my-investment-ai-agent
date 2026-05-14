@@ -137,3 +137,4 @@ def test_paper_tick_calls_bigquery_audit_when_table_set(monkeypatch, tmp_path: P
     assert calls[0]["asset"] == "ETH"
     assert calls[0]["direction"] == "LONG"
     assert calls[0]["quote_as_of"] == "2026-04-02T12:00:00Z"
+    assert calls[0]["source"] == "paper_tick"

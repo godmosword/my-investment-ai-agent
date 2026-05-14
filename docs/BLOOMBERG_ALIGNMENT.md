@@ -75,6 +75,14 @@
 | `price_alignment` | 後端比對 OHLC 最後一筆 `close` 與 quote `last` | `aligned: true` 表示兩者一致；`false` 時 UI **必須**顯示警告（見 PWA `TerminalSymbolCard`／`TodayBtcSnapshotStrip`） |
 | 任一來源失敗 | — | quote 503 或 snapshot BQ 異常時顯示錯誤態＋重試；**不以 LLM 補數字** |
 
+### 4d) Insights／儀表板與 `symbol` query（T5a 補遺）
+
+| 能力 | 路由／參數 | 備註 |
+|------|------------|------|
+| 結構化日報（區塊導覽） | `GET /api/reports/{date}/structured?profile=…` | `profile` 與 `REPORT_PROFILE`／validate_report 對齊；PWA Archive／Report 深連結 |
+| 產業趨勢頁 | `/industries` + `useIndustryThemes` + `useStructuredReports` | 靜態 M5 卡與近 N 日 `industry_trends` 區塊；另可讀 **`GET /api/brief-layouts`** 對照 YAML 庫存（不推斷 `BRIEF_DYNAMIC_RENDER` 執行態） |
+| 數據儀表板 macro | `GET /api/macro/snapshot` | 指標 grid + `as_of`；離線提示見 `docs/PWA_OFFLINE.md` |
+
 Streamlit 與 PWA 應消費**同一 JSON**（`build_symbol_snapshot` 或 `SYMBOL_SNAPSHOT_HTTP_BASE` + HTTP），見 [`docs/DASHBOARD_CONTRACT.md`](DASHBOARD_CONTRACT.md) 與 [`dashboard.py`](../dashboard.py) `_dashboard_symbol_snapshot_payload`。
 
 ---

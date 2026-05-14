@@ -966,12 +966,17 @@ def write_paper_execution_audit_row(
     quote_as_of: str,
     asset: str = "",
     direction: str = "",
+    source: str = "paper_tick",
+    prev_status: str = "",
 ) -> None:
     """Optional BigQuery audit row after a successful paper intent append (28a).
 
     Set ``PAPER_EXECUTION_AUDIT_TABLE`` to ``project.dataset.table`` and run
     ``docs/SQL/paper_execution_audit.sql``. Respects ``SKIP_BIGQUERY``; no-op if
     table env is empty or credentials are missing.
+
+    ``source`` distinguishes automated paper ticks (``paper_tick``) from
+    Portal ``PATCH /api/execution-intents`` transitions (``http_patch``).
     """
     if SKIP_BIGQUERY:
         return
@@ -988,6 +993,8 @@ def write_paper_execution_audit_row(
             bigquery.SchemaField("quote_as_of", "STRING"),
             bigquery.SchemaField("asset", "STRING"),
             bigquery.SchemaField("direction", "STRING"),
+            bigquery.SchemaField("source", "STRING"),
+            bigquery.SchemaField("prev_status", "STRING"),
             bigquery.SchemaField("created_at", "TIMESTAMP"),
         ]
         table_ref = bigquery.Table(tid, schema=schema)
@@ -1011,6 +1018,8 @@ def write_paper_execution_audit_row(
             "quote_as_of": (quote_as_of or "")[:64],
             "asset": (asset or "")[:32],
             "direction": (direction or "")[:16],
+            "source": (source or "paper_tick")[:32],
+            "prev_status": (prev_status or "")[:32],
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         errors = client.insert_rows_json(tid, [row])
