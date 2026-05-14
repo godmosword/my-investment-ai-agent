@@ -3,6 +3,17 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-14
+
+### Portal / API（Queues 28d MVP, 29, 34 partial, 9 starter）
+- **28d Scenario + target hints（read-only）**：新增 [`scenario_optimizer.py`](scenario_optimizer.py) 與 [`api_routers/scenario.py`](api_routers/scenario.py) 掛載 `GET /api/scenario/suggestions`（預設 **404**；`SCENARIO_OPTIMIZER_ENABLED=1` 啟用）；輸出僅來自 `execution_intents` + `portfolio_holdings` 成本口徑權重／HHI／closed summary／active overlap，含三組 `scenarios` 與 `target_hints`（intent 內 `reference_*` 錨點距離 %）；**不下單**、不含即時報價抓取。PWA [`ScenarioPlannerHome.jsx`](data-verification-ui/src/modules/insights/pages/ScenarioPlannerHome.jsx)、[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 支援 `/insights?tab=scenario`；[`useApi.js`](data-verification-ui/src/hooks/useApi.js) 以 404 降級為「功能關閉」態。
+- **Workspace（Queue 34）**：[`WorkspacePanel.jsx`](data-verification-ui/src/components/WorkspacePanel.jsx) 預覽條改為 **flex 高度比** + **垂直 divider pointer drag**；`qs_workspace_size_weights_v1` 內存 `{ sm, md }` 每面板高度百分比並隨 breakpoint 切換；匯出／匯入 workspace JSON 納入該鍵。
+- **Command Bar（Queue 29）**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 新增 **`Ctrl/Cmd+K`** 聚焦（略過輸入中目標）、board alias **`MACRO`／`MRKT` → `/dashboard`**。
+- **Ops / Reviewer rollout 自檢**：新增 [`scripts/verify_reviewer_rollout_env.py`](scripts/verify_reviewer_rollout_env.py)；[`docs/REVIEWER_PRODUCTION_ROLLOUT.md`](docs/REVIEWER_PRODUCTION_ROLLOUT.md)、[`docs/OPS_QUEUE_18_21_RUNBOOK.md`](docs/OPS_QUEUE_18_21_RUNBOOK.md) 補交叉引用。
+- **API contract smoke（隊列 9 起點）**：新增 [`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py)（`/healthz`、`/api/metrics/latest` 容忍 skip、`/api/scenario/suggestions` 啟用時 shape）。
+- **Tests / E2E / mock**：[`tests/api/test_scenario_optimizer_api.py`](tests/api/test_scenario_optimizer_api.py)；[`data-verification-ui/e2e/insights-scenario.spec.js`](data-verification-ui/e2e/insights-scenario.spec.js)；[`data-verification-ui/e2e/mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 補 `/api/scenario/suggestions` fixture。
+- **Docs / env**：[`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 補 scenario 端點列；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 `SCENARIO_OPTIMIZER_ENABLED`。
+
 ## 2026-05-13
 
 ### Phase 2 TODO（Queues 28a, 30–35）

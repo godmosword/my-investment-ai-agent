@@ -10,6 +10,7 @@ the reviewer path in production scheduling.
 - `REVIEWER_LOG_BQ` points at the table created from `docs/SQL/reviewer_log.sql`.
 - Optional LLM reviewer is explicit: `GRAPH_LLM_TRADE_REVIEWER=1` for LLM review,
   unset/`0` for deterministic reviewer only.
+- Repo-side env ping (optional): `python3 scripts/verify_reviewer_rollout_env.py` (BQ table existence when creds present).
 - Telegram HTML and `validate_report` gates remain enabled; reviewer never
   replaces those gates.
 
