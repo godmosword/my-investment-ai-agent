@@ -279,10 +279,13 @@ def update_execution_intent_status(
     reference_entry_price: float | None = None,
     reference_target_price: float | None = None,
     reference_stop_price: float | None = None,
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any], str | None] | None:
     """Append a status transition row for an existing intent. Does not place orders.
 
-    Returns the new row dict, or ``None`` if *signal_id* was not found or *new_status* is invalid.
+    Returns ``(row, prev_status)`` when a new append-row was written; ``prev_status`` is the
+    prior status string for optional BQ audit. Returns ``(row, None)`` when the latest row
+    already had the requested status (no append). Returns ``None`` if *signal_id* was not
+    found or *new_status* is invalid.
     """
     sid = signal_id.strip()
     status_u = new_status.strip().upper()
@@ -312,7 +315,7 @@ def update_execution_intent_status(
 
     prev_status = str(prev.get("status", "")).strip().upper()
     if prev_status == status_u:
-        return prev
+        return prev, None
 
     def _fprev(key: str, override: float | None) -> float | None:
         if override is not None:
@@ -374,7 +377,7 @@ def update_execution_intent_status(
     except OSError as exc:
         logger.warning("execution intent status append failed: %s", exc)
         return None
-    return merged
+    return merged, prev_status
 
 
 def append_execution_intent_row(row: dict[str, Any]) -> bool:

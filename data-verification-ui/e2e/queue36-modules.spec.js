@@ -23,6 +23,8 @@ test.describe("Queue 36 — module smoke (Analysis / Quant / Industries / Archiv
   test("IndustriesHome renders industry_trends blocks from structured mock", async ({ page }) => {
     await page.goto("/industries");
     await expect(page.getByText("產業趨勢")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("industries-brief-layouts-hint")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("industries-brief-layouts-hint")).toContainText("example_lite_reorder");
     await expect(page.getByText("2026-05-09").first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/mock sector view|industry_trends/i).first()).toBeVisible();
   });

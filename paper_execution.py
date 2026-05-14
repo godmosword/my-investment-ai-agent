@@ -170,6 +170,7 @@ def run_paper_execution_tick() -> list[dict[str, Any]]:
                 quote_as_of=as_of,
                 asset=asset,
                 direction=direction,
+                source="paper_tick",
             )
 
     return written

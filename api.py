@@ -26,6 +26,7 @@ from google.cloud import bigquery
 from pydantic import BaseModel, Field, field_validator
 
 from config import METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE, REVIEWER_LOG_TABLE
+import bigquery_writer
 from execution_intents import (
     ALLOWED_INTENT_STATUSES,
     CLIENT_PATCHABLE_STATUSES,
@@ -1675,7 +1676,7 @@ def patch_execution_intent_status(
     body: ExecutionIntentStatusBody,
 ) -> dict[str, Any]:
     """Append-only status transition (review / paper handoff). Does **not** send orders."""
-    updated = update_execution_intent_status(
+    out = update_execution_intent_status(
         signal_id,
         body.status,
         note=body.note,
@@ -1683,10 +1684,24 @@ def patch_execution_intent_status(
         reference_target_price=body.reference_target_price,
         reference_stop_price=body.reference_stop_price,
     )
-    if updated is None:
+    if out is None:
         raise HTTPException(
             status_code=404,
             detail="signal_id not found, invalid status, or malformed prior row",
+        )
+    updated, prev_for_audit = out
+    if prev_for_audit is not None:
+        note_s = (body.note or "").strip()
+        reason = note_s[:240] if note_s else f"patch:{prev_for_audit}->{updated.get('status')}"
+        bigquery_writer.write_paper_execution_audit_row(
+            signal_id=str(updated.get("signal_id") or signal_id),
+            new_status=str(updated.get("status") or ""),
+            reason=reason,
+            quote_as_of="",
+            asset=str(updated.get("asset") or ""),
+            direction=str(updated.get("direction") or ""),
+            source="http_patch",
+            prev_status=prev_for_audit,
         )
     return updated
 

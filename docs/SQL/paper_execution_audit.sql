@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS `YOUR_PROJECT.YOUR_DATASET.paper_execution_audit` (
   reason STRING,
   quote_as_of STRING,
   asset STRING,
-  direction STRING,
+  source STRING,
+  prev_status STRING,
   created_at TIMESTAMP NOT NULL
 );

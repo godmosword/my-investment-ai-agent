@@ -1,4 +1,4 @@
-import { useReports, useStructuredReports, useIndustryThemes } from "../../../hooks/useApi";
+import { useBriefLayouts, useReports, useStructuredReports, useIndustryThemes } from "../../../hooks/useApi";
 
 // Map regime score to a color class
 function regimeColor(regime) {
@@ -82,6 +82,7 @@ function DayBlock({ date, report, isLoading }) {
 export default function IndustriesHome() {
   const { data: themePayload, isLoading: thLoading, error: thError } = useIndustryThemes(80);
   const { data: reports } = useReports(3);
+  const { data: briefLayouts, isLoading: blLoading } = useBriefLayouts();
   const dates = reports?.map((r) => r.report_date) ?? [];
   const structuredResults = useStructuredReports(dates, "full");
 
@@ -99,6 +100,18 @@ export default function IndustriesHome() {
         <div className="page-title">產業趨勢</div>
         <div className="page-subtitle">近 3 日日報 industry_trends 區塊</div>
       </div>
+
+      {!blLoading && briefLayouts?.layouts?.length ? (
+        <div
+          className="card mb-3 text-[11px] leading-relaxed text-white/55"
+          data-testid="industries-brief-layouts-hint"
+        >
+          日報版面庫：<b className="text-white/80">{briefLayouts.layouts.length}</b> 支{" "}
+          <code className="text-cyan-200/90">config/brief_layouts/*.yaml</code>
+          （對照營運 <code className="text-cyan-200/90">BRIEF_LAYOUT_FILE</code>／
+          <code className="text-cyan-200/90">BRIEF_DYNAMIC_RENDER</code>；此頁不推斷管線 env）。
+        </div>
+      ) : null}
 
       {/* Sector Rotation visual panel */}
       {!thLoading && !thError && themes.length > 0 ? (

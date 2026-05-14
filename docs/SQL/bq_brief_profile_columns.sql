@@ -17,3 +17,16 @@ ADD COLUMN profile STRING;
 
 ALTER TABLE `my-project.market_data.gate_failure_log`
 ADD COLUMN profile STRING;
+
+-- ---------------------------------------------------------------------------
+-- 查詢剪枝（建議）：BigQuery 無傳統「複合 B-tree 索引」，常用 **`clustering_fields`**
+-- 搭配時間篩選（`WHERE DATE(timestamp) = … AND profile = …`）降低掃描量。
+-- 若表已存在大量資料，先評估成本再執行；語法見官方文件 *Creating and using clustered tables*。
+-- 若 ALTER 回報 clustering 已設定，可略過。
+-- ---------------------------------------------------------------------------
+
+ALTER TABLE `my-project.market_data.llm_run_log`
+SET OPTIONS (clustering_fields = 'profile,timestamp');
+
+ALTER TABLE `my-project.market_data.gate_failure_log`
+SET OPTIONS (clustering_fields = 'profile,timestamp');

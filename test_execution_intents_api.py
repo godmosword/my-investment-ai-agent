@@ -278,6 +278,44 @@ def test_patch_execution_intent_returns_blotter_shape(tmp_path, monkeypatch):
     assert "status_updated_at" in body
 
 
+def test_patch_execution_intent_writes_audit_when_table_configured(tmp_path, monkeypatch):
+    store = tmp_path / "intents.jsonl"
+    store.write_text(
+        json.dumps(
+            {
+                "signal_id": "audit-patch-1",
+                "created_at": "2026-04-10T00:00:00Z",
+                "category": "CRYPTO",
+                "asset": "BTC",
+                "direction": "LONG",
+                "star_rating": 1,
+                "status": "PENDING_REVIEW",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("execution_intents._store_path", lambda: store)
+    calls = []
+
+    def capture(**kw):
+        calls.append(kw)
+
+    monkeypatch.setenv("PAPER_EXECUTION_AUDIT_TABLE", "proj.ds.paper_execution_audit")
+    monkeypatch.setattr("api.bigquery_writer.write_paper_execution_audit_row", capture)
+    client = TestClient(app)
+    r = client.patch(
+        "/api/execution-intents/audit-patch-1",
+        json={"status": "APPROVED_FOR_PAPER", "note": "go paper"},
+    )
+    assert r.status_code == 200
+    assert len(calls) == 1
+    assert calls[0]["source"] == "http_patch"
+    assert calls[0]["prev_status"] == "PENDING_REVIEW"
+    assert calls[0]["new_status"] == "APPROVED_FOR_PAPER"
+    assert calls[0]["signal_id"] == "audit-patch-1"
+
+
 def test_execution_intents_gate_issue_hints(tmp_path, monkeypatch):
     store = tmp_path / "intents.jsonl"
     store.write_text(

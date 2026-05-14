@@ -22,8 +22,9 @@
 - **合約 smoke 擴充（隊列 9）**：[`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py) 覆蓋 macro（容忍 503）、paper lifecycle、track-record summary、execution-intents 列表、gate-index、price digest。
 - **Reviewer rollout 腳本（隊列 35）**：[`scripts/verify_reviewer_rollout_env.py`](scripts/verify_reviewer_rollout_env.py) 新增 `--probe-api-base`（可選驗證 staging `GET /api/reports/qsrec-stats` JSON shape）。
 - **營運 env 註記**：[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 `BRIEF_DYNAMIC_RENDER` staging 風險一句話。
-
-## 2026-05-13
+- **Paper execution audit（28a 續）**：`PATCH /api/execution-intents` 成功 append 後，若設 **`PAPER_EXECUTION_AUDIT_TABLE`** 則呼叫 [`bigquery_writer.write_paper_execution_audit_row`](bigquery_writer.py)（`source=http_patch`、`prev_status`）；[`execution_intents.update_execution_intent_status`](execution_intents.py) 改回傳 `(row, prev_status|None)`；稽核表 schema 增 **`source`／`prev_status`**；[`docs/SQL/paper_execution_audit.sql`](docs/SQL/paper_execution_audit.sql)；[`test_execution_intents_api.py`](test_execution_intents_api.py)；[`paper_execution.py`](paper_execution.py) 顯式標記 `source=paper_tick`。
+- **BQ `profile` 查詢剪枝建議（Queue 10）**：[`docs/SQL/bq_brief_profile_columns.sql`](docs/SQL/bq_brief_profile_columns.sql) 增 **`clustering_fields`** 建議（`llm_run_log`／`gate_failure_log`）。
+- **產業頁 × 日報模組化（Queue 31 切片）**：[`IndustriesHome.jsx`](data-verification-ui/src/modules/industry-trends/pages/IndustriesHome.jsx) 顯示 `GET /api/brief-layouts` 庫存提示；mock／[`queue36-modules.spec.js`](data-verification-ui/e2e/queue36-modules.spec.js) 斷言；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4d。
 
 ### Phase 2 TODO（Queues 28a, 30–35）
 - **Paper lifecycle + P&L**：新增 [`paper_lifecycle.py`](paper_lifecycle.py) 與 API `GET /api/paper/lifecycle`、`GET /api/paper/pnl`，從 append-only [`execution_intents.py`](execution_intents.py) 聚合 status counts、realized/unrealized paper return、risk metrics、R multiple、quote failure rows；新增 `POST /api/execution-intents` 手動建立 `PENDING_REVIEW` intent（不下單）。
