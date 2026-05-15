@@ -271,6 +271,7 @@ export default function TerminalCommandBar({ trailing = null }) {
           if (e.key === "Enter") onGo();
         }}
         placeholder={cmdPlaceholder}
+        aria-label="Terminal command input"
         className="min-h-[44px] min-w-[160px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
         autoComplete="off"
         spellCheck={false}

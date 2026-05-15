@@ -6,14 +6,16 @@ test.describe("Queue 43 cross-board polish", () => {
     await page.goto("/dashboard", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
+    const commandInput = bar.getByRole("textbox", { name: /terminal command input/i });
+    const goButton = bar.getByRole("button", { name: "GO" });
 
-    await page.getByPlaceholder(/columns/i).fill("columns go");
-    await page.getByRole("button", { name: "GO" }).click();
+    await commandInput.fill("columns go");
+    await goButton.click();
     await expect(page).toHaveURL(/\/columns$/);
     await expect(page.getByTestId("columns-home")).toBeVisible();
 
-    await page.getByPlaceholder(/columns/i).fill("NVDA");
-    await page.getByRole("button", { name: "GO" }).click();
+    await commandInput.fill("NVDA");
+    await goButton.click();
     await expect(page).toHaveURL(/\/insights\?symbol=NVDA$/);
     await expect(bar.locator(".font-mono", { hasText: "NVDA" }).first()).toBeVisible();
   });
