@@ -11,12 +11,29 @@ import re
 import time
 from datetime import datetime, timezone
 
-import telebot
+try:
+    import telebot
+except ImportError:
+    telebot = None
 
 logger = logging.getLogger(__name__)
 
 # Telegram HTML 支援的標籤白名單（與專案規範一致，不含 <pre>）
 _ALLOWED_TAGS = {"b", "i", "u", "s", "code", "blockquote", "a"}
+
+
+def _get_telebot():
+    """Import pyTelegramBotAPI only when a Telegram send path is used."""
+    global telebot
+    if telebot is None:
+        try:
+            import telebot as telebot_mod
+        except ImportError as exc:
+            raise RuntimeError(
+                "pyTelegramBotAPI is required for Telegram sending; install pyTelegramBotAPI."
+            ) from exc
+        telebot = telebot_mod
+    return telebot
 
 
 def sanitize_telegram_html(text: str) -> str:
@@ -144,10 +161,11 @@ def _safe_chunks(text: str, max_len: int = 4000) -> list[str]:
 
 def _send_telegram_report(text: str, token: str, chat_id: str, image_path: str = "daily_chart.png") -> None:
     """發送戰報至 Telegram：若有圖表則先發圖，再分段發送文字；含重試與 fallback。"""
+    telebot_mod = _get_telebot()
     from telebot import apihelper
 
     apihelper.SESSION_TIME_TO_LIVE = 5 * 60
-    bot = telebot.TeleBot(token)
+    bot = telebot_mod.TeleBot(token)
 
     if os.path.exists(image_path):
         for attempt in range(3):
@@ -278,7 +296,8 @@ def _send_telegram_gate_alert(
     if not token or not chat_id:
         return
 
-    bot = telebot.TeleBot(token)
+    telebot_mod = _get_telebot()
+    bot = telebot_mod.TeleBot(token)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     issue_line = top_issues.strip() if (top_issues or "").strip() else "N/A"
     err_line = (error_text or "").strip()

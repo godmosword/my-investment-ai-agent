@@ -1,9 +1,40 @@
 """Unit tests for paper_execution tick (M5)."""
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from paper_execution import run_paper_execution_tick
+
+
+def test_paper_execution_import_does_not_require_telebot():
+    script = """
+import builtins
+import sys
+
+original_import = builtins.__import__
+
+def blocked_import(name, *args, **kwargs):
+    if name == "telebot" or name.startswith("telebot."):
+        raise ModuleNotFoundError("No module named 'telebot'")
+    return original_import(name, *args, **kwargs)
+
+for module_name in list(sys.modules):
+    if module_name in {"paper_execution", "bigquery_writer", "telegram_sender"} or module_name.startswith("telebot"):
+        sys.modules.pop(module_name, None)
+
+builtins.__import__ = blocked_import
+import paper_execution
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).parent,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_paper_tick_long_filled(monkeypatch, tmp_path: Path):
