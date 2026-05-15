@@ -3,7 +3,10 @@ name: Push Alert Digest Tick (M4)
 # 自動掃 price_alerts.jsonl 條件：比對最新報價，命中則送 Telegram + Web Push。
 # 自然去重：alert.triggered_at 永久標記，已觸發者下輪自動跳過。
 #
-# 預設啟用排程（每 30 分鐘）。若需暫停，在 GitHub → Actions 停用本 workflow 即可。
+# 預設啟用排程（每 30 分鐘）。
+# 暫停：GitHub → Settings → Secrets and variables → Actions → Variables 設
+# `PUSH_DIGEST_ENABLED=0`（job 會被 skip，不算失敗；workflow_dispatch 亦同）。
+# 恢復：刪除該變數，或設回 `1`。
 
 on:
   schedule:
@@ -16,6 +19,8 @@ concurrency:
 
 jobs:
   tick:
+    # Repo variable 總開關：未設或非 '0' 時跑；設 '0' 時 skip。
+    if: vars.PUSH_DIGEST_ENABLED != '0'
     runs-on: ubuntu-22.04
 
     env:

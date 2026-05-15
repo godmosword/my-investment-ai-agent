@@ -5,6 +5,10 @@
 
 ## 2026-05-16
 
+### Ops（排程 workflow 總開關）
+
+- **`paper-execution-tick.yml`** / **`push-digest-tick.yml`** 加入 `if: vars.<NAME> != '0'` 條件閘（分別讀 `vars.PAPER_TICK_ENABLED` 與 `vars.PUSH_DIGEST_ENABLED`）。未設或非 `'0'` 預設跑；於 GitHub → Settings → Variables 設為 `0` 即可暫停（job skip、不算失敗），毋須 disable workflow 或 commit。
+
 ### SSE 安全強化（Phase 3 backlog 收尾）
 
 - **短期 token**：新增 [`sse_token.py`](sse_token.py)（in-memory mint／verify／GC，TTL 10–600s clamp，預設 60s）與 **`POST /api/stream/token`** — 預設 404，須 `API_STREAM_AUTH_KEY`；caller 帶 `X-QS-Stream-Key` 或 `?stream_key=` 鑄出 `{token, expires_at, ttl_seconds}`。

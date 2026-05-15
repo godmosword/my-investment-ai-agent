@@ -3,7 +3,10 @@ name: Paper Execution Tick (M5)
 # 自動執行紙上撮合模擬：掃描 APPROVED_FOR_PAPER 意圖、比對報價、寫入 PAPER_FILLED / PAPER_CLOSED。
 # 不下單；僅 append-only JSONL + 可選 BQ 稽核。
 #
-# 預設啟用排程（每 15 分鐘）。若需暫停，在 GitHub → Actions 停用本 workflow 即可。
+# 預設啟用排程（每 15 分鐘）。
+# 暫停：GitHub → Settings → Secrets and variables → Actions → Variables 設
+# `PAPER_TICK_ENABLED=0`（job 會被 skip，不算失敗；workflow_dispatch 亦同）。
+# 恢復：刪除該變數，或設回 `1`。
 
 on:
   schedule:
@@ -16,6 +19,8 @@ concurrency:
 
 jobs:
   tick:
+    # Repo variable 總開關：未設或非 '0' 時跑；設 '0' 時 skip。
+    if: vars.PAPER_TICK_ENABLED != '0'
     runs-on: ubuntu-22.04
 
     env:
