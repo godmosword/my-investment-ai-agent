@@ -3,6 +3,12 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-15
+
+### Docs（`docs/architecture/`）
+
+- **Terminal 總表 §0 Phase 4**：於 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) 新增 **讀者層（`/news`、`/columns`）× 工作台層（`/insights` 等）** 資訊架構收斂（原則、A／B／C 分段、刻意不做、REVIEW 決策點）；矩陣狀態欄擴為 **Phase 0–4**；§1 執行順序增第 4 點。[`TODOS.md`](TODOS.md) 檔首補 Phase 4 交叉引用。
+
 ## 2026-05-14
 
 ### Backlog Go-Live（M4 / M5 closed loop；slices 1–5）

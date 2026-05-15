@@ -2,7 +2,7 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **Terminal 總表** → [`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) · [**git pull／讀 codebase 時先看**](#pull-or-read-codebase-reminder)
 
-**`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。
+**`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節，落地後同步本檔／`CHANGELOG`。
 
 **Portal ship readiness（2026-05-14）**：repo-side 補完 `api_routers/execution_intents.py`、`api_routers/symbols.py`、`api_routers/run_crew.py`，保留既有 public URL；quote provenance 補 `ttl_seconds=45`，Crew status 補 `age_seconds`／`is_stale`／`stale_after_seconds`。新增 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md) 作為 API／PWA／staging signoff 清單。**18–21／35 仍是雲端／staging signoff，不因 repo tests 自動關閉**；完成後須回填日期與 CHANGELOG。
 
@@ -454,6 +454,7 @@
 
 ## 修訂紀錄
 
+- **2026-05-15**：**`Terminal_Master_Plan` §0 Phase 4** — 讀者層×工作台層 IA 收斂入檔；本檔檔首補交叉引用；[`CHANGELOG.md`](CHANGELOG.md) **2026-05-15** `### Docs`。
 - **2026-05-14**：**隊列 28d MVP／34 workspace drag／29 Command Bar 快捷／Reviewer env 自檢／合約測試起點／隊列 36 E2E 全綠／T5b gate-index** — 見上「同步狀態（2026-05-14）」與 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-14** `### Portal / API`；「已交付摘要」列 **Queue 28d + … + Queue 36 E2E + T5b**。**續**：**Portal 架構 Phase 2**（Crew HUD、`workspaceSync` 跨分頁、Playwright）— `CHANGELOG`「PWA — Portal Phase 2」、[`README.md`](README.md) 導覽小節、`Terminal_Master_Plan` §0 Phase 2；「已交付摘要」列 **Portal Phase 2 產品切片**。
 - **2026-05-13（八）**：**隊列 42–43 repo 側落地** — 科技專欄 Deep Brief list API、`/columns` 三支柱 UI、Command Bar 5 板塊跳轉 + symbol deep-link、shared Watchlist dock、JSONL price alert queue、terminal theme 與 Playwright smoke；同步 README／DASHBOARD_CONTRACT／ENV_TEMPLATE；對齊 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-13** `### Columns + Cross-board Terminal`。
 - **2026-05-13（七）**：**隊列 42–43 續作安排** — 本次僅更新 [`TODOS.md`](TODOS.md)，將下一輪拆成 **42a Deep Brief API contract**、**42b Columns UI**、**42c tests/docs**，以及 **43a Command Bar**、**43b Watchlist + Push Alert**、**43c Mobile density + terminal theme**；下一個 implementation target 為 **42a**，紅線維持不碰日報 pipeline／graph／Telegram、不新增未審核資料源、不自動下單。
