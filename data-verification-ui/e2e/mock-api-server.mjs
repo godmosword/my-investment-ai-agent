@@ -1319,6 +1319,45 @@ const server = http.createServer((req, res) => {
     sendJson(res, 200, { status: "idle", job_id: null, started_at: null, finished_at: null, error: null });
     return;
   }
+  if (url.pathname === "/api/earnings/upcoming") {
+    sendJson(res, 200, {
+      as_of: "2026-05-16",
+      days: 14,
+      watchlist_size: 3,
+      items: [
+        { symbol: "NVDA", pillar: "ai_silicon", next_earnings_date: "2026-05-20", days_until: 4, status: "unknown" },
+        { symbol: "MSFT", pillar: "cloud_software", next_earnings_date: "2026-05-22", days_until: 6, status: "unknown" },
+        { symbol: "TSM", pillar: "semiconductor", next_earnings_date: "2026-05-27", days_until: 11, status: "unknown" },
+      ],
+    });
+    return;
+  }
+  if (url.pathname.startsWith("/api/earnings/") && url.pathname.endsWith("/insight")) {
+    const parts = url.pathname.split("/");
+    const symbol = (parts[3] || "").toUpperCase();
+    if (symbol === "NVDA") {
+      sendJson(res, 200, {
+        enabled: true,
+        symbol: "NVDA",
+        as_of: "2026-05-01",
+        analysis: {
+          ticker: "NVDA",
+          filing_type: "10-Q",
+          answers: { 1: "Datacenter revenue grew 80% YoY driven by Hopper + Blackwell ramp." },
+          citations: { 1: [{ excerpt: "MD&A — datacenter segment" }] },
+          red_flags: ["Inventory days up 12%"],
+        },
+      });
+    } else {
+      sendJson(res, 200, {
+        enabled: false,
+        symbol,
+        reason: "no_filing_scaffold_data",
+        hint: "Set DEEP_FILING_ANALYSIS_FILE and append a JSONL row.",
+      });
+    }
+    return;
+  }
   if (url.pathname === "/api/scenario/suggestions") {
     sendJson(res, 200, {
       enabled: true,

@@ -521,6 +521,26 @@ export function useTrackRecordByTag(tag, limit = 50, offset = 0) {
   });
 }
 
+export function useEarningsUpcoming(days = 14) {
+  return useQuery({
+    queryKey: ["earnings", "upcoming", days],
+    queryFn: () => apiFetch(`/api/earnings/upcoming?days=${days}`),
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useEarningsInsight(symbol) {
+  const normalized = String(symbol ?? "").trim().toUpperCase();
+  return useQuery({
+    queryKey: ["earnings", "insight", normalized],
+    queryFn: () => apiFetch(`/api/earnings/${encodeURIComponent(normalized)}/insight`),
+    enabled: Boolean(normalized),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useWarRoomLatest(options = {}) {
   const livePoll = Boolean(options.livePoll);
   return useQuery({

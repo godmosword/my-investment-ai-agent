@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { PORTAL_PHASE4_CTA, PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
 import DailyBriefPage from "../../daily-brief/pages/DailyBriefPage";
 import QuantHome from "../../quant-trading/pages/QuantHome";
+import EarningsInsightHome from "./EarningsInsightHome";
 import PaperLifecycleHome from "./PaperLifecycleHome";
 import ScenarioPlannerHome from "./ScenarioPlannerHome";
 import SymbolDeepDive from "./SymbolDeepDive";
@@ -10,6 +11,7 @@ import TrackRecordHome from "./TrackRecordHome";
 
 const TABS = [
   { id: "daily", label: "今日建議", testId: "insights-tab-daily" },
+  { id: "earnings", label: "財報行事曆", testId: "insights-tab-earnings" },
   { id: "paper", label: "紙上生命週期", testId: "insights-tab-paper" },
   { id: "track-record", label: "Track Record", testId: "insights-tab-track-record" },
   { id: "scenario", label: "情境建議", testId: "insights-tab-scenario" },
@@ -89,6 +91,7 @@ export default function InsightsHome() {
 
       <div role="tabpanel" aria-label={activeLabel}>
         {active === "daily" ? <DailyBriefPage /> : null}
+        {active === "earnings" ? <EarningsInsightHome /> : null}
         {active === "paper" ? <PaperLifecycleHome /> : null}
         {active === "track-record" ? <TrackRecordHome /> : null}
         {active === "scenario" ? <ScenarioPlannerHome /> : null}

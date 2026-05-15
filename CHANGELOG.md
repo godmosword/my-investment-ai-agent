@@ -5,6 +5,16 @@
 
 ## 2026-05-16
 
+### Portal / API（隊列 45 · P3 — 財報 insight 專屬頁）
+
+- **後端**：新增 [`api_routers/earnings.py`](api_routers/earnings.py) 掛兩條 read-only 端點：
+  - **`GET /api/earnings/upcoming?days=14`** — 重用 [`earnings_watchlist.py`](earnings_watchlist.py)（`MEGA_CAP_TECH_EARNINGS_TICKERS`、`tickers_with_earnings_between`）與 yfinance 行事曆；回傳 `{as_of, days, watchlist_size, items: [{symbol, pillar, next_earnings_date, days_until, status}]}`；in-process 1 小時快取；支援 `EARNINGS_WATCHLIST_OVERRIDE` 環境變數覆寫掃描清單（staging／tests）。Pillar 取自手工 mapping（`ai_silicon` / `semiconductor` / `cloud_software` / `hardware` / `optical` / `consumer_devices` / `other`），未列檔之 ticker 預設 `other`。
+  - **`GET /api/earnings/{symbol}/insight`** — 讀取 `DEEP_FILING_ANALYSIS_FILE`（預設 `data/deep_filing_analysis.jsonl`）；若有 scaffold 列則以 [`schemas.py:DeepFilingAnalysis`](schemas.py) 驗證後回傳 `{enabled: true, symbol, as_of, analysis}`，否則回 `{enabled: false, reason: "no_filing_scaffold_data"}`（**不偽造**數字）；scaffold 違反 schema 時回 `reason: "scaffold_invalid"` 並夾帶 error message。
+- **PWA**：新增 [`EarningsInsightHome.jsx`](data-verification-ui/src/modules/insights/pages/EarningsInsightHome.jsx) 掛入 [`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) tabs（**`insights-tab-earnings`**，URL `?tab=earnings`）；上半行事曆 chip 列（7／14／30 天切換）、下半點 ticker 展開 scaffold panel；融合層（44c）每檔提供 `earnings-cta-to-deep-dive` / `-to-news` / `-to-columns`（重用 `portalPhase4.js` helpers）。新增 hooks [`useEarningsUpcoming`](data-verification-ui/src/hooks/useApi.js)、[`useEarningsInsight`](data-verification-ui/src/hooks/useApi.js)。
+- **Tests**：[`tests/api/test_earnings_router.py`](tests/api/test_earnings_router.py)（9 條：shape／pillar mapping／days_until／clamp／override／cache／insight 啟用／停用／invalid symbol／invalid scaffold）；[`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py) 補 upcoming shape + insight 預設 enabled=false 兩條斷言。
+- **E2E**：[`data-verification-ui/e2e/insights-earnings.spec.js`](data-verification-ui/e2e/insights-earnings.spec.js)（3 條：calendar 列出標的＋pillar；NVDA 點開 scaffold + 三條 CTA href；TSM 無 scaffold 顯示 empty state，**不**偽造）。mock-api-server.mjs 補 fixture。
+- **紅線維持**：不動 `main.py`／`graph/`／Telegram；不接 SEC EDGAR live；無 scaffold 時明確標 `enabled: false`；不開新外部資料源。
+
 ### Docs（Phase 4 收尾：Gate 0 簽核 + BLOOMBERG §4 勾帳）
 
 - **Gate 0 正式簽核**：[`TODOS.md`](TODOS.md) 隊列 44「Gate 0」段改為 ✅ 已簽核（2026-05-16），以表格鎖五項決議值並逐項對應 [`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) `PORTAL_PHASE4_GATE0` 欄位（主戰場 `/insights` + `/portfolio`；讀者首屏零表格＝是；融合方向＝雙向；終端感保留 5 項；N=3）。
