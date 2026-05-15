@@ -1,4 +1,11 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import {
+  columnsContextHref,
+  ctaWithSymbol,
+  newsContextHref,
+  PORTAL_PHASE4_CTA,
+} from "../../../constants/portalPhase4";
 import { useAnalysisBundle } from "../../../hooks/useApi";
 
 function formatPrice(value) {
@@ -47,6 +54,23 @@ export default function SymbolDeepDive() {
           <div className="text-[11px] uppercase text-[var(--muted)]">Last</div>
           <div className="font-mono text-[18px] font-semibold text-white">{formatPrice(quote.last)}</div>
         </div>
+      </div>
+
+      <div data-testid="symbol-fusion-cta" className="mt-3 flex flex-wrap gap-2">
+        <Link
+          to={newsContextHref(symbol)}
+          data-testid="symbol-cta-to-news"
+          className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
+        >
+          {ctaWithSymbol(PORTAL_PHASE4_CTA.symbolToNews, symbol)}
+        </Link>
+        <Link
+          to={columnsContextHref(symbol)}
+          data-testid="symbol-cta-to-columns"
+          className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
+        >
+          {ctaWithSymbol(PORTAL_PHASE4_CTA.symbolToColumns, symbol)}
+        </Link>
       </div>
 
       {query.isLoading ? <div className="mt-3 text-[13px] text-[var(--muted)]">載入分析資料…</div> : null}

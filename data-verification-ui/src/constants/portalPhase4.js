@@ -12,8 +12,11 @@ export const PORTAL_PHASE4_GATE0 = {
    * 現有 digest 卡片流（非 HTML table 報價牆）視為符合本旗標。
    */
   readerFirstScreenAvoidDenseTables: true,
-  /** 融合第一刀：單向（新聞／專欄 → 觀點）。 */
-  fusionDirection: "reader_to_insights",
+  /**
+   * 融合第一刀：雙向（讀者層 ↔ 工作台層）。
+   * 44c 已在工作台層補回向 CTA、讀者層可帶 `?focus=SYM` 高亮相關卡片。
+   */
+  fusionDirection: "bidirectional",
   /** 「終端感」保留元素上限（三至五項；供文件／UI 文案對齊）。 */
   terminalToneKeep: ["Command Bar", "mono symbol chips", "macro spark grid", "SSE WATCH", "Workspace dock"],
   /** 工作台關鍵路徑：警報 → 標的／狀態 →（可選）脈絡 — 最大點擊數 N。 */
@@ -25,6 +28,37 @@ export function insightsSymbolHref(symbol) {
   const s = String(symbol ?? "").trim().toUpperCase();
   if (!s) return "/insights";
   return `/insights?symbol=${encodeURIComponent(s)}`;
+}
+
+/** `/news` 或帶 `?focus=SYM` 的回向深連結（44c 融合層使用）。 */
+export function newsContextHref(symbol) {
+  const s = String(symbol ?? "").trim().toUpperCase();
+  if (!s) return "/news";
+  return `/news?focus=${encodeURIComponent(s)}`;
+}
+
+/** `/columns` 或帶 `?focus=SYM` 的回向深連結（44c 融合層使用）。 */
+export function columnsContextHref(symbol) {
+  const s = String(symbol ?? "").trim().toUpperCase();
+  if (!s) return "/columns";
+  return `/columns?focus=${encodeURIComponent(s)}`;
+}
+
+/** 文案表（44c）：跨板塊人話 CTA 統一文字，避免 UI 文案散落。 */
+export const PORTAL_PHASE4_CTA = {
+  toInsights: "去觀點工作台",
+  toColumns: "看深度專欄",
+  toNews: "看科技即時報",
+  workbenchToNews: "回到新聞脈動",
+  workbenchToColumns: "看相關專欄",
+  symbolToNews: "在新聞中查 {symbol}",
+  symbolToColumns: "看 {symbol} 的專欄",
+};
+
+/** 套入 symbol 的 CTA 文案 helper。 */
+export function ctaWithSymbol(template, symbol) {
+  const s = String(symbol ?? "").trim().toUpperCase();
+  return String(template || "").replace("{symbol}", s || "標的");
 }
 
 /**

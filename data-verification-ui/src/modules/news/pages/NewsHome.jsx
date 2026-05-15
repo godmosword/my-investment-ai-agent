@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { insightsSymbolHref } from "../../../constants/portalPhase4";
 import { useNewsDeep, useNewsDigest, useNewsThemes } from "../../../hooks/useApi";
 
@@ -181,7 +181,17 @@ function DeepPanel({ item, detail, loading, onClose }) {
   );
 }
 
+function matchesFocus(item, focus) {
+  if (!focus) return true;
+  const f = focus.toLowerCase();
+  const tickers = Array.isArray(item?.tickers) ? item.tickers : [];
+  if (tickers.some((t) => String(t).toLowerCase() === f)) return true;
+  return itemText(item).includes(f);
+}
+
 export default function NewsHome() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focus = String(searchParams.get("focus") || "").trim().toUpperCase();
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState(null);
   const digestQuery = useNewsDigest({ limit: 25 });
@@ -195,7 +205,17 @@ export default function NewsHome() {
       ),
     [digestQuery.data],
   );
-  const visibleItems = useMemo(() => filterItems(items, filter), [items, filter]);
+  const filtered = useMemo(() => filterItems(items, filter), [items, filter]);
+  const visibleItems = useMemo(
+    () => (focus ? filtered.filter((item) => matchesFocus(item, focus)) : filtered),
+    [filtered, focus],
+  );
+
+  const clearFocus = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("focus");
+    setSearchParams(next, { replace: true });
+  };
   const themes = themesQuery.data?.themes ?? digestQuery.data?.themes ?? [];
 
   const chooseFilter = (id) => {
@@ -235,6 +255,25 @@ export default function NewsHome() {
           </Link>
         </div>
       </div>
+
+      {focus ? (
+        <div
+          data-testid="news-focus-badge"
+          className="card mb-3 flex flex-wrap items-center justify-between gap-2 border border-amber-300/30 bg-amber-400/[0.06] p-2 text-[12px] text-amber-100"
+        >
+          <span>
+            聚焦標的：<span className="font-mono">{focus}</span>（由觀點工作台帶入）
+          </span>
+          <button
+            type="button"
+            data-testid="news-focus-clear"
+            className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
+            onClick={clearFocus}
+          >
+            清除聚焦
+          </button>
+        </div>
+      ) : null}
 
       <div className="mb-3 flex flex-wrap gap-2">
         {FILTERS.map((row) => (

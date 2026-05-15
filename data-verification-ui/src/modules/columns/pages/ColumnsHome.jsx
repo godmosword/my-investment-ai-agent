@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { insightsSymbolHref, PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
 import { useIndustryThemes, useNewsDeepList } from "../../../hooks/useApi";
 
@@ -285,12 +285,33 @@ function SectorRotation({ rotation, source }) {
   );
 }
 
+function columnsMatchFocus(item, focus) {
+  if (!focus) return true;
+  const f = focus.toLowerCase();
+  const tickers = Array.isArray(item?.tickers) ? item.tickers : [];
+  if (tickers.some((t) => String(t).toLowerCase() === f)) return true;
+  const text = [titleOf(item), summaryOf(item), bodyOf(item)].join(" ").toLowerCase();
+  return text.includes(f);
+}
+
 export default function ColumnsHome() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const focus = String(searchParams.get("focus") || "").trim().toUpperCase();
   const [activePillar, setActivePillar] = useState("ai");
   const [selected, setSelected] = useState(null);
   const deepQuery = useNewsDeepList({ pillar: activePillar, limit: 20 });
   const themesQuery = useIndustryThemes(80);
-  const items = deepQuery.data?.items ?? [];
+  const rawItems = deepQuery.data?.items ?? [];
+  const items = useMemo(
+    () => (focus ? rawItems.filter((item) => columnsMatchFocus(item, focus)) : rawItems),
+    [rawItems, focus],
+  );
+
+  const clearFocus = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("focus");
+    setSearchParams(next, { replace: true });
+  };
 
   const changePillar = (pillar) => {
     setActivePillar(pillar);
@@ -323,6 +344,25 @@ export default function ColumnsHome() {
           </Link>
         </div>
       </div>
+
+      {focus ? (
+        <div
+          data-testid="columns-focus-badge"
+          className="card mb-3 flex flex-wrap items-center justify-between gap-2 border border-amber-300/30 bg-amber-400/[0.06] p-2 text-[12px] text-amber-100"
+        >
+          <span>
+            聚焦標的：<span className="font-mono">{focus}</span>（由觀點工作台帶入）
+          </span>
+          <button
+            type="button"
+            data-testid="columns-focus-clear"
+            className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
+            onClick={clearFocus}
+          >
+            清除聚焦
+          </button>
+        </div>
+      ) : null}
 
       <PillarTabs active={activePillar} onChange={changePillar} />
 

@@ -20,6 +20,27 @@ test.describe("Portal Phase 4 IA — reader layer × workbench cues (queue 44)",
     await expect(page).toHaveURL(/\/insights/);
   });
 
+  test("44c bidirectional CTAs — insights → news / columns", async ({ page }) => {
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("insights-workbench-intro")).toBeVisible({ timeout: 60_000 });
+    const newsCta = page.getByTestId("portal-cta-insights-to-news");
+    const colCta = page.getByTestId("portal-cta-insights-to-columns");
+    await expect(newsCta).toHaveAttribute("href", "/news");
+    await expect(colCta).toHaveAttribute("href", "/columns");
+    await newsCta.click();
+    await expect(page).toHaveURL(/\/news/);
+  });
+
+  test("44c symbol deep-dive offers reverse CTAs with ?focus=", async ({ page }) => {
+    await page.goto("/insights?symbol=AAPL", { waitUntil: "load" });
+    await expect(page.getByTestId("symbol-deep-dive")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("symbol-cta-to-news")).toHaveAttribute("href", "/news?focus=AAPL");
+    await expect(page.getByTestId("symbol-cta-to-columns")).toHaveAttribute("href", "/columns?focus=AAPL");
+    await page.getByTestId("symbol-cta-to-news").click();
+    await expect(page).toHaveURL(/\/news\?focus=AAPL/);
+    await expect(page.getByTestId("news-focus-badge")).toBeVisible();
+  });
+
   test("Command Bar placeholder softens on /news and stays terminal on /insights", async ({ page }) => {
     await page.goto("/news", { waitUntil: "load" });
     const barNews = page.getByTestId("terminal-command-bar");

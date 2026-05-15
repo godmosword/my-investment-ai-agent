@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
+import { Link, useSearchParams } from "react-router-dom";
+import { PORTAL_PHASE4_CTA, PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
 import DailyBriefPage from "../../daily-brief/pages/DailyBriefPage";
 import QuantHome from "../../quant-trading/pages/QuantHome";
 import PaperLifecycleHome from "./PaperLifecycleHome";
@@ -50,6 +50,22 @@ export default function InsightsHome() {
         <span className="text-emerald-100/90"> 觀點、持倉 </span>
         為核心；宏觀狀態請到「數據儀表板」。關鍵路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks}{" "}
         次點擊（人測錨點）。
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/news"
+            data-testid="portal-cta-insights-to-news"
+            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
+          >
+            {PORTAL_PHASE4_CTA.workbenchToNews}
+          </Link>
+          <Link
+            to="/columns"
+            data-testid="portal-cta-insights-to-columns"
+            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
+          >
+            {PORTAL_PHASE4_CTA.workbenchToColumns}
+          </Link>
+        </div>
       </div>
       <div className="mb-3 flex flex-wrap items-center gap-2 px-1" role="tablist" aria-label="Insights tabs">
         {TABS.map((tab) => (
