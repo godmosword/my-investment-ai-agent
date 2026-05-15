@@ -85,6 +85,29 @@
 
 Streamlit 與 PWA 應消費**同一 JSON**（`build_symbol_snapshot` 或 `SYMBOL_SNAPSHOT_HTTP_BASE` + HTTP），見 [`docs/DASHBOARD_CONTRACT.md`](DASHBOARD_CONTRACT.md) 與 [`dashboard.py`](../dashboard.py) `_dashboard_symbol_snapshot_payload`。
 
+### 4e) Phase 4 IA（讀者層 × 工作台層）對 §4 驗收的影響（2026-05-16）
+
+> 對齊 [`Terminal_Master_Plan.md`](architecture/Terminal_Master_Plan.md) **§0 Phase 4**「BLOOMBERG_ALIGNMENT」對齊點：「延續工作流可審計與 §4 驗收習慣；不把新聞／專欄首屏做成報價牆或不可溯源數字堆疊。」Gate 0 權威值見 [`portalPhase4.js`](../data-verification-ui/src/constants/portalPhase4.js) `PORTAL_PHASE4_GATE0`。
+
+| # | 驗收條目 | Phase 4 IA 落地後狀態 | 證據 |
+|---|---------|---------------------|------|
+| 6 | 同一 ticker 在不同頁顯示一致 | **仍合規**：44c `?focus=` 只做卡片過濾，未引入新報價來源；symbol → `/insights?symbol=` 仍走 `useAnalysisBundle`（quote/snapshot 同源）。`price_alignment` 規則不變。 | [`SymbolDeepDive.jsx`](../data-verification-ui/src/modules/insights/pages/SymbolDeepDive.jsx)、[`NewsHome.jsx`](../data-verification-ui/src/modules/news/pages/NewsHome.jsx) |
+| 7 | watchlist／workspace localStorage 持久化 | **不受影響**：Phase 4 IA 未動 [`WorkspacePanel.jsx`](../data-verification-ui/src/components/WorkspacePanel.jsx) 與 `qs_workspace_size_weights_v1` 鍵。 | 既有 Phase 2 切片 |
+| 8 | workspace 卡片重排 | **不受影響** | 同上 |
+| 9 | OHLC + QSREC 事件標記 | **不受影響**：未動圖表層。 | — |
+| 10 | 事件標記僅來自結構化資料 | **強化**：讀者頁 `?focus=` 過濾條件來自 `tickers`（結構化欄位）並加文字 fallback；過濾結果不衍生新數字。 | `matchesFocus` / `columnsMatchFocus` |
+| 11 | API 端點 pytest 覆蓋 | **不受影響**：Phase 4 未開新 API；既有 SSE 安全收尾 [`tests/api/test_sse_token.py`](../tests/api/test_sse_token.py)。 | — |
+| 12 | 前端新增視圖不破壞既有路由與底部導覽 | **合規**：44c 僅加 query param `?focus=`、`?symbol=`、`?tab=`；未新增路由；`Shell` + `SideNav`／`ModuleNav` 不變。 | [`phase4-ia-portal.spec.js`](../data-verification-ui/e2e/phase4-ia-portal.spec.js) |
+| 13 | 變更同步更新 CHANGELOG + TODOS | **合規**：44a／b／c／d 與 Gate 0 簽核每切片寫 CHANGELOG／TODOS 雙向對齊。 | CHANGELOG 2026-05-16；TODOS 隊列 44 |
+| 14 | 不破壞 Telegram HTML 白名單 | **合規**：Phase 4 為 PWA-only，未動 `main.py`／`report_html_gates`／Telegram 出口。 | 隊列 44 紅線 |
+| 15 | 不引入未審核的即時付費資料依賴 | **合規**：44c 未新增資料源；雙向 CTA 僅重用既有 `?focus=`／`?symbol=` 深連結契約。 | [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](REALTIME_DATA_SOURCES_GOVERNANCE.md) |
+
+**Phase 4 IA 專屬驗收尺**（不屬 §4 原 15 條，但對齊 Master Plan §0 Phase 4 原則）：
+
+- **讀者首屏密度**：`/news`／`/columns` 不放高密度報價／矩陣表（Gate 0 #2）。
+- **工作台關鍵路徑** ≤ **N=3** 點擊（Gate 0 #5）：警報 → 標的／狀態 →（可選）回新聞／專欄脈絡。**人測驗收**，未自動化；44b 進階收斂時再以此為尺。
+- **融合方向**：雙向，但**反向（workbench → reader）僅做 CTA + `?focus=`**，不在工作台層放讀者導覽元件。
+
 ---
 
 ## 5) 分階實作路徑（Execution Slices）

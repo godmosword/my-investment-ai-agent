@@ -194,15 +194,19 @@
 
 > **文件錨點**：[`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 Phase 4**（讀者層×工作台層：原則與 A／B／C 表）及同節 **「Phase 4 — 實作規劃」**（滾動切片 **44a–44d**）。PWA 工程邊界與驗收分工見 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**。
 
-**Gate 0（維護者 REVIEW；齊備後視為可開 44a）**
+**Gate 0（維護者 REVIEW；齊備後視為可開 44a）** ✅ **已簽核（2026-05-16）**
 
-**Repo 預設（2026-05-16，44c 後更新）**：已寫入 [`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) 之 `PORTAL_PHASE4_GATE0`（主戰場 **`/insights` + `/portfolio`**、宏觀 **`/dashboard`**、讀者首屏避高密度表、融合 **雙向**（44c 落地）、**N=3**、`terminalToneKeep` 五項）。若產品決策變更，請改該檔並同步本節敘述。
+權威值寫在 [`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) 之 `PORTAL_PHASE4_GATE0`；本表為**人類可讀對照**，若日後改決策請**同步**改該檔與本表。
 
-1. 工作台「主戰場」**兩條**路由（建議預設：`/insights` + `/portfolio` 或 `/dashboard`，擇一組合並註記日期）。
-2. 讀者層是否「首屏零表格」（是／否／僅 `/news` 豁免等）。
-3. 融合第一刀：**單向**（新聞／專欄 → 觀點）或**雙向**。
-4. 「終端感」元素**保留上限**清單（三至五項）。
-5. **N**：工作台關鍵路徑「警報 → 標的／狀態 →（可選）回新聞／專欄脈絡」之**最大點擊數**。
+| # | 決議項 | 簽核值 | 對應程式錨點 |
+|---|--------|--------|-------------|
+| 1 | 工作台「主戰場」兩條路由 | **`/insights` + `/portfolio`**（宏觀狀態台 `/dashboard` 並列但**不**佔主戰場名額） | `workbenchPrimaryRoutes` / `workbenchMacroRoute` |
+| 2 | 讀者層首屏是否「零表格」 | **是**（避高密度報價／矩陣表；既有 digest 卡片流不算 dense table，視為合規） | `readerFirstScreenAvoidDenseTables: true` |
+| 3 | 融合第一刀方向 | **雙向**（reader ↔ workbench；44c 落地） | `fusionDirection: "bidirectional"` |
+| 4 | 「終端感」保留元素上限（三至五項） | **5 項**：Command Bar、mono symbol chips、macro spark grid、SSE WATCH、Workspace dock | `terminalToneKeep` |
+| 5 | 工作台關鍵路徑最大點擊數 **N** | **N=3**（「警報 → 標的／狀態 →（可選）回新聞／專欄脈絡」） | `maxWorkbenchPathClicks: 3` |
+
+**44b 進階收斂**（待做）：使用 N=3 與「主戰場」清單作驗收尺，超過 N 個高密度區塊時收斂至 tab／`GlobalWatchlistDock`／`WorkspacePanel`。下次開工前再對焦哪幾塊算「高密度」。
 
 **44a — 讀者層（對齊 Master Plan A）**：[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx)、[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) — 首屏單一主任務、來源／時間軸可掃讀、避免首屏多區高密度表；可選 reader 副標 + `data-testid`。驗收：擴充／新增 Playwright + Master Plan A 人測；`npm run build`。**原則上不開新 API**。
 
@@ -533,6 +537,7 @@
 
 ## 修訂紀錄
 
+- **2026-05-16（Phase 4 收尾 · 純文件）**：[`TODOS.md`](TODOS.md) 隊列 44「Gate 0」段改為 ✅ 已簽核（五項決議鎖入表格、對應 `PORTAL_PHASE4_GATE0` 欄位）；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 新增 **§4e Phase 4 IA 對 §4 驗收的影響**（#6–#15 勾帳 + Phase 4 IA 專屬驗收尺）。**剩餘**：44b 進階收斂仍待維護者指定哪幾塊算「高密度」。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-16** `### Docs（Phase 4 收尾）`。
 - **2026-05-16（SSE 安全收尾）**：[`sse_token.py`](sse_token.py) 短期 token（mint／verify／GC，TTL 10–600s clamp，預設 60s）+ **`POST /api/stream/token`**（預設 404；須 `API_STREAM_AUTH_KEY`）；[`api.py`](api.py) `_sse_auth_ok` 接受 `stream_token`；event_gen 加入 `SSE_MAX_EVENTS_PER_SEC` 滑動 1 秒視窗節流（超量 `event: throttled`）；[`tests/api/test_sse_token.py`](tests/api/test_sse_token.py) + contract smoke `POST /api/stream/token` 404 斷言；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補兩條變數。Phase 3 backlog（SSE token TTL／顯式限流）正式關帳；見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-16** `### SSE 安全強化`。
 - **2026-05-16（續 ②）— 44c 融合層**：[`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) 新增 `PORTAL_PHASE4_CTA` 文案表 + `newsContextHref`／`columnsContextHref`／`ctaWithSymbol`、`fusionDirection=bidirectional`；[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 反向 CTA；[`SymbolDeepDive.jsx`](data-verification-ui/src/modules/insights/pages/SymbolDeepDive.jsx) 雙向 CTA（`?focus={SYM}`）；[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx)／[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) `?focus=` 過濾 + focus badge；E2E [`phase4-ia-portal.spec.js`](data-verification-ui/e2e/phase4-ia-portal.spec.js) 擴充 44c。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-16**「### PWA（隊列 44 · 44c）」。
 - **2026-05-16（續）**：隊列 **44** repo 首波 — [`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js)、讀者／工作台導引條、Command Bar placeholder 分路、Playwright **`phase4-ia-portal.spec.js`**；見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-16**「### PWA（隊列 44）」。

@@ -5,6 +5,12 @@
 
 ## 2026-05-16
 
+### Docs（Phase 4 收尾：Gate 0 簽核 + BLOOMBERG §4 勾帳）
+
+- **Gate 0 正式簽核**：[`TODOS.md`](TODOS.md) 隊列 44「Gate 0」段改為 ✅ 已簽核（2026-05-16），以表格鎖五項決議值並逐項對應 [`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) `PORTAL_PHASE4_GATE0` 欄位（主戰場 `/insights` + `/portfolio`；讀者首屏零表格＝是；融合方向＝雙向；終端感保留 5 項；N=3）。
+- **BLOOMBERG §4 勾帳**：[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 新增 **§4e Phase 4 IA 對 §4 驗收的影響**，逐項記錄 #6–#15 在 44a–44d 後的狀態與證據錨點；附 Phase 4 IA 專屬驗收尺（讀者首屏密度、工作台 N=3、雙向但反向僅做 CTA + `?focus=`）。
+- **紅線維持**：純文件動作；不改程式、不開新 API、不動日報 pipeline。
+
 ### Ops（排程 workflow 總開關）
 
 - **`paper-execution-tick.yml`** / **`push-digest-tick.yml`** 加入 `if: vars.<NAME> != '0'` 條件閘（分別讀 `vars.PAPER_TICK_ENABLED` 與 `vars.PUSH_DIGEST_ENABLED`）。未設或非 `'0'` 預設跑；於 GitHub → Settings → Variables 設為 `0` 即可暫停（job skip、不算失敗），毋須 disable workflow 或 commit。
