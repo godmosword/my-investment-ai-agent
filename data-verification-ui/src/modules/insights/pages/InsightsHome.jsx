@@ -45,7 +45,7 @@ export default function InsightsHome() {
       <SymbolDeepDive />
       <div
         data-testid="insights-workbench-intro"
-        className="card mb-3 border border-emerald-500/20 bg-emerald-950/15 p-3 text-[12px] leading-relaxed text-white/80"
+        className="card mb-3 border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80"
       >
         <span className="font-semibold text-emerald-100/95">工作台</span>
         ：標的深挖、紙上部位、情境與訊號在此分頁切換。讀題材與即時脈動請用「科技即時報／專欄」。主戰場以

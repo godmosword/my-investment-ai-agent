@@ -43,7 +43,7 @@ function CalendarRow({ item, active, onSelect }) {
       data-testid="earnings-calendar-row"
       data-symbol={item.symbol}
       className={`card flex w-full items-center justify-between gap-3 p-3 text-left transition hover:border-cyan-300/50 ${
-        active ? "border-cyan-300/70 bg-cyan-950/20" : ""
+        active ? "border-cyan-300/70 bg-cyan-950/[0.08]" : ""
       }`}
       onClick={() => onSelect(item.symbol)}
     >
@@ -87,7 +87,7 @@ function InsightPanel({ symbol, onClose }) {
         <Link
           to={insightsSymbolHref(symbol)}
           data-testid="earnings-cta-to-deep-dive"
-          className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/35 bg-emerald-950/25 px-3 py-1.5 text-[12px] font-semibold text-emerald-100/95 hover:bg-emerald-900/35"
+          className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/30 bg-emerald-950/[0.12] px-3 py-1.5 text-[12px] font-semibold text-emerald-100/90 hover:bg-emerald-900/[0.18]"
         >
           進入 {symbol} 深度頁
         </Link>
@@ -156,7 +156,7 @@ function InsightPanel({ symbol, onClose }) {
           })}
 
           {(query.data.analysis?.red_flags ?? []).length ? (
-            <div className="rounded border border-amber-300/30 bg-amber-400/[0.06] p-3">
+            <div className="rounded border border-amber-300/25 bg-amber-400/[0.03] p-3">
               <div className="text-[12px] font-semibold text-amber-100">Red Flags</div>
               <ul className="mt-1 list-disc pl-5 text-[12px] text-amber-100/90">
                 {query.data.analysis.red_flags.map((flag) => (
@@ -179,7 +179,7 @@ export default function EarningsInsightHome() {
 
   return (
     <div data-testid="earnings-insight-home" className="space-y-3">
-      <div className="card border border-emerald-500/20 bg-emerald-950/15 p-3 text-[12px] leading-relaxed text-white/80">
+      <div className="card border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80">
         <span className="font-semibold text-emerald-100/95">財報行事曆</span>
         ：未來 {days} 天大型科技與 AI 供應鏈財報日；點 ticker 看 NotebookLM／agency scaffold。
         資料源：yfinance 行事曆（內部快取 1 小時）；scaffold 由 DEEP_FILING_ANALYSIS_FILE 注入，無資料時明確標 enabled=false。
@@ -193,7 +193,7 @@ export default function EarningsInsightHome() {
             data-testid={`earnings-range-${n}`}
             className={`rounded border px-3 py-1 text-[12px] ${
               days === n
-                ? "border-cyan-300/70 bg-cyan-400/10 text-cyan-100"
+                ? "border-cyan-300/60 bg-cyan-400/[0.05] text-cyan-100"
                 : "border-white/15 text-white/65 hover:text-white"
             }`}
             onClick={() => setDays(n)}

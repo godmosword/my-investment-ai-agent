@@ -61,7 +61,7 @@ function NewsItemButton({ item, active, onClick }) {
       type="button"
       data-testid="news-digest-item"
       className={`card w-full p-3 text-left transition hover:border-cyan-300/50 ${
-        active ? "border-cyan-300/70 bg-cyan-950/20" : ""
+        active ? "border-cyan-300/70 bg-cyan-950/[0.08]" : ""
       }`}
       onClick={onClick}
     >
@@ -242,7 +242,7 @@ export default function NewsHome() {
           <Link
             to="/insights"
             data-testid="portal-cta-news-to-insights"
-            className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/35 bg-emerald-950/25 px-3 py-1.5 text-[12px] font-semibold text-emerald-100/95 hover:bg-emerald-900/35"
+            className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/30 bg-emerald-950/[0.12] px-3 py-1.5 text-[12px] font-semibold text-emerald-100/90 hover:bg-emerald-900/[0.18]"
           >
             去觀點工作台
           </Link>
@@ -259,7 +259,7 @@ export default function NewsHome() {
       {focus ? (
         <div
           data-testid="news-focus-badge"
-          className="card mb-3 flex flex-wrap items-center justify-between gap-2 border border-amber-300/30 bg-amber-400/[0.06] p-2 text-[12px] text-amber-100"
+          className="card mb-3 flex flex-wrap items-center justify-between gap-2 border border-amber-300/25 bg-amber-400/[0.03] p-2 text-[12px] text-amber-100/90"
         >
           <span>
             聚焦標的：<span className="font-mono">{focus}</span>（由觀點工作台帶入）
@@ -283,7 +283,7 @@ export default function NewsHome() {
             data-testid={`news-filter-${row.id}`}
             className={`rounded-full border px-3 py-1.5 text-[13px] ${
               filter === row.id
-                ? "border-cyan-300/70 bg-cyan-400/10 text-cyan-100"
+                ? "border-cyan-300/70 bg-cyan-400/[0.05] text-cyan-100"
                 : "border-white/15 text-white/65 hover:text-white"
             }`}
             onClick={() => chooseFilter(row.id)}

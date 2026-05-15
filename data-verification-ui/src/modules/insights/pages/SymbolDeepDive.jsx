@@ -44,7 +44,7 @@ export default function SymbolDeepDive() {
   const agency = snapshot.agency || snapshot.agency_notes || snapshot.agent_notes;
 
   return (
-    <section data-testid="symbol-deep-dive" className="mb-3 rounded border border-cyan-300/20 bg-cyan-400/[0.04] p-3">
+    <section data-testid="symbol-deep-dive" className="mb-3 rounded border border-cyan-300/20 bg-cyan-400/[0.02] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-[11px] uppercase text-cyan-200">Analysis Deep Dive</div>
