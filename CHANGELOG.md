@@ -5,6 +5,23 @@
 
 ## 2026-05-16
 
+### SSE 安全強化（Phase 3 backlog 收尾）
+
+- **短期 token**：新增 [`sse_token.py`](sse_token.py)（in-memory mint／verify／GC，TTL 10–600s clamp，預設 60s）與 **`POST /api/stream/token`** — 預設 404，須 `API_STREAM_AUTH_KEY`；caller 帶 `X-QS-Stream-Key` 或 `?stream_key=` 鑄出 `{token, expires_at, ttl_seconds}`。
+- **SSE 接受 token**：[`api.py`](api.py) `_sse_auth_ok` 同時接受 `X-QS-Stream-Token` Header 或 `?stream_token=`；長效金鑰仍可用，但瀏覽器端建議改鑄短期 token（EventSource 仍以 query 帶入）。
+- **每連線事件節流**：`event_gen` 加入滑動 1 秒視窗，受 `SSE_MAX_EVENTS_PER_SEC` 控制（>0 啟用，0–100 clamp）；超過時改 yield 單一 `event: throttled`（`{"reason": "rate_limit", "max_eps": N}`），同窗不重複；`: keepalive` 註解不計入。覆蓋 `node_complete`／`price_alert`／`war_room_update`／`symbol_quote` 四類事件。
+- **Tests**：新增 [`tests/api/test_sse_token.py`](tests/api/test_sse_token.py)（mint 預設 404／須長效金鑰／shape／TTL clamp／verify 過期／無金鑰拒絕／壞 token 拒絕）；[`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py) 新增 `POST /api/stream/token` 預設 404 斷言。
+- **ENV／紅線**：[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 `SSE_TOKEN_TTL_SECONDS`／`SSE_MAX_EVENTS_PER_SEC` 與 stream_token 用法說明。不改 `main.py` / `graph/` / Telegram；不新增資料源；mint 端點 404 預設關閉。
+
+### PWA（隊列 44 · 44c 融合層）
+
+- **Gate 0 切雙向**：[`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) `PORTAL_PHASE4_GATE0.fusionDirection` 由 `reader_to_insights` 改 **`bidirectional`**；新增 `PORTAL_PHASE4_CTA` 文案表與 `newsContextHref(symbol)` / `columnsContextHref(symbol)` / `ctaWithSymbol(template, symbol)` helpers，統一跨板塊 CTA 文案。
+- **工作台 → 讀者層反向 CTA（44c）**：[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) workbench intro 補 **`portal-cta-insights-to-news`** 與 **`portal-cta-insights-to-columns`** Link CTA。
+- **Symbol 雙向 CTA（44c）**：[`SymbolDeepDive.jsx`](data-verification-ui/src/modules/insights/pages/SymbolDeepDive.jsx) 增 **`symbol-fusion-cta`** 區塊與 **`symbol-cta-to-news`** / **`symbol-cta-to-columns`**（href 帶 `?focus={SYM}`）。
+- **讀者層接 `?focus=`（44c）**：[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx)、[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) 讀 `useSearchParams().focus`，以 `tickers` ∪ 文字包含過濾卡片並顯示 **`news-focus-badge`** / **`columns-focus-badge`**（含「清除聚焦」鈕）。重用既有 deep 連結語意，不開新 API。
+- **E2E**：[`phase4-ia-portal.spec.js`](data-verification-ui/e2e/phase4-ia-portal.spec.js) 擴充 — 「insights → news / columns 反向 CTA」與「symbol deep-dive 帶 `?focus=AAPL` 流到 `/news` 顯示 focus badge」兩條斷言。`npm run build` 綠。
+- **紅線維持**：不碰 `main.py` 日報 pipeline、`graph/`、Telegram HTML 出口；不新增資料源；不自動下單。
+
 ### Docs（`docs/architecture/`）
 
 - **`TERMINAL_FRONTEND_PLAN.md`**：現況段補 **§0 Phase 4 IA** 鏈接 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md)；新增 **「### Phase 4 IA」** 工程責任表；對齊 **`TODOS` 隊列 44**；校正 **`App.jsx` 內嵌路由** 敘述；檔末增修訂紀錄。**（續／程式落地後）** 現況段補 **repo 首波**（[`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js)、導引條、Command Bar placeholder、E2E `phase4-ia-portal.spec.js`）；修訂紀錄增 **2026-05-16（續）**。

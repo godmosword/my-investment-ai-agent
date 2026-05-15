@@ -136,6 +136,13 @@ def test_war_room_stream_disabled_by_default(client, monkeypatch):
     assert r.status_code == 404
 
 
+def test_stream_token_disabled_by_default(client, monkeypatch):
+    """``POST /api/stream/token`` 404s unless ``API_STREAM_AUTH_KEY`` is set."""
+    monkeypatch.delenv("API_STREAM_AUTH_KEY", raising=False)
+    r = client.post("/api/stream/token")
+    assert r.status_code == 404
+
+
 def test_run_crew_status_contract(client, monkeypatch):
     monkeypatch.delenv("CREW_HTTP_ENABLED", raising=False)
     r = client.get("/api/run-crew/status")

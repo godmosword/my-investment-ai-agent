@@ -261,7 +261,9 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # VISUALIZER_BTC_SOURCE=yfinance   # yfinance（預設）｜snapshot — Panel 1 BTC 收盤序列改由 BQ + symbol_snapshot_service 之 price_series（須 GCP/BQ 可用）
 
 # TERMINAL_SSE_ENABLED=0       # 1=啟用 GET /api/stream/war-room（SSE；見 docs/TERMINAL_MID_TIER_ROADMAP.md M4）
-# API_STREAM_AUTH_KEY=         # 非空時 SSE 須 Header X-QS-Stream-Key 或 query stream_key
+# API_STREAM_AUTH_KEY=         # 非空時 SSE 須 Header X-QS-Stream-Key／query stream_key，或下方短期 token
+# SSE_TOKEN_TTL_SECONDS=60     # POST /api/stream/token 鑄出短期 token 的 TTL（10–600 clamp；需 API_STREAM_AUTH_KEY 開啟；瀏覽器以 stream_token=...）
+# SSE_MAX_EVENTS_PER_SEC=0     # >0 啟用每連線事件節流；超過後 yield 一則 event: throttled（0–100 clamp；: keepalive 不計）
 # TERMINAL_SSE_POLL_SEC=2      # SSE 迴圈 sleep 秒數（0.5–30）
 # PAPER_TICK_HTTP_ENABLED=0    # 1=啟用 POST /api/paper/execution-tick（紙上模擬一輪；見 M5）
 # PAPER_TICK_API_KEY=          # 非空時上述 POST 須 Header X-Paper-Tick-Key

@@ -33,6 +33,7 @@ from paper_lifecycle import build_paper_lifecycle_payload
 from transparency_letter import build_transparency_letter
 from track_record import normalize_closed_intent
 from paper_execution import run_paper_execution_tick
+import sse_token
 from war_room_stream import (
     drain_graph_node_events,
     drain_price_alert_events,
@@ -1362,7 +1363,41 @@ def _sse_auth_ok(request: Request) -> bool:
     key = (os.getenv("API_STREAM_AUTH_KEY") or "").strip()
     if not key:
         return True
-    return request.headers.get("X-QS-Stream-Key") == key or request.query_params.get("stream_key") == key
+    if request.headers.get("X-QS-Stream-Key") == key or request.query_params.get("stream_key") == key:
+        return True
+    token = request.headers.get("X-QS-Stream-Token") or request.query_params.get("stream_token")
+    return sse_token.verify(token)
+
+
+def _sse_mint_auth_ok(request: Request) -> bool:
+    """Minting a short-lived SSE token requires the long-lived key (header or query)."""
+    key = (os.getenv("API_STREAM_AUTH_KEY") or "").strip()
+    if not key:
+        return False
+    return (
+        request.headers.get("X-QS-Stream-Key") == key
+        or request.query_params.get("stream_key") == key
+    )
+
+
+@app.post("/api/stream/token")
+def post_stream_token(request: Request) -> dict[str, Any]:
+    """Mint a short-lived token for SSE auth (Phase 3 backlog closure).
+
+    404 unless ``API_STREAM_AUTH_KEY`` is set; the caller must present that key
+    via ``X-QS-Stream-Key`` header (preferred) or ``stream_key`` query parameter.
+    TTL is bounded by ``SSE_TOKEN_TTL_SECONDS`` (default 60s, clamped 10–600s).
+    """
+    if not (os.getenv("API_STREAM_AUTH_KEY") or "").strip():
+        raise HTTPException(status_code=404, detail="stream tokens disabled; set API_STREAM_AUTH_KEY")
+    if not _sse_mint_auth_ok(request):
+        raise HTTPException(status_code=403, detail="invalid or missing stream auth key")
+    minted = sse_token.mint()
+    return {
+        "token": minted.token,
+        "expires_at": minted.expires_at,
+        "ttl_seconds": minted.ttl_seconds,
+    }
 
 
 def _paper_tick_auth_ok(request: Request) -> bool:
@@ -1509,9 +1544,36 @@ async def stream_war_room(
     interval = float(os.getenv("TERMINAL_SSE_POLL_SEC", "2") or "2")
     interval = max(0.5, min(interval, 30.0))
 
+    # Explicit per-connection event-rate cap (Phase 3 backlog closure).
+    # 0 / unset = disabled. Counted across node_complete / price_alert /
+    # war_room_update / symbol_quote yields; keepalive comments are exempt.
+    try:
+        max_eps = float(os.getenv("SSE_MAX_EVENTS_PER_SEC", "0") or "0")
+    except (TypeError, ValueError):
+        max_eps = 0.0
+    max_eps = max(0.0, min(max_eps, 100.0))
+
     async def event_gen():
         last_fp: dict[str, Any] | None = None
         last_quote_sigs: dict[str, str] = {}
+        window_start = time.time()
+        window_count = 0
+        throttled_in_window = False
+
+        def _allow_event() -> bool:
+            nonlocal window_start, window_count, throttled_in_window
+            if max_eps <= 0:
+                return True
+            now = time.time()
+            if now - window_start >= 1.0:
+                window_start = now
+                window_count = 0
+                throttled_in_window = False
+            if window_count < max_eps:
+                window_count += 1
+                return True
+            return False
+
         while True:
             if await request.is_disconnected():
                 break
@@ -1519,18 +1581,30 @@ async def stream_war_room(
             # Drain per-node events first — these are granular state transitions.
             node_events = drain_graph_node_events()
             for event in node_events:
+                if not _allow_event():
+                    if not throttled_in_window:
+                        throttled_in_window = True
+                        warn = json.dumps({"reason": "rate_limit", "max_eps": max_eps}, ensure_ascii=False)
+                        yield f"event: throttled\ndata: {warn}\n\n"
+                    break
                 payload = json.dumps(event, ensure_ascii=False)
                 yield f"event: node_complete\ndata: {payload}\n\n"
 
             # Drain price-alert events (M4 slice 3): triggered alerts → PWA toast.
             alert_events = drain_price_alert_events()
             for event in alert_events:
+                if not _allow_event():
+                    if not throttled_in_window:
+                        throttled_in_window = True
+                        warn = json.dumps({"reason": "rate_limit", "max_eps": max_eps}, ensure_ascii=False)
+                        yield f"event: throttled\ndata: {warn}\n\n"
+                    break
                 payload = json.dumps(event, ensure_ascii=False)
                 yield f"event: price_alert\ndata: {payload}\n\n"
 
             # Full war-room snapshot when fingerprint changes.
             fp = _war_room_fingerprint()
-            if fp != last_fp:
+            if fp != last_fp and _allow_event():
                 last_fp = fp
                 body = get_war_room_latest()
                 payload = json.dumps(body, ensure_ascii=False)
@@ -1550,6 +1624,12 @@ async def stream_war_room(
                 }
                 sig = json.dumps(quote_obj, ensure_ascii=False, sort_keys=True)
                 if last_quote_sigs.get(sym) != sig:
+                    if not _allow_event():
+                        if not throttled_in_window:
+                            throttled_in_window = True
+                            warn = json.dumps({"reason": "rate_limit", "max_eps": max_eps}, ensure_ascii=False)
+                            yield f"event: throttled\ndata: {warn}\n\n"
+                        break
                     last_quote_sigs[sym] = sig
                     envelope = {"type": "symbol_quote", "symbol": sym, "quote": quote_obj}
                     yield f"event: symbol_quote\ndata: {json.dumps(envelope, ensure_ascii=False)}\n\n"
