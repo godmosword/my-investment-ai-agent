@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 import { useRunCrew, useRunCrewStatus } from "../hooks/useApi";
+import { getTerminalCommandBarPlaceholder } from "../constants/portalPhase4";
 import {
   TERMINAL_RECENT_SYMBOLS_KEY,
   TERMINAL_SSE_WATCH_CHANGED_EVENT,
@@ -128,6 +129,7 @@ function parseBoardRoute(raw) {
  */
 export default function TerminalCommandBar({ trailing = null }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
   const { symbol, setSymbol } = useSymbolFocus();
   const inputRef = useRef(null);
@@ -178,6 +180,10 @@ export default function TerminalCommandBar({ trailing = null }) {
   const focused = (symbol || "").trim().toUpperCase();
   const inWatch = useMemo(() => focused && watchSet.has(focused), [focused, watchSet]);
   const crewHudActive = runCrew.isPending || crewStatus.data?.status === "running";
+  const cmdPlaceholder = useMemo(
+    () => getTerminalCommandBarPlaceholder(location.pathname),
+    [location.pathname],
+  );
 
   const showToast = useCallback((msg, isError = false) => {
     setRunToast({ msg, isError });
@@ -264,7 +270,7 @@ export default function TerminalCommandBar({ trailing = null }) {
         onKeyDown={(e) => {
           if (e.key === "Enter") onGo();
         }}
-        placeholder="AAPL &lt;GO&gt; | /columns | MACRO | RUN"
+        placeholder={cmdPlaceholder}
         className="min-h-[44px] min-w-[160px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
         autoComplete="off"
         spellCheck={false}

@@ -21,7 +21,7 @@
 
 ## 目錄結構
 
-> **現況（2026-05）**：repo 為 **Vite + React（`.jsx`）**，入口 **`src/main.jsx`** → **`src/app/App.jsx`**（路由內嵌於 `App.jsx`；歷史設計稿曾列 `Router.jsx`）；佈局 **`app/layout/Shell.jsx`** + **`ModuleNav.jsx`**。共用 HTTP：**[`lib/siliconApiHeaders.js`](../../data-verification-ui/src/lib/siliconApiHeaders.js)** + **[`hooks/useApi.js`](../../data-verification-ui/src/hooks/useApi.js)**（`X-Q-Silicon-Key`、401→`/api-key`）；**無** `shared/api/client.ts`（設計稿 axios 路徑仍列於下方 Prompt／驗收清單「設計錨點」）。後端增量路由見 repo 根目錄 **[`api_routers/`](../../api_routers/)**（`CHANGELOG` **2026-05-06**）。**Phase 2（2026-05-14）**：Command Bar **`terminal-crew-status-hud`**（輪詢 `GET /api/run-crew/status`）；Workspace **`storage` + `qsi_workspace_changed`** 跨分頁同步（[`workspaceSync.js`](../../data-verification-ui/src/constants/workspaceSync.js)）。**Phase 4 IA（讀者層×工作台層）**：產品敘事、原則、A／B／C 分段與**滾動實作規劃**見 [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) **§0 Phase 4**；**本檔**負責 PWA **路由／模組邊界**、**驗收清單**與 **`DASHBOARD_CONTRACT.md`** 同步；實作切片對齊 **`TODOS.md` 隊列 44**。
+> **現況（2026-05）**：repo 為 **Vite + React（`.jsx`）**，入口 **`src/main.jsx`** → **`src/app/App.jsx`**（路由內嵌於 `App.jsx`；歷史設計稿曾列 `Router.jsx`）；佈局 **`app/layout/Shell.jsx`** + **`ModuleNav.jsx`**。共用 HTTP：**[`lib/siliconApiHeaders.js`](../../data-verification-ui/src/lib/siliconApiHeaders.js)** + **[`hooks/useApi.js`](../../data-verification-ui/src/hooks/useApi.js)**（`X-Q-Silicon-Key`、401→`/api-key`）；**無** `shared/api/client.ts`（設計稿 axios 路徑仍列於下方 Prompt／驗收清單「設計錨點」）。後端增量路由見 repo 根目錄 **[`api_routers/`](../../api_routers/)**（`CHANGELOG` **2026-05-06**）。**Phase 2（2026-05-14）**：Command Bar **`terminal-crew-status-hud`**（輪詢 `GET /api/run-crew/status`）；Workspace **`storage` + `qsi_workspace_changed`** 跨分頁同步（[`workspaceSync.js`](../../data-verification-ui/src/constants/workspaceSync.js)）。**Phase 4 IA（讀者層×工作台層）**：產品敘事、原則、A／B／C 分段與**滾動實作規劃**見 [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) **§0 Phase 4**；**本檔**負責 PWA **路由／模組邊界**、**驗收清單**與 **`DASHBOARD_CONTRACT.md`** 同步；實作切片對齊 **`TODOS.md` 隊列 44**。**2026-05-16 repo 首波**：[**`portalPhase4.js`**](../../data-verification-ui/src/constants/portalPhase4.js)（Gate 0 預設常數）、讀者／工作台頁 **`data-testid` 導引條**、Command Bar **pathname placeholder**、Playwright **`phase4-ia-portal.spec.js`**（`CHANGELOG` **2026-05-16**「### PWA（隊列 44）」）。
 
 ```
 data-verification-ui/
@@ -183,4 +183,5 @@ QSILICON_MASTER_KEY=<random-hex-32>
 
 ## 修訂紀錄（本檔）
 
+- **2026-05-16（續）**：現況段補 **repo 首波** Phase 4 IA（[`portalPhase4.js`](../../data-verification-ui/src/constants/portalPhase4.js)、讀者／工作台導引條、Command Bar pathname placeholder、Playwright **`phase4-ia-portal.spec.js`**）；與 `CHANGELOG` **2026-05-16**「### PWA（隊列 44）」對齊。
 - **2026-05-16**：補 [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) **§0 Phase 4 IA** 交叉引用（現況段落）；新增 **「### Phase 4 IA」** 工程責任表；對齊 **`TODOS` 隊列 44**；校正路由敘述為 **`App.jsx` 內嵌路由**（設計稿 `Router.jsx` 僅作沿革）。

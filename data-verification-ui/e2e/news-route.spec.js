@@ -6,6 +6,9 @@ test.describe("News route (/news)", () => {
     await page.goto("/news", { waitUntil: "load" });
 
     await expect(page.getByTestId("news-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("news-reader-layer-intro")).toBeVisible();
+    await expect(page.getByTestId("portal-cta-news-to-insights")).toHaveAttribute("href", "/insights");
+
     await expect(page.getByText("AI 半導體供應鏈拉高資本支出")).toBeVisible();
     await expect(page.getByText("semianalysis.com")).toBeVisible();
 
