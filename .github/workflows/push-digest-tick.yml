@@ -45,7 +45,6 @@ jobs:
           import logging, json, sys
           logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
           import price_alerts
-          from api_routers.price_alerts import _triggered, _send_telegram, _telegram_enabled
           from symbol_snapshot_service import fetch_symbol_quote
 
           alerts = price_alerts.load_alerts()
@@ -62,12 +61,12 @@ jobs:
                   price_alerts.mark_checked(str(alert.get("id")), last_price=None, triggered=False, error="quote_unavailable")
                   continue
               last_price = float(quote["last"])
-              hit = _triggered(alert, last_price)
+              hit = price_alerts.triggered(alert, last_price)
               updated = price_alerts.mark_checked(str(alert.get("id")), last_price=last_price, triggered=hit, error="")
               if hit:
                   triggered += 1
-                  if _telegram_enabled():
-                      result = _send_telegram(updated or alert, last_price)
+                  if price_alerts.telegram_enabled():
+                      result = price_alerts.send_telegram(updated or alert, last_price)
                       if result.get("ok"):
                           telegram_sent += 1
                       print(json.dumps({"alert_id": alert.get("id"), "symbol": symbol, "last_price": last_price, "telegram": result}))

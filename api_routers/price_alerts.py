@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/push/price-alerts", tags=["push"])
 
+_triggered = price_alerts.triggered
+_telegram_enabled = price_alerts.telegram_enabled
+_send_telegram = price_alerts.send_telegram
+
 
 class PriceAlertBody(BaseModel):
     symbol: str = Field(min_length=1, max_length=24)
@@ -37,16 +41,6 @@ class PriceAlertBody(BaseModel):
         return value.lower()
 
 
-def _triggered(alert: dict[str, Any], last_price: float) -> bool:
-    direction = str(alert.get("direction") or "").lower()
-    target = float(alert.get("target_price") or 0)
-    if direction == "above":
-        return last_price >= target
-    if direction == "below":
-        return last_price <= target
-    return False
-
-
 def _send_push(alert: dict[str, Any], last_price: float) -> dict[str, Any]:
     try:
         import web_push_store
@@ -58,10 +52,6 @@ def _send_push(alert: dict[str, Any], last_price: float) -> dict[str, Any]:
         return web_push_store.send_test_push(title, body)
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": str(exc)}
-
-
-def _telegram_enabled() -> bool:
-    return os.getenv("PRICE_ALERTS_TELEGRAM_ENABLED", "").strip() in {"1", "true", "TRUE"}
 
 
 def _sse_alert_enabled() -> bool:
@@ -85,39 +75,6 @@ def _publish_sse_alert(alert: dict[str, Any], last_price: float) -> None:
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("price_alert SSE publish failed: %s", exc)
-
-
-def _send_telegram(alert: dict[str, Any], last_price: float) -> dict[str, Any]:
-    """Send single triggered alert as plain-text Telegram message.
-
-    Natural 24h dedupe: ``check_price_alerts`` skips rows where ``triggered_at`` is set,
-    so each alert sends to Telegram at most once over its lifetime.
-    """
-    if not _telegram_enabled():
-        return {"ok": False, "skipped": "telegram_disabled"}
-    token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
-    chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
-    if not token or not chat_id:
-        return {"ok": False, "skipped": "telegram_credentials_missing"}
-    try:
-        import telebot
-
-        bot = telebot.TeleBot(token)
-        symbol = str(alert.get("symbol") or "").upper()
-        direction = str(alert.get("direction") or "").lower()
-        target = float(alert.get("target_price") or 0)
-        note_raw = str(alert.get("note") or "").strip()
-        note_suffix = f"\n📝 {note_raw}" if note_raw else ""
-        text = (
-            f"🔔 Price Alert: {symbol}\n"
-            f"{direction.upper()} {target:.2f} — last {last_price:.2f}"
-            f"{note_suffix}"
-        )
-        bot.send_message(chat_id, text, timeout=30)
-        return {"ok": True}
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("price_alert telegram send failed: %s", exc)
-        return {"ok": False, "error": str(exc)}
 
 
 @router.get("")

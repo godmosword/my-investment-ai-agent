@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def _store_path() -> Path:
@@ -98,6 +101,53 @@ def build_alert_digest() -> dict[str, Any]:
         "symbols": symbols,
         "last_triggered_at": last_triggered,
     }
+
+
+def triggered(alert: dict[str, Any], last_price: float) -> bool:
+    direction = str(alert.get("direction") or "").lower()
+    target = float(alert.get("target_price") or 0)
+    if direction == "above":
+        return last_price >= target
+    if direction == "below":
+        return last_price <= target
+    return False
+
+
+def telegram_enabled() -> bool:
+    return os.getenv("PRICE_ALERTS_TELEGRAM_ENABLED", "").strip() in {"1", "true", "TRUE"}
+
+
+def send_telegram(alert: dict[str, Any], last_price: float) -> dict[str, Any]:
+    """Send single triggered alert as plain-text Telegram message.
+
+    Natural 24h dedupe: callers skip rows where ``triggered_at`` is set,
+    so each alert sends to Telegram at most once over its lifetime.
+    """
+    if not telegram_enabled():
+        return {"ok": False, "skipped": "telegram_disabled"}
+    token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip()
+    if not token or not chat_id:
+        return {"ok": False, "skipped": "telegram_credentials_missing"}
+    try:
+        import telebot
+
+        bot = telebot.TeleBot(token)
+        symbol = str(alert.get("symbol") or "").upper()
+        direction = str(alert.get("direction") or "").lower()
+        target = float(alert.get("target_price") or 0)
+        note_raw = str(alert.get("note") or "").strip()
+        note_suffix = f"\n\U0001f4dd {note_raw}" if note_raw else ""
+        text = (
+            f"\U0001f514 Price Alert: {symbol}\n"
+            f"{direction.upper()} {target:.2f} \u2014 last {last_price:.2f}"
+            f"{note_suffix}"
+        )
+        bot.send_message(chat_id, text, timeout=30)
+        return {"ok": True}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("price_alert telegram send failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
 
 
 def mark_checked(
