@@ -42,8 +42,11 @@ body {
 }
 
 .card {
-  background: rgba(16, 29, 39, 0.86);
-  border-color: var(--border);
+  /* Card background is intentionally near-transparent so colored tints
+   * (emerald/cyan/amber) layered on top read as the dominant signal and
+   * stacked panels don't look "boxy" on the dark page background. */
+  background: rgba(16, 29, 39, 0.22);
+  border-color: rgba(148, 163, 184, 0.1);
 }
 
 .page-title,
