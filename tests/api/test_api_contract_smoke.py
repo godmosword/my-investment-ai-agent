@@ -143,6 +143,28 @@ def test_stream_token_disabled_by_default(client, monkeypatch):
     assert r.status_code == 404
 
 
+def test_earnings_upcoming_shape(client, monkeypatch):
+    """``GET /api/earnings/upcoming`` returns a stable envelope even on empty data."""
+    from api_routers import earnings as earnings_router
+
+    monkeypatch.setattr(earnings_router, "tickers_with_earnings_between", lambda *a, **kw: [])
+    earnings_router.reset_cache_for_tests()
+    r = client.get("/api/earnings/upcoming")
+    assert r.status_code == 200
+    body = r.json()
+    assert isinstance(body.get("items"), list)
+    assert body.get("days") == 14
+    assert "as_of" in body
+
+
+def test_earnings_insight_disabled_by_default(client, monkeypatch, tmp_path):
+    """``GET /api/earnings/{symbol}/insight`` returns enabled=false when scaffold missing."""
+    monkeypatch.setenv("DEEP_FILING_ANALYSIS_FILE", str(tmp_path / "missing.jsonl"))
+    r = client.get("/api/earnings/NVDA/insight")
+    assert r.status_code == 200
+    assert r.json().get("enabled") is False
+
+
 def test_run_crew_status_contract(client, monkeypatch):
     monkeypatch.delenv("CREW_HTTP_ENABLED", raising=False)
     r = client.get("/api/run-crew/status")

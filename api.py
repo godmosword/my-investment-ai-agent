@@ -57,6 +57,7 @@ from api_routers import scenario as scenario_router
 from api_routers import symbols as symbols_router
 from api_routers import track_record as track_record_router
 from api_routers import industries as industries_router
+from api_routers import earnings as earnings_router
 from api_routers.execution_intents import (
     _enrich_intents_with_gate_hints,
     _latest_gate_failure_summary,
@@ -136,6 +137,7 @@ app.include_router(scenario_router.router)
 app.include_router(symbols_router.router)
 app.include_router(track_record_router.router)
 app.include_router(industries_router.router)
+app.include_router(earnings_router.router)
 app.include_router(execution_intents_router.router)
 
 
