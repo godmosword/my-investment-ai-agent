@@ -2,7 +2,9 @@
 
 **變更紀錄** → [`CHANGELOG.md`](CHANGELOG.md) · **Terminal 總表** → [`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) · **路線願景** → [`docs/ROADMAP_VISION.md`](docs/ROADMAP_VISION.md) · **Bloomberg 對齊驗收** → [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) · [**進度分析表（日報／財報／Terminal 對齊）**](#progress-vs-wall-st-bloomberg) · **執行路線圖** → [`docs/REPO_CONTINUATION_EXECUTION.md`](docs/REPO_CONTINUATION_EXECUTION.md) · **長期里程碑索引** → [`docs/PHASE_F_BACKLOG.md`](docs/PHASE_F_BACKLOG.md) · [**git pull／讀 codebase 時先看**](#pull-or-read-codebase-reminder)
 
-**`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節，落地後同步本檔／`CHANGELOG`。
+**`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。
+
+**同步狀態（2026-05-16 — Phase 4 IA 實作落檔）**：[`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) §0 增 **實作規劃**（Gate 0、**44a–44d** 表）；[`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) 增 **§ Phase 4 IA** 與現況段鏈接；本檔 [**隊列 44**](#terminal-master-plan-phase4-queue-44) 專節 +「下一批隊列」第 **44** 條；[`CLAUDE.md`](CLAUDE.md) 架構索引 **Phase 0–4**；CHANGELOG **2026-05-16**。
 
 **Portal ship readiness（2026-05-14）**：repo-side 補完 `api_routers/execution_intents.py`、`api_routers/symbols.py`、`api_routers/run_crew.py`，保留既有 public URL；quote provenance 補 `ttl_seconds=45`，Crew status 補 `age_seconds`／`is_stale`／`stale_after_seconds`。新增 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md) 作為 API／PWA／staging signoff 清單。**18–21／35 仍是雲端／staging signoff，不因 repo tests 自動關閉**；完成後須回填日期與 CHANGELOG。
 
@@ -186,6 +188,30 @@
 
 **紅線**：隊列 42/43 不碰 `main.py` 日報 pipeline、`graph/`、Telegram output、不新增未審核資料源、不承諾投資收益、不自動下單。
 
+<a id="terminal-master-plan-phase4-queue-44"></a>
+
+## Terminal Master Plan §0 Phase 4 — 實作（隊列 44）
+
+> **文件錨點**：[`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 Phase 4**（讀者層×工作台層：原則與 A／B／C 表）及同節 **「Phase 4 — 實作規劃」**（滾動切片 **44a–44d**）。PWA 工程邊界與驗收分工見 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**。
+
+**Gate 0（維護者 REVIEW；齊備後視為可開 44a）**
+
+1. 工作台「主戰場」**兩條**路由（建議預設：`/insights` + `/portfolio` 或 `/dashboard`，擇一組合並註記日期）。
+2. 讀者層是否「首屏零表格」（是／否／僅 `/news` 豁免等）。
+3. 融合第一刀：**單向**（新聞／專欄 → 觀點）或**雙向**。
+4. 「終端感」元素**保留上限**清單（三至五項）。
+5. **N**：工作台關鍵路徑「警報 → 標的／狀態 →（可選）回新聞／專欄脈絡」之**最大點擊數**。
+
+**44a — 讀者層（對齊 Master Plan A）**：[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx)、[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) — 首屏單一主任務、來源／時間軸可掃讀、避免首屏多區高密度表；可選 reader 副標 + `data-testid`。驗收：擴充／新增 Playwright + Master Plan A 人測；`npm run build`。**原則上不開新 API**。
+
+**44b — 工作台層（對齊 B）**：[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx)、[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx)、[`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) — 一屏一主問題；超過 **N** 個高密度區塊時收斂至 tab／[`GlobalWatchlistDock`](data-verification-ui/src/components/GlobalWatchlistDock.jsx)／[`WorkspacePanel`](data-verification-ui/src/components/WorkspacePanel.jsx)。驗收：人測路徑 ≤ **N**；與 Phase 3 `PriceAlertToaster`／SSE 不衝突。
+
+**44c — 融合層（對齊 C）**：跨新聞／專欄／觀點（或 `SymbolDeepDive`）— 固定人話 CTA 表（`constants` 或 `portalCta.js`）；重用 `?symbol=`、`?tab=`。驗收：Playwright 至少一條跨板塊 `href` + 文案；[`BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4 可並行勾帳。
+
+**44d — Command Bar 情境化（可選；對齊 Phase 4 原則 5）**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) — 依 `pathname` 切 placeholder／title；不改 401／RUN 節流。驗收：擴充 `command-bar-route.spec.js`。**建議獨立 PR、排在 44c 後**。
+
+**紅線（隊列 44）**：不碰 `main.py` 日報 pipeline、`graph/`、Telegram HTML 出口；不新增未審核或不可溯源資料源；不自動下單。
+
 ---
 
 ## 下一批隊列（建議接續實作，邊界清楚）
@@ -237,6 +263,7 @@
 41. ~~**5 板塊 Terminal — Phase 4：投資觀點 + Track Record**~~ — **2026-05-13 repo 側已交付**：[`track_record.py`](track_record.py) 與 [`api_routers/track_record.py`](api_routers/track_record.py) 已掛載 `GET /api/track-record/summary`、`GET /api/track-record/closed`、`GET /api/track-record/by-tag?tag=AI`，以 `execution_intents.jsonl` 最新 `PAPER_CLOSED` rows 計算 W/L、hit rate、avg return、Sharpe 近似、max drawdown 與 equity curve，並在 closed rows 回傳 `source`／`source_id`。[`modules/insights/pages/TrackRecordHome.jsx`](data-verification-ui/src/modules/insights/pages/TrackRecordHome.jsx) 已接 KPI、累積曲線、closed table、AI/CRYPTO/WIN/LOSS tag slice；[`scripts/mark_recommendations.py`](scripts/mark_recommendations.py) + [`docs/SQL/recommendation_outcomes.sql`](docs/SQL/recommendation_outcomes.sql) 提供 optional `RECOMMENDATION_OUTCOMES_TABLE` BQ sink。紅線保留：paper-only、不下單、不承諾收益。測試錨點：[`tests/api/test_track_record_router.py`](tests/api/test_track_record_router.py)、[`insights-track-record.spec.js`](data-verification-ui/e2e/insights-track-record.spec.js)。P1 / L。
 42. ~~**5 板塊 Terminal — Phase 5：科技專欄（Deep Brief 串接）**~~ — **2026-05-13 repo 側已交付**：[`api_routers/news.py`](api_routers/news.py) 新增 `GET /api/news/deep?pillar=ai|semiconductor|crypto&limit=...`；[`modules/columns/pages/ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) 已接 AI／半導體／Crypto toggle、Deep Brief card stream、related themes、side panel、閱讀時間／來源／ticker chip → `/insights?symbol=X`。測試錨點：[`tests/api/test_news_router.py`](tests/api/test_news_router.py)、[`industries-route.spec.js`](data-verification-ui/e2e/industries-route.spec.js)。P2 / M。
 43. ~~**5 板塊 Terminal — Phase 6：跨板塊完善（Command Bar、Watchlist、Push Alert、手機密度）**~~ — **2026-05-13 repo 側已交付**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 支援 5 板塊跳轉、symbol lookup → `/insights?symbol=...` 與 Recent chips；[`GlobalWatchlistDock.jsx`](data-verification-ui/src/components/GlobalWatchlistDock.jsx) 提供跨板塊 shared Watchlist + Price Alerts；[`price_alerts.py`](price_alerts.py) + [`api_routers/price_alerts.py`](api_routers/price_alerts.py) 提供 JSONL alert queue 與 quote threshold check；[`theme/terminal.css`](data-verification-ui/src/theme/terminal.css) 套入 terminal palette，互動元素同步補 44px touch target。測試錨點：[`tests/api/test_price_alerts_router.py`](tests/api/test_price_alerts_router.py)、[`queue43-cross-board.spec.js`](data-verification-ui/e2e/queue43-cross-board.spec.js)。P2 / L。
+44. **Terminal Master Plan §0 Phase 4 — 讀者層×工作台層 IA** — 見上節 [「隊列 44」](#terminal-master-plan-phase4-queue-44)（**Gate 0** + **44a–44d**）；文件主表 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 Phase 4 — 實作規劃**；PWA 契約 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**。建議交付順序 **44a→44b→44c**（**44d** 可選）。P2 / M。
 
 ---
 
@@ -454,6 +481,7 @@
 
 ## 修訂紀錄
 
+- **2026-05-16**：**`Terminal_Master_Plan` §0 Phase 4 實作規劃**（44a–44d、`TODOS` 隊列 44 專節）；**`TERMINAL_FRONTEND_PLAN` § Phase 4 IA**；**`CLAUDE.md`** 架構索引改 **Phase 0–4**；[`CHANGELOG.md`](CHANGELOG.md) **2026-05-16**。
 - **2026-05-15**：**`Terminal_Master_Plan` §0 Phase 4** — 讀者層×工作台層 IA 收斂入檔；本檔檔首補交叉引用；[`CHANGELOG.md`](CHANGELOG.md) **2026-05-15** `### Docs`。
 - **2026-05-14**：**隊列 28d MVP／34 workspace drag／29 Command Bar 快捷／Reviewer env 自檢／合約測試起點／隊列 36 E2E 全綠／T5b gate-index** — 見上「同步狀態（2026-05-14）」與 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-14** `### Portal / API`；「已交付摘要」列 **Queue 28d + … + Queue 36 E2E + T5b**。**續**：**Portal 架構 Phase 2**（Crew HUD、`workspaceSync` 跨分頁、Playwright）— `CHANGELOG`「PWA — Portal Phase 2」、[`README.md`](README.md) 導覽小節、`Terminal_Master_Plan` §0 Phase 2；「已交付摘要」列 **Portal Phase 2 產品切片**。
 - **2026-05-13（八）**：**隊列 42–43 repo 側落地** — 科技專欄 Deep Brief list API、`/columns` 三支柱 UI、Command Bar 5 板塊跳轉 + symbol deep-link、shared Watchlist dock、JSONL price alert queue、terminal theme 與 Playwright smoke；同步 README／DASHBOARD_CONTRACT／ENV_TEMPLATE；對齊 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-13** `### Columns + Cross-board Terminal`。

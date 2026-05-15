@@ -3,6 +3,14 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-16
+
+### Docs（`docs/architecture/`）
+
+- **`TERMINAL_FRONTEND_PLAN.md`**：現況段補 **§0 Phase 4 IA** 鏈接 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md)；新增 **「### Phase 4 IA」** 工程責任表；對齊 **`TODOS` 隊列 44**；校正 **`App.jsx` 內嵌路由** 敘述；檔末增修訂紀錄。
+- **`Terminal_Master_Plan.md`**：§0 Phase 4 增 **實作規劃**（Gate 0、**44a–44d** 滾動切片表、與 `TERMINAL_FRONTEND_PLAN`／`TODOS` 交叉引用）；§2 `TERMINAL_FRONTEND_PLAN` 建議句與五板塊路由現況對齊。
+- **`TODOS.md`**：新增 [「隊列 44」](#terminal-master-plan-phase4-queue-44) 專節與「下一批隊列」第 **44** 條；檔首補 Phase 4 實作錨點。
+
 ## 2026-05-15
 
 ### Docs（`docs/architecture/`）

@@ -94,6 +94,19 @@
 
 **維護者 REVIEW 前可先決**（建議落入 [`TODOS.md`](../../TODOS.md) 或票證）：工作台「主戰場」**兩條**路由、讀者層是否接受「首屏零表格」、融合第一刀**單向或雙向**、可保留的「終端感」元素**上限清單**（三至五項）。
 
+### Phase 4 — 實作規劃（滾動切片；對齊 `TODOS` 隊列 44）
+
+**Gate 0（文件化即可開工）**：將上段「REVIEW 前先決」四點寫入 [`TODOS.md`](../../TODOS.md) 或票證（含 **N**＝工作台關鍵路徑點擊上限）；未定案前 **44b** 以「盤點＋標註過密區塊」為主，不重排大結構。
+
+| 切片 | 對應 §0 表 | 主要產出（PWA） | 驗收（最小） | 依賴／備註 |
+|------|------------|-----------------|-------------|------------|
+| **44a** | **A** 讀者層 | [`NewsHome.jsx`](../../data-verification-ui/src/modules/news/pages/NewsHome.jsx)、[`ColumnsHome.jsx`](../../data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx)：首屏單一主任務、來源／時間軸可掃讀、**避免首屏多區高密度表**；可選 **reader 語氣**副標（`data-testid` 供 E2E）。 | 擴充或新增 Playwright（`news-route`／`industries-route` 或專用 spec）+ 人測腳本（Master Plan **A** 列）；`npm run build` 綠。 | **原則上不開新 API**；若僅文案／排版，契約測試可不改。 |
+| **44b** | **B** 工作台層 | [`InsightsHome.jsx`](../../data-verification-ui/src/modules/insights/pages/InsightsHome.jsx)、[`DashboardHome.jsx`](../../data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx)、[`PortfolioHome.jsx`](../../data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx)：每路由**一屏一主問題**；超過 **N** 個高密度區塊時收斂至 tab／[`GlobalWatchlistDock`](../../data-verification-ui/src/components/GlobalWatchlistDock.jsx)／[`WorkspacePanel`](../../data-verification-ui/src/components/WorkspacePanel.jsx)。 | 人測：警報→標的→（可選）回新聞／專欄 ≤ **N** 點擊；可選 E2E 記錄關鍵 `data-testid`。 | 與 **Phase 3** `PriceAlertToaster`／SSE **不衝突**；不減監控能力，只調**呈現層級**。 |
+| **44c** | **C** 融合層 | 跨 [`NewsHome`](../../data-verification-ui/src/modules/news/pages/NewsHome.jsx)／[`ColumnsHome`](../../data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx)／[`InsightsHome`](../../data-verification-ui/src/modules/insights/pages/InsightsHome.jsx)（或 `SymbolDeepDive`）：**固定人話 CTA**（文案表放 `constants` 或單一 `portalCta.js`）；單向或雙向依 Gate 0；可選輕量「主題／標的」hub（**重用** `?symbol=`、`?tab=`）。 | Playwright：至少一條「新聞／專欄 → 觀點」與（若做）反向；文案與 `href` 斷言一致。 | 與 [`BLOOMBERG_ALIGNMENT.md`](../BLOOMBERG_ALIGNMENT.md) §4 勾選表可並行記帳，**不**把讀者頁做成報價牆。 |
+| **44d（可選）** | **§0 Phase 4 原則 5** | [`TerminalCommandBar.jsx`](../../data-verification-ui/src/components/TerminalCommandBar.jsx)：依 `useLocation().pathname` 切 **placeholder／title**（讀者頁偏搜尋／主題；工作台頁保留 `GO`／`RUN` 語意）；不改 401／節流邏輯。 | 擴充 `command-bar-route.spec.js` 或新路徑斷言。 | 可排在 **44c** 之後；單獨 PR 較易 review。 |
+
+**與 §1 執行順序的落地順序**：建議 **44a → 44b → 44c**（必要時 **44d**）；每切片一 PR。詳細票證敘述見 [`TODOS.md`](../../TODOS.md) **隊列 44**。工程契約與模組邊界見 [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**。
+
 ---
 
 ## 1. 執行順序（維護者）
@@ -124,13 +137,14 @@
 ### [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md)
 
 - **優點**：**延續 Vite PWA** 相对 Next 重寫更合現況；`modules/{name}` + `shared/` 與後端「模組經 API 溝通」對齊；master key 自用足夠。
-- **建議**：路由表（如 `/` → `/briefs`）必須與**目前** `App.jsx`／`Router` 對齊後再動大改，避免與既有 `/terminal`、Report 深連結衝突；FastAPI 拆 `APIRouter` 宜 **逐 router PR**，並同步 [`ENV_TEMPLATE.txt`](../../ENV_TEMPLATE.txt)／[`DASHBOARD_CONTRACT.md`](../DASHBOARD_CONTRACT.md)。
+- **建議**：路由表（如 `/` → `/insights`）必須與**目前** `App.jsx` 對齊後再動大改，避免與既有 `/briefs`／`/terminal` redirect、Report 深連結衝突；FastAPI 拆 `APIRouter` 宜 **逐 router PR**，並同步 [`ENV_TEMPLATE.txt`](../../ENV_TEMPLATE.txt)／[`DASHBOARD_CONTRACT.md`](../DASHBOARD_CONTRACT.md)。
 - **風險**：五模組 stub 若一次加滿但無 E2E，易形成「壳大身薄」—每個模組至少保留 **一條 smoke 路徑**（mock API 亦可）。
 
 ---
 
 ## 修訂紀錄
 
+- **2026-05-16**：§0 Phase 4 增 **實作規劃**（44a–44d 表、Gate 0、`TODOS` 隊列 44）；§2 `TERMINAL_FRONTEND_PLAN` 建議句改與 **`App.jsx`** 路由現況對齊。
 - **2026-05-15**：§0 下新增 **Phase 4**（Portal **讀者層 × 工作台層** IA 收斂：原則、A／B／C 分段、刻意不做、REVIEW 決策點）；本檔矩陣狀態欄改為 **Phase 0–4**；§1 執行順序增第 4 點對齊 Phase 4。
 - **2026-05-14（Phase 3）**：§0 下新增 **Phase 3 Backlog Go-Live**（M4 SSE 閉環、M5／M4 排程、contract smoke 擴充）；slices 1–5 commit SHA 見 CHANGELOG **2026-05-14** `### Backlog Go-Live`。
 - **2026-05-14**：§0 下新增 **Phase 2**（Portal 產品切片：Crew HUD、Workspace 跨分頁）；本檔矩陣狀態欄改為 **Phase 0–2**。
