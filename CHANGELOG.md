@@ -14,6 +14,7 @@
 - **Tests**：[`tests/api/test_earnings_router.py`](tests/api/test_earnings_router.py)（9 條：shape／pillar mapping／days_until／clamp／override／cache／insight 啟用／停用／invalid symbol／invalid scaffold）；[`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py) 補 upcoming shape + insight 預設 enabled=false 兩條斷言。
 - **E2E**：[`data-verification-ui/e2e/insights-earnings.spec.js`](data-verification-ui/e2e/insights-earnings.spec.js)（3 條：calendar 列出標的＋pillar；NVDA 點開 scaffold + 三條 CTA href；TSM 無 scaffold 顯示 empty state，**不**偽造）。mock-api-server.mjs 補 fixture。
 - **紅線維持**：不動 `main.py`／`graph/`／Telegram；不接 SEC EDGAR live；無 scaffold 時明確標 `enabled: false`；不開新外部資料源。
+- **Scaffold 範本（隨後續同日）**：新增 [`data/deep_filing_analysis.example.jsonl`](data/deep_filing_analysis.example.jsonl)（NVDA／AMD／MSFT 三檔 TEMPLATE 列；每答案＋citation 皆以「TEMPLATE — replace with…」開頭，**不**含偽造數字）+ [`docs/EARNINGS_INSIGHT_SCAFFOLD.md`](docs/EARNINGS_INSIGHT_SCAFFOLD.md) runbook（本機試用、schema 約束、append-don't-overwrite 守則、citation `excerpt` 必須 verbatim）；[`.gitignore`](.gitignore) 排除 live 檔 `data/deep_filing_analysis.jsonl`（僅 commit `.example`）；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)／[`README.md`](README.md) 指向 runbook。
 
 ### Docs（Phase 4 收尾：Gate 0 簽核 + BLOOMBERG §4 勾帳）
 

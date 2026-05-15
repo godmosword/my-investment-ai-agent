@@ -34,7 +34,7 @@
 
 ### Portal 切片 — 財報 insight 專屬頁（隊列 45 · P3 · 2026-05-16）
 
-新增 `/insights?tab=earnings`：未來 N 天大型科技與 AI 供應鏈財報行事曆 + per-symbol DeepFilingAnalysis scaffold panel。**後端**：[`api_routers/earnings.py`](api_routers/earnings.py) — `GET /api/earnings/upcoming?days=14`（重用 `MEGA_CAP_TECH_EARNINGS_TICKERS` + yfinance 行事曆，1 小時 in-process 快取，pillar 由手工 mapping）、`GET /api/earnings/{symbol}/insight`（讀 `DEEP_FILING_ANALYSIS_FILE`，無資料時明確 `enabled: false`，**不偽造數字**）。**前端**：[`EarningsInsightHome.jsx`](data-verification-ui/src/modules/insights/pages/EarningsInsightHome.jsx) + 三條 44c 融合 CTA（深度頁／新聞 focus／專欄 focus）。詳見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-16** `### Portal / API（隊列 45 · P3）` 與計畫檔 `plans/finance-terminal-repo-1-cheeky-pike.md`。
+新增 `/insights?tab=earnings`：未來 N 天大型科技與 AI 供應鏈財報行事曆 + per-symbol DeepFilingAnalysis scaffold panel。**後端**：[`api_routers/earnings.py`](api_routers/earnings.py) — `GET /api/earnings/upcoming?days=14`（重用 `MEGA_CAP_TECH_EARNINGS_TICKERS` + yfinance 行事曆，1 小時 in-process 快取，pillar 由手工 mapping）、`GET /api/earnings/{symbol}/insight`（讀 `DEEP_FILING_ANALYSIS_FILE`，無資料時明確 `enabled: false`，**不偽造數字**）。**前端**：[`EarningsInsightHome.jsx`](data-verification-ui/src/modules/insights/pages/EarningsInsightHome.jsx) + 三條 44c 融合 CTA（深度頁／新聞 focus／專欄 focus）。**本機試用**：`cp data/deep_filing_analysis.example.jsonl data/deep_filing_analysis.jsonl`（範本為 TEMPLATE 內容；填寫流程與 schema 約束見 [`docs/EARNINGS_INSIGHT_SCAFFOLD.md`](docs/EARNINGS_INSIGHT_SCAFFOLD.md)）。詳見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-16** `### Portal / API（隊列 45 · P3）` 與計畫檔 `plans/finance-terminal-repo-1-cheeky-pike.md`。
 
 ### Portal 架構 Phase 4 IA（讀者層 × 工作台層，2026-05-16）
 
