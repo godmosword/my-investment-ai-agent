@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { insightsSymbolHref, PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
 import { useIndustryThemes, useNewsDeepList } from "../../../hooks/useApi";
 
 const PILLARS = [
@@ -104,9 +106,14 @@ function DeepBriefCard({ item, selected, onClick }) {
       {tickers.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {tickers.map((ticker) => (
-            <span key={ticker} className="rounded bg-amber-400/10 px-2 py-1 font-mono text-[12px] text-amber-200">
-              {ticker}
-            </span>
+            <Link
+              key={ticker}
+              data-testid="columns-card-ticker-to-insights"
+              className="min-h-[36px] rounded bg-amber-400/10 px-2 py-1 font-mono text-[12px] text-amber-200 hover:bg-amber-400/20"
+              to={insightsSymbolHref(ticker)}
+            >
+              {String(ticker).toUpperCase()}
+            </Link>
           ))}
         </div>
       ) : null}
@@ -164,14 +171,14 @@ function DeepBriefPanel({ item, onClose }) {
         {tickers.length ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {tickers.map((ticker) => (
-              <a
+              <Link
                 key={ticker}
                 data-testid="columns-ticker-chip"
                 className="min-h-[36px] rounded bg-amber-400/10 px-2 py-1 font-mono text-[12px] text-amber-200 hover:bg-amber-400/20"
-                href={`/insights?symbol=${encodeURIComponent(String(ticker).toUpperCase())}`}
+                to={insightsSymbolHref(ticker)}
               >
                 {String(ticker).toUpperCase()}
-              </a>
+              </Link>
             ))}
           </div>
         ) : null}
@@ -259,13 +266,13 @@ function SectorRotation({ rotation, source }) {
               </div>
               <div className="mt-1 flex flex-wrap gap-1">
                 {(row.symbols || []).slice(0, 4).map((symbol) => (
-                  <a
+                  <Link
                     key={symbol}
-                    href={`/insights?symbol=${encodeURIComponent(String(symbol).toUpperCase())}`}
+                    to={insightsSymbolHref(symbol)}
                     className="font-mono text-[11px] text-cyan-200 hover:text-cyan-100"
                   >
                     {symbol}
-                  </a>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -294,7 +301,27 @@ export default function ColumnsHome() {
     <div data-testid="columns-home" className="px-3 py-4 pb-24">
       <div className="page-header">
         <div className="page-title">科技專欄</div>
-        <div className="page-subtitle">Deep Briefs by pillar</div>
+        <div className="page-subtitle">深度敘事與支柱主題（讀者層）</div>
+      </div>
+
+      <div
+        data-testid="columns-reader-layer-intro"
+        className="card mb-3 border border-white/10 bg-white/[0.03] p-3"
+      >
+        <div className="text-[12px] font-semibold text-white/90">讀者層 · 長文與主軸</div>
+        <p className="mt-1 text-[12px] leading-relaxed text-[var(--muted)]">
+          先選支柱、讀卡片摘要；若要查報價／部位／紙上流程，請到觀點工作台（目標路徑 ≤{" "}
+          {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊）。
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/insights"
+            data-testid="portal-cta-columns-to-insights"
+            className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/35 bg-emerald-950/25 px-3 py-1.5 text-[12px] font-semibold text-emerald-100/95 hover:bg-emerald-900/35"
+          >
+            去觀點工作台
+          </Link>
+        </div>
       </div>
 
       <PillarTabs active={activePillar} onChange={changePillar} />

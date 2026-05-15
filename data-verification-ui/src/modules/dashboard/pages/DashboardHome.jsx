@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import CatalystCalendar from "../../../components/CatalystCalendar";
 import Sparkline from "../../../components/Sparkline";
 import TodayBtcSnapshotStrip from "../../../components/TodayBtcSnapshotStrip";
 import { useMacroSnapshot } from "../../../hooks/useApi";
+import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
 
 function formatValue(indicator) {
   if (!indicator) return "N/A";
@@ -135,6 +137,22 @@ export default function DashboardHome() {
           Macro snapshot · {data?.as_of ? new Date(data.as_of).toLocaleString("zh-TW", { hour12: false }) : "loading"}
           {data?.cached ? " · cached" : ""}
         </div>
+      </div>
+
+      <div
+        data-testid="dashboard-workbench-intro"
+        className="card mb-3 border border-cyan-500/15 bg-cyan-950/10 p-3 text-[12px] leading-relaxed text-white/80"
+      >
+        <span className="font-semibold text-cyan-100/95">工作台 · 宏觀一問</span>
+        ：先看 regime 與催化剂，再回到
+        <Link to="/insights" className="mx-1 text-cyan-200 underline-offset-2 hover:text-cyan-100 hover:underline">
+          觀點
+        </Link>
+        或
+        <Link to="/portfolio" className="mx-1 text-cyan-200 underline-offset-2 hover:text-cyan-100 hover:underline">
+          持倉
+        </Link>
+        對照部位。主戰場仍以觀點／持倉為核心（路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊）。
       </div>
 
       {showOfflineStrip ? (

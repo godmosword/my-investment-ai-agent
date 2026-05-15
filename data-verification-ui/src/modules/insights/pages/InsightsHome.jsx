@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
 import DailyBriefPage from "../../daily-brief/pages/DailyBriefPage";
 import QuantHome from "../../quant-trading/pages/QuantHome";
 import PaperLifecycleHome from "./PaperLifecycleHome";
@@ -40,6 +41,16 @@ export default function InsightsHome() {
   return (
     <div data-testid="insights-home">
       <SymbolDeepDive />
+      <div
+        data-testid="insights-workbench-intro"
+        className="card mb-3 border border-emerald-500/20 bg-emerald-950/15 p-3 text-[12px] leading-relaxed text-white/80"
+      >
+        <span className="font-semibold text-emerald-100/95">工作台</span>
+        ：標的深挖、紙上部位、情境與訊號在此分頁切換。讀題材與即時脈動請用「科技即時報／專欄」。主戰場以
+        <span className="text-emerald-100/90"> 觀點、持倉 </span>
+        為核心；宏觀狀態請到「數據儀表板」。關鍵路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks}{" "}
+        次點擊（人測錨點）。
+      </div>
       <div className="mb-3 flex flex-wrap items-center gap-2 px-1" role="tablist" aria-label="Insights tabs">
         {TABS.map((tab) => (
           <button

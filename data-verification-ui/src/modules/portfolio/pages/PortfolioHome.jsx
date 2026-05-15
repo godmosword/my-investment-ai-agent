@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import Watchlist from "../../../components/Watchlist";
 import {
   useAddHolding,
@@ -7,6 +8,7 @@ import {
   usePortfolioHoldings,
   usePortfolioPnl,
 } from "../../../hooks/useApi";
+import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
 
 function money(value, digits = 0) {
   const n = Number(value);
@@ -317,6 +319,19 @@ export default function PortfolioHome() {
       <div className="page-header">
         <div className="page-title">Portfolio Tracker</div>
         <div className="page-subtitle">手動倉位 · CSV 匯入 · quote MTM（JSONL v1）</div>
+      </div>
+
+      <div
+        data-testid="portfolio-workbench-intro"
+        className="card mb-3 border border-emerald-500/20 bg-emerald-950/15 p-3 text-[12px] leading-relaxed text-white/80"
+      >
+        <span className="font-semibold text-emerald-100/95">工作台 · 持倉主問</span>
+        ：先確認總市值與今日損益，再用
+        <Link to="/insights" className="mx-1 text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline">
+          觀點
+        </Link>
+        對照訊號與標的深挖；需要宏觀背景可到「數據儀表板」。路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks}{" "}
+        次點擊。
       </div>
 
       <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">

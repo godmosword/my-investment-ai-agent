@@ -2,6 +2,13 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Terminal Command Bar (queue 29)", () => {
+  test("placeholder uses reader wording on /columns", async ({ page }) => {
+    await page.goto("/columns", { waitUntil: "load" });
+    const bar = page.getByTestId("terminal-command-bar");
+    await expect(bar).toBeVisible({ timeout: 60_000 });
+    await expect(bar.getByPlaceholder(/搜尋主題焦點/i)).toBeVisible();
+  });
+
   test("AAPL GO sets focus and WATCH persists terminal_sse_watch", async ({ page }) => {
     await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");

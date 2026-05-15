@@ -7,9 +7,17 @@
 
 ### Docs（`docs/architecture/`）
 
-- **`TERMINAL_FRONTEND_PLAN.md`**：現況段補 **§0 Phase 4 IA** 鏈接 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md)；新增 **「### Phase 4 IA」** 工程責任表；對齊 **`TODOS` 隊列 44**；校正 **`App.jsx` 內嵌路由** 敘述；檔末增修訂紀錄。
+- **`TERMINAL_FRONTEND_PLAN.md`**：現況段補 **§0 Phase 4 IA** 鏈接 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md)；新增 **「### Phase 4 IA」** 工程責任表；對齊 **`TODOS` 隊列 44**；校正 **`App.jsx` 內嵌路由** 敘述；檔末增修訂紀錄。**（續／程式落地後）** 現況段補 **repo 首波**（[`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js)、導引條、Command Bar placeholder、E2E `phase4-ia-portal.spec.js`）；修訂紀錄增 **2026-05-16（續）**。
 - **`Terminal_Master_Plan.md`**：§0 Phase 4 增 **實作規劃**（Gate 0、**44a–44d** 滾動切片表、與 `TERMINAL_FRONTEND_PLAN`／`TODOS` 交叉引用）；§2 `TERMINAL_FRONTEND_PLAN` 建議句與五板塊路由現況對齊。
 - **`TODOS.md`**：新增 [「隊列 44」](#terminal-master-plan-phase4-queue-44) 專節與「下一批隊列」第 **44** 條；檔首補 Phase 4 實作錨點。
+
+### PWA（隊列 44 — Phase 4 IA 首波實作）
+
+- **Gate 0 預設落程式**：[`data-verification-ui/src/constants/portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) 匯出 `PORTAL_PHASE4_GATE0` 與 `insightsSymbolHref`／`getTerminalCommandBarPlaceholder`。
+- **讀者層（44a／44c）**：[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx)、[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) 增 **`news-reader-layer-intro`**／**`columns-reader-layer-intro`** 與 **`Link`** CTA（`portal-cta-*-to-insights`）；新聞 deep 標的 **`news-ticker-to-insights`** 連至 `/insights?symbol=`；專欄卡片／rotation 標的改用 **`Link`** 與共用 `insightsSymbolHref`。
+- **工作台層（44b）**：[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx)、[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx)、[`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) 增 **`insights-workbench-intro`**／**`dashboard-workbench-intro`**／**`portfolio-workbench-intro`**。
+- **Command Bar 情境化（44d）**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 依 `useLocation().pathname` 切 placeholder（`/news`、`/columns` 為讀者向提示）。
+- **E2E**：新增 [`phase4-ia-portal.spec.js`](data-verification-ui/e2e/phase4-ia-portal.spec.js)；擴充 [`news-route.spec.js`](data-verification-ui/e2e/news-route.spec.js)、[`command-bar-route.spec.js`](data-verification-ui/e2e/command-bar-route.spec.js)。
 
 ## 2026-05-15
 
