@@ -1,4 +1,4 @@
-/** Shared paper-trading position helpers — used by QuantHome and PositionsHome. */
+/** Shared paper-trading position helpers — used by QuantHome. */
 
 export function finiteNumber(value) {
   if (value == null || (typeof value === "string" && value.trim() === "")) return null;
