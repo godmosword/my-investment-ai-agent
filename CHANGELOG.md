@@ -5,6 +5,13 @@
 
 ## 2026-05-16
 
+### PWA（隊列 44 · 44b — 工作台密度收斂於 N=3）
+
+- **`/dashboard`**：[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) 拆 2 tab —— **宏觀總覽**（`?tab=overview`，預設；含 `macro-indicator-grid`、`CatalystCalendar`、`RegimePanel`）／**市場深度**（`?tab=depth`；含 `ComputeMemoryPanel`、`OnchainMetricsPanel`）。同 InsightsHome tab 模式，URL deep link。首屏高密度區塊由 5 縮至 ≤ 3。
+- **`/portfolio`**：[`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) 移除內嵌 `<Watchlist />`（與 [`GlobalWatchlistDock`](data-verification-ui/src/components/GlobalWatchlistDock.jsx) 完全重複；後者已掛 Shell 全站浮動 dock，含 `Watchlist`+`PriceAlertsPanel`+`WorkspacePanel`）。首屏剩 KPI／Risk／Holdings 三區塊。
+- **Tests**：[`phase4-ia-portal.spec.js`](data-verification-ui/e2e/phase4-ia-portal.spec.js) 補 2 條 44b 斷言（dashboard tab 切換時 compute-memory／onchain 出現／消失；portfolio inline watchlist 消失但 global dock 仍在）。同步調整 [`dashboard-compute-memory.spec.js`](data-verification-ui/e2e/dashboard-compute-memory.spec.js)、[`dashboard-onchain.spec.js`](data-verification-ui/e2e/dashboard-onchain.spec.js) 改走 `?tab=depth` deep link。10/10 綠。
+- **紅線維持**：後端／API／schema 零變更；既有 testid 全保留；`/dashboard?tab=depth` deep link 對應原來在 `/dashboard` 一頁渲染的內容。
+
 ### Portal / API（隊列 45 · P5-live PR-C — Binance public funding rate）
 
 - **新檔**：[`tools/binance_funding_rate.py`](tools/binance_funding_rate.py) — `fetch_funding_rates()` 走 Binance public USD-M futures `GET /fapi/v1/premiumIndex?symbol=...`（無 auth、無 key）抓 BTCUSDT／ETHUSDT 的 `lastFundingRate`（8h 分數），annualize `× 3 × 365 × 100` 成 APR%。HTTP／URL／JSON 例外 → `None`，不重試。5 分鐘快取。All-or-nothing。

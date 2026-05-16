@@ -3,7 +3,8 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Dashboard — 算力／記憶體 mock panel (queue 45 · P2-mock)", () => {
   test("renders three blocks with mock badge and disclaimer", async ({ page }) => {
-    await page.goto("/dashboard", { waitUntil: "load" });
+    // 44b: compute-memory now lives under the 市場深度 tab.
+    await page.goto("/dashboard?tab=depth", { waitUntil: "load" });
     const panel = page.getByTestId("compute-memory-panel");
     await expect(panel).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("compute-memory-disclaimer")).toContainText("MOCK FIXTURE");

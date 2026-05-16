@@ -41,6 +41,32 @@ test.describe("Portal Phase 4 IA — reader layer × workbench cues (queue 44)",
     await expect(page.getByTestId("news-focus-badge")).toBeVisible();
   });
 
+  test("44b dashboard splits to 宏觀/市場深度 tabs (compute-memory & onchain land under depth)", async ({ page }) => {
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
+    // overview is the default tab; depth content is hidden.
+    await expect(page.getByTestId("dashboard-tab-overview")).toBeVisible();
+    await expect(page.getByTestId("dashboard-tab-depth")).toBeVisible();
+    await expect(page.getByTestId("macro-indicator-grid")).toBeVisible();
+    await expect(page.getByTestId("compute-memory-panel")).toHaveCount(0);
+    await expect(page.getByTestId("onchain-panel")).toHaveCount(0);
+
+    // Switching to depth hides the macro grid and reveals the two dense panels.
+    await page.getByTestId("dashboard-tab-depth").click();
+    await expect(page).toHaveURL(/tab=depth/);
+    await expect(page.getByTestId("macro-indicator-grid")).toHaveCount(0);
+    await expect(page.getByTestId("compute-memory-panel")).toBeVisible();
+    await expect(page.getByTestId("onchain-panel")).toBeVisible();
+  });
+
+  test("44b portfolio drops inline Watchlist (now lives in GlobalWatchlistDock only)", async ({ page }) => {
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+    // Inline Watchlist (default testid `portfolio-watchlist`) removed; floating dock still site-wide.
+    await expect(page.getByTestId("portfolio-watchlist")).toHaveCount(0);
+    await expect(page.getByTestId("global-watchlist-toggle")).toBeVisible();
+  });
+
   test("Command Bar placeholder softens on /news and stays terminal on /insights", async ({ page }) => {
     await page.goto("/news", { waitUntil: "load" });
     const barNews = page.getByTestId("terminal-command-bar");

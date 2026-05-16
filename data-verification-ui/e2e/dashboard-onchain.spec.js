@@ -3,7 +3,8 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Dashboard — Crypto on-chain mock panel (queue 45 · P5)", () => {
   test("renders three blocks with mock badge and disclaimer", async ({ page }) => {
-    await page.goto("/dashboard", { waitUntil: "load" });
+    // 44b: onchain now lives under the 市場深度 tab.
+    await page.goto("/dashboard?tab=depth", { waitUntil: "load" });
     const panel = page.getByTestId("onchain-panel");
     await expect(panel).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("onchain-disclaimer")).toContainText("MOCK FIXTURE");

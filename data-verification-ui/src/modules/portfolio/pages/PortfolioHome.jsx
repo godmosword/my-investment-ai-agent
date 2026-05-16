@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import PortfolioRiskPanel from "../../../components/PortfolioRiskPanel";
-import Watchlist from "../../../components/Watchlist";
 import {
   useAddHolding,
   useDeleteHolding,
@@ -461,7 +460,6 @@ export default function PortfolioHome() {
         </>
       ) : null}
 
-      <Watchlist />
     </div>
   );
 }

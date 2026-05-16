@@ -206,7 +206,10 @@
 | 4 | 「終端感」保留元素上限（三至五項） | **5 項**：Command Bar、mono symbol chips、macro spark grid、SSE WATCH、Workspace dock | `terminalToneKeep` |
 | 5 | 工作台關鍵路徑最大點擊數 **N** | **N=3**（「警報 → 標的／狀態 →（可選）回新聞／專欄脈絡」） | `maxWorkbenchPathClicks: 3` |
 
-**44b 進階收斂**（待做）：使用 N=3 與「主戰場」清單作驗收尺，超過 N 個高密度區塊時收斂至 tab／`GlobalWatchlistDock`／`WorkspacePanel`。下次開工前再對焦哪幾塊算「高密度」。
+**44b 進階收斂**（**2026-05-16 交付**）：
+- `/dashboard` 拆 2 tab — 宏觀總覽（`?tab=overview` 預設）／市場深度（`?tab=depth`）；高密度區塊由 5 縮至 ≤ 3。
+- `/portfolio` 移除內嵌 `<Watchlist />`；改由 `GlobalWatchlistDock`（已掛 Shell 全站）承接。
+- E2E [`phase4-ia-portal.spec.js`](data-verification-ui/e2e/phase4-ia-portal.spec.js) 補 2 條 44b 斷言 + 既有 dashboard-compute-memory／dashboard-onchain 改走 `?tab=depth`；10/10 綠。
 
 **44a — 讀者層（對齊 Master Plan A）**：[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx)、[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) — 首屏單一主任務、來源／時間軸可掃讀、避免首屏多區高密度表；可選 reader 副標 + `data-testid`。驗收：擴充／新增 Playwright + Master Plan A 人測；`npm run build`。**原則上不開新 API**。
 

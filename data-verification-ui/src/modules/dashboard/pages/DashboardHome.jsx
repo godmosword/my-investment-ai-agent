@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import CatalystCalendar from "../../../components/CatalystCalendar";
 import ComputeMemoryPanel from "../../../components/ComputeMemoryPanel";
 import OnchainMetricsPanel from "../../../components/OnchainMetricsPanel";
@@ -7,6 +7,12 @@ import Sparkline from "../../../components/Sparkline";
 import TodayBtcSnapshotStrip from "../../../components/TodayBtcSnapshotStrip";
 import { useMacroSnapshot } from "../../../hooks/useApi";
 import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
+
+const DASHBOARD_TABS = [
+  { id: "overview", label: "宏觀總覽", testId: "dashboard-tab-overview" },
+  { id: "depth", label: "市場深度", testId: "dashboard-tab-depth" },
+];
+const DASHBOARD_TAB_IDS = new Set(DASHBOARD_TABS.map((t) => t.id));
 
 function formatValue(indicator) {
   if (!indicator) return "N/A";
@@ -101,6 +107,28 @@ export default function DashboardHome() {
     typeof globalThis.navigator !== "undefined" ? globalThis.navigator.onLine : true,
   );
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [active, setActive] = useState("overview");
+  const activeLabel = useMemo(
+    () => DASHBOARD_TABS.find((t) => t.id === active)?.label ?? "宏觀總覽",
+    [active],
+  );
+
+  useEffect(() => {
+    const fromUrl = String(searchParams.get("tab") || "").trim();
+    if (fromUrl && DASHBOARD_TAB_IDS.has(fromUrl)) {
+      setActive(fromUrl);
+    }
+  }, [searchParams]);
+
+  const selectTab = (id) => {
+    setActive(id);
+    const next = new URLSearchParams(searchParams);
+    if (id === "overview") next.delete("tab");
+    else next.set("tab", id);
+    setSearchParams(next, { replace: true });
+  };
+
   useEffect(() => {
     const bump = () => setIsOnline(Boolean(globalThis.navigator?.onLine));
     globalThis.addEventListener?.("online", bump);
@@ -173,21 +201,52 @@ export default function DashboardHome() {
         </div>
       ) : null}
 
-      {indicators.length > 0 ? (
-        <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="macro-indicator-grid">
-          {indicators.map((indicator) => (
-            <MacroCard key={indicator.id} indicator={indicator} />
-          ))}
-        </div>
-      ) : null}
+      <div
+        className="mb-3 flex flex-wrap items-center gap-2 px-1"
+        role="tablist"
+        aria-label="Dashboard tabs"
+      >
+        {DASHBOARD_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={active === tab.id}
+            data-testid={tab.testId}
+            className={`rounded border px-3 py-1.5 text-[12px] font-semibold ${
+              active === tab.id
+                ? "border-cyan-500/40 bg-cyan-500/[0.08] text-cyan-100/90"
+                : "border-white/15 text-white/70 hover:bg-white/[0.04]"
+            }`}
+            onClick={() => selectTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      <ComputeMemoryPanel />
-
-      <OnchainMetricsPanel />
-
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-        <CatalystCalendar catalysts={data?.catalysts ?? []} />
-        <RegimePanel regime={data?.regime} />
+      <div role="tabpanel" aria-label={activeLabel}>
+        {active === "overview" ? (
+          <>
+            {indicators.length > 0 ? (
+              <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="macro-indicator-grid">
+                {indicators.map((indicator) => (
+                  <MacroCard key={indicator.id} indicator={indicator} />
+                ))}
+              </div>
+            ) : null}
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+              <CatalystCalendar catalysts={data?.catalysts ?? []} />
+              <RegimePanel regime={data?.regime} />
+            </div>
+          </>
+        ) : null}
+        {active === "depth" ? (
+          <>
+            <ComputeMemoryPanel />
+            <OnchainMetricsPanel />
+          </>
+        ) : null}
       </div>
     </div>
   );
