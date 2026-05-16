@@ -1153,10 +1153,22 @@ const server = http.createServer((req, res) => {
   if (analysisMatch) {
     const sym = analysisMatch[1].toUpperCase();
     const last = sym === "BTC" ? BTC_LAST : sym === "NVDA" ? 100.5 : 100;
+    // 20 OHLC bars; per-bar high-low spread = 2 → ATR(14) ≈ 2.0 (used by PortfolioRiskPanel test)
+    const series = [];
+    for (let i = 0; i < 20; i += 1) {
+      const close = 100 + i * 0.3;
+      series.push({
+        time: `2026-05-${String(i + 1).padStart(2, "0")}`,
+        open: close - 0.1,
+        high: close + 1.0,
+        low: close - 1.0,
+        close,
+      });
+    }
     const snap =
       sym === "NVDA"
-        ? { symbol: sym, source: "e2e_mock", as_of: "2026-04-14T00:00:00+00:00" }
-        : null;
+        ? { symbol: sym, source: "e2e_mock", as_of: "2026-04-14T00:00:00+00:00", price_series: series }
+        : { symbol: sym, source: "e2e_mock", as_of: "2026-04-14T00:00:00+00:00", price_series: series };
     sendJson(res, 200, {
       symbol: sym,
       quote: { symbol: sym, last, source: "e2e_mock" },

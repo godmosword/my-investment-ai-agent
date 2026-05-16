@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import PortfolioRiskPanel from "../../../components/PortfolioRiskPanel";
 import Watchlist from "../../../components/Watchlist";
 import {
   useAddHolding,
@@ -354,6 +355,8 @@ export default function PortfolioHome() {
           valueClass={toneClass(totalPnl)}
         />
       </div>
+
+      <PortfolioRiskPanel />
 
       <div className="mb-3 flex flex-wrap gap-2">
         <button
