@@ -157,6 +157,63 @@ def test_capex_live_falls_back_to_fixture_when_fetch_fails(client, monkeypatch, 
     assert body["hyperscaler_capex"]["source"] == "mock"
 
 
+def test_gpu_live_uses_coreweave_when_flag_on(client, monkeypatch, tmp_path):
+    path = tmp_path / "live.json"
+    path.write_text(
+        json.dumps(
+            {
+                "hbm_dram_spot": {"items": []},
+                "hyperscaler_capex": {"items": []},
+                "gpu_spot": {"source": "mock", "items": [{"sku": "H100 SXM"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COMPUTE_MEMORY_FIXTURE_FILE", str(path))
+    monkeypatch.setenv("COMPUTE_MEMORY_GPU_LIVE", "1")
+
+    from tools import coreweave_gpu_spot
+
+    live_items = [
+        {"sku": "H100 SXM", "provider": "CoreWeave", "hourly_usd": 49.24, "as_of": "2026-05-16", "source": "coreweave_pricing"},
+        {"sku": "H200 SXM", "provider": "CoreWeave", "hourly_usd": 50.44, "as_of": "2026-05-16", "source": "coreweave_pricing"},
+        {"sku": "B200 HGX", "provider": "CoreWeave", "hourly_usd": 68.80, "as_of": "2026-05-16", "source": "coreweave_pricing"},
+        {"sku": "A100 SXM", "provider": "CoreWeave", "hourly_usd": 21.60, "as_of": "2026-05-16", "source": "coreweave_pricing"},
+    ]
+    monkeypatch.setattr(coreweave_gpu_spot, "fetch_gpu_pricing", lambda: live_items)
+
+    macro_router._compute_memory_reset_cache_for_tests()
+    body = client.get("/api/macro/compute-memory").json()
+    assert body["live_block_status"]["gpu"] == "live"
+    assert body["gpu_spot"]["source"] == "coreweave_pricing"
+    assert body["gpu_spot"]["items"][0]["hourly_usd"] == 49.24
+
+
+def test_gpu_live_falls_back_when_fetch_fails(client, monkeypatch, tmp_path):
+    path = tmp_path / "fallback.json"
+    path.write_text(
+        json.dumps(
+            {
+                "hbm_dram_spot": {"items": []},
+                "hyperscaler_capex": {"items": []},
+                "gpu_spot": {"source": "mock", "items": [{"sku": "H100 SXM"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COMPUTE_MEMORY_FIXTURE_FILE", str(path))
+    monkeypatch.setenv("COMPUTE_MEMORY_GPU_LIVE", "1")
+
+    from tools import coreweave_gpu_spot
+
+    monkeypatch.setattr(coreweave_gpu_spot, "fetch_gpu_pricing", lambda: None)
+
+    macro_router._compute_memory_reset_cache_for_tests()
+    body = client.get("/api/macro/compute-memory").json()
+    assert body["live_block_status"]["gpu"] == "fallback"
+    assert body["gpu_spot"]["source"] == "mock"
+
+
 def test_capex_live_off_keeps_mock_status(client, monkeypatch, tmp_path):
     path = tmp_path / "good.json"
     path.write_text(

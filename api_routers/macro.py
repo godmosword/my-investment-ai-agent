@@ -464,6 +464,23 @@ def get_compute_memory() -> dict[str, Any]:
         else:
             capex_status = "fallback"
 
+    gpu_block = dict(body.get("gpu_spot") or {})
+    gpu_status = "mock"
+    if (os.getenv("COMPUTE_MEMORY_GPU_LIVE") or "0").strip().lower() in ("1", "true", "yes"):
+        from tools import coreweave_gpu_spot
+
+        live_gpu_items = coreweave_gpu_spot.fetch_gpu_pricing()
+        if live_gpu_items:
+            gpu_block = {
+                "as_of": live_gpu_items[0].get("as_of"),
+                "source": "coreweave_pricing",
+                "note": "Live: CoreWeave public pricing (per 8-GPU HGX node).",
+                "items": live_gpu_items,
+            }
+            gpu_status = "live"
+        else:
+            gpu_status = "fallback"
+
     payload = {
         "enabled": True,
         "live": bool(body.get("live", False)) and live_env,
@@ -472,11 +489,11 @@ def get_compute_memory() -> dict[str, Any]:
         "disclaimer": body.get("disclaimer"),
         "hbm_dram_spot": body.get("hbm_dram_spot") or {},
         "hyperscaler_capex": capex_block,
-        "gpu_spot": body.get("gpu_spot") or {},
+        "gpu_spot": gpu_block,
         "live_block_status": {
             "hbm": "mock",
             "capex": capex_status,
-            "gpu": "mock",
+            "gpu": gpu_status,
         },
     }
     _compute_memory_cache = (now, payload)

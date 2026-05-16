@@ -32,7 +32,7 @@
 | NewsAPI／NewsData | freemium | 時事擷取（隊列 27） | 免費層每日上限；不得轉售原文 | `current_affairs_crew.py`／`tools/` | active |
 | Tech pulse（aggregator） | free | 科技題材匯流 | 公開 RSS／API | `tools/tech_pulse_tool.py`（`TECH_PULSE_IN_BRIEF`） | active |
 | SEC EDGAR（10-Q capex） | free | hyperscaler 季度 capex（MSFT／GOOG／META／AMZN／ORCL） | 官方 fair-use；User-Agent 須含聯絡 email；無 quota 但需 ≤10 req/s | `tools/sec_edgar_capex.py`、`api_routers/macro.py:get_compute_memory()` | active |
-| CoreWeave public pricing | free | GPU hourly spot（H100／H200／B200／A100） | 公開定價頁；非官方 API；ToS 允許資訊性引用 | `tools/coreweave_gpu_spot.py`、`api_routers/macro.py:get_compute_memory()` | pending |
+| CoreWeave public pricing | free | GPU hourly spot（H100／H200／B200／A100） | 公開定價頁；非官方 API；ToS 允許資訊性引用 | `tools/coreweave_gpu_spot.py`、`api_routers/macro.py:get_compute_memory()` | active |
 | TrendForce / DRAMeXchange | paid | HBM／DRAM contract spot | 付費訂閱；免費 tier 不足；需採購後再接入 | （未接入；占位） | pending |
 
 ---

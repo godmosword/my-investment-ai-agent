@@ -5,6 +5,15 @@
 
 ## 2026-05-16
 
+### Portal / API（隊列 45 · P2-live PR-B — CoreWeave GPU spot）
+
+- **新檔**：[`tools/coreweave_gpu_spot.py`](tools/coreweave_gpu_spot.py) — `fetch_gpu_pricing()` 解析 `coreweave.com/pricing` 公開頁，抓 H100／H200／B200／A100 四 SKU 的 On-Demand 與 Spot 每小時 $（per 8-GPU HGX node）。HTTP／URL／parse 例外 → `None`，不重試。1h 快取（pricing 變動慢）。SKU 缺一即整批 `None`（與 capex 同 all-or-nothing 設計，避免半 mock 半 live）。
+- **後端**：[`api_routers/macro.py`](api_routers/macro.py) 加 `COMPUTE_MEMORY_GPU_LIVE` per-block flag；ON + 解析成功 → 取代 `gpu_spot` block（`source: "coreweave_pricing"`）並更新 `live_block_status.gpu`。
+- **Governance**：§2 「CoreWeave public pricing」列 status 翻 `active`。
+- **ENV**：[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 新增 `COMPUTE_MEMORY_GPU_LIVE`。
+- **Tests**：[`tests/api/test_coreweave_gpu_spot.py`](tests/api/test_coreweave_gpu_spot.py) 7 條（4 SKU 成功／SKU 缺失 → None／403／429／503／URLError／cache TTL）；[`tests/api/test_compute_memory_api.py`](tests/api/test_compute_memory_api.py) 補 2 條（live／fallback）。
+- **紅線維持**：HBM block 不動（TrendForce 仍 pending）；CoreWeave HTML parse fragile → 失敗一律退 mock；無新 secret／key。
+
 ### Portal / API（隊列 45 · P2-live PR-A — SEC EDGAR hyperscaler capex）
 
 - **新檔**：[`tools/sec_edgar_capex.py`](tools/sec_edgar_capex.py) — `fetch_latest_capex(ticker)` 走 SEC EDGAR `companyconcept` API 抓 `us-gaap:PaymentsToAcquirePropertyPlantAndEquipment` 最新 10-Q／10-K USD 紀錄。內建 5 hyperscaler CIK（MSFT／GOOG／META／AMZN／ORCL）；`SEC_EDGAR_CONTACT_EMAIL` 為 User-Agent 必要欄位（SEC fair-use）；HTTP／URL／JSON 例外 → 回 `None`，**不**重試到死、**不**補數字。模組級 24h cache（capex 季更）。`fetch_all_hyperscaler_capex()` all-or-nothing：任一檔失敗整批回 `None`。

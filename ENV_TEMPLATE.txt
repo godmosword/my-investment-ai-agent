@@ -65,6 +65,8 @@ FINANCIAL_DATASETS_API_KEY=
 SEC_EDGAR_CONTACT_EMAIL=
 # COMPUTE_MEMORY_CAPEX_LIVE：1=啟用 SEC EDGAR 10-Q capex live fetch；0=固定 mock fixture
 COMPUTE_MEMORY_CAPEX_LIVE=0
+# COMPUTE_MEMORY_GPU_LIVE：1=啟用 CoreWeave public pricing 解析（GPU spot）；0=固定 mock fixture
+COMPUTE_MEMORY_GPU_LIVE=0
 
 # ---------- Telegram 推送（選填，不填則不發送）----------
 TELEGRAM_BOT_TOKEN=

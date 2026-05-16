@@ -280,7 +280,8 @@
     - **驗證**：16/16 E2E + 38/38 backend tests 全綠。
     - **P2-live PR-0**（governance only，2026-05-16）：`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md` §2 + §6 登錄 SEC EDGAR／CoreWeave／TrendForce 三來源。
     - **P2-live PR-A**（2026-05-16）：[`tools/sec_edgar_capex.py`](tools/sec_edgar_capex.py) + `COMPUTE_MEMORY_CAPEX_LIVE` flag；EDGAR 失敗退 fixture；`live_block_status` 三狀態；11 backend tests + 3 compute-memory tests 綠。
-    - **剩 backlog**：P2-live PR-B（CoreWeave GPU spot）／P5-live（Glassnode 等）／HBM live（TrendForce 訂閱待決）／44b 進階收斂。P1 / M。
+    - **P2-live PR-B**（2026-05-16）：[`tools/coreweave_gpu_spot.py`](tools/coreweave_gpu_spot.py) + `COMPUTE_MEMORY_GPU_LIVE` flag；CoreWeave HTML parse 失敗整批退 fixture；7 backend tests + 2 compute-memory tests 綠。
+    - **剩 backlog**：P5-live（Glassnode／CryptoQuant／Coinglass 三來源）／HBM live（TrendForce 訂閱待決）／44b 進階收斂。P1 / M。
 
 ---
 
