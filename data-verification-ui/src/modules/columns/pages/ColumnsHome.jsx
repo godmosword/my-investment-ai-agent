@@ -125,6 +125,14 @@ function DeepBriefPanel({ item, onClose }) {
   if (!item) return null;
   const tickers = Array.isArray(item.tickers) ? item.tickers : [];
   const thesis = Array.isArray(item.thesis_breakdown) ? item.thesis_breakdown : [];
+  // Bilingual commentary (queue 45 P4): show language toggle only when both
+  // sides exist. Falls back silently to the default body otherwise — we never
+  // synthesize the missing language.
+  const commentaryZh = String(item.commentary_zh || "").trim();
+  const commentaryEn = String(item.commentary_en || "").trim();
+  const hasBoth = Boolean(commentaryZh && commentaryEn);
+  const [commentaryLang, setCommentaryLang] = useState("zh");
+  const activeCommentary = commentaryLang === "en" ? commentaryEn : commentaryZh;
   return (
     <aside
       data-testid="columns-deep-panel"
@@ -155,6 +163,52 @@ function DeepBriefPanel({ item, onClose }) {
           <span>{formatTime(item.published_at)}</span>
           <span>{readingMinutes(item)} min read</span>
         </div>
+        {commentaryZh || commentaryEn ? (
+          <div data-testid="columns-commentary" className="mb-3">
+            {hasBoth ? (
+              <div className="mb-2 flex gap-1" data-testid="columns-commentary-toggle">
+                {[
+                  { id: "zh", label: "中" },
+                  { id: "en", label: "EN" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    data-testid={`columns-commentary-${opt.id}`}
+                    className={`rounded border px-2 py-1 text-[11px] font-semibold ${
+                      commentaryLang === opt.id
+                        ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-100/90"
+                        : "border-white/15 text-white/65 hover:bg-white/[0.04]"
+                    }`}
+                    onClick={() => setCommentaryLang(opt.id)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <p
+              data-testid="columns-commentary-text"
+              className="whitespace-pre-wrap rounded border border-white/10 bg-white/[0.02] p-3 text-[13px] leading-relaxed text-white/80"
+            >
+              {activeCommentary || commentaryZh || commentaryEn}
+            </p>
+            {item.source_url ? (
+              <div className="mt-1 text-[10px] text-[var(--muted)]">
+                來源：
+                <a
+                  className="text-cyan-200/80 hover:text-cyan-100"
+                  href={item.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {sourceLabel(item)}
+                </a>{" "}
+                · {formatTime(item.published_at)}（短評為翻譯／轉述；非原文）
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-white/78">{bodyOf(item)}</p>
         {thesis.length ? (
           <div className="mt-4">

@@ -5,6 +5,19 @@
 
 ## 2026-05-16
 
+### Portal / API（隊列 45 · P5-mock — Crypto on-chain dashboard）
+
+- **後端**：[`api_routers/macro.py`](api_routers/macro.py) 擴 **`GET /api/macro/onchain`** — read-only，讀 `ONCHAIN_FIXTURE_FILE`（預設 `data/onchain_metrics_mock.json`）；缺檔／JSON 無效 → `enabled: false` + reason；5 分鐘快取。`live` flag 需 fixture `live: true` **與** `ONCHAIN_LIVE=1` 雙條件（與 P2-mock 同模式），預留 Glassnode／CryptoQuant／Coinglass 治理通過後切換。
+- **Fixture**：[`data/onchain_metrics_mock.json`](data/onchain_metrics_mock.json) — 三區塊：BTC 估值（MVRV-Z／Realized Price／Spot/Realized）、交易所淨流入（All CEX／Binance／Coinbase）、永續資費（BTC／ETH）。所有數值 null + TEMPLATE 註記，與 deep_filing／compute_memory 同設計，**不偽造數字**。
+- **PWA**：新元件 [`OnchainMetricsPanel.jsx`](data-verification-ui/src/components/OnchainMetricsPanel.jsx) 掛在 [`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) compute-memory panel 下方；三區並列；mock badge + disclaimer；net flow 紅／綠對應 inflow（賣壓）／outflow，funding APR 過熱（>5%）標琥珀。新 hook [`useOnchainMetrics`](data-verification-ui/src/hooks/useApi.js)。
+- **Tests**：[`tests/api/test_onchain_api.py`](tests/api/test_onchain_api.py) 5 條（fixture missing／invalid JSON／三區塊 shape／live env+flag 雙條件／5min cache）；contract smoke 補 envelope 斷言。Playwright [`dashboard-onchain.spec.js`](data-verification-ui/e2e/dashboard-onchain.spec.js) 1/1 綠。
+
+### Portal / API（隊列 45 · P4 — 翻譯＋短評層）
+
+- **後端**：[`api_routers/news.py`](api_routers/news.py) `_normalize_item` 增 `commentary_zh`／`commentary_en` 兩欄 passthrough；`commentary_zh` 預設 fallback 既有 `gemini_take`（保現有行為），`commentary_en` 無 fallback（**不偽造**英文短評）。**零 LLM 呼叫**——僅匹配 Firestore 已有的 `commentary_zh`／`take_zh`／`summary_zh`／`commentary_en`／`take_en`／`summary_en` 任一欄。
+- **PWA**：[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) Deep Brief Panel 增 **`columns-commentary`** 區塊：當 zh／en 兩段都存在時顯示 **`columns-commentary-toggle`**（中／EN）；只有一段時靜默顯示該段；兩段皆無則不渲染區塊。標明「短評為翻譯／轉述；非原文」並保留 source URL + published_at。
+- **E2E**：[`columns-bilingual.spec.js`](data-verification-ui/e2e/columns-bilingual.spec.js) 1/1 綠；mock-api-server 補 e2e-ai-chip 條目 `commentary_zh` + `commentary_en`。
+
 ### Portal / API（隊列 45 · P2-mock — 算力／記憶體 dashboard）
 
 - **後端**：[`api_routers/macro.py`](api_routers/macro.py) 擴充 **`GET /api/macro/compute-memory`** — read-only，讀取 `COMPUTE_MEMORY_FIXTURE_FILE`（預設 `data/compute_memory_mock.json`）；fixture 缺少／JSON 無效時回 `{enabled: false, reason}`，不偽造數字。`live` flag 同時需要 fixture `live: true` **與** `COMPUTE_MEMORY_LIVE=1` 才會 true（P2-mock 階段預設關閉，預留 P2-live 接 TrendForce／CoreWeave／capex 用）。5 分鐘 in-process 快取。

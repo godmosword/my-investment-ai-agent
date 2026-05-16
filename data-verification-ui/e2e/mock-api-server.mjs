@@ -302,6 +302,8 @@ const newsItems = [
     confidence: 0.82,
     body: "供應鏈瓶頸仍集中在 HBM、CoWoS 與先進封裝排程，對 NVDA/TSM 的訂單能見度形成支撐。",
     deep_brief: "供應鏈瓶頸仍集中在 HBM、CoWoS 與先進封裝排程，對 NVDA/TSM 的訂單能見度形成支撐。",
+    commentary_zh: "供應鏈瓶頸仍集中在 HBM、CoWoS 與先進封裝；NVDA／TSM 訂單能見度短期偏穩。",
+    commentary_en: "Supply chain bottlenecks remain centered on HBM, CoWoS, and advanced packaging; NVDA/TSM order visibility looks stable near-term.",
     reading_minutes: 4,
     thesis_breakdown: ["HBM 需求偏強", "先進封裝排程仍緊", "雲端 capex 沒有快速下修"],
     tickers: ["NVDA", "TSM"],
@@ -1329,6 +1331,46 @@ const server = http.createServer((req, res) => {
       return;
     }
     sendJson(res, 200, { status: "idle", job_id: null, started_at: null, finished_at: null, error: null });
+    return;
+  }
+  if (url.pathname === "/api/macro/onchain") {
+    sendJson(res, 200, {
+      enabled: true,
+      live: false,
+      as_of: "2026-05-16",
+      cached: false,
+      disclaimer: "MOCK FIXTURE — UI scaffold; not real on-chain data.",
+      btc_valuation: {
+        as_of: "2026-05-16",
+        source: "mock",
+        note: "Cycle valuation snapshot.",
+        items: [
+          { metric: "MVRV-Z", value: 1.85, regime: "neutral", note: "" },
+          { metric: "Realized Price", value: 38_500, unit: "USD", note: "" },
+          { metric: "Spot Price", value: 64_200, unit: "USD", note: "" },
+          { metric: "Spot / Realized", value: 1.67, note: "neutral" },
+        ],
+      },
+      exchange_flow: {
+        as_of: "2026-05-16",
+        source: "mock",
+        note: "7-day net flow (USD).",
+        items: [
+          { venue: "All CEX", window_days: 7, net_flow_usd: -210_000_000 },
+          { venue: "Binance", window_days: 7, net_flow_usd: -85_000_000 },
+          { venue: "Coinbase", window_days: 7, net_flow_usd: 12_500_000 },
+        ],
+      },
+      funding_rate: {
+        as_of: "2026-05-16",
+        source: "mock",
+        note: "Annualized perpetual funding.",
+        items: [
+          { asset: "BTC", venue: "Binance", funding_apr_pct: 6.8 },
+          { asset: "ETH", venue: "Binance", funding_apr_pct: 4.2 },
+        ],
+      },
+    });
     return;
   }
   if (url.pathname === "/api/macro/compute-memory") {

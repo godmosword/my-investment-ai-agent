@@ -358,26 +358,6 @@ export function useBriefLayouts(queryOptions = {}) {
   });
 }
 
-export function useTrades(status, days = 60) {
-  const params = new URLSearchParams({ days });
-  if (status) params.set("status", status);
-  return useQuery({
-    queryKey: ["trades", status, days],
-    queryFn: () => apiFetch(`/api/trades?${params}`),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  });
-}
-
-export function useTradesPerformance(days = 90) {
-  return useQuery({
-    queryKey: ["trades", "performance", days],
-    queryFn: () => apiFetch(`/api/trades/performance?days=${days}`),
-    staleTime: 10 * 60 * 1000,
-    retry: 1,
-  });
-}
-
 export function useOpenPositions(days = 90) {
   return useQuery({
     queryKey: ["positions", "open", days],
@@ -517,6 +497,15 @@ export function useTrackRecordByTag(tag, limit = 50, offset = 0) {
       ),
     enabled: Boolean(normalized),
     staleTime: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
+
+export function useOnchainMetrics() {
+  return useQuery({
+    queryKey: ["macro", "onchain"],
+    queryFn: () => apiFetch("/api/macro/onchain"),
+    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 }
