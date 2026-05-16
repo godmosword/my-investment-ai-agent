@@ -5,6 +5,15 @@
 
 ## 2026-05-16
 
+### PWA（隊列 45 · P1 — Portfolio TP/SL 計算機）
+
+- **新元件**：[`PortfolioRiskPanel.jsx`](data-verification-ui/src/components/PortfolioRiskPanel.jsx) 掛入 [`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) KPI 卡下方。風險預算＝**帳戶總值 × 每筆風險 %**（已決策），持久化於 `localStorage["qsi_risk_budget_v1"]`（`{ account_equity, risk_pct }`，預設 `risk_pct=1`）。
+- **派生指標**：每股風險／每股獎酬／R:R、% 至 stop／target、建議股數＝`floor((equity × risk_pct/100) ÷ riskPerShare)`、名目部位、實際風險 $。輸入端：LONG/SHORT 切換、entry／stop／target 即時校驗（LONG：stop<entry<target；SHORT 相反）。
+- **ATR helper**：填入 symbol 時呼叫 [`useAnalysisBundle`](data-verification-ui/src/hooks/useApi.js)（純前端 ATR(14) 計算自 `snapshot.price_series`），一鍵套用 ATR-based stop；另有「帶入最後收盤」快速鍵。
+- **送單**：「送入紙上 PENDING_REVIEW（不下單）」呼叫既有 [`useCreateExecutionIntent`](data-verification-ui/src/hooks/useApi.js) → `POST /api/execution-intents`；後端**零變更**（紅線：append-only、不下單）。
+- **E2E**：[`data-verification-ui/e2e/portfolio-tpsl.spec.js`](data-verification-ui/e2e/portfolio-tpsl.spec.js)（5 條：50000×1% R:R 3.0/100 shares/$10k notional/$500 risk；LONG stop>entry 阻擋；localStorage 持久化；submit PENDING_REVIEW；ATR14 自動填 stop）。`mock-api-server.mjs` `/api/analysis/` 擴充 20 OHLC 條（高低差 2 → ATR14≈2）。
+- **紅線維持**：純前端；後端契約不動；無 LLM 呼叫；無新外部資料源。
+
 ### Portal / API（隊列 45 · P3 — 財報 insight 專屬頁）
 
 - **後端**：新增 [`api_routers/earnings.py`](api_routers/earnings.py) 掛兩條 read-only 端點：
