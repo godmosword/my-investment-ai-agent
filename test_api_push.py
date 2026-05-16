@@ -164,6 +164,7 @@ def test_war_room_latest_reads_local_artifacts(client, tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr("api._repo_root", lambda: tmp_path)
+    monkeypatch.setattr("api_routers.execution_intents._repo_root", lambda: tmp_path)
     monkeypatch.setattr("execution_intents._store_path", lambda: intents_path)
 
     r = client.get("/api/war-room/latest")

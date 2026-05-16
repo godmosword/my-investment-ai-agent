@@ -67,10 +67,9 @@ def test_run_crew_409_when_already_running(monkeypatch):
     monkeypatch.delenv("CREW_HTTP_API_KEY", raising=False)
     # Simulate a running job by acquiring the lock and setting state.
     import asyncio
-    import api as _api
 
     loop = asyncio.new_event_loop()
-    loop.run_until_complete(_api._crew_run_lock.acquire())
+    loop.run_until_complete(_crew_run_lock.acquire())
     _crew_run_state.update({"status": "running", "job_id": "abc123"})
     try:
         client = TestClient(app)
@@ -81,8 +80,8 @@ def test_run_crew_409_when_already_running(monkeypatch):
         assert body["status"] == "running"
         assert body["job_id"] == "abc123"
     finally:
-        if _api._crew_run_lock.locked():
-            _api._crew_run_lock.release()
+        if _crew_run_lock.locked():
+            _crew_run_lock.release()
         loop.close()
 
 
