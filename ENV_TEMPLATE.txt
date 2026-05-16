@@ -60,6 +60,12 @@ FMP_API_KEY=
 # FINANCIAL_DATASETS_API_BASE=https://api.financialdatasets.ai
 FINANCIAL_DATASETS_API_KEY=
 
+# ---------- Compute / Memory dashboard live sources（queue 45 P2-live）----------
+# SEC_EDGAR_CONTACT_EMAIL：SEC EDGAR API User-Agent 識別（SEC fair-use 政策要求）
+SEC_EDGAR_CONTACT_EMAIL=
+# COMPUTE_MEMORY_CAPEX_LIVE：1=啟用 SEC EDGAR 10-Q capex live fetch；0=固定 mock fixture
+COMPUTE_MEMORY_CAPEX_LIVE=0
+
 # ---------- Telegram 推送（選填，不填則不發送）----------
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=

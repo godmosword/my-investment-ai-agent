@@ -278,7 +278,9 @@
     - **P4**：news router `commentary_zh/en` passthrough（無 LLM）+ [`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) 中/EN toggle
     - **P5-mock**：`GET /api/macro/onchain` + [`OnchainMetricsPanel.jsx`](data-verification-ui/src/components/OnchainMetricsPanel.jsx)（BTC 估值／交易所淨流／永續資費）
     - **驗證**：16/16 E2E + 38/38 backend tests 全綠。
-    - **剩 backlog**：P2-live／P5-live — 每條獨立 PR，先過 [governance 表](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md)（TrendForce／CoreWeave／hyperscaler capex／Glassnode／CryptoQuant／Coinglass）。P1 / M。
+    - **P2-live PR-0**（governance only，2026-05-16）：`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md` §2 + §6 登錄 SEC EDGAR／CoreWeave／TrendForce 三來源。
+    - **P2-live PR-A**（2026-05-16）：[`tools/sec_edgar_capex.py`](tools/sec_edgar_capex.py) + `COMPUTE_MEMORY_CAPEX_LIVE` flag；EDGAR 失敗退 fixture；`live_block_status` 三狀態；11 backend tests + 3 compute-memory tests 綠。
+    - **剩 backlog**：P2-live PR-B（CoreWeave GPU spot）／P5-live（Glassnode 等）／HBM live（TrendForce 訂閱待決）／44b 進階收斂。P1 / M。
 
 ---
 

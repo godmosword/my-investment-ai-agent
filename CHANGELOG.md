@@ -5,6 +5,19 @@
 
 ## 2026-05-16
 
+### Portal / API（隊列 45 · P2-live PR-A — SEC EDGAR hyperscaler capex）
+
+- **新檔**：[`tools/sec_edgar_capex.py`](tools/sec_edgar_capex.py) — `fetch_latest_capex(ticker)` 走 SEC EDGAR `companyconcept` API 抓 `us-gaap:PaymentsToAcquirePropertyPlantAndEquipment` 最新 10-Q／10-K USD 紀錄。內建 5 hyperscaler CIK（MSFT／GOOG／META／AMZN／ORCL）；`SEC_EDGAR_CONTACT_EMAIL` 為 User-Agent 必要欄位（SEC fair-use）；HTTP／URL／JSON 例外 → 回 `None`，**不**重試到死、**不**補數字。模組級 24h cache（capex 季更）。`fetch_all_hyperscaler_capex()` all-or-nothing：任一檔失敗整批回 `None`。
+- **後端**：[`api_routers/macro.py`](api_routers/macro.py) `get_compute_memory()` 加 `COMPUTE_MEMORY_CAPEX_LIVE` per-block env flag；ON + EDGAR 全成功 → 取代 `hyperscaler_capex` block（`source: "sec_edgar"`），其餘維持 fixture。新增 `live_block_status: {hbm, capex, gpu}` 三狀態（`mock` / `live` / `fallback`），方便前端日後做 chip。
+- **Governance**：[`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2 「SEC EDGAR」列 status 翻 `active`。
+- **ENV**：[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 新增 `SEC_EDGAR_CONTACT_EMAIL`、`COMPUTE_MEMORY_CAPEX_LIVE`。
+- **Tests**：[`tests/api/test_sec_edgar_capex.py`](tests/api/test_sec_edgar_capex.py) 11 條（正常／email 缺／429／503／URLError／invalid JSON／missing units／unknown ticker／cache TTL／all-or-nothing flake／all-success 五檔）；[`tests/api/test_compute_memory_api.py`](tests/api/test_compute_memory_api.py) 補 3 條（live 路徑、fallback 路徑、env off 維持 mock）。
+- **紅線維持**：HBM／GPU 兩區塊不動仍走 fixture；EDGAR 失敗一律退 mock；無新外部資料源（SEC EDGAR 為公開、零 ToS 風險、governance §6.1 已登錄）。
+
+### Portal / API（隊列 45 · P2-live PR-0 — Governance 來源登錄）
+
+- [`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2 表追加三列：SEC EDGAR（10-Q capex）／CoreWeave public pricing／TrendForce（DRAMeXchange）。§6 新增 P2-live 三來源審核表（§6.1 / 6.2 / 6.3）。TrendForce 保 `pending`（付費訂閱待決）；SEC EDGAR 與 CoreWeave 進入 `active` 由 PR-A / PR-B 在合併時翻牌。
+
 ### Portal / API（隊列 45 · P5-mock — Crypto on-chain dashboard）
 
 - **後端**：[`api_routers/macro.py`](api_routers/macro.py) 擴 **`GET /api/macro/onchain`** — read-only，讀 `ONCHAIN_FIXTURE_FILE`（預設 `data/onchain_metrics_mock.json`）；缺檔／JSON 無效 → `enabled: false` + reason；5 分鐘快取。`live` flag 需 fixture `live: true` **與** `ONCHAIN_LIVE=1` 雙條件（與 P2-mock 同模式），預留 Glassnode／CryptoQuant／Coinglass 治理通過後切換。

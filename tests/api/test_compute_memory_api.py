@@ -99,6 +99,77 @@ def test_compute_memory_live_flag_requires_both_env_and_fixture(client, monkeypa
     assert body["live"] is True
 
 
+def test_capex_live_uses_sec_edgar_when_flag_on(client, monkeypatch, tmp_path):
+    path = tmp_path / "live.json"
+    path.write_text(
+        json.dumps(
+            {
+                "as_of": "2026-05-16",
+                "hbm_dram_spot": {"items": []},
+                "hyperscaler_capex": {"items": [{"ticker": "MSFT", "source": "mock"}]},
+                "gpu_spot": {"items": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COMPUTE_MEMORY_FIXTURE_FILE", str(path))
+    monkeypatch.setenv("COMPUTE_MEMORY_CAPEX_LIVE", "1")
+
+    from tools import sec_edgar_capex
+
+    live_items = [
+        {"ticker": t, "quarter": "2026-Q1", "capex_b_usd": 10.0, "as_of": "2025-09-30", "source": "sec_edgar"}
+        for t in sec_edgar_capex.HYPERSCALER_CIKS
+    ]
+    monkeypatch.setattr(sec_edgar_capex, "fetch_all_hyperscaler_capex", lambda: live_items)
+
+    macro_router._compute_memory_reset_cache_for_tests()
+    body = client.get("/api/macro/compute-memory").json()
+    assert body["live_block_status"]["capex"] == "live"
+    assert body["live_block_status"]["hbm"] == "mock"
+    assert body["live_block_status"]["gpu"] == "mock"
+    assert body["hyperscaler_capex"]["source"] == "sec_edgar"
+    assert {row["ticker"] for row in body["hyperscaler_capex"]["items"]} >= {"MSFT", "GOOG"}
+
+
+def test_capex_live_falls_back_to_fixture_when_fetch_fails(client, monkeypatch, tmp_path):
+    path = tmp_path / "live.json"
+    path.write_text(
+        json.dumps(
+            {
+                "hbm_dram_spot": {"items": []},
+                "hyperscaler_capex": {"source": "mock", "items": [{"ticker": "MSFT"}]},
+                "gpu_spot": {"items": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COMPUTE_MEMORY_FIXTURE_FILE", str(path))
+    monkeypatch.setenv("COMPUTE_MEMORY_CAPEX_LIVE", "1")
+
+    from tools import sec_edgar_capex
+
+    monkeypatch.setattr(sec_edgar_capex, "fetch_all_hyperscaler_capex", lambda: None)
+
+    macro_router._compute_memory_reset_cache_for_tests()
+    body = client.get("/api/macro/compute-memory").json()
+    assert body["live_block_status"]["capex"] == "fallback"
+    assert body["hyperscaler_capex"]["source"] == "mock"
+
+
+def test_capex_live_off_keeps_mock_status(client, monkeypatch, tmp_path):
+    path = tmp_path / "good.json"
+    path.write_text(
+        json.dumps({"hbm_dram_spot": {}, "hyperscaler_capex": {"source": "mock"}, "gpu_spot": {}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COMPUTE_MEMORY_FIXTURE_FILE", str(path))
+    monkeypatch.delenv("COMPUTE_MEMORY_CAPEX_LIVE", raising=False)
+    macro_router._compute_memory_reset_cache_for_tests()
+    body = client.get("/api/macro/compute-memory").json()
+    assert body["live_block_status"]["capex"] == "mock"
+
+
 def test_compute_memory_caches_within_ttl(client, monkeypatch, tmp_path):
     path = tmp_path / "good.json"
     path.write_text(json.dumps({"hbm_dram_spot": {}, "hyperscaler_capex": {}, "gpu_spot": {}}), encoding="utf-8")

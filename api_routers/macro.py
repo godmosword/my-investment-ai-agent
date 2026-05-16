@@ -447,6 +447,23 @@ def get_compute_memory() -> dict[str, Any]:
         return {**broken, "cached": False}
 
     live_env = (os.getenv("COMPUTE_MEMORY_LIVE") or "0").strip().lower() in ("1", "true", "yes")
+    capex_block = dict(body.get("hyperscaler_capex") or {})
+    capex_status = "mock"
+    if (os.getenv("COMPUTE_MEMORY_CAPEX_LIVE") or "0").strip().lower() in ("1", "true", "yes"):
+        from tools import sec_edgar_capex
+
+        live_items = sec_edgar_capex.fetch_all_hyperscaler_capex()
+        if live_items:
+            capex_block = {
+                "as_of": live_items[0].get("as_of"),
+                "source": "sec_edgar",
+                "note": "Live: SEC EDGAR XBRL us-gaap:PaymentsToAcquirePropertyPlantAndEquipment.",
+                "items": live_items,
+            }
+            capex_status = "live"
+        else:
+            capex_status = "fallback"
+
     payload = {
         "enabled": True,
         "live": bool(body.get("live", False)) and live_env,
@@ -454,8 +471,13 @@ def get_compute_memory() -> dict[str, Any]:
         "as_of": body.get("as_of"),
         "disclaimer": body.get("disclaimer"),
         "hbm_dram_spot": body.get("hbm_dram_spot") or {},
-        "hyperscaler_capex": body.get("hyperscaler_capex") or {},
+        "hyperscaler_capex": capex_block,
         "gpu_spot": body.get("gpu_spot") or {},
+        "live_block_status": {
+            "hbm": "mock",
+            "capex": capex_status,
+            "gpu": "mock",
+        },
     }
     _compute_memory_cache = (now, payload)
     return {**payload, "cached": False}
