@@ -214,12 +214,23 @@ def _normalize_item(
         tags.append(pillar)
     pillar_key = _infer_pillar_key(data=data, tags=tags, headline=headline, take=take)
 
+    # Bilingual commentary passthrough (queue 45 P4). No model calls happen here —
+    # we only forward fields that the ingestion already wrote. zh falls back to
+    # gemini_take so existing data keeps working; en stays empty when absent so
+    # the UI can hide the toggle rather than inventing English commentary.
+    commentary_zh = _first_text(data, ("commentary_zh", "take_zh", "summary_zh"))
+    commentary_en = _first_text(data, ("commentary_en", "take_en", "summary_en"))
+    if not commentary_zh:
+        commentary_zh = take
+
     item: dict[str, Any] = {
         "id": item_id,
         "title": headline,
         "headline": headline,
         "summary": take,
         "gemini_take": take,
+        "commentary_zh": commentary_zh,
+        "commentary_en": commentary_en,
         "source_domain": source_domain,
         "source_url": source_url,
         "published_at": published_at,

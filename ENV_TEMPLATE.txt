@@ -222,6 +222,8 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # DEEP_FILING_ANALYSIS_FILE=data/deep_filing_analysis.jsonl  # 可選；/api/earnings/{symbol}/insight scaffold 來源；無檔或無對應 ticker 時 endpoint 回 enabled=false（不偽造）；本機試用：cp data/deep_filing_analysis.example.jsonl data/deep_filing_analysis.jsonl（見 docs/EARNINGS_INSIGHT_SCAFFOLD.md）
 # COMPUTE_MEMORY_FIXTURE_FILE=data/compute_memory_mock.json  # 可選；GET /api/macro/compute-memory 的 fixture 來源（隊列 45 · P2-mock）；無檔／無效時 endpoint 回 enabled=false
 # COMPUTE_MEMORY_LIVE=0  # 1=live 提示位元（需 fixture 自身亦 live=true）；P2-mock 階段預設關閉，未來接 TrendForce／CoreWeave／hyperscaler capex 時用
+# ONCHAIN_FIXTURE_FILE=data/onchain_metrics_mock.json  # 可選；GET /api/macro/onchain 的 fixture 來源（隊列 45 · P5-mock）；無檔／無效時 endpoint 回 enabled=false
+# ONCHAIN_LIVE=0  # 1=live（需 fixture 自身亦 live=true）；未來接 Glassnode／CryptoQuant／Coinglass 時用
 # ---------- PWA Web Push（分階；見 docs/PWA_WEB_PUSH.md）----------
 # WEB_PUSH_ENABLED=0           # 1=允許 POST /api/push/subscribe（無 Redis 且無 WEB_PUSH_STORE=1 時為 log-only）
 # WEB_PUSH_REDIS_URL=          # 例 redis://:pass@host:6379/0 — 訂閱與分散式 rate limit（優先於程序內 store）

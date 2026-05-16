@@ -9,6 +9,7 @@ upload_secrets.sh
 !tests/fixtures/mock_data/*.json
 !fixtures/*.json
 !data/compute_memory_mock.json
+!data/onchain_metrics_mock.json
 *-credentials.json
 service-account*.json
 gcp-key*.json

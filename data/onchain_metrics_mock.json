@@ -1,0 +1,35 @@
+{
+  "as_of": "2026-05-16",
+  "live": false,
+  "disclaimer": "MOCK FIXTURE — UI scaffold only. Numbers are illustrative. Live on-chain providers (Glassnode / CryptoQuant / Coinglass) require governance review before ONCHAIN_LIVE=1 is honored. See docs/REALTIME_DATA_SOURCES_GOVERNANCE.md.",
+  "btc_valuation": {
+    "as_of": "2026-05-16",
+    "source": "mock",
+    "note": "Long-cycle valuation metrics. MVRV-Z already used by backtest.py.",
+    "items": [
+      {"metric": "MVRV-Z", "value": null, "regime": "tbd", "note": "Replace with Glassnode/Coinmetrics MVRV-Z score."},
+      {"metric": "Realized Price", "value": null, "unit": "USD", "note": "BTC realized price (UTXO-weighted)."},
+      {"metric": "Spot Price", "value": null, "unit": "USD", "note": "Reference; comes from existing macro snapshot once cross-wired."},
+      {"metric": "Spot / Realized", "value": null, "note": "Multiplier; >2 historically overvalued."}
+    ]
+  },
+  "exchange_flow": {
+    "as_of": "2026-05-16",
+    "source": "mock",
+    "note": "Net flow USD over the last N days (illustrative). Positive = inflow (sell-side risk).",
+    "items": [
+      {"venue": "All CEX", "window_days": 7, "net_flow_usd": null, "note": "Replace with CryptoQuant aggregated CEX net flow."},
+      {"venue": "Binance", "window_days": 7, "net_flow_usd": null, "note": ""},
+      {"venue": "Coinbase", "window_days": 7, "net_flow_usd": null, "note": ""}
+    ]
+  },
+  "funding_rate": {
+    "as_of": "2026-05-16",
+    "source": "mock",
+    "note": "Perpetual swap funding rate (annualized %). >5% historically frothy.",
+    "items": [
+      {"asset": "BTC", "venue": "Binance", "funding_apr_pct": null, "note": "Replace with Coinglass aggregated funding."},
+      {"asset": "ETH", "venue": "Binance", "funding_apr_pct": null, "note": ""}
+    ]
+  }
+}

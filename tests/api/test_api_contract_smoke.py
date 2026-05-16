@@ -178,6 +178,19 @@ def test_compute_memory_envelope_stable(client, monkeypatch, tmp_path):
     assert "live" in body
 
 
+def test_onchain_envelope_stable(client, monkeypatch, tmp_path):
+    """``GET /api/macro/onchain`` returns a stable envelope (enabled or disabled)."""
+    from api_routers import macro as macro_router
+
+    monkeypatch.setenv("ONCHAIN_FIXTURE_FILE", str(tmp_path / "absent.json"))
+    macro_router._onchain_reset_cache_for_tests()
+    r = client.get("/api/macro/onchain")
+    assert r.status_code == 200
+    body = r.json()
+    assert "enabled" in body
+    assert "live" in body
+
+
 def test_run_crew_status_contract(client, monkeypatch):
     monkeypatch.delenv("CREW_HTTP_ENABLED", raising=False)
     r = client.get("/api/run-crew/status")

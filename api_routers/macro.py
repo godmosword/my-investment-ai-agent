@@ -459,3 +459,85 @@ def get_compute_memory() -> dict[str, Any]:
     }
     _compute_memory_cache = (now, payload)
     return {**payload, "cached": False}
+
+
+# --- Crypto on-chain mock dashboard (queue 45 P5-mock) -----------------------
+# Mirrors compute-memory shape: fixture-driven, mock-first, governance flip.
+
+_ONCHAIN_CACHE_TTL = timedelta(minutes=5)
+_onchain_cache: tuple[datetime, dict[str, Any]] | None = None
+
+
+def _onchain_fixture_path() -> Path:
+    raw = (os.getenv("ONCHAIN_FIXTURE_FILE") or "data/onchain_metrics_mock.json").strip()
+    return Path(raw)
+
+
+def _onchain_reset_cache_for_tests() -> None:
+    global _onchain_cache
+    _onchain_cache = None
+
+
+@router.get("/onchain")
+def get_onchain_metrics() -> dict[str, Any]:
+    """Crypto on-chain dashboard (BTC valuation / exchange flow / funding rate).
+
+    Live providers (Glassnode / CryptoQuant / Coinglass) require governance
+    review; ``ONCHAIN_LIVE=1`` is reserved for that future flip and only
+    honored when the fixture itself also sets ``live: true``.
+    """
+    global _onchain_cache
+    now = _now()
+    if _onchain_cache and now - _onchain_cache[0] <= _ONCHAIN_CACHE_TTL:
+        return {**_onchain_cache[1], "cached": True}
+
+    path = _onchain_fixture_path()
+    if not path.exists():
+        empty = {
+            "enabled": False,
+            "live": False,
+            "reason": "fixture_missing",
+            "fixture_path": str(path),
+            "hint": "Copy data/onchain_metrics_mock.json (or set ONCHAIN_FIXTURE_FILE).",
+        }
+        _onchain_cache = (now, empty)
+        return {**empty, "cached": False}
+
+    try:
+        body = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("onchain fixture parse failed for %s: %s", path, exc)
+        broken = {
+            "enabled": False,
+            "live": False,
+            "reason": "fixture_invalid",
+            "fixture_path": str(path),
+            "error": str(exc),
+        }
+        _onchain_cache = (now, broken)
+        return {**broken, "cached": False}
+
+    if not isinstance(body, dict):
+        broken = {
+            "enabled": False,
+            "live": False,
+            "reason": "fixture_invalid",
+            "fixture_path": str(path),
+            "error": "top-level JSON is not an object",
+        }
+        _onchain_cache = (now, broken)
+        return {**broken, "cached": False}
+
+    live_env = (os.getenv("ONCHAIN_LIVE") or "0").strip().lower() in ("1", "true", "yes")
+    payload = {
+        "enabled": True,
+        "live": bool(body.get("live", False)) and live_env,
+        "fixture_path": str(path),
+        "as_of": body.get("as_of"),
+        "disclaimer": body.get("disclaimer"),
+        "btc_valuation": body.get("btc_valuation") or {},
+        "exchange_flow": body.get("exchange_flow") or {},
+        "funding_rate": body.get("funding_rate") or {},
+    }
+    _onchain_cache = (now, payload)
+    return {**payload, "cached": False}
