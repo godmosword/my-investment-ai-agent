@@ -8,7 +8,6 @@ import {
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 const SSE_ENABLED = import.meta.env.VITE_SSE_ENABLED === "1";
-const SSE_KEY = import.meta.env.VITE_SSE_STREAM_KEY ?? "";
 
 function statusLabel(s) {
   const map = {
