@@ -165,6 +165,19 @@ def test_earnings_insight_disabled_by_default(client, monkeypatch, tmp_path):
     assert r.json().get("enabled") is False
 
 
+def test_compute_memory_envelope_stable(client, monkeypatch, tmp_path):
+    """``GET /api/macro/compute-memory`` returns a stable envelope (enabled or disabled)."""
+    from api_routers import macro as macro_router
+
+    monkeypatch.setenv("COMPUTE_MEMORY_FIXTURE_FILE", str(tmp_path / "absent.json"))
+    macro_router._compute_memory_reset_cache_for_tests()
+    r = client.get("/api/macro/compute-memory")
+    assert r.status_code == 200
+    body = r.json()
+    assert "enabled" in body
+    assert "live" in body
+
+
 def test_run_crew_status_contract(client, monkeypatch):
     monkeypatch.delenv("CREW_HTTP_ENABLED", raising=False)
     r = client.get("/api/run-crew/status")

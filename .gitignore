@@ -8,6 +8,7 @@ upload_secrets.sh
 !tests/fixtures/reports/**/expected_validation.json
 !tests/fixtures/mock_data/*.json
 !fixtures/*.json
+!data/compute_memory_mock.json
 *-credentials.json
 service-account*.json
 gcp-key*.json

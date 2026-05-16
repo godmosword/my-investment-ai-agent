@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -371,4 +373,89 @@ def get_macro_snapshot() -> dict[str, Any]:
         return {**_macro_cache[1], "cached": True}
     payload = build_macro_snapshot()
     _macro_cache = (now, payload)
+    return {**payload, "cached": False}
+
+
+# --- Compute / Memory mock dashboard (queue 45 P2-mock) ----------------------
+# Read-only fixture endpoint for HBM/DRAM spot, hyperscaler capex, GPU spot.
+# Lives behind the same /api/macro prefix so the dashboard can fan out from
+# one router. Live providers (TrendForce / CoreWeave / parsed capex) are out
+# of scope for P2-mock — they require governance review before being honored.
+
+_COMPUTE_MEMORY_CACHE_TTL = timedelta(minutes=5)
+_compute_memory_cache: tuple[datetime, dict[str, Any]] | None = None
+
+
+def _compute_memory_fixture_path() -> Path:
+    raw = (os.getenv("COMPUTE_MEMORY_FIXTURE_FILE") or "data/compute_memory_mock.json").strip()
+    return Path(raw)
+
+
+def _compute_memory_reset_cache_for_tests() -> None:
+    global _compute_memory_cache
+    _compute_memory_cache = None
+
+
+@router.get("/compute-memory")
+def get_compute_memory() -> dict[str, Any]:
+    """HBM/DRAM spot + hyperscaler capex + GPU spot from a local fixture.
+
+    Live providers are intentionally not wired here; ``COMPUTE_MEMORY_LIVE=1``
+    is reserved as a future toggle, currently treated as enabled-with-mock
+    so the contract stays stable.
+    """
+    global _compute_memory_cache
+    now = _now()
+    if _compute_memory_cache and now - _compute_memory_cache[0] <= _COMPUTE_MEMORY_CACHE_TTL:
+        return {**_compute_memory_cache[1], "cached": True}
+
+    path = _compute_memory_fixture_path()
+    if not path.exists():
+        empty = {
+            "enabled": False,
+            "live": False,
+            "reason": "fixture_missing",
+            "fixture_path": str(path),
+            "hint": "Copy data/compute_memory_mock.json (or set COMPUTE_MEMORY_FIXTURE_FILE).",
+        }
+        _compute_memory_cache = (now, empty)
+        return {**empty, "cached": False}
+
+    try:
+        body = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("compute_memory fixture parse failed for %s: %s", path, exc)
+        broken = {
+            "enabled": False,
+            "live": False,
+            "reason": "fixture_invalid",
+            "fixture_path": str(path),
+            "error": str(exc),
+        }
+        _compute_memory_cache = (now, broken)
+        return {**broken, "cached": False}
+
+    if not isinstance(body, dict):
+        broken = {
+            "enabled": False,
+            "live": False,
+            "reason": "fixture_invalid",
+            "fixture_path": str(path),
+            "error": "top-level JSON is not an object",
+        }
+        _compute_memory_cache = (now, broken)
+        return {**broken, "cached": False}
+
+    live_env = (os.getenv("COMPUTE_MEMORY_LIVE") or "0").strip().lower() in ("1", "true", "yes")
+    payload = {
+        "enabled": True,
+        "live": bool(body.get("live", False)) and live_env,
+        "fixture_path": str(path),
+        "as_of": body.get("as_of"),
+        "disclaimer": body.get("disclaimer"),
+        "hbm_dram_spot": body.get("hbm_dram_spot") or {},
+        "hyperscaler_capex": body.get("hyperscaler_capex") or {},
+        "gpu_spot": body.get("gpu_spot") or {},
+    }
+    _compute_memory_cache = (now, payload)
     return {**payload, "cached": False}

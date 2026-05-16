@@ -1,0 +1,39 @@
+{
+  "as_of": "2026-05-16",
+  "live": false,
+  "disclaimer": "MOCK FIXTURE — UI scaffold only. Numbers are illustrative orders-of-magnitude, not real market data. Live providers (TrendForce/DRAMeXchange/CoreWeave/RunPod/Hyperscaler 10-Q feeds) require governance review before COMPUTE_MEMORY_LIVE=1 is honored. See docs/REALTIME_DATA_SOURCES_GOVERNANCE.md.",
+  "hbm_dram_spot": {
+    "as_of": "2026-05-16",
+    "source": "mock",
+    "note": "Spot $ per 8-Gb-equivalent contract (illustrative).",
+    "items": [
+      {"product": "HBM3", "spec": "8H 16Gb stack", "spot_usd": null, "trend_pct": null, "note": "Replace with TrendForce HBM contract feed once governance-approved."},
+      {"product": "HBM3e", "spec": "12H 24Gb stack", "spot_usd": null, "trend_pct": null, "note": "Spot scarcity; awaiting live feed."},
+      {"product": "DDR5", "spec": "16Gb DIMM contract", "spot_usd": null, "trend_pct": null, "note": "Server DDR5; DRAMeXchange contract."},
+      {"product": "DDR4", "spec": "16Gb DIMM spot", "spot_usd": null, "trend_pct": null, "note": "Legacy reference; trend-only relevance."}
+    ]
+  },
+  "hyperscaler_capex": {
+    "as_of": "2026-Q1",
+    "source": "mock",
+    "note": "Quarterly capex (USD bn) from 10-Q. Replace with parsed values once live capex feed is governance-approved.",
+    "items": [
+      {"ticker": "MSFT", "quarter": "2026-Q1", "capex_b_usd": null, "yoy_pct": null, "guide_direction": "tbd", "note": "Azure infra + AI; replace with verbatim 10-Q figure."},
+      {"ticker": "GOOG", "quarter": "2026-Q1", "capex_b_usd": null, "yoy_pct": null, "guide_direction": "tbd", "note": "TPU + datacenter + servers."},
+      {"ticker": "META", "quarter": "2026-Q1", "capex_b_usd": null, "yoy_pct": null, "guide_direction": "tbd", "note": "AI capex guide."},
+      {"ticker": "AMZN", "quarter": "2026-Q1", "capex_b_usd": null, "yoy_pct": null, "guide_direction": "tbd", "note": "AWS infra + Trainium."},
+      {"ticker": "ORCL", "quarter": "2026-Q1", "capex_b_usd": null, "yoy_pct": null, "guide_direction": "tbd", "note": "OCI build-out."}
+    ]
+  },
+  "gpu_spot": {
+    "as_of": "2026-05-16",
+    "source": "mock",
+    "note": "Hourly $ for on-demand GPU instances (illustrative). Replace with CoreWeave/RunPod/Lambda public pricing once governance-approved.",
+    "items": [
+      {"sku": "H100 SXM", "provider": "TEMPLATE", "hourly_usd": null, "regions": [], "note": "80GB; mainstream training/inference."},
+      {"sku": "H200 SXM", "provider": "TEMPLATE", "hourly_usd": null, "regions": [], "note": "141GB HBM3e."},
+      {"sku": "B200 HGX", "provider": "TEMPLATE", "hourly_usd": null, "regions": [], "note": "Next-gen; spot availability narrow."},
+      {"sku": "A100 SXM", "provider": "TEMPLATE", "hourly_usd": null, "regions": [], "note": "Legacy reference; commodity pricing."}
+    ]
+  }
+}
