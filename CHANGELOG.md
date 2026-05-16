@@ -5,6 +5,19 @@
 
 ## 2026-05-16
 
+### Portal / API（隊列 45 · P5-live PR-C — Binance public funding rate）
+
+- **新檔**：[`tools/binance_funding_rate.py`](tools/binance_funding_rate.py) — `fetch_funding_rates()` 走 Binance public USD-M futures `GET /fapi/v1/premiumIndex?symbol=...`（無 auth、無 key）抓 BTCUSDT／ETHUSDT 的 `lastFundingRate`（8h 分數），annualize `× 3 × 365 × 100` 成 APR%。HTTP／URL／JSON 例外 → `None`，不重試。5 分鐘快取。All-or-nothing。
+- **後端**：[`api_routers/macro.py`](api_routers/macro.py) `get_onchain_metrics()` 加 `ONCHAIN_FUNDING_LIVE` per-block flag；ON + 成功 → 取代 `funding_rate` block（`source: "binance_fapi"`）並更新 `live_block_status.funding`。新增 `live_block_status: {valuation, exchange_flow, funding}` 三狀態（與 compute-memory 同模式）；valuation／exchange_flow 仍永遠 `mock`（Glassnode／CryptoQuant 付費 pending）。
+- **Governance**：§2 「Binance public futures API」列翻 `active`。
+- **ENV**：[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 新增 `ONCHAIN_FUNDING_LIVE`。
+- **Tests**：[`tests/api/test_binance_funding_rate.py`](tests/api/test_binance_funding_rate.py) 8 條（正常 BTC+ETH／負資費／429／451／503／URLError／invalid JSON／missing lastFundingRate／all-or-nothing／cache）；[`tests/api/test_onchain_api.py`](tests/api/test_onchain_api.py) 補 3 條（live／fallback／off）。
+- **紅線維持**：BTC valuation 與 exchange flow 兩區塊不動仍走 fixture；Binance fetch 失敗一律退 mock；無新 secret／key（公開 endpoint）。
+
+### Portal / API（隊列 45 · P5-live PR-0 — Governance 來源登錄）
+
+- [`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2 表追加三列：Binance public futures API／Glassnode（freemium）／CryptoQuant（paid）。§7 新增 P5-live 三來源審核表（§7.1 / 7.2 / 7.3）。Glassnode／CryptoQuant 保 `pending`（付費 tier 決策）；Binance 由 PR-C 在合併時翻 `active`。
+
 ### Portal / API（隊列 45 · P2-live PR-B — CoreWeave GPU spot）
 
 - **新檔**：[`tools/coreweave_gpu_spot.py`](tools/coreweave_gpu_spot.py) — `fetch_gpu_pricing()` 解析 `coreweave.com/pricing` 公開頁，抓 H100／H200／B200／A100 四 SKU 的 On-Demand 與 Spot 每小時 $（per 8-GPU HGX node）。HTTP／URL／parse 例外 → `None`，不重試。1h 快取（pricing 變動慢）。SKU 缺一即整批 `None`（與 capex 同 all-or-nothing 設計，避免半 mock 半 live）。

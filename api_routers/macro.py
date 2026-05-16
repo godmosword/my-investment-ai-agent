@@ -568,6 +568,24 @@ def get_onchain_metrics() -> dict[str, Any]:
         return {**broken, "cached": False}
 
     live_env = (os.getenv("ONCHAIN_LIVE") or "0").strip().lower() in ("1", "true", "yes")
+
+    funding_block = dict(body.get("funding_rate") or {})
+    funding_status = "mock"
+    if (os.getenv("ONCHAIN_FUNDING_LIVE") or "0").strip().lower() in ("1", "true", "yes"):
+        from tools import binance_funding_rate
+
+        live_funding = binance_funding_rate.fetch_funding_rates()
+        if live_funding:
+            funding_block = {
+                "as_of": live_funding[0].get("as_of"),
+                "source": "binance_fapi",
+                "note": "Live: Binance USD-M futures premiumIndex; annualized lastFundingRate × 3 × 365.",
+                "items": live_funding,
+            }
+            funding_status = "live"
+        else:
+            funding_status = "fallback"
+
     payload = {
         "enabled": True,
         "live": bool(body.get("live", False)) and live_env,
@@ -576,7 +594,12 @@ def get_onchain_metrics() -> dict[str, Any]:
         "disclaimer": body.get("disclaimer"),
         "btc_valuation": body.get("btc_valuation") or {},
         "exchange_flow": body.get("exchange_flow") or {},
-        "funding_rate": body.get("funding_rate") or {},
+        "funding_rate": funding_block,
+        "live_block_status": {
+            "valuation": "mock",
+            "exchange_flow": "mock",
+            "funding": funding_status,
+        },
     }
     _onchain_cache = (now, payload)
     return {**payload, "cached": False}

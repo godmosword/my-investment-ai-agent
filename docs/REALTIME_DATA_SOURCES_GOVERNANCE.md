@@ -34,7 +34,7 @@
 | SEC EDGAR（10-Q capex） | free | hyperscaler 季度 capex（MSFT／GOOG／META／AMZN／ORCL） | 官方 fair-use；User-Agent 須含聯絡 email；無 quota 但需 ≤10 req/s | `tools/sec_edgar_capex.py`、`api_routers/macro.py:get_compute_memory()` | active |
 | CoreWeave public pricing | free | GPU hourly spot（H100／H200／B200／A100） | 公開定價頁；非官方 API；ToS 允許資訊性引用 | `tools/coreweave_gpu_spot.py`、`api_routers/macro.py:get_compute_memory()` | active |
 | TrendForce / DRAMeXchange | paid | HBM／DRAM contract spot | 付費訂閱；免費 tier 不足；需採購後再接入 | （未接入；占位） | pending |
-| Binance public futures API | free | 永續資費（BTC/ETH funding rate） | 公開 endpoint；不需 API key；rate limit ~2400 req/min | `tools/binance_funding_rate.py`、`api_routers/macro.py:get_onchain_metrics()` | pending |
+| Binance public futures API | free | 永續資費（BTC/ETH funding rate） | 公開 endpoint；不需 API key；rate limit ~2400 req/min | `tools/binance_funding_rate.py`、`api_routers/macro.py:get_onchain_metrics()` | active |
 | Glassnode（free tier） | freemium | MVRV-Z、Realized Price 等 BTC 估值 | 免費 tier 延遲 ~1 年；MVRV 需 paid | （未接入；占位） | pending |
 | CryptoQuant | paid | 交易所 CEX 淨流入（BTC） | 全付費；無實用免費 tier | （未接入；占位） | pending |
 

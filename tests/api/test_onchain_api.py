@@ -85,3 +85,73 @@ def test_onchain_caches_within_ttl(client, monkeypatch, tmp_path):
     monkeypatch.setenv("ONCHAIN_FIXTURE_FILE", str(path))
     assert client.get("/api/macro/onchain").json()["cached"] is False
     assert client.get("/api/macro/onchain").json()["cached"] is True
+
+
+def test_funding_live_uses_binance_when_flag_on(client, monkeypatch, tmp_path):
+    path = tmp_path / "live.json"
+    path.write_text(
+        json.dumps(
+            {
+                "btc_valuation": {"items": []},
+                "exchange_flow": {"items": []},
+                "funding_rate": {"source": "mock", "items": [{"asset": "BTC"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ONCHAIN_FIXTURE_FILE", str(path))
+    monkeypatch.setenv("ONCHAIN_FUNDING_LIVE", "1")
+
+    from tools import binance_funding_rate
+
+    live_items = [
+        {"asset": "BTC", "venue": "Binance", "funding_apr_pct": 7.83, "as_of": "2026-05-16", "source": "binance_fapi"},
+        {"asset": "ETH", "venue": "Binance", "funding_apr_pct": 30.11, "as_of": "2026-05-16", "source": "binance_fapi"},
+    ]
+    monkeypatch.setattr(binance_funding_rate, "fetch_funding_rates", lambda: live_items)
+
+    macro_router._onchain_reset_cache_for_tests()
+    body = client.get("/api/macro/onchain").json()
+    assert body["live_block_status"]["funding"] == "live"
+    assert body["live_block_status"]["valuation"] == "mock"
+    assert body["live_block_status"]["exchange_flow"] == "mock"
+    assert body["funding_rate"]["source"] == "binance_fapi"
+    assert {row["asset"] for row in body["funding_rate"]["items"]} == {"BTC", "ETH"}
+
+
+def test_funding_live_falls_back_to_fixture_when_fetch_fails(client, monkeypatch, tmp_path):
+    path = tmp_path / "fb.json"
+    path.write_text(
+        json.dumps(
+            {
+                "btc_valuation": {"items": []},
+                "exchange_flow": {"items": []},
+                "funding_rate": {"source": "mock", "items": [{"asset": "BTC"}]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ONCHAIN_FIXTURE_FILE", str(path))
+    monkeypatch.setenv("ONCHAIN_FUNDING_LIVE", "1")
+
+    from tools import binance_funding_rate
+
+    monkeypatch.setattr(binance_funding_rate, "fetch_funding_rates", lambda: None)
+
+    macro_router._onchain_reset_cache_for_tests()
+    body = client.get("/api/macro/onchain").json()
+    assert body["live_block_status"]["funding"] == "fallback"
+    assert body["funding_rate"]["source"] == "mock"
+
+
+def test_funding_live_off_keeps_mock_status(client, monkeypatch, tmp_path):
+    path = tmp_path / "good.json"
+    path.write_text(
+        json.dumps({"btc_valuation": {}, "exchange_flow": {}, "funding_rate": {"source": "mock"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ONCHAIN_FIXTURE_FILE", str(path))
+    monkeypatch.delenv("ONCHAIN_FUNDING_LIVE", raising=False)
+    macro_router._onchain_reset_cache_for_tests()
+    body = client.get("/api/macro/onchain").json()
+    assert body["live_block_status"]["funding"] == "mock"
