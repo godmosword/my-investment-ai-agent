@@ -5,6 +5,15 @@
 
 ## 2026-05-16
 
+### Portal / API（隊列 45 · P2-mock — 算力／記憶體 dashboard）
+
+- **後端**：[`api_routers/macro.py`](api_routers/macro.py) 擴充 **`GET /api/macro/compute-memory`** — read-only，讀取 `COMPUTE_MEMORY_FIXTURE_FILE`（預設 `data/compute_memory_mock.json`）；fixture 缺少／JSON 無效時回 `{enabled: false, reason}`，不偽造數字。`live` flag 同時需要 fixture `live: true` **與** `COMPUTE_MEMORY_LIVE=1` 才會 true（P2-mock 階段預設關閉，預留 P2-live 接 TrendForce／CoreWeave／capex 用）。5 分鐘 in-process 快取。
+- **Fixture**：[`data/compute_memory_mock.json`](data/compute_memory_mock.json) — 三區塊（HBM/DRAM spot、Hyperscaler capex、GPU spot），所有數值為 `null` 並標 `note: "TEMPLATE — replace with..."`（與 deep_filing scaffold 同設計：避免假數字）。`.gitignore` 補白名單以追蹤該檔。
+- **PWA**：新元件 [`ComputeMemoryPanel.jsx`](data-verification-ui/src/components/ComputeMemoryPanel.jsx) 掛在 [`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) macro indicators 下方；三個並列子區（HBM/DRAM、Capex、GPU spot），明顯「mock」徽章 + disclaimer；enabled=false 時顯示 actionable hint（fixture 路徑、複製命令）。新 hook [`useComputeMemoryDashboard`](data-verification-ui/src/hooks/useApi.js)。
+- **Tests**：[`tests/api/test_compute_memory_api.py`](tests/api/test_compute_memory_api.py) 6 條（fixture missing／invalid JSON／top-level array／三區塊 shape／live env+flag 雙條件／5min cache）；[`tests/api/test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py) 補 envelope 斷言。
+- **E2E**：[`data-verification-ui/e2e/dashboard-compute-memory.spec.js`](data-verification-ui/e2e/dashboard-compute-memory.spec.js)（panel 可見、disclaimer 含「MOCK FIXTURE」、三區塊各列 chip 出現）。`mock-api-server.mjs` 加 fixture（含示意數值，與 backend fixture 模板分流：UI 開發看得到數字，但實際 backend 仍回 null，避免任何「偽真」資料進產線）。
+- **紅線維持**：mock 階段；live 旗標需顯式 env 才打開；無外部資料源接入；governance 表審核未過前不啟用 live。
+
 ### PWA（隊列 45 · P1 — Portfolio TP/SL 計算機）
 
 - **新元件**：[`PortfolioRiskPanel.jsx`](data-verification-ui/src/components/PortfolioRiskPanel.jsx) 掛入 [`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) KPI 卡下方。風險預算＝**帳戶總值 × 每筆風險 %**（已決策），持久化於 `localStorage["qsi_risk_budget_v1"]`（`{ account_equity, risk_pct }`，預設 `risk_pct=1`）。

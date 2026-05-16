@@ -1331,6 +1331,46 @@ const server = http.createServer((req, res) => {
     sendJson(res, 200, { status: "idle", job_id: null, started_at: null, finished_at: null, error: null });
     return;
   }
+  if (url.pathname === "/api/macro/compute-memory") {
+    sendJson(res, 200, {
+      enabled: true,
+      live: false,
+      as_of: "2026-05-16",
+      cached: false,
+      disclaimer: "MOCK FIXTURE — UI scaffold; not real market data.",
+      hbm_dram_spot: {
+        as_of: "2026-05-16",
+        source: "mock",
+        note: "Spot $ per 8-Gb-equivalent contract.",
+        items: [
+          { product: "HBM3", spec: "8H 16Gb", spot_usd: 9.20, trend_pct: 1.2, note: "" },
+          { product: "HBM3e", spec: "12H 24Gb", spot_usd: 14.75, trend_pct: 3.4, note: "" },
+          { product: "DDR5", spec: "16Gb DIMM", spot_usd: 4.10, trend_pct: -0.8, note: "" },
+        ],
+      },
+      hyperscaler_capex: {
+        as_of: "2026-Q1",
+        source: "mock",
+        note: "Quarterly capex (USD bn).",
+        items: [
+          { ticker: "MSFT", quarter: "2026-Q1", capex_b_usd: 22.4, yoy_pct: 35.0, guide_direction: "up" },
+          { ticker: "GOOG", quarter: "2026-Q1", capex_b_usd: 17.2, yoy_pct: 28.0, guide_direction: "up" },
+          { ticker: "META", quarter: "2026-Q1", capex_b_usd: 12.5, yoy_pct: 40.0, guide_direction: "up" },
+        ],
+      },
+      gpu_spot: {
+        as_of: "2026-05-16",
+        source: "mock",
+        note: "Hourly $ on-demand.",
+        items: [
+          { sku: "H100 SXM", provider: "MOCK", hourly_usd: 2.49, regions: ["us-east", "eu-west"] },
+          { sku: "H200 SXM", provider: "MOCK", hourly_usd: 3.89, regions: ["us-east"] },
+          { sku: "B200 HGX", provider: "MOCK", hourly_usd: 5.99, regions: ["us-east"] },
+        ],
+      },
+    });
+    return;
+  }
   if (url.pathname === "/api/earnings/upcoming") {
     sendJson(res, 200, {
       as_of: "2026-05-16",

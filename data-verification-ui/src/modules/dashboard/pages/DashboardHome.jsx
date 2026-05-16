@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import CatalystCalendar from "../../../components/CatalystCalendar";
+import ComputeMemoryPanel from "../../../components/ComputeMemoryPanel";
 import Sparkline from "../../../components/Sparkline";
 import TodayBtcSnapshotStrip from "../../../components/TodayBtcSnapshotStrip";
 import { useMacroSnapshot } from "../../../hooks/useApi";
@@ -178,6 +179,8 @@ export default function DashboardHome() {
           ))}
         </div>
       ) : null}
+
+      <ComputeMemoryPanel />
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
         <CatalystCalendar catalysts={data?.catalysts ?? []} />

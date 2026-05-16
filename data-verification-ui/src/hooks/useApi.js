@@ -521,6 +521,15 @@ export function useTrackRecordByTag(tag, limit = 50, offset = 0) {
   });
 }
 
+export function useComputeMemoryDashboard() {
+  return useQuery({
+    queryKey: ["macro", "compute-memory"],
+    queryFn: () => apiFetch("/api/macro/compute-memory"),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useEarningsUpcoming(days = 14) {
   return useQuery({
     queryKey: ["earnings", "upcoming", days],
