@@ -48,10 +48,8 @@ export default function InsightsHome() {
         className="card mb-3 border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80"
       >
         <span className="font-semibold text-emerald-100/95">工作台</span>
-        ：標的深挖、紙上部位、情境與訊號在此分頁切換。讀題材與即時脈動請用「科技即時報／專欄」。主戰場以
-        <span className="text-emerald-100/90"> 觀點、持倉 </span>
-        為核心；宏觀狀態請到「數據儀表板」。關鍵路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks}{" "}
-        次點擊（人測錨點）。
+        ：標的深挖、紙上部位、情境與訊號在此切換；題材脈動去「科技即時報／專欄」，宏觀狀態到「數據儀表板」。
+        路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊。
         <div className="mt-2 flex flex-wrap gap-2">
           <Link
             to="/news"
@@ -69,7 +67,7 @@ export default function InsightsHome() {
           </Link>
         </div>
       </div>
-      <div className="mb-3 flex flex-wrap items-center gap-2 px-1" role="tablist" aria-label="Insights tabs">
+      <div className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Insights tabs">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -77,7 +75,7 @@ export default function InsightsHome() {
             role="tab"
             aria-selected={active === tab.id}
             data-testid={tab.testId}
-            className={`rounded border px-3 py-1.5 text-[12px] font-semibold ${
+            className={`min-h-[36px] shrink-0 rounded border px-3 py-1.5 text-[12px] font-semibold ${
               active === tab.id
                 ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-100/90"
                 : "border-white/15 text-white/70 hover:bg-white/[0.04]"

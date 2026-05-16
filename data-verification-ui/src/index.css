@@ -1,24 +1,25 @@
 @tailwind utilities;
 
-/* Global reset — Apple × Muji 亮色風：暖奶油底 + 深青綠主色 + 精準留白 */
+/* Global reset — dark institutional terminal theme */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg-deep:   #ede9e3;
-  --bg-mid:    #f0ece6;
-  --bg:        #f5f3ef;
-  --surface:   rgba(255, 255, 255, 0.85);
-  --card:      #ffffff;
-  --border:    rgba(0, 0, 0, 0.08);
-  --accent:    #0a7c68;
-  --accent-soft: rgba(10, 124, 104, 0.10);
-  --accent2:   #6d28d9;
-  --accent2-soft: rgba(109, 40, 217, 0.08);
-  --red:       #dc2626;
-  --yellow:    #d97706;
-  --green:     #059669;
-  --text:      #1c1c1e;
-  --muted:     #6e6e73;
+  --bg-deep:   #061018;
+  --bg-mid:    #0a1620;
+  --bg:        #08111a;
+  --surface:   rgba(10, 22, 32, 0.88);
+  --card:      rgba(16, 29, 39, 0.72);
+  --panel:     #0d1822;
+  --border:    rgba(148, 163, 184, 0.18);
+  --accent:    #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.12);
+  --accent2:   #f59e0b;
+  --accent2-soft: rgba(245, 158, 11, 0.13);
+  --red:       #f87171;
+  --yellow:    #fbbf24;
+  --green:     #34d399;
+  --text:      #e5eef7;
+  --muted:     #94a3b8;
   --nav-h:     56px;
   font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif;
 }
@@ -26,12 +27,14 @@
 html, body, #root {
   height: 100%;
   color: var(--text);
-  background-color: var(--bg);
+  background:
+    linear-gradient(180deg, rgba(8, 17, 26, 0.96), rgba(6, 16, 24, 1)),
+    var(--bg);
 }
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg-mid); }
-::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 2px; }
 
 /* Keyboard focus — DESIGN.md §響應式與無障礙 */
 :focus-visible {
@@ -52,7 +55,7 @@ html, body, #root {
 .page-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 16px calc(var(--nav-h) + 16px);
+  padding: 16px 16px calc(var(--nav-h) + 72px);
   position: relative;
 }
 
@@ -78,11 +81,11 @@ html, body, #root {
   width: 100%;
   max-width: 480px;
   height: var(--nav-h);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(8, 17, 26, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.06);
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: 0 -2px 18px rgba(0, 0, 0, 0.22);
   display: flex;
   align-items: stretch;
   z-index: 100;
@@ -120,10 +123,10 @@ html, body, #root {
     width: 220px;
     min-width: 220px;
     flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(8, 17, 26, 0.92);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-right: 1px solid rgba(0, 0, 0, 0.08);
+    border-right: 1px solid rgba(148, 163, 184, 0.16);
     padding: 20px 0 24px;
     gap: 2px;
     position: sticky;
@@ -192,7 +195,7 @@ html, body, #root {
 
 .side-nav__item:hover {
   color: var(--text);
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .side-nav__item.active {
@@ -250,7 +253,7 @@ html, body, #root {
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(16, 29, 39, 0.42);
   font-size: 11px;
   color: var(--muted);
 }
@@ -304,12 +307,12 @@ html, body, #root {
 
 /* ── Cards ── */
 .card {
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
   margin-bottom: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
 }
 
 .card-title {
@@ -322,17 +325,17 @@ html, body, #root {
 }
 
 .metric-card {
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .metric-card:hover {
-  border-color: rgba(10, 124, 104, 0.22);
-  box-shadow: 0 2px 12px rgba(10, 124, 104, 0.08);
+  border-color: rgba(34, 211, 238, 0.34);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
 }
 
 .metric-label {
@@ -396,12 +399,12 @@ html, body, #root {
 
 /* ── Trade card ── */
 .trade-card {
-  background: #ffffff;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px;
   margin-bottom: 10px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
 }
 
 .trade-header {
@@ -452,7 +455,7 @@ html, body, #root {
   text-transform: uppercase;
 }
 
-.status-open       { background: rgba(99,102,241,.08); color: #6366f1; }
+.status-open       { background: rgba(99,102,241,.12); color: #a5b4fc; }
 .status-hit_target { background: rgba(5,150,105,.08);  color: var(--green); }
 .status-hit_stop   { background: rgba(220,38,38,.08);  color: var(--red); }
 .status-expired    { background: rgba(100,116,139,.08); color: var(--muted); }
@@ -513,8 +516,8 @@ html, body, #root {
 .loading   { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
 .error-msg {
   color: var(--red);
-  background: rgba(220, 38, 38, 0.06);
-  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
   border-radius: 10px;
   padding: 12px 14px;
   font-size: 13px;
@@ -522,13 +525,13 @@ html, body, #root {
   line-height: 1.45;
 }
 
-/* ── Recharts light overrides ── */
+/* ── Recharts dark overrides ── */
 .recharts-text { fill: var(--muted) !important; }
-.recharts-cartesian-grid line { stroke: rgba(0, 0, 0, 0.07) !important; }
+.recharts-cartesian-grid line { stroke: rgba(148, 163, 184, 0.13) !important; }
 
 /* ── Summary blocks ── */
 .summary-block {
-  background: rgba(10, 124, 104, 0.04);
+  background: rgba(34, 211, 238, 0.07);
   border-left: 3px solid var(--accent);
   padding: 10px 12px;
   border-radius: 0 8px 8px 0;
@@ -547,8 +550,8 @@ html, body, #root {
   margin-bottom: 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  background: var(--card);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
 }
 
 .glassbox-health--ok   { border-color: rgba(16, 185, 129, 0.35); }
@@ -609,16 +612,16 @@ html, body, #root {
   font-size: 11px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--accent);
 }
 
 /* ── Glassbox：圖表示範資料橫幅 ── */
 .glassbox-demo-banner {
   font-size: 11px;
-  color: #92400e;
-  background: rgba(217, 119, 6, 0.08);
-  border: 1px solid rgba(217, 119, 6, 0.2);
+  color: var(--yellow);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.24);
   border-radius: 10px;
   padding: 10px 12px;
   margin-bottom: 12px;
@@ -626,8 +629,8 @@ html, body, #root {
 }
 
 .glassbox-demo-banner--today {
-  border-color: rgba(10, 124, 104, 0.2);
-  background: rgba(10, 124, 104, 0.06);
+  border-color: rgba(34, 211, 238, 0.22);
+  background: rgba(34, 211, 238, 0.08);
   color: var(--accent);
 }
 
@@ -635,15 +638,15 @@ html, body, #root {
   font-size: 10px;
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--accent);
 }
 
 /* ── Trade card：漸進式揭露按鈕 ── */
 .trade-accordion-btn {
   width: 100%;
-  background: linear-gradient(180deg, var(--accent-soft) 0%, rgba(10, 124, 104, 0.03) 100%);
-  border: 1px solid rgba(10, 124, 104, 0.18);
+  background: linear-gradient(180deg, var(--accent-soft) 0%, rgba(34, 211, 238, 0.04) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.22);
   border-radius: 8px;
   color: var(--accent);
   font-size: 12px;
@@ -682,7 +685,7 @@ html, body, #root {
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .trade-ai-logic-panel__label {
@@ -703,7 +706,7 @@ html, body, #root {
   margin: 0;
   padding: 10px 12px;
   border-left: 3px solid var(--accent);
-  background: rgba(10, 124, 104, 0.05);
+  background: rgba(34, 211, 238, 0.07);
   border-radius: 0 8px 8px 0;
   font-size: 12px;
   line-height: 1.5;
@@ -737,7 +740,7 @@ html, body, #root {
   margin-bottom: 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(16, 29, 39, 0.72);
   font-size: 12px;
 }
 
@@ -754,9 +757,9 @@ html, body, #root {
 .symbol-focus-bar__input {
   width: 72px;
   max-width: 28vw;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 6px;
-  background: #ffffff;
+  background: rgba(6, 16, 24, 0.9);
   color: var(--text);
   padding: 5px 8px;
   font-size: 12px;
@@ -789,9 +792,9 @@ html, body, #root {
 .terminal-input {
   flex: 1;
   min-width: 0;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
-  background: #ffffff;
+  background: rgba(6, 16, 24, 0.9);
   color: var(--text);
   padding: 8px 10px;
   font-size: 12px;
@@ -811,7 +814,7 @@ html, body, #root {
 
 .terminal-workspace-tab {
   border: 1px solid var(--border);
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.03);
   color: var(--muted);
   border-radius: 8px;
   padding: 6px 10px;
@@ -895,8 +898,8 @@ html, body, #root {
 }
 
 .terminal-btn {
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text);
   border-radius: 8px;
   padding: 6px 8px;
@@ -946,7 +949,7 @@ html, body, #root {
   padding: 8px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .terminal-report-links {
@@ -965,7 +968,7 @@ html, body, #root {
   margin-bottom: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.03);
   overflow: hidden;
 }
 
@@ -1026,7 +1029,7 @@ html, body, #root {
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.03);
   font-size: 12px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
 }
@@ -1151,8 +1154,8 @@ html, body, #root {
   font-size: 11px;
   padding: 6px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(6, 16, 24, 0.9);
   color: var(--text);
   resize: vertical;
 }
@@ -1186,8 +1189,8 @@ html, body, #root {
   font-size: 10px;
   padding: 4px 6px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(6, 16, 24, 0.9);
   color: var(--text);
 }
 
@@ -1363,8 +1366,8 @@ html, body, #root {
 }
 
 .brief-layouts-ref {
-  border-color: rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.6);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .brief-layouts-ref__summary {

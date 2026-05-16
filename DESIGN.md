@@ -35,8 +35,8 @@
 
 | 群組 | 路由 | 說明 |
 |------|------|------|
-| 主功能 | `/today`、`/charts`、`/trades`、`/briefs`、`/terminal`、`/archive` | 戰情／圖表／交易／日報終端（`/briefs` 與 `/terminal` 同頁）／存檔 |
-| Portal 模組 | `/analysis`、`/positions`、`/industries`、`/quant` | 投資分析、倉位、產業、量化 |
+| 主功能 | `/news`、`/dashboard`、`/insights`、`/columns`、`/portfolio` | 科技即時報／數據儀表板／投資觀點／科技專欄／持倉 |
+| 延伸視圖 | `/archive`、`/report/:date` | 存檔與單日結構化報告 |
 | 系統 | `/settings`、`/api-key`、`/report/:date` | 設定、金鑰、單日報告 |
 
 **斷點與殼層**：
@@ -64,7 +64,7 @@
 
 ## 首次開啟 storyboard（信任與動線）
 
-1. 進入預設路由（如 `/briefs` 或 `/today`）：深色殼層與單一 accent 強調，第一印象為「儀表／終端」而非行銷頁。
+1. 進入預設路由（`/insights`）：深色殼層與單一 accent 強調，第一印象為「儀表／終端」而非行銷頁。
 2. 側欄或底部導覽可見完整模組邊界；專業使用者快速判断「日報／分析／量化」分區。
 3. 資料區若載入：短暫 loading，無捏造報價；若見 **AsOfChip／Provenance**：強化可審計感。
 4. SSE 啟用時，角落連線狀態提供「即時管線」信任訊號（連線中／已連線／失敗）。
@@ -76,8 +76,8 @@
 
 對齊 [`tokens.js`](data-verification-ui/src/design/tokens.js) `palette.accent`／`palette.accent2`：
 
-- **`accent`（青綠）**：主 CTA、導覽使用中態、主標題品牌強調、成功語意邊界。**唯一**與「下一步行動」競爭的強調色。
-- **`accent2`（紫）**：次要強調、**圖表輔助系列**、標籤區隔；**不得**與主按鈕／主連結 active 態同色競爭視覺優先級。
+- **`accent`（cyan）**：主 CTA、導覽使用中態、主標題品牌強調、資料新鮮度與可審計狀態。**唯一**與「下一步行動」競爭的強調色。
+- **`accent2`（amber）**：次要強調、**圖表輔助系列**、警示／pending 標籤區隔；**不得**與主按鈕／主連結 active 態同色競爭視覺優先級。
 
 ---
 

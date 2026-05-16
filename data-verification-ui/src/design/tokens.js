@@ -1,23 +1,22 @@
 /**
- * PWA 設計 token（Apple × Muji 亮色主題）
- * Tailwind：`theme.extend` 由此匯入；React 組件可直接 import。
- * 與 `src/index.css` `:root` 視覺對齊（暖奶油底、深青綠主色、光底高對比）。
+ * PWA design tokens for the dark institutional terminal theme.
+ * Tailwind imports `theme.extend` from here; React components may import directly.
+ * Keep these values aligned with `src/index.css` `:root`.
  */
 
 /** @typedef {'full' | 'lite' | 'crypto-only'} BriefProfileLabel */
 
 export const palette = {
   regime: {
-    /** 風險偏好／偏多語境 */
-    on: "#059669",
-    neutral: "#d97706",
-    off: "#dc2626",
+    on: "#34d399",
+    neutral: "#fbbf24",
+    off: "#f87171",
   },
-  accent: "#0a7c68",
-  accent2: "#6d28d9",
-  danger: "#dc2626",
-  warn: "#d97706",
-  ok: "#059669",
+  accent: "#22d3ee",
+  accent2: "#f59e0b",
+  danger: "#f87171",
+  warn: "#fbbf24",
+  ok: "#34d399",
 };
 
 /** Tailwind `theme.extend` 片段（與 palette 同步，勿單獨改一邊） */
@@ -72,6 +71,6 @@ export const radius = {
 
 /** 陰影（任意值字串，供 inline style 或未來 Tailwind plugin） */
 export const shadow = {
-  card: "0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04)",
-  inset: "inset 0 1px 0 rgba(255, 255, 255, 0.8)",
+  card: "0 12px 30px rgba(0, 0, 0, 0.18)",
+  inset: "inset 0 1px 0 rgba(255, 255, 255, 0.05)",
 };

@@ -213,7 +213,7 @@ export default function DashboardHome() {
             role="tab"
             aria-selected={active === tab.id}
             data-testid={tab.testId}
-            className={`rounded border px-3 py-1.5 text-[12px] font-semibold ${
+            className={`min-h-[36px] rounded border px-3 py-1.5 text-[12px] font-semibold ${
               active === tab.id
                 ? "border-cyan-500/40 bg-cyan-500/[0.08] text-cyan-100/90"
                 : "border-white/15 text-white/70 hover:bg-white/[0.04]"

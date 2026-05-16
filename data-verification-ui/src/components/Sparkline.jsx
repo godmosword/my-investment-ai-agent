@@ -28,7 +28,7 @@ export default function Sparkline({ values = [], tone = "neutral", label = "spar
       className="h-[42px] w-full"
       preserveAspectRatio="none"
     >
-      <rect x="0" y="0" width={width} height={height} rx="6" fill="rgba(10,124,104,0.04)" />
+      <rect x="0" y="0" width={width} height={height} rx="6" fill="rgba(34,211,238,0.06)" />
       {points ? (
         <polyline
           points={points}

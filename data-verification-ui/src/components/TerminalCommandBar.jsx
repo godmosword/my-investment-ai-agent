@@ -259,7 +259,7 @@ export default function TerminalCommandBar({ trailing = null }) {
   return (
     <div
       data-testid="terminal-command-bar"
-      className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-black/30 px-2 py-1.5 md:px-3"
+      className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-black/30 px-2 py-1.5 md:gap-2 md:px-3"
       aria-label="Terminal Command Bar"
     >
       <span className="hidden text-[11px] uppercase tracking-wide text-[var(--muted)] sm:inline">Cmd</span>
@@ -272,14 +272,14 @@ export default function TerminalCommandBar({ trailing = null }) {
         }}
         placeholder={cmdPlaceholder}
         aria-label="Terminal command input"
-        className="min-h-[44px] min-w-[160px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
+        className="min-h-[40px] min-w-[150px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:min-h-[44px] sm:max-w-md"
         autoComplete="off"
         spellCheck={false}
         ref={inputRef}
       />
       <button
         type="button"
-        className="min-h-[44px] rounded bg-emerald-700/80 px-3 py-1 text-[12px] font-semibold text-white hover:bg-emerald-600"
+        className="min-h-[40px] rounded bg-emerald-700/80 px-3 py-1 text-[12px] font-semibold text-white hover:bg-emerald-600 sm:min-h-[44px]"
         onClick={onGo}
       >
         GO
@@ -288,7 +288,7 @@ export default function TerminalCommandBar({ trailing = null }) {
         type="button"
         data-testid="cmd-bar-run"
         disabled={runCrew.isPending}
-        className="min-h-[44px] rounded border border-amber-500/40 bg-amber-600/20 px-3 py-1 text-[12px] font-semibold text-amber-300 hover:bg-amber-600/40 disabled:cursor-not-allowed disabled:opacity-40"
+        className="min-h-[40px] rounded border border-amber-500/40 bg-amber-600/20 px-3 py-1 text-[12px] font-semibold text-amber-300 hover:bg-amber-600/40 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[44px]"
         onClick={onRun}
         title="觸發研究 Crew（需 CREW_HTTP_ENABLED=1）"
       >
@@ -327,7 +327,7 @@ export default function TerminalCommandBar({ trailing = null }) {
       <button
         type="button"
         disabled={!focused}
-        className="min-h-[44px] rounded border border-white/20 px-3 py-1 text-[12px] text-white/90 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+        className="min-h-[40px] rounded border border-white/20 bg-white/[0.03] px-3 py-1 text-[12px] text-white/90 hover:bg-white/5 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-white/30 sm:min-h-[44px]"
         onClick={toggleWatch}
         title="納入 SSE watch_symbols（最多 8 個由後端截斷）"
       >
@@ -338,7 +338,7 @@ export default function TerminalCommandBar({ trailing = null }) {
           關注：<span className="font-mono text-white/90">{focused}</span>
         </span>
       ) : null}
-      {trailing ? <div className="ml-auto flex items-center">{trailing}</div> : null}
+      {trailing ? <div className="order-last flex w-full items-center justify-end sm:order-none sm:ml-auto sm:w-auto">{trailing}</div> : null}
       {recent.length > 0 ? (
         <div
           data-testid="terminal-command-recent"

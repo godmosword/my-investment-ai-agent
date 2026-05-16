@@ -1,52 +1,11 @@
-:root {
-  --bg-deep: #061018;
-  --bg-mid: #0a1620;
-  --bg: #08111a;
-  --surface: rgba(10, 22, 32, 0.88);
-  --card: #101d27;
-  --panel: #0d1822;
-  --border: rgba(148, 163, 184, 0.18);
-  --accent: #22d3ee;
-  --accent-soft: rgba(34, 211, 238, 0.12);
-  --accent2: #f59e0b;
-  --accent2-soft: rgba(245, 158, 11, 0.13);
-  --red: #f87171;
-  --yellow: #fbbf24;
-  --green: #34d399;
-  --text: #e5eef7;
-  --muted: #94a3b8;
-}
-
-html,
-body,
-#root {
-  background:
-    linear-gradient(180deg, rgba(8, 17, 26, 0.96), rgba(6, 16, 24, 1)),
-    var(--bg);
-}
-
 body {
   color: var(--text);
-}
-
-.side-nav,
-.bottom-nav {
-  background: rgba(8, 17, 26, 0.92);
-  border-color: rgba(148, 163, 184, 0.16);
 }
 
 .side-nav__logo,
 .side-nav__item.active,
 .bottom-nav a.active {
   color: var(--accent);
-}
-
-.card {
-  /* Card background is intentionally near-transparent so colored tints
-   * (emerald/cyan/amber) layered on top read as the dominant signal and
-   * stacked panels don't look "boxy" on the dark page background. */
-  background: rgba(16, 29, 39, 0.22);
-  border-color: rgba(148, 163, 184, 0.1);
 }
 
 .page-title,

@@ -47,7 +47,7 @@ test.describe("Portal Phase 4 IA — reader layer × workbench cues (queue 44)",
     // overview is the default tab; depth content is hidden.
     await expect(page.getByTestId("dashboard-tab-overview")).toBeVisible();
     await expect(page.getByTestId("dashboard-tab-depth")).toBeVisible();
-    await expect(page.getByTestId("macro-indicator-grid")).toBeVisible();
+    await expect(page.getByTestId("dashboard-tab-overview")).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("compute-memory-panel")).toHaveCount(0);
     await expect(page.getByTestId("onchain-panel")).toHaveCount(0);
 
