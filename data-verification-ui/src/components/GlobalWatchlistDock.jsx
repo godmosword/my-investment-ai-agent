@@ -7,7 +7,7 @@ export default function GlobalWatchlistDock() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-[calc(var(--nav-h)+12px)] right-3 z-40 md:bottom-4">
+    <div className="fixed bottom-[calc(var(--nav-h)+4px)] right-3 z-40 md:bottom-4">
       {open ? (
         <div
           data-testid="global-watchlist-panel"
@@ -39,7 +39,7 @@ export default function GlobalWatchlistDock() {
         type="button"
         data-testid="global-watchlist-toggle"
         aria-label="Open shared monitor"
-        className="min-h-[40px] rounded-full border border-cyan-300/40 bg-cyan-500/15 px-3 py-1.5 text-[12px] font-semibold text-cyan-100 shadow-xl backdrop-blur hover:bg-cyan-500/25 md:min-h-[44px] md:px-4 md:py-2 md:text-[13px]"
+        className="min-h-[36px] rounded-full border border-cyan-300/40 bg-cyan-500/15 px-3 py-1 text-[12px] font-semibold text-cyan-100 shadow-xl backdrop-blur hover:bg-cyan-500/25 md:min-h-[44px] md:px-4 md:py-2 md:text-[13px]"
         onClick={() => setOpen((value) => !value)}
       >
         Watchlist

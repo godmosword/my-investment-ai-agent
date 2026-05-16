@@ -3,6 +3,17 @@
 /* Global reset — dark institutional terminal theme */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  background: transparent;
+}
+
 :root {
   --bg-deep:   #061018;
   --bg-mid:    #0a1620;
