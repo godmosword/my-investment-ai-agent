@@ -34,6 +34,9 @@
 | SEC EDGAR（10-Q capex） | free | hyperscaler 季度 capex（MSFT／GOOG／META／AMZN／ORCL） | 官方 fair-use；User-Agent 須含聯絡 email；無 quota 但需 ≤10 req/s | `tools/sec_edgar_capex.py`、`api_routers/macro.py:get_compute_memory()` | active |
 | CoreWeave public pricing | free | GPU hourly spot（H100／H200／B200／A100） | 公開定價頁；非官方 API；ToS 允許資訊性引用 | `tools/coreweave_gpu_spot.py`、`api_routers/macro.py:get_compute_memory()` | active |
 | TrendForce / DRAMeXchange | paid | HBM／DRAM contract spot | 付費訂閱；免費 tier 不足；需採購後再接入 | （未接入；占位） | pending |
+| Binance public futures API | free | 永續資費（BTC/ETH funding rate） | 公開 endpoint；不需 API key；rate limit ~2400 req/min | `tools/binance_funding_rate.py`、`api_routers/macro.py:get_onchain_metrics()` | pending |
+| Glassnode（free tier） | freemium | MVRV-Z、Realized Price 等 BTC 估值 | 免費 tier 延遲 ~1 年；MVRV 需 paid | （未接入；占位） | pending |
+| CryptoQuant | paid | 交易所 CEX 淨流入（BTC） | 全付費；無實用免費 tier | （未接入；占位） | pending |
 
 ---
 
@@ -169,3 +172,55 @@
 - [ ] CHANGELOG 與本文件第 2 節同步更新
 
 **狀態**：保留 mock；HBM 區塊在 `/api/macro/compute-memory` response 中 `live_block_status.hbm` 永遠為 `"mock"`，直到訂閱核可。
+
+---
+
+## 7) P5-live On-chain 來源審核表（queue 45）
+
+登錄日期：**2026-05-16**。Binance public futures API 為 `pending`，待 PR-C 接入時於 §2 改 `active`；Glassnode／CryptoQuant 保 `pending`（付費 tier 待決）。
+
+### 7.1 Binance public futures API（funding rate）
+
+```
+- Name: Binance USD-M Futures public REST API（premiumIndex）
+- Vendor / Provider: Binance Holdings Ltd.
+- Tier: free
+- ToS URL: https://www.binance.com/en/terms
+- Rate limit / quota: ~2400 weight/min（單 endpoint 權重 1）；我們 cache 5 分鐘
+- 是否需要 API key（環境變數名稱）：否
+- 是否可用於商業用途：資訊性引用（非轉售報價、非交易執行）
+- 是否包含個人資料（PII）：否
+- 失敗模式：fetcher 回 None → router 退 fixture 並標 live_block_status.funding="fallback"
+- 是否覆蓋既有來源：否
+- 接入點：tools/binance_funding_rate.py:fetch_funding_rates()、api_routers/macro.py:get_onchain_metrics()
+- 對齊 DASHBOARD_CONTRACT 欄位：funding_rate.items[].{asset, venue, funding_apr_pct, as_of, source}
+- 測試：tests/api/test_binance_funding_rate.py、tests/api/test_onchain_api.py
+```
+
+維護者勾選：
+- [x] ToS 允許本 repo 的用途（公開資費資料、資訊性引用）
+- [x] 不會破壞 `validate_report` 之輸入契約
+- [x] 失敗時退化為 fixture（mock），**不**由 LLM 補數字
+- [x] 不需 secret；無對應環境變數
+- [x] 有 pytest 覆蓋（正常／HTTP error／parse error／cache）
+- [x] CHANGELOG 與本文件第 2 節同步更新（PR-C）
+
+### 7.2 Glassnode（MVRV-Z 估值）— pending
+
+```
+- Tier: freemium；免費 tier MVRV 延遲 ~1 年，實用性不足
+- 狀態：未接入；BTC 估值區塊保 mock
+- 後續：評估 paid tier 或改用 Coinmetrics community CSV
+```
+
+維護者勾選（全未勾選）。
+
+### 7.3 CryptoQuant（CEX 淨流入）— pending
+
+```
+- Tier: paid（無實用免費 tier）
+- 狀態：未接入；exchange_flow 區塊保 mock
+- 後續：待採購決策
+```
+
+維護者勾選（全未勾選）。
