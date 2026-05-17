@@ -11,6 +11,12 @@ import { NetworkFirst, NetworkOnly } from "workbox-strategies";
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
+self.addEventListener("message", (event) => {
+  if (event?.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 /**
  * 保守 runtimeCaching：不碰 /api/*（永遠走網路）；HTML 導覽 NetworkFirst 以便離線時能看到上次頁面（若曾快取）。
  * Precache 仍負責 build 靜態資產。

@@ -17,6 +17,7 @@
 | [BLOOMBERG_ALIGNMENT.md](BLOOMBERG_ALIGNMENT.md) | Terminal 對齊 Phase 0 驗收 |
 | [ADR_CURRENT_AFFAIRS_ROUNDTABLE.md](ADR_CURRENT_AFFAIRS_ROUNDTABLE.md) | 〔時事多觀點〕區塊、`BRIEF_DYNAMIC_RENDER`、strict Gate |
 | [ADR_TECH_PULSE_INTEGRATION.md](ADR_TECH_PULSE_INTEGRATION.md) | Tech pulse → 日報 `exclude_context`（HTTP Phase 1；可選共用 BQ Phase 2） |
+| [ADR_COMMAND_BAR_PERMISSIONS.md](ADR_COMMAND_BAR_PERMISSIONS.md) | Command Bar 指令權限分類（N／R／W／S）與資料源邊界（Queue 29） |
 
 ## 修訂紀錄
 
@@ -25,3 +26,4 @@
 - **2026-04-27**：補 [`ADR_CURRENT_AFFAIRS_ROUNDTABLE.md`](ADR_CURRENT_AFFAIRS_ROUNDTABLE.md)。
 - **2026-05-11**：補 [`ADR_TECH_PULSE_INTEGRATION.md`](ADR_TECH_PULSE_INTEGRATION.md)。
 - **2026-04-18**：補 [`architecture/`](architecture/)（Terminal 長線規劃三檔；索引摘要 [`CLAUDE.md`](../CLAUDE.md) §5）。
+- **2026-05-16**：補 [`ADR_COMMAND_BAR_PERMISSIONS.md`](ADR_COMMAND_BAR_PERMISSIONS.md)（Queue 29 權限／資料源邊界）。

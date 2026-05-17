@@ -7,6 +7,7 @@ import PriceAlertToaster from "./components/PriceAlertToaster";
 import { WarRoomSseProvider } from "./hooks/useWarRoomSse";
 import { SymbolFocusProvider, useSymbolFocus } from "./context/SymbolFocusContext";
 import Shell from "./app/layout/Shell";
+import PortalShellAlerts from "./components/PortalShellAlerts";
 import Report from "./pages/Report";
 import Settings from "./pages/Settings";
 import ApiKeyPage from "./pages/ApiKeyPage";
@@ -51,7 +52,7 @@ function AppRoutes() {
   return (
     <Shell hideModuleNav={hideChrome}>
       <SymbolQuerySync />
-      <main className="page-content">
+      <main id="main-content" tabIndex={-1} className="page-content">
         <Routes>
           <Route path="/" element={<RedirectWithSearch to="/insights" />} />
           <Route path="/briefs" element={<RedirectWithSearch to="/insights" />} />
@@ -91,6 +92,7 @@ export default function App() {
         <SymbolFocusProvider>
           <WarRoomSseProvider>
             <BrowserRouter>
+              <PortalShellAlerts />
               <AppRoutes />
             </BrowserRouter>
             <PriceAlertToaster />

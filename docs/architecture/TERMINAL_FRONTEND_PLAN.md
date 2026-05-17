@@ -65,6 +65,7 @@ data-verification-ui/
 | **Shell 共用** | `Shell.jsx`／`TerminalCommandBar.jsx` 行為調整須與 Phase 4「情境化」一致；全站 401／金鑰行為不變。 |
 | **驗收** | 每切片至少一條 Playwright smoke（可擴充 `news-route`／`queue43-cross-board`／新 spec）；必要時補 `docs/DASHBOARD_CONTRACT.md` 列點。 |
 | **對齊待辦** | 實作優先序與切片編號見 [`TODOS.md`](../../TODOS.md) **隊列 44**。 |
+| **設計契約（讀者細節）** | [`DESIGN.md`](../../DESIGN.md) **「Portal Phase 4」** — 首屏視線順序、`?focus=` 狀態矩陣、90s 人測腳本、Command Bar placeholder 策略、CTA 層級與 `PORTAL_PHASE4_CTA`、Skip link（P2）；與 [`portalPhase4.js`](../../data-verification-ui/src/constants/portalPhase4.js) 對齊。 |
 
 ---
 

@@ -56,9 +56,9 @@
 - **M4 SSE price_alert**：[`war_room_stream.py`](../../war_room_stream.py) deque + `event: price_alert`；PWA [`PriceAlertToaster.jsx`](../../data-verification-ui/src/components/PriceAlertToaster.jsx) 訂閱 `PRICE_ALERT_SSE_EVENT`。
 - **Contract smoke 擴充**：[`tests/api/test_api_contract_smoke.py`](../../tests/api/test_api_contract_smoke.py) +3 斷言（paper-tick 404、push-check shape、SSE 404）。
 
-**仍列 backlog**：SSE 短期 token TTL（`POST /api/stream/token`，原 slice 3 範圍縮減項）、`SSE_MAX_EVENTS_PER_SEC` 顯式限流；以及四模組 UI 之深化（4a–4d 模組本身已是 MVP，可用 hooks 為主）。
+**SSE 安全收尾（2026-05-16 交付）**：`POST /api/stream/token`（[`sse_token.py`](../../sse_token.py)、`SSE_TOKEN_TTL_SECONDS`）、`SSE_MAX_EVENTS_PER_SEC` 每連線事件節流（超量 yield `event: throttled`）、[`tests/api/test_sse_token.py`](../../tests/api/test_sse_token.py)；明細見 CHANGELOG **2026-05-16** `### SSE 安全強化`。**仍列 backlog**：四模組 UI 之深化（4a–4d 模組本身已是 MVP，可用 hooks 為主）。
 
-### Phase 4 — Portal 資訊架構：讀者層 × 工作台層（IA 收斂；待維護者 REVIEW）
+### Phase 4 — Portal 資訊架構：讀者層 × 工作台層（IA 收斂；Gate 0 已 REVIEW，2026-05-16）
 
 **目的**：在**不弱化**「類 Bloomberg 工作台」能力的前提下，讓 **新聞（`/news`）** 與 **科技專欄（`/columns`）** 維持**讀者向**體驗；五板塊仍屬同一 Portal（`Shell` + `SideNav`／`ModuleNav`），差異以**資訊密度與語氣**分層，而非另起一套產品或整站 techy。
 
@@ -92,7 +92,7 @@
 
 **刻意不做（與 §2 風險對齊）**：首階段不以多視窗 MDI 為目標；不把新聞首屏做成即時報價牆；不為融合引入未審核或不可溯源資料源。
 
-**維護者 REVIEW 前可先決**（建議落入 [`TODOS.md`](../../TODOS.md) 或票證）：工作台「主戰場」**兩條**路由、讀者層是否接受「首屏零表格」、融合第一刀**單向或雙向**、可保留的「終端感」元素**上限清單**（三至五項）。
+**維護者 REVIEW 結果（2026-05-16 已簽核）**：工作台主戰場 = `/insights` + `/portfolio`（`/dashboard` 並列宏觀台、不佔主戰場名額）、讀者層首屏零表格 = 是、融合第一刀 = 雙向、終端感保留元素 = 5 項（Command Bar、mono symbol chips、macro spark grid、SSE WATCH、Workspace dock）、工作台關鍵路徑 N=3。權威值寫在 [`portalPhase4.js`](../../data-verification-ui/src/constants/portalPhase4.js) 之 `PORTAL_PHASE4_GATE0`。下一輪人測（44a 讀者層）之日期由維護者於 [`TODOS.md`](../../TODOS.md) 隊列 44 補登。
 
 ### Phase 4 — 實作規劃（滾動切片；對齊 `TODOS` 隊列 44）
 
@@ -144,6 +144,7 @@
 
 ## 修訂紀錄
 
+- **2026-05-16（對帳）**：§0 Phase 3「仍列 backlog」改寫 — SSE 短期 token TTL／`SSE_MAX_EVENTS_PER_SEC` 已於 2026-05-16 交付，僅留四模組 UI 深化；§0 Phase 4 標題與「REVIEW 前可先決」段改為「Gate 0 已 REVIEW（2026-05-16）」並列入五項簽核值。
 - **2026-05-16**：§0 Phase 4 增 **實作規劃**（44a–44d 表、Gate 0、`TODOS` 隊列 44）；§2 `TERMINAL_FRONTEND_PLAN` 建議句改與 **`App.jsx`** 路由現況對齊。
 - **2026-05-15**：§0 下新增 **Phase 4**（Portal **讀者層 × 工作台層** IA 收斂：原則、A／B／C 分段、刻意不做、REVIEW 決策點）；本檔矩陣狀態欄改為 **Phase 0–4**；§1 執行順序增第 4 點對齊 Phase 4。
 - **2026-05-14（Phase 3）**：§0 下新增 **Phase 3 Backlog Go-Live**（M4 SSE 閉環、M5／M4 排程、contract smoke 擴充）；slices 1–5 commit SHA 見 CHANGELOG **2026-05-14** `### Backlog Go-Live`。

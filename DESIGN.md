@@ -50,6 +50,75 @@
 
 ---
 
+## Portal Phase 4（讀者層 × 工作台層）
+
+對齊 [`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**、[`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 Phase 4**。**常數與跨板塊文案** 以 [`data-verification-ui/src/constants/portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js)（`PORTAL_PHASE4_GATE0`、`PORTAL_PHASE4_CTA`、`newsContextHref`／`columnsContextHref`／`insightsSymbolHref`、`getTerminalCommandBarPlaceholder`）為 **implementation 真相來源**；本節描述產品可驗收行為，若與程式不一致，以程式為準並應回寫本檔。
+
+### 首屏視線順序（讀者層 vs 工作台層）
+
+ASCII 僅供 QA／人測對齊視線（**非** pixel 佈局契約）。
+
+**讀者層**（`/news`、`/columns`）— 低密度、可掃讀：
+
+```
+[ Shell 頂欄／Command Bar ]
+[ Reader intro 條 — 單一主任務；例：news-reader-layer-intro ]
+[ 若有 ?focus=SYM：focus badge／篩選提示 ]
+[ 主內容：digest 卡片流或專欄列表；避免首屏多區高密度 HTML 報價矩陣 ]
+[ 主 CTA（accent）與次要連結 — 見下「CTA 視覺層級」]
+[ GlobalWatchlistDock（浮動）]
+```
+
+**工作台層**（`/insights`、`/dashboard`、`/portfolio`）— 較高密度、可操作：
+
+```
+[ Shell 頂欄／Command Bar — GO／RUN 語感 placeholder ]
+[ Workbench intro 條 — 三工作台導引／密度收斂 ]
+[ 主戰場（tabs／KPI／圖表／表格；遵守 Gate 0 首屏高密度區 ≤3 等決議）]
+[ 回向讀者層 CTA — 字串來自 PORTAL_PHASE4_CTA ]
+[ GlobalWatchlistDock ]
+```
+
+### 融合深連結（`?focus=`）— 使用者看見什麼
+
+適用 **`/news?focus=SYM`**、**`/columns?focus=SYM`**（helpers：`newsContextHref`、`columnsContextHref`）。下列為 **fusion 層** 狀態（與下方全站 KPI／圖表矩陣分開敘述）。
+
+| 狀態 | 觸發／條件 | 使用者看見什麼 |
+|------|------------|----------------|
+| **Loading** | 列表／digest 請求進行中 | 頁或區塊 skeleton；**不**顯示假標的／假新聞；導覽與 Command Bar 除非該頁另有規則否則可互動。 |
+| **Empty** | API 成功但列表為空（無 focus 或與 focus 無關之空態） | 「無資料／無可顯示項目」類短文案；不強制顯示 focus badge。 |
+| **No match** | 有 `?focus=SYM` 且載入完成，但沒有任何列／卡匹配該 symbol | 「無符合 SYM 的項目」+ 清除篩選或前往 **`/insights?symbol=`** 之導引（雙向融合）；可並存「已篩選 SYM」badge 與空內容。 |
+| **Error** | 列表 API 失敗 | 錯誤短句 + 重試；**不**捏造匹配結果；`?focus` 保留與否依該頁實作。 |
+
+### 讀者層 90 秒驗收腳本（產品／可用性）
+
+**非** Playwright 替代品；E2E 仍以 `phase4-ia-portal.spec.js` 等為準。供 44a 人測簽名或 demo 勾選。
+
+1. **0–15s**：`<768px` 開 `/news` — 見 reader intro、首屏無多區報價矩陣；BottomNav + ModuleNav 可切主要模組。
+2. **15–45s**：點單一主 CTA（`accent`）往 **`/insights`** — 見 workbench intro、首屏區塊數合理（與 44b tab／dock 等一致）。
+3. **45–75s**：從工作台 **`回到新聞脈動`**（`PORTAL_PHASE4_CTA.workbenchToNews`）— 讀者密度不變；Command Bar placeholder 為讀者向字串。
+4. **75–90s**：`/news?focus=NVDA`（或測試環境已知 symbol）— 符合上表 Loading／Empty／No match／Error 之一，**無**幻覺報價。
+
+### Command Bar — 讀者頁 placeholder 策略
+
+- **實作**：`getTerminalCommandBarPlaceholder(pathname)` — `/news`、`/columns` 與其他路徑文案不同。
+- **意圖**：讀者頁偏 **搜尋／跳轉**（主題、路由、`SYM GO`）；工作台保留 **RUN／狀態機** 語感，避免混讀。
+- **小螢幕**：長 placeholder 可能截斷 — 以元件 **`aria-label` 全句** 為準（實作見 `TerminalCommandBar.jsx`）。
+- **可選後續（非承諾）**：在 reader intro 下以 `<details>` 或 drawer 收合「指令範例」，縮短單行 placeholder；若採納須同步 `portalPhase4.js` 與 E2E。
+
+### CTA 視覺層級與 `PORTAL_PHASE4_CTA`
+
+- **主 CTA**：與 **Accent 與 Accent2** 小節一致 — 同一視窗／同一折疊視區內 **建議至多一顆** `accent` 主按鈕；次要動作用 outline／ghost 或文字連結。
+- **文案**：跨板塊人話 CTA 一律經 **`PORTAL_PHASE4_CTA`** +（必要時）**`ctaWithSymbol`**；避免 JSX 內重複硬編同義句。
+- **層級**：intro 內「去觀點工作台」為 **Tier 1**；卡片內「在新聞中查 SYM」為 **Tier 2**；工作台「回到新聞脈動」為 **Tier 1 返程**。
+
+### Skip link 與鍵盤順序（P2 — 已落地）
+
+- **實作**：[`Shell.jsx`](data-verification-ui/src/app/layout/Shell.jsx) 於主欄頂部提供 **`href="#main-content"`** 之 **略過導覽至主內容**（`.skip-to-main`；螢幕外隱藏、`focus-visible` 時顯示）；[`App.jsx`](data-verification-ui/src/App.jsx) 將 `<main>` 設 **`id="main-content"`** 與 **`tabIndex={-1}`** 以利 hash 後焦點落點。
+- **驗收**：Playwright [`skip-link.spec.js`](data-verification-ui/e2e/skip-link.spec.js) 確認 focus → click 後 **`#main-content` 取得焦點**。與 **Command Bar**／**`Ctrl/Cmd+K`** 並存時未改既有快捷鍵邏輯；若日後調整 tab order 請同步跑該 spec。
+
+---
+
 ## 介面狀態矩陣（使用者看見什麼）
 
 對齊 KPI／圖表／連線指示區塊；實作時優先重用 `.loading`、既有錯誤橫幅或 `data-testid` 以利 E2E。
@@ -86,4 +155,4 @@
 - **平板 `768px–1279px`**：維持側欄 + 單欄主內容；與 `1280px+` 差異主要為側欄寬度（見 [`index.css`](data-verification-ui/src/index.css)）。細修可在後續迭代獨立 media query。
 - **`:focus-visible`**：所有可聚焦連結／按鈕須有鍵盤可見焦環（對比比率足夠，優先沿用 `--accent`）。
 - **觸控目標**：主要導覽連結（ModuleNav、BottomNav）**最小約 44×44 CSS px**。
-- **地標**：`<main className="page-content">`；`nav` 使用 **`aria-label`**（「主導航」「Portal 模組」「主導航（底部）」）。**Skip link** 若需另開切片再補。
+- **地標**：`<main id="main-content" className="page-content" tabIndex={-1}>`；`nav` 使用 **`aria-label`**（「主導航」「Portal 模組」「主導航（底部）」）。**Skip link** 見 **Portal Phase 4** 末節「Skip link 與鍵盤順序（P2 — 已落地）」。

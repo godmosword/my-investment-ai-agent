@@ -1,6 +1,11 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { mergeSiliconHeaders } from "../lib/siliconApiHeaders";
-import { siliconGetJson, siliconSendJson, siliconFetchRaw } from "../lib/siliconApiClient";
+import {
+  siliconGetJson,
+  siliconSendJson,
+  siliconFetchRaw,
+  dispatchSiliconApiShellError,
+} from "../lib/siliconApiClient";
 
 const E2E_MODE = import.meta.env.VITE_E2E === "1";
 
@@ -201,6 +206,7 @@ async function apiFetchScenarioSuggestions() {
     res = await siliconFetchRaw("/api/scenario/suggestions", { method: "GET" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    dispatchSiliconApiShellError({ kind: "network", message: msg });
     throw new Error(`Network error (${msg})`);
   }
   if (res.status === 404) {
@@ -209,6 +215,13 @@ async function apiFetchScenarioSuggestions() {
   if (!res.ok) {
     if (res.status === 401) handleApiUnauthorized();
     const msg = await res.text().catch(() => res.statusText);
+    if (res.status >= 500) {
+      dispatchSiliconApiShellError({
+        kind: "http",
+        status: res.status,
+        message: `${res.status}: ${String(msg).slice(0, 240)}`,
+      });
+    }
     throw new Error(`${res.status}: ${msg}`);
   }
   try {
@@ -692,11 +705,19 @@ async function apiPostForm(path, formData) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    dispatchSiliconApiShellError({ kind: "network", message: msg });
     throw new Error(`Network error (${msg})`);
   }
   if (!res.ok) {
     if (res.status === 401) handleApiUnauthorized();
     const msg = await res.text().catch(() => res.statusText);
+    if (res.status >= 500) {
+      dispatchSiliconApiShellError({
+        kind: "http",
+        status: res.status,
+        message: `${res.status}: ${String(msg).slice(0, 240)}`,
+      });
+    }
     throw new Error(`${res.status}: ${msg}`);
   }
   return res.json();

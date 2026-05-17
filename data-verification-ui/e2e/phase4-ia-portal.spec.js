@@ -67,6 +67,17 @@ test.describe("Portal Phase 4 IA — reader layer × workbench cues (queue 44)",
     await expect(page.getByTestId("global-watchlist-toggle")).toBeVisible();
   });
 
+  test("44b portfolio second wave: risk panel only on ?tab=risk", async ({ page }) => {
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("portfolio-tab-overview")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("portfolio-risk-panel")).toHaveCount(0);
+
+    await page.getByTestId("portfolio-tab-risk").click();
+    await expect(page).toHaveURL(/tab=risk/);
+    await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible();
+  });
+
   test("Command Bar placeholder softens on /news and stays terminal on /insights", async ({ page }) => {
     await page.goto("/news", { waitUntil: "load" });
     const barNews = page.getByTestId("terminal-command-bar");

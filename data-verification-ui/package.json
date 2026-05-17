@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src",
-    "test:e2e": "bash e2e/run-ci.sh"
+    "test:e2e": "bash e2e/run-ci.sh",
+    "smoke:prod": "bash scripts/smoke-prod.sh"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.28.0",

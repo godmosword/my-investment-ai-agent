@@ -49,11 +49,16 @@ export default function Settings() {
   const [blockId, setBlockId] = useState("");
   const [savedHint, setSavedHint] = useState("");
   const [workspaceHint, setWorkspaceHint] = useState("");
+  const [healthOkAt, setHealthOkAt] = useState("");
+  const [healthErr, setHealthErr] = useState("");
   const importRef = useRef(null);
 
   const pushRegister = envFlag(import.meta.env.VITE_WEB_PUSH_REGISTER);
   const vapidSet = Boolean(String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || "").trim());
   const apiUrl = String(import.meta.env.VITE_API_URL || "").trim();
+  const sseEnabled = envFlag(import.meta.env.VITE_SSE_ENABLED);
+  const sseStreamKeySet = Boolean(String(import.meta.env.VITE_SSE_STREAM_KEY || "").trim());
+  const structuredReport = envFlag(import.meta.env.VITE_STRUCTURED_REPORT);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) {
@@ -63,6 +68,36 @@ export default function Settings() {
     navigator.serviceWorker.getRegistration().then((reg) => {
       setSwState(reg ? "已註冊" : "未註冊");
     });
+  }, []);
+
+  useEffect(() => {
+    const base = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+    if (!base) {
+      setHealthErr("未設定 VITE_API_URL，無法探活");
+      return undefined;
+    }
+    let cancelled = false;
+    const ping = () => {
+      fetch(`${base}/healthz`, { method: "GET", cache: "no-store" })
+        .then((r) => {
+          if (cancelled) return;
+          if (r.ok) {
+            setHealthOkAt(new Date().toISOString());
+            setHealthErr("");
+          } else {
+            setHealthErr(`HTTP ${r.status}`);
+          }
+        })
+        .catch((e) => {
+          if (!cancelled) setHealthErr(e instanceof Error ? e.message : String(e));
+        });
+    };
+    ping();
+    const id = globalThis.setInterval(ping, 60_000);
+    return () => {
+      cancelled = true;
+      globalThis.clearInterval(id);
+    };
   }, []);
 
   useEffect(() => {
@@ -122,7 +157,42 @@ export default function Settings() {
               {apiUrl || "未設定"}
             </span>
           </li>
+          <li>
+            VITE_SSE_ENABLED:{" "}
+            <span className={sseEnabled ? "text-emerald-300" : "text-[var(--muted)]"}>
+              {sseEnabled ? "1（啟用）" : "未啟用"}
+            </span>
+          </li>
+          <li>
+            VITE_SSE_STREAM_KEY:{" "}
+            <span className={sseStreamKeySet ? "text-emerald-300" : "text-amber-300"}>
+              {sseStreamKeySet ? "已設定" : "未設定"}
+            </span>
+          </li>
+          <li>
+            VITE_STRUCTURED_REPORT:{" "}
+            <span className={structuredReport ? "text-emerald-300" : "text-[var(--muted)]"}>
+              {structuredReport ? "1（啟用）" : "未啟用"}
+            </span>
+          </li>
         </ul>
+      </section>
+
+      <section className="card mb-4 p-3">
+        <h2 className="mb-2 text-[13px] font-semibold">API 探活（GET /healthz）</h2>
+        <p className="m-0 text-[12px] text-[var(--muted)]">
+          基底：<code className="font-mono text-[11px]">{apiUrl || "—"}</code>
+        </p>
+        {healthOkAt ? (
+          <p className="mt-1 mb-0 text-[12px] text-emerald-300">
+            最後成功：<span className="font-mono">{healthOkAt}</span>
+          </p>
+        ) : null}
+        {healthErr ? (
+          <p className="mt-1 mb-0 text-[12px] text-amber-300" role="status">
+            {healthErr}
+          </p>
+        ) : null}
       </section>
 
       <section className="card mb-4 p-3">

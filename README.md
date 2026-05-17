@@ -344,7 +344,20 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 - **離線／快取**：生產用 Service Worker 以 Workbox 註冊路由 — **`/api` NetworkOnly**（不快取 API），導覽／同源靜態 **NetworkFirst**。說明見 [`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md)（CHANGELOG **2026-04-18**）。
 
 - **路由**：底部導覽五板塊為 **`/news`**、**`/dashboard`**、**`/insights`**、**`/columns`**、**`/portfolio`**；`/insights` 承接 Terminal 工作區（watchlist 存 `localStorage`；代號卡呼叫 `GET /api/symbols/{symbol}/snapshot` 與輕量 **`GET /api/symbols/{symbol}/quote`**（最新日線收盤／1D%，僅 yfinance））。
-- **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（適合 PWA 與 API 同網域反代）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。
+- **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（適合 PWA 與 API 同網域反代）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。**Production build** 若未設，Portal 會顯示頂部提示條（`VITE_E2E=1` 建置時不顯示以免干擾 Playwright）。
+
+### 正式上線 vs CI／E2E 專用旗標
+
+| 變數／行為 | 正式 launch（預設） | 僅 CI／E2E |
+|------------|---------------------|-----------|
+| `VITE_E2E=1` | **勿**在 production bundle 使用 | `npm run test:e2e`（`e2e/run-ci.sh`）強制；關閉 PWA plugin、關閉 production 缺 API banner、401 不跳轉 `/api-key` |
+| `VITE_API_URL` | staging／prod 應設為後端基底 URL | E2E 由腳本注入 mock `http://127.0.0.1:<port>` |
+| `VITE_STRUCTURED_REPORT` | 依產品需求 0／1 | E2E 腳本設 `1` 以走結構化路徑 |
+| `DailyBriefPage.jsx` 等 E2E seed | 僅在 `VITE_E2E=1` 時啟用測試資料 | 見各 spec 與該頁 `import.meta.env.VITE_E2E` 分支 |
+| `VITE_GLASSBOX_MOCK` | 本機 mock 儀表板用；prod 依治理關閉 | E2E 腳本可設 `0` |
+
+完整變數註解見 [`data-verification-ui/.env.example`](data-verification-ui/.env.example) 與根目錄 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)。**Staging／prod 手動 smoke**：`cd data-verification-ui && BASE_URL=… API_BASE=… npm run smoke:prod`（腳本：`scripts/smoke-prod.sh`）。
+
 - **`VITE_TERMINAL_POLL_MS`**（可選）：**`/insights`** 內 snapshot／意圖列表／War Room 輪詢間隔（毫秒），預設 **45000**；本機除錯可設 `15000`。見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](docs/TERMINAL_MID_TIER_ROADMAP.md)。
 - **SSE（可選）**：後端 `TERMINAL_SSE_ENABLED=1` 時提供 `GET /api/stream/war-room`；查詢參數 **`watch_symbols`**（CSV，例 `BTC,NVDA`）可驅動 **`symbol_quote`** 事件；前端 **`VITE_SSE_ENABLED=1`**，若設 `API_STREAM_AUTH_KEY` 則同步 **`VITE_SSE_STREAM_KEY`**。**短期 token（2026-05-16）**：`POST /api/stream/token`（預設 404，須 `API_STREAM_AUTH_KEY`）回傳 `{token, expires_at, ttl_seconds}`，瀏覽器以 `?stream_token=` 連 SSE，避免長效金鑰外洩；TTL 由 `SSE_TOKEN_TTL_SECONDS` 控制（預設 60s，10–600 clamp）。**事件節流**：`SSE_MAX_EVENTS_PER_SEC` >0 時啟用每連線滑動 1 秒視窗，超量 yield `event: throttled`。紙上一輪：`python scripts/paper_execution_tick.py` 或 `PAPER_TICK_HTTP_ENABLED=1` 時 `POST /api/paper/execution-tick`（可選 `PAPER_TICK_API_KEY`）。
 

@@ -5,6 +5,21 @@
 
 import { mergeSiliconHeaders } from "./siliconApiHeaders";
 
+/** 由 `PortalShellAlerts` 訂閱；401 不觸發（沿用 `useApi` redirect）。 */
+export const QSILICON_API_SHELL_ERROR = "qsilicon:api-fetch-error";
+
+/**
+ * @param {{ kind: "network" | "http"; status?: number; message: string }} detail
+ */
+export function dispatchSiliconApiShellError(detail) {
+  if (typeof globalThis.dispatchEvent !== "function") return;
+  try {
+    globalThis.dispatchEvent(new CustomEvent(QSILICON_API_SHELL_ERROR, { detail }));
+  } catch {
+    /* ignore */
+  }
+}
+
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
 function buildUrl(path) {
@@ -38,11 +53,19 @@ export async function siliconGetJson(path, onUnauthorized) {
     res = await siliconFetchRaw(path, { method: "GET" });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    dispatchSiliconApiShellError({ kind: "network", message: msg });
     throw new Error(`Network error (${msg})`);
   }
   if (!res.ok) {
     if (res.status === 401 && typeof onUnauthorized === "function") onUnauthorized();
     const msg = await res.text().catch(() => res.statusText);
+    if (res.status >= 500) {
+      dispatchSiliconApiShellError({
+        kind: "http",
+        status: res.status,
+        message: `${res.status}: ${String(msg).slice(0, 240)}`,
+      });
+    }
     throw new Error(`${res.status}: ${msg}`);
   }
   try {
@@ -72,11 +95,19 @@ export async function siliconSendJson(path, method, body, extraHeaders, onUnauth
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    dispatchSiliconApiShellError({ kind: "network", message: msg });
     throw new Error(`Network error (${msg})`);
   }
   if (!res.ok) {
     if (res.status === 401 && typeof onUnauthorized === "function") onUnauthorized();
     const msg = await res.text().catch(() => res.statusText);
+    if (res.status >= 500) {
+      dispatchSiliconApiShellError({
+        kind: "http",
+        status: res.status,
+        message: `${res.status}: ${String(msg).slice(0, 240)}`,
+      });
+    }
     throw new Error(`${res.status}: ${msg}`);
   }
   if (res.status === 204) return null;

@@ -13,7 +13,7 @@ test.describe("Portfolio TP/SL calculator (queue 45 · P1)", () => {
   });
 
   test("computes risk metrics from entry/stop/target", async ({ page }) => {
-    await page.goto("/portfolio", { waitUntil: "load" });
+    await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
 
     await page.getByTestId("risk-equity-input").fill("50000");
@@ -35,7 +35,7 @@ test.describe("Portfolio TP/SL calculator (queue 45 · P1)", () => {
   });
 
   test("flags LONG with stop above entry as invalid", async ({ page }) => {
-    await page.goto("/portfolio", { waitUntil: "load" });
+    await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
 
     await page.getByTestId("risk-equity-input").fill("10000");
@@ -47,7 +47,7 @@ test.describe("Portfolio TP/SL calculator (queue 45 · P1)", () => {
   });
 
   test("persists risk budget to localStorage", async ({ page, context }) => {
-    await page.goto("/portfolio", { waitUntil: "load" });
+    await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
 
     await page.getByTestId("risk-equity-input").fill("123456");
@@ -61,7 +61,7 @@ test.describe("Portfolio TP/SL calculator (queue 45 · P1)", () => {
   });
 
   test("submits manual PENDING_REVIEW intent on click", async ({ page }) => {
-    await page.goto("/portfolio", { waitUntil: "load" });
+    await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
 
     await page.getByTestId("risk-equity-input").fill("50000");
@@ -78,7 +78,7 @@ test.describe("Portfolio TP/SL calculator (queue 45 · P1)", () => {
   });
 
   test("ATR14 helper fills stop based on mocked OHLC", async ({ page }) => {
-    await page.goto("/portfolio", { waitUntil: "load" });
+    await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
 
     await page.getByTestId("risk-symbol-input").fill("NVDA");

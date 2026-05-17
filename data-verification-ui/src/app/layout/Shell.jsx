@@ -8,7 +8,10 @@ export default function Shell({ children, hideModuleNav = false }) {
   return (
     <div className="app-shell flex min-h-0 flex-1 flex-col md:flex-row">
       {!hideModuleNav ? <SideNav /> : null}
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <a href="#main-content" className="skip-to-main">
+          略過導覽至主內容
+        </a>
         {!hideModuleNav ? <ModuleNav /> : null}
         {!hideModuleNav ? (
           <TerminalCommandBar trailing={<GlobalGateBadge />} />

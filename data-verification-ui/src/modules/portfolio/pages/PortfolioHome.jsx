@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import PortfolioRiskPanel from "../../../components/PortfolioRiskPanel";
 import {
   useAddHolding,
@@ -9,6 +9,12 @@ import {
   usePortfolioPnl,
 } from "../../../hooks/useApi";
 import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
+
+const PORTFOLIO_TABS = [
+  { id: "overview", label: "總覽", testId: "portfolio-tab-overview" },
+  { id: "risk", label: "風險與 TP/SL", testId: "portfolio-tab-risk" },
+];
+const PORTFOLIO_TAB_IDS = new Set(PORTFOLIO_TABS.map((t) => t.id));
 
 function money(value, digits = 0) {
   const n = Number(value);
@@ -241,6 +247,22 @@ export default function PortfolioHome() {
   const fileInputRef = useRef(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = useMemo(() => {
+    const fromUrl = String(searchParams.get("tab") || "").trim();
+    return PORTFOLIO_TAB_IDS.has(fromUrl) ? fromUrl : "overview";
+  }, [searchParams]);
+  const activeTabLabel = useMemo(
+    () => PORTFOLIO_TABS.find((t) => t.id === activeTab)?.label ?? "總覽",
+    [activeTab],
+  );
+
+  const selectPortfolioTab = (id) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === "overview") next.delete("tab");
+    else next.set("tab", id);
+    setSearchParams(next, { replace: true });
+  };
 
   const rawHoldings = holdingsQuery.data?.holdings ?? [];
   const rows = pnlQuery.data?.holdings ?? rawHoldings;
@@ -334,30 +356,55 @@ export default function PortfolioHome() {
         次點擊。
       </div>
 
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <KpiCard
-          label="總市值"
-          value={money(totalValue)}
-          sub={isLoading ? "載入中…" : "mark-to-market"}
-          testId="portfolio-total-value"
-        />
-        <KpiCard
-          label="今日損益"
-          value={signedMoney(totalDayPnl)}
-          sub={pct(dayPct)}
-          valueClass={toneClass(totalDayPnl)}
-        />
-        <KpiCard
-          label="總損益"
-          value={signedMoney(totalPnl)}
-          sub={pct(totalPnlPct)}
-          valueClass={toneClass(totalPnl)}
-        />
+      <div
+        className="mb-3 flex flex-wrap items-center gap-2 px-1"
+        role="tablist"
+        aria-label="Portfolio tabs"
+      >
+        {PORTFOLIO_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            data-testid={tab.testId}
+            className={`min-h-[36px] rounded border px-3 py-1.5 text-[12px] font-semibold ${
+              activeTab === tab.id
+                ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-100/90"
+                : "border-white/15 text-white/70 hover:bg-white/[0.04]"
+            }`}
+            onClick={() => selectPortfolioTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <PortfolioRiskPanel />
+      <div role="tabpanel" aria-label={activeTabLabel}>
+        {activeTab === "overview" ? (
+          <>
+            <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <KpiCard
+                label="總市值"
+                value={money(totalValue)}
+                sub={isLoading ? "載入中…" : "mark-to-market"}
+                testId="portfolio-total-value"
+              />
+              <KpiCard
+                label="今日損益"
+                value={signedMoney(totalDayPnl)}
+                sub={pct(dayPct)}
+                valueClass={toneClass(totalDayPnl)}
+              />
+              <KpiCard
+                label="總損益"
+                value={signedMoney(totalPnl)}
+                sub={pct(totalPnlPct)}
+                valueClass={toneClass(totalPnl)}
+              />
+            </div>
 
-      <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-3 flex flex-wrap gap-2">
         <button
           type="button"
           data-testid="portfolio-add-button"
@@ -392,73 +439,78 @@ export default function PortfolioHome() {
         >
           匯出
         </button>
+            </div>
+
+            {toast ? (
+              <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100" role="status">
+                {toast}
+              </div>
+            ) : null}
+
+            {error ? (
+              <div className="error-msg mb-3 text-[13px]">
+                無法載入 portfolio：<code>{error.message}</code>
+              </div>
+            ) : null}
+
+            {!isLoading && !error && rows.length === 0 ? (
+              <div className="card mb-4 p-3 text-[13px] text-[var(--muted)]">
+                尚無持倉。請新增倉位或匯入 CSV。
+              </div>
+            ) : null}
+
+            {rows.length > 0 ? (
+              <>
+                <div data-testid="portfolio-holdings-table" className="mb-4 hidden overflow-x-auto rounded border border-[color:var(--border)] md:block">
+                  <table className="w-full min-w-[760px] text-left text-[13px]">
+                    <thead className="bg-[var(--panel)] text-[11px] uppercase text-[var(--muted)]">
+                      <tr>
+                        <th className="px-3 py-2">Symbol</th>
+                        <th className="px-3 py-2">Shares</th>
+                        <th className="px-3 py-2">Avg Cost</th>
+                        <th className="px-3 py-2">Last</th>
+                        <th className="px-3 py-2">Day Δ</th>
+                        <th className="px-3 py-2">P&L</th>
+                        <th className="px-3 py-2">Weight</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr key={row.id} className="border-t border-[color:var(--border)]">
+                          <td className="px-3 py-2 font-mono font-semibold text-white">{row.symbol}</td>
+                          <td className="px-3 py-2">{number(row.shares)}</td>
+                          <td className="px-3 py-2">{money(row.cost_basis, 2)}</td>
+                          <td className="px-3 py-2">{row.error ? "N/A" : money(row.last_price, 2)}</td>
+                          <td className={`px-3 py-2 ${toneClass(row.day_change_pct)}`}>{row.error ? "—" : pct(row.day_change_pct)}</td>
+                          <td className={`px-3 py-2 ${toneClass(row.pnl)}`}>
+                            {row.error ? "quote unavailable" : `${signedMoney(row.pnl)} (${pct(row.pnl_pct)})`}
+                          </td>
+                          <td className="px-3 py-2">{row.error ? "—" : pct(row.weight)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
+                              onClick={() => deleteRow(row.id)}
+                            >
+                              刪除
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mb-4">
+                  <HoldingCards rows={rows} onDelete={deleteRow} />
+                </div>
+              </>
+            ) : null}
+          </>
+        ) : null}
+
+        {activeTab === "risk" ? <PortfolioRiskPanel /> : null}
       </div>
-
-      {toast ? (
-        <div className="mb-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100" role="status">
-          {toast}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="error-msg mb-3 text-[13px]">
-          無法載入 portfolio：<code>{error.message}</code>
-        </div>
-      ) : null}
-
-      {!isLoading && !error && rows.length === 0 ? (
-        <div className="card mb-4 p-3 text-[13px] text-[var(--muted)]">
-          尚無持倉。請新增倉位或匯入 CSV。
-        </div>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <>
-          <div data-testid="portfolio-holdings-table" className="mb-4 hidden overflow-x-auto rounded border border-[color:var(--border)] md:block">
-            <table className="w-full min-w-[760px] text-left text-[13px]">
-              <thead className="bg-[var(--panel)] text-[11px] uppercase text-[var(--muted)]">
-                <tr>
-                  <th className="px-3 py-2">Symbol</th>
-                  <th className="px-3 py-2">Shares</th>
-                  <th className="px-3 py-2">Avg Cost</th>
-                  <th className="px-3 py-2">Last</th>
-                  <th className="px-3 py-2">Day Δ</th>
-                  <th className="px-3 py-2">P&L</th>
-                  <th className="px-3 py-2">Weight</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-t border-[color:var(--border)]">
-                    <td className="px-3 py-2 font-mono font-semibold text-white">{row.symbol}</td>
-                    <td className="px-3 py-2">{number(row.shares)}</td>
-                    <td className="px-3 py-2">{money(row.cost_basis, 2)}</td>
-                    <td className="px-3 py-2">{row.error ? "N/A" : money(row.last_price, 2)}</td>
-                    <td className={`px-3 py-2 ${toneClass(row.day_change_pct)}`}>{row.error ? "—" : pct(row.day_change_pct)}</td>
-                    <td className={`px-3 py-2 ${toneClass(row.pnl)}`}>
-                      {row.error ? "quote unavailable" : `${signedMoney(row.pnl)} (${pct(row.pnl_pct)})`}
-                    </td>
-                    <td className="px-3 py-2">{row.error ? "—" : pct(row.weight)}</td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
-                        onClick={() => deleteRow(row.id)}
-                      >
-                        刪除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mb-4">
-            <HoldingCards rows={rows} onDelete={deleteRow} />
-          </div>
-        </>
-      ) : null}
 
     </div>
   );

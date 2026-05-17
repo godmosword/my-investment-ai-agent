@@ -5,6 +5,23 @@
 
 ## 2026-05-16
 
+### PWA — 正式上線前生產準備（env／banner／shell 錯誤／Settings 探活／SW）
+
+- **範本**：[`data-verification-ui/.env.example`](data-verification-ui/.env.example)（`VITE_*` 必填／選填／僅 CI 註解）。
+- **Production 缺 `VITE_API_URL`**：[`PortalShellAlerts.jsx`](data-verification-ui/src/components/PortalShellAlerts.jsx) 頂部提示（`VITE_E2E=1` 不顯示）；連結至 `/settings`。
+- **Network／5xx**：[`siliconApiClient.js`](data-verification-ui/src/lib/siliconApiClient.js) 派發 `qsilicon:api-fetch-error`；[`useApi.js`](data-verification-ui/src/hooks/useApi.js) 中 `siliconFetchRaw` 路徑同步；`PortalShellAlerts` 訂閱顯示簡訊（401 仍走既有 redirect）。
+- **Settings**：唯讀 `VITE_SSE_ENABLED`、`VITE_SSE_STREAM_KEY`（是否設定）、`VITE_STRUCTURED_REPORT`；可選 `GET {VITE_API_URL}/healthz` 最後成功時間（每 60s 輪詢）。
+- **PWA**：[`public/icon-192.png`](data-verification-ui/public/icon-192.png)、[`icon-512.png`](data-verification-ui/public/icon-512.png)；[`vite.config.js`](data-verification-ui/vite.config.js) `injectRegister: false` + `PortalShellAlerts` 於 production 註冊 `/service-worker.js`；[`service-worker.js`](data-verification-ui/src/service-worker.js) 處理 `SKIP_WAITING`；「套用更新」後 `controllerchange` 重新整理。
+- **CI／deploy**：[`.github/workflows/pwa-deploy.yml`](.github/workflows/pwa-deploy.yml)（lint→build→e2e；deploy job 占位 TODO）。
+- **Smoke**：[`data-verification-ui/scripts/smoke-prod.sh`](data-verification-ui/scripts/smoke-prod.sh)、`npm run smoke:prod`。
+- **文件**：[`README.md`](README.md)「正式上線 vs CI／E2E 專用旗標」小節。
+
+### Docs（Portal Phase 4 — `DESIGN.md` 讀者層細節補齊）
+
+- **[`DESIGN.md`](DESIGN.md)**：新增 **「Portal Phase 4」** — 讀者／工作台首屏視線 ASCII、`?focus=` 四態矩陣（Loading／Empty／No match／Error）、**90 秒**產品驗收腳本、Command Bar 讀者頁 placeholder 策略、**`PORTAL_PHASE4_CTA`** 與 accent 層級對照、**Skip link** 初版標為 P2（**2026-05-14** 已落地 — 見 CHANGELOG 同日「隊列 44」小節與 `skip-link.spec.js`）。
+- **[`docs/architecture/TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md)**：Phase 4 IA 工程責任表增列「設計契約」列，指向 `DESIGN.md` 與 `portalPhase4.js`。
+- **[`TODOS.md`](TODOS.md)**：隊列 44 文件錨點與第 44 條「仍待」敘述對齊（人測簽名 vs 已入庫之 90s 腳本）。
+
 ### PWA（隊列 44 · 44b — 工作台密度收斂於 N=3）
 
 - **`/dashboard`**：[`DashboardHome.jsx`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) 拆 2 tab —— **宏觀總覽**（`?tab=overview`，預設；含 `macro-indicator-grid`、`CatalystCalendar`、`RegimePanel`）／**市場深度**（`?tab=depth`；含 `ComputeMemoryPanel`、`OnchainMetricsPanel`）。同 InsightsHome tab 模式，URL deep link。首屏高密度區塊由 5 縮至 ≤ 3。
@@ -137,6 +154,15 @@
 - **Terminal 總表 §0 Phase 4**：於 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) 新增 **讀者層（`/news`、`/columns`）× 工作台層（`/insights` 等）** 資訊架構收斂（原則、A／B／C 分段、刻意不做、REVIEW 決策點）；矩陣狀態欄擴為 **Phase 0–4**；§1 執行順序增第 4 點。[`TODOS.md`](TODOS.md) 檔首補 Phase 4 交叉引用。
 
 ## 2026-05-14
+
+### PWA（隊列 44 — Phase 4：44b 第二波、`#main-content`、44a 工程驗收）
+
+- **`/portfolio` URL tab**：[`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) — **`?tab=overview`（預設）** 與 **`?tab=risk`**；[`PortfolioRiskPanel`](data-verification-ui/src/components/PortfolioRiskPanel.jsx) 僅在 **`tab=risk`** 掛載（總覽首屏維持 KPI／操作列／持倉，對齊 Gate 0 **N=3**）。`portfolio-tab-overview`／`portfolio-tab-risk`；[`portfolio-tpsl.spec.js`](data-verification-ui/e2e/portfolio-tpsl.spec.js) 改走 **`/portfolio?tab=risk`**。
+- **E2E**：[`phase4-ia-portal.spec.js`](data-verification-ui/e2e/phase4-ia-portal.spec.js) 補 **portfolio risk tab** 斷言；新增 [`skip-link.spec.js`](data-verification-ui/e2e/skip-link.spec.js)（略過連結 → **`#main-content`** 焦點）。
+- **Skip link（P2）**：[`Shell.jsx`](data-verification-ui/src/app/layout/Shell.jsx) 主欄頂 **略過導覽至主內容**；[`App.jsx`](data-verification-ui/src/App.jsx) `<main id="main-content" tabIndex={-1}>`；[`index.css`](data-verification-ui/src/index.css) `.skip-to-main`。
+- **44a**：依 [`DESIGN.md`](DESIGN.md)「Portal Phase 4」90s 腳本錨點 + **`npm run build`**／**`npm run test:e2e`** 工程驗收（產品人測簽名欄見 [`TODOS.md`](TODOS.md) 隊列 44）。
+- **44b 清單**：[`TODOS.md`](TODOS.md) 隊列 44 補 **Insights／Dashboard／Portfolio** 高密度區塊對照表（第二波收斂依據）。
+- **設計契約**：[`DESIGN.md`](DESIGN.md)「Skip link」小節改為 **P2 — 已落地**（取代「未承諾」敘述）。
 
 ### Backlog Go-Live（M4 / M5 closed loop；slices 1–5）
 - **M5 自動紙上撮合排程（slice 1）**：新增 [`.github/workflows/paper-execution-tick.yml`](.github/workflows/paper-execution-tick.yml)（每 15 分鐘 + `workflow_dispatch`）與 [`requirements-paper-tick.txt`](requirements-paper-tick.txt) 最小依賴；直接呼叫 `run_paper_execution_tick()`，**不下單**；可選 `PAPER_EXECUTION_AUDIT_TABLE` 寫 BQ 稽核列。
