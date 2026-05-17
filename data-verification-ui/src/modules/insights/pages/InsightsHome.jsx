@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PORTAL_PHASE4_CTA, PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
-import DailyBriefPage from "../../daily-brief/pages/DailyBriefPage";
-import QuantHome from "../../quant-trading/pages/QuantHome";
-import EarningsInsightHome from "./EarningsInsightHome";
-import PaperLifecycleHome from "./PaperLifecycleHome";
-import ScenarioPlannerHome from "./ScenarioPlannerHome";
-import SymbolDeepDive from "./SymbolDeepDive";
-import TrackRecordHome from "./TrackRecordHome";
+
+/** Tab／deep-dive 延遲載入：縮小 Insights 首屏 async chunk（對齊 Master Plan §3.6）。 */
+const DailyBriefPage = lazy(() => import("../../daily-brief/pages/DailyBriefPage"));
+const QuantHome = lazy(() => import("../../quant-trading/pages/QuantHome"));
+const EarningsInsightHome = lazy(() => import("./EarningsInsightHome"));
+const PaperLifecycleHome = lazy(() => import("./PaperLifecycleHome"));
+const ScenarioPlannerHome = lazy(() => import("./ScenarioPlannerHome"));
+const SymbolDeepDive = lazy(() => import("./SymbolDeepDive"));
+const TrackRecordHome = lazy(() => import("./TrackRecordHome"));
+
+const tabFallback = <div className="loading text-[13px] text-white/60">載入中…</div>;
 
 const TABS = [
   { id: "daily", label: "今日建議", testId: "insights-tab-daily" },
@@ -24,6 +28,7 @@ export default function InsightsHome() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [active, setActive] = useState("daily");
   const activeLabel = useMemo(() => TABS.find((t) => t.id === active)?.label ?? "今日建議", [active]);
+  const symbolQs = useMemo(() => String(searchParams.get("symbol") || "").trim().toUpperCase(), [searchParams]);
 
   useEffect(() => {
     const fromUrl = String(searchParams.get("tab") || "").trim();
@@ -42,7 +47,11 @@ export default function InsightsHome() {
 
   return (
     <div data-testid="insights-home">
-      <SymbolDeepDive />
+      {symbolQs ? (
+        <Suspense fallback={tabFallback}>
+          <SymbolDeepDive />
+        </Suspense>
+      ) : null}
       <div
         data-testid="insights-workbench-intro"
         className="card mb-3 border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80"
@@ -88,12 +97,14 @@ export default function InsightsHome() {
       </div>
 
       <div role="tabpanel" aria-label={activeLabel}>
-        {active === "daily" ? <DailyBriefPage /> : null}
-        {active === "earnings" ? <EarningsInsightHome /> : null}
-        {active === "paper" ? <PaperLifecycleHome /> : null}
-        {active === "track-record" ? <TrackRecordHome /> : null}
-        {active === "scenario" ? <ScenarioPlannerHome /> : null}
-        {active === "signals" ? <QuantHome /> : null}
+        <Suspense fallback={tabFallback}>
+          {active === "daily" ? <DailyBriefPage /> : null}
+          {active === "earnings" ? <EarningsInsightHome /> : null}
+          {active === "paper" ? <PaperLifecycleHome /> : null}
+          {active === "track-record" ? <TrackRecordHome /> : null}
+          {active === "scenario" ? <ScenarioPlannerHome /> : null}
+          {active === "signals" ? <QuantHome /> : null}
+        </Suspense>
       </div>
     </div>
   );

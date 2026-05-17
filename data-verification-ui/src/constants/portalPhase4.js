@@ -73,3 +73,22 @@ export function getTerminalCommandBarPlaceholder(pathname) {
   }
   return "AAPL <GO> | /columns | MACRO | RUN";
 }
+
+/** Command Bar inline examples：讓 ADR N/R/W/S 邊界在 UI 可見，不新增任何新指令。 */
+export function getTerminalCommandExamples(pathname) {
+  const raw = String(pathname || "/").trim() || "/";
+  const path = raw.split("?")[0] || "/";
+  const readerMode = path === "/news" || path === "/columns";
+  if (readerMode) {
+    return [
+      { label: "跳觀點", command: "/insights", note: "純前端導覽" },
+      { label: "查標的", command: "AAPL GO", note: "帶到工作台焦點" },
+      { label: "啟動研究", command: "RUN", note: "需後端金鑰與節流" },
+    ];
+  }
+  return [
+    { label: "切版面", command: "MACRO", note: "前往數據儀表板" },
+    { label: "追蹤", command: "AAPL GO → WATCH", note: "寫入本機 watch list" },
+    { label: "重跑 Crew", command: "RUN", note: "需後端金鑰與節流" },
+  ];
+}

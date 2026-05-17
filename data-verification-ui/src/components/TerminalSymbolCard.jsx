@@ -1,9 +1,11 @@
+import { lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { isHardApiError, useSymbolQuote, useSymbolSnapshot } from "../hooks/useApi";
-import SymbolCandleChart from "./SymbolCandleChart";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 import AsOfChip from "./common/AsOfChip";
 import ProvenancePopover from "./common/ProvenancePopover";
+
+const SymbolCandleChart = lazy(() => import("./SymbolCandleChart"));
 
 function numberOrDash(v, digits = 2) {
   if (v == null || Number.isNaN(Number(v))) return "N/A";
@@ -264,11 +266,19 @@ export default function TerminalSymbolCard({
             </div>
           </div>
 
-          <SymbolCandleChart
-            symbol={symbol}
-            priceSeries={Array.isArray(data.price_series) ? data.price_series : []}
-            eventMarkers={Array.isArray(data.event_markers) ? data.event_markers : []}
-          />
+          <Suspense
+            fallback={
+              <div className="page-subtitle" style={{ margin: "10px 0", opacity: 0.8 }} role="status">
+                載入圖表…
+              </div>
+            }
+          >
+            <SymbolCandleChart
+              symbol={symbol}
+              priceSeries={Array.isArray(data.price_series) ? data.price_series : []}
+              eventMarkers={Array.isArray(data.event_markers) ? data.event_markers : []}
+            />
+          </Suspense>
 
           <div className="section-header subtle">最近事件（QSREC）</div>
           {Array.isArray(data.event_markers) && data.event_markers.length > 0 ? (

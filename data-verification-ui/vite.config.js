@@ -4,6 +4,15 @@ import { VitePWA } from "vite-plugin-pwa";
 
 const e2eBuild = process.env.VITE_E2E === "1";
 
+/** 將 React／Router 與應用程式碼分離，略縮主 entry（對齊 Master Plan §3.6）。 */
+function manualChunks(id) {
+  if (!id.includes("node_modules")) return undefined;
+  if (id.includes("react-dom")) return "react-dom";
+  if (id.includes("react-router")) return "react-router";
+  if (id.includes("/react/") || id.includes("\\react\\")) return "react";
+  return undefined;
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -42,6 +51,13 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:8000",
         changeOrigin: true,
+      },
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks,
       },
     },
   },

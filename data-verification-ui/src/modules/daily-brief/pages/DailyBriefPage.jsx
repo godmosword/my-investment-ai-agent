@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import TerminalSymbolCard from "../../../components/TerminalSymbolCard";
+import { useEffect, useMemo, useState, useCallback, useRef, lazy, Suspense } from "react";
 import TerminalSseStatusBar from "../../../components/TerminalSseStatusBar";
-import ExecutionIntentsBlotter from "../../../components/ExecutionIntentsBlotter";
 import SymbolFocusBar from "../../../components/SymbolFocusBar";
 import { useSymbolFocus } from "../../../context/SymbolFocusContext";
+
+const TerminalSymbolCard = lazy(() => import("../../../components/TerminalSymbolCard"));
+const ExecutionIntentsBlotter = lazy(() => import("../../../components/ExecutionIntentsBlotter"));
+
+const dailyBriefLazyFallback = (
+  <div className="page-subtitle" style={{ margin: "8px 0", opacity: 0.75 }} role="status">
+    載入中…
+  </div>
+);
 
 const STORAGE_V1 = "qs_terminal_workspace_v1";
 const STORAGE_V2 = "qs_terminal_workspace_v2";
@@ -323,7 +330,9 @@ export default function DailyBriefPage() {
 
       <TerminalSseStatusBar />
 
-      <ExecutionIntentsBlotter />
+      <Suspense fallback={dailyBriefLazyFallback}>
+        <ExecutionIntentsBlotter />
+      </Suspense>
 
       <div className="terminal-workspace-tabs" role="tablist" aria-label="工作區分組">
         {workspace.groups.map((g) => (
@@ -446,36 +455,38 @@ export default function DailyBriefPage() {
             </div>
           </div>
         ) : (
-          symbols.map((symbol, index) => (
-            <div
-              key={`${workspace.activeGroupId}-${symbol}`}
-              draggable
-              onDragStart={() => setDragIndex(index)}
-              onDragEnd={() => setDragIndex(null)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => {
-                if (dragIndex == null || dragIndex === index) return;
-                setSymbolsForActive(moveIndex(symbols, dragIndex, index));
-                setDragIndex(null);
-              }}
-            >
-              <TerminalSymbolCard
-                symbol={symbol}
-                onRemove={() => setSymbolsForActive(symbols.filter((s) => s !== symbol))}
-                onMoveUp={() =>
-                  setSymbolsForActive(index > 0 ? moveIndex(symbols, index, index - 1) : symbols)
-                }
-                onMoveDown={() =>
-                  setSymbolsForActive(
-                    index < symbols.length - 1 ? moveIndex(symbols, index, index + 1) : symbols,
-                  )
-                }
-                dragHandleProps={{
-                  onMouseDown: () => setDragIndex(index),
+          <Suspense fallback={dailyBriefLazyFallback}>
+            {symbols.map((symbol, index) => (
+              <div
+                key={`${workspace.activeGroupId}-${symbol}`}
+                draggable
+                onDragStart={() => setDragIndex(index)}
+                onDragEnd={() => setDragIndex(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (dragIndex == null || dragIndex === index) return;
+                  setSymbolsForActive(moveIndex(symbols, dragIndex, index));
+                  setDragIndex(null);
                 }}
-              />
-            </div>
-          ))
+              >
+                <TerminalSymbolCard
+                  symbol={symbol}
+                  onRemove={() => setSymbolsForActive(symbols.filter((s) => s !== symbol))}
+                  onMoveUp={() =>
+                    setSymbolsForActive(index > 0 ? moveIndex(symbols, index, index - 1) : symbols)
+                  }
+                  onMoveDown={() =>
+                    setSymbolsForActive(
+                      index < symbols.length - 1 ? moveIndex(symbols, index, index + 1) : symbols,
+                    )
+                  }
+                  dragHandleProps={{
+                    onMouseDown: () => setDragIndex(index),
+                  }}
+                />
+              </div>
+            ))}
+          </Suspense>
         )}
       </div>
     </>

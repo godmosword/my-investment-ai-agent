@@ -1,89 +1,17 @@
-import { lazy, Suspense, useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import BottomNav from "./components/BottomNav";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PriceAlertToaster from "./components/PriceAlertToaster";
 import { WarRoomSseProvider } from "./hooks/useWarRoomSse";
-import { SymbolFocusProvider, useSymbolFocus } from "./context/SymbolFocusContext";
-import Shell from "./app/layout/Shell";
+import { SymbolFocusProvider } from "./context/SymbolFocusContext";
+import PortalRoutes from "./app/routes/PortalRoutes";
 import PortalShellAlerts from "./components/PortalShellAlerts";
-import Report from "./pages/Report";
-import Settings from "./pages/Settings";
-import ApiKeyPage from "./pages/ApiKeyPage";
-import NewsHome from "./modules/news/pages/NewsHome";
-import DashboardHome from "./modules/dashboard/pages/DashboardHome";
-import InsightsHome from "./modules/insights/pages/InsightsHome";
-import ColumnsHome from "./modules/columns/pages/ColumnsHome";
-import PortfolioHome from "./modules/portfolio/pages/PortfolioHome";
-import AnalysisHome from "./modules/investment-analysis/pages/AnalysisHome";
-import IndustriesHome from "./modules/industry-trends/pages/IndustriesHome";
-import Archive from "./pages/Archive";
-
-const DesignShowcase = import.meta.env.DEV ? lazy(() => import("./pages/DesignShowcase")) : null;
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { refetchOnWindowFocus: false },
   },
 });
-
-const routeFallback = <div className="loading">載入終端…</div>;
-
-function RedirectWithSearch({ to }) {
-  const { search, hash } = useLocation();
-  return <Navigate to={`${to}${search}${hash}`} replace />;
-}
-
-function SymbolQuerySync() {
-  const { search } = useLocation();
-  const { setSymbol } = useSymbolFocus();
-  useEffect(() => {
-    const params = new URLSearchParams(search);
-    const symbol = String(params.get("symbol") || "").trim().toUpperCase();
-    if (symbol) setSymbol(symbol);
-  }, [search, setSymbol]);
-  return null;
-}
-
-function AppRoutes() {
-  const { pathname } = useLocation();
-  const hideChrome = pathname === "/api-key";
-  return (
-    <Shell hideModuleNav={hideChrome}>
-      <SymbolQuerySync />
-      <main id="main-content" tabIndex={-1} className="page-content">
-        <Routes>
-          <Route path="/" element={<RedirectWithSearch to="/insights" />} />
-          <Route path="/briefs" element={<RedirectWithSearch to="/insights" />} />
-          <Route path="/terminal" element={<RedirectWithSearch to="/insights" />} />
-          <Route path="/news" element={<NewsHome />} />
-          <Route path="/dashboard" element={<DashboardHome />} />
-          <Route path="/insights" element={<InsightsHome />} />
-          <Route path="/columns" element={<ColumnsHome />} />
-          <Route path="/portfolio" element={<PortfolioHome />} />
-          <Route path="/analysis" element={<AnalysisHome />} />
-          <Route path="/industries" element={<IndustriesHome />} />
-          <Route path="/archive" element={<Archive />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/api-key" element={<ApiKeyPage />} />
-          <Route path="/report/:date" element={<Report />} />
-          {import.meta.env.DEV && DesignShowcase ? (
-            <Route
-              path="/design"
-              element={
-                <Suspense fallback={routeFallback}>
-                  <DesignShowcase />
-                </Suspense>
-              }
-            />
-          ) : null}
-        </Routes>
-      </main>
-      {!hideChrome ? <BottomNav /> : null}
-    </Shell>
-  );
-}
 
 export default function App() {
   return (
@@ -93,7 +21,7 @@ export default function App() {
           <WarRoomSseProvider>
             <BrowserRouter>
               <PortalShellAlerts />
-              <AppRoutes />
+              <PortalRoutes />
             </BrowserRouter>
             <PriceAlertToaster />
           </WarRoomSseProvider>

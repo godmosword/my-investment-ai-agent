@@ -3,6 +3,29 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-17
+
+### Docs（Terminal Master Plan §3 前端缺口盤點）
+
+- **[`docs/architecture/Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md)**：新增／補強 **§3 前端尚缺方向** 的執行對帳規則，明確要求重大 Portal ship 後回寫 `CHANGELOG`／`TODOS`，並將細項仍交由 `TODOS` 隊列承接，避免形成第二份 backlog。
+- **§3.1／§3.4**：PWA deploy 方向改以 `.github/workflows/` 真實檔名為準；隊列 45 澄清已交付 mock／fixture 與待解鎖 live／flag／商務決策的分工。
+
+### PWA（隊列 26 · Router 抽出／bundle 續拆）
+
+- **Router 邊界**：將 [`App.jsx`](data-verification-ui/src/App.jsx) 內的 route table、legacy redirect、`SymbolQuerySync`、`Shell`／`BottomNav` 包裝抽至 [`PortalRoutes.jsx`](data-verification-ui/src/app/routes/PortalRoutes.jsx)。`App.jsx` 僅保留全域 providers、`BrowserRouter`、`PortalShellAlerts`、`PriceAlertToaster`，降低後續五板塊 route 擴充時的單檔膨脹風險。
+- **明文模組邊界**：[`eslint.config.js`](data-verification-ui/eslint.config.js) 的 `MODULES` 擴至 `daily-brief`、`investment-analysis`、`industry-trends`、`quant-trading`，避免舊模組與五板塊在 `src/modules/*` 內互相直接 import。
+- **行為不變**：`/`、`/briefs`、`/terminal` 仍 redirect 到 `/insights` 且保留 query／hash；`/api-key` 仍隱藏 chrome；dev-only `/design` lazy route 保留。[`briefs-alias-route.spec.js`](data-verification-ui/e2e/briefs-alias-route.spec.js) 補 `/` redirect smoke。
+- **Route-level code split**：[`PortalRoutes.jsx`](data-verification-ui/src/app/routes/PortalRoutes.jsx) 以 `React.lazy` + 單一 `<Suspense>` 延遲載入各板塊頁與 `Report`／`Settings`／`ApiKeyPage`／`Archive`，首包主 `index` chunk 明顯縮小。
+- **Vendor／Insights tab／工作區 async**：[`vite.config.js`](data-verification-ui/vite.config.js) 以 `build.rollupOptions.output.manualChunks` 將 `react`、`react-dom`、`react-router` 自成 vendor chunk；[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 內各 Insights 子頁 `React.lazy` + 共用 `<Suspense>`（`SymbolDeepDive` 僅在 URL 含 `symbol` query 時才掛 lazy 邊界）；[`DailyBriefPage.jsx`](data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx) 將 `TerminalSymbolCard` 與 `ExecutionIntentsBlotter` 再拆 async，終端工作區殼層 chunk 大幅縮小。
+- **圖表子 chunk**：[`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx) 內以 `React.lazy` + `<Suspense>` 延遲載入 [`SymbolCandleChart.jsx`](data-verification-ui/src/components/SymbolCandleChart.jsx)（`lightweight-charts`），與符號卡殼層分離為獨立 async chunk；快照／quote／metrics 仍同步於殼層。
+- **Tests**：`cd data-verification-ui && npm run lint && npm run build && npm run test:e2e` 綠（65/65；主 `index` 與終端工作區殼層 chunk 均低於既有 ~500 kB 單檔警告門檻）。
+
+### PWA（隊列 29 · Command Bar 權限說明）
+
+- **Inline help**：[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 增 `<details>` 指令範例與權限邊界說明；[`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) 新增 `getTerminalCommandExamples()`，讀者頁與工作台頁分別顯示安全範例。
+- **紅線維持**：本切片只揭示現有 `N/R/W/S` 契約，不新增後端指令、匿名寫入或資料源；`RUN` 明示需後端金鑰與節流，對齊 [`ADR_COMMAND_BAR_PERMISSIONS.md`](docs/ADR_COMMAND_BAR_PERMISSIONS.md)。
+- **E2E**：[`command-bar-route.spec.js`](data-verification-ui/e2e/command-bar-route.spec.js) 補讀者頁 help 斷言。
+
 ## 2026-05-16
 
 ### CI（`pwa-deploy` — `setup-node` npm 快取）

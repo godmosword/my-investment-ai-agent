@@ -9,6 +9,17 @@ test.describe("Terminal Command Bar (queue 29)", () => {
     await expect(bar.getByPlaceholder(/搜尋主題焦點/i)).toBeVisible();
   });
 
+  test("inline help shows reader-safe command examples and auth boundary", async ({ page }) => {
+    await page.goto("/news", { waitUntil: "load" });
+    const help = page.getByTestId("terminal-command-help");
+    await expect(help).toBeVisible({ timeout: 60_000 });
+    await help.locator("summary").click();
+    await expect(help).toContainText("/insights");
+    await expect(help).toContainText("AAPL GO");
+    await expect(help).toContainText("RUN");
+    await expect(help).toContainText("需後端金鑰與節流");
+  });
+
   test("AAPL GO sets focus and WATCH persists terminal_sse_watch", async ({ page }) => {
     await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");

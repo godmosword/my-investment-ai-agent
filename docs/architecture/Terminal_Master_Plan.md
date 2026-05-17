@@ -28,7 +28,7 @@
 | [`notebooklm_research.md`](notebooklm_research.md) | 🟡 Repo-side 主流程 scaffold 已接，live client 仍未接 | 新增 `DeepFilingAnalysis`／`Citation`、`deep_filing_analysis_node`、`deep_filing_block`、多題 helper、可選 BQ cost log；`notebooklm_query()` 仍是預設關閉／未接 live client stub。 |
 | [`agency_agents_research.md`](agency_agents_research.md) | 🟡 Repo-side 主流程 scaffold 已接 | 新增 template parser、`AgencyResearchOutput`／`AgencyDeliverable`、`agency_researcher_node`、Crew backstory opt-in 注入、`agency_finance_block`；完整多 Agent 模板庫仍屬長線。 |
 | [`tradingview_mcp_research.md`](tradingview_mcp_research.md) | 🟡 Repo-side bridge 已接，外部 MCP 未安裝 | 新增 `tools/tradingview.py`、mock fixture、Crew／LangGraph tool tail、sample setup；不修改 `~/.claude`、不安裝外部 MCP server。 |
-| [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) | ✅ 狀態索引 + Phase 0–4 | 本檔 §0 矩陣對齊各檔 ✅／🟡；**Phase 0** 判讀治理、**Phase 2** Portal 工作台切片、**Phase 3** M4／M5 閉環、**Phase 4** 讀者層×工作台層 IA 收斂；細節路由／元件契約見 [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) 與 `App.jsx`。 |
+| [`Terminal_Master_Plan.md`](Terminal_Master_Plan.md) | ✅ 狀態索引 + Phase 0–4 + §3 前端缺口盤點 | 本檔 §0 矩陣對齊各檔 ✅／🟡；**Phase 0** 判讀治理、**Phase 2** Portal 工作台切片、**Phase 3** M4／M5 閉環、**Phase 4** 讀者層×工作台層 IA 收斂；**§3** 為前端尚缺方向之滾動 CEO 盤點（權威仍以 `CHANGELOG`／`TODOS`／程式為準）；細節路由／元件契約見 [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md) 與 `App.jsx`。 |
 
 ### Phase 0 — `architecture/` 判讀與治理（已定案）
 
@@ -136,17 +136,91 @@
 
 ### [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md)
 
-- **優點**：**延續 Vite PWA** 相对 Next 重寫更合現況；`modules/{name}` + `shared/` 與後端「模組經 API 溝通」對齊；master key 自用足夠。
+- **優點**：**延續 Vite PWA** 相對 Next 重寫更合現況；`modules/{name}` + `shared/` 與後端「模組經 API 溝通」對齊；master key 自用足夠。
 - **建議**：路由表（如 `/` → `/insights`）必須與**目前** `App.jsx` 對齊後再動大改，避免與既有 `/briefs`／`/terminal` redirect、Report 深連結衝突；FastAPI 拆 `APIRouter` 宜 **逐 router PR**，並同步 [`ENV_TEMPLATE.txt`](../../ENV_TEMPLATE.txt)／[`DASHBOARD_CONTRACT.md`](../DASHBOARD_CONTRACT.md)。
 - **風險**：五模組 stub 若一次加滿但無 E2E，易形成「壳大身薄」—每個模組至少保留 **一條 smoke 路徑**（mock API 亦可）。
 
 ---
 
+## 3. 前端尚缺方向（CEO 盤點；滾動追蹤）
+
+> **判讀原則**：五板塊 Portal、Phase 2 Command Bar／Workspace、Phase 3 M4／M5、Phase 4 IA（隊列 44）**主線已齊**；本節描述的是 **「上線與規模化」「架構收斂」「付費／治理解鎖後的 live 層」** 等方向性缺口，**非**「畫面尚未存在」。逐項狀態以根目錄 [`CHANGELOG.md`](../../CHANGELOG.md)、[`TODOS.md`](../../TODOS.md)、[`PORTAL_SHIP_CHECKLIST.md`](../PORTAL_SHIP_CHECKLIST.md)、[`DESIGN.md`](../../DESIGN.md) 為準；本節約一季或重大 ship 後由維護者對帳修訂。
+>
+> **對帳儀式**：每次重大 Portal ship 後，至少回寫 [`CHANGELOG.md`](../../CHANGELOG.md) 與 [`TODOS.md`](../../TODOS.md)；若本節方向判斷被實作改變，補一條「§3 對帳」修訂紀錄。避免 §3 成為第二份 backlog，細項仍回到 `TODOS` 隊列承接。
+
+### 3.1 交付與可觀測（使用者真在 production 用）
+
+| 方向 | 說明 | 主要依據 |
+|------|------|----------|
+| **真託管 + deploy 閉環** | PWA deploy 相關 workflow 若仍偏 verify／占位，需選定平台、secrets、rollback 敘事與 **post-deploy smoke** 自動化；實作時以 `.github/workflows/` 真實檔名為準。 | [`PORTAL_SHIP_CHECKLIST.md`](../PORTAL_SHIP_CHECKLIST.md)、`.github/workflows/` |
+| **環境與行為一致** | `VITE_*`、API base、SW 更新路徑須在 staging／production **人手簽核**；不可僅以 repo 內 E2E 關帳營運風險。 | 同上清單、`ENV_TEMPLATE.txt` |
+| **Web Push 與通知 UX** | BQ／Redis／VAPID／test-send 等多屬營運；前端須預留 **真訂閱／失敗態／權限流程**，避免「接得上、雲上未全跑通」。 | [`TODOS.md`](../../TODOS.md) 隊列 18–21 |
+
+### 3.2 架構與長期可維護（目錄真相）
+
+| 方向 | 說明 | 主要依據 |
+|------|------|----------|
+| **五模組邊界落地** | 2026-05-17 repo-side 已把 `App.jsx` route table 抽至 `app/routes/PortalRoutes.jsx`，並將 `eslint.config.js` 模組邊界擴至現有 `src/modules/*` 路由模組；後續新增模組仍須照此清單維護。 | [`TODOS.md`](../../TODOS.md) **隊列 26**（P2／L）、[`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md)、[`CHANGELOG.md`](../../CHANGELOG.md) |
+| **Router 抽出與 lint 邊界** | Router 抽出＋`React.lazy` route-level 已上線；續拆含 **`vite.config.js` `manualChunks`（react／react-dom／react-router）**、[`InsightsHome.jsx`](../../data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) tab 子頁 `lazy`、`DailyBriefPage` 對 `TerminalSymbolCard`／`ExecutionIntentsBlotter` 再 `lazy`；[`TerminalSymbolCard.jsx`](../../data-verification-ui/src/components/TerminalSymbolCard.jsx) 內 **`SymbolCandleChart` `lazy`+`Suspense`**（圖表與殼層 async 已分離）。剩餘方向是 **shared API 分層**、**首屏預載** 與測試維護，不再把 `App.jsx` 視為主要膨脹點。 | 隊列 26、`PortalRoutes.jsx`、`vite.config.js`、`DailyBriefPage.jsx`、`TerminalSymbolCard.jsx` |
+
+### 3.3 產品體感與「終端感」（在 ADR 與紅線內）
+
+| 方向 | 說明 | 主要依據 |
+|------|------|----------|
+| **Command Bar 下一刀** | 2026-05-17 已補讀者／工作台情境化 inline help，揭示既有指令與 `RUN` 金鑰／節流邊界；更完整「Bloomberg 感」互動仍須先過 [`ADR_COMMAND_BAR_PERMISSIONS.md`](../ADR_COMMAND_BAR_PERMISSIONS.md)，不得新增匿名 W 類指令。 | [`TODOS.md`](../../TODOS.md) 隊列 29、[`DESIGN.md`](../../DESIGN.md) Portal Phase 4、[`CHANGELOG.md`](../../CHANGELOG.md) |
+| **44b 進階收斂** | Gate 0 已簽後，仍可由維護者指定「高密度區塊」清單再壓一輪 tab／dock／workspace 與 E2E。 | 隊列 44、§0 Phase 4 |
+
+### 3.4 資料 live 化之後的前端（治理已預留，UI 等開關）
+
+| 方向 | 說明 | 主要依據 |
+|------|------|----------|
+| **隊列 45 backlog** | MVRV-Z、exchange flow live、HBM live 等依 **付費／第三方 API 決策** 解鎖；mock／fixture 已交付項目見 [`TODOS.md`](../../TODOS.md) 隊列 45 與 [`CHANGELOG.md`](../../CHANGELOG.md)，本列聚焦 live 或未開 flag 的商務＋後端決策，非缺元件類型。 | [`TODOS.md`](../../TODOS.md) 隊列 45、[`REALTIME_DATA_SOURCES_GOVERNANCE.md`](../REALTIME_DATA_SOURCES_GOVERNANCE.md) |
+
+### 3.5 模組深度（畫面有，故事未完）
+
+| 方向 | 說明 | 主要依據 |
+|------|------|----------|
+| **Quant** | Intraday Monitor、更完整 Signal Table 等仍列 backlog。 | [`TODOS.md`](../../TODOS.md) M7 |
+| **NotebookLM／Agency** | Repo-side scaffold 在；**live client**、production KPI 仍屬整合面，前端會多狀態與空態層級。 | §0 矩陣 `notebooklm_research`／`agency_agents_research` |
+| **產業／管線儀表** | 更深層管線狀態與他板聯動仍待。 | [`TODOS.md`](../../TODOS.md) 隊列 31 |
+
+### 3.6 效能、無障礙、國際化（專業產品最後一哩）
+
+| 方向 | 說明 | 主要依據 |
+|------|------|----------|
+| **Bundle／code split** | 2026-05-17：`PortalRoutes.jsx` route-level **`lazy()`**；**`vite.config.js` `manualChunks`** 拆 vendor；**`InsightsHome`** 各 tab 子頁 **`lazy()`**；**`DailyBriefPage`** 對 **`TerminalSymbolCard`**／**`ExecutionIntentsBlotter`** 再 **`lazy()`**；**`TerminalSymbolCard`** 內 **`SymbolCandleChart`** **`lazy()`+`Suspense`**（`lightweight-charts` 獨立 async chunk）。後續可依 build 評估 **首屏預載**或 shared API 分層。 | `data-verification-ui` build 輸出、`vite.config`、`PortalRoutes.jsx`、`InsightsHome.jsx`、`DailyBriefPage.jsx`、`TerminalSymbolCard.jsx` |
+| **a11y 橫切** | skip link 等單點之後，可盤點 **modal 焦點陷阱、landmark、對比／縮放、reduced-motion**（axe／人測清單即可，不必一次重構）。 | [`DESIGN.md`](../../DESIGN.md)、Playwright |
+| **i18n** | 除非讀者群變雙語產品，否則可維持 **繁中／英文化 copy** 於元件與 `portalPhase4`，不必強上 i18n 框架。 | 產品判斷 |
+
+### 3.7 刻意往後（文件已寫，不當「缺口債」）
+
+| 方向 | 說明 |
+|------|------|
+| **Next.js／SSR** | 對外公開與 SEO 再評估遷移；自用 **Vite PWA** 已足，見 [`TERMINAL_FRONTEND_PLAN.md`](TERMINAL_FRONTEND_PLAN.md)。 |
+
+### 3.8 NOT in scope（紅線；勿誤列為前端 backlog）
+
+- 真 OMS、自動下單、未治理的付費行情硬塞、放寬 **Telegram HTML 白名單** 或 **`validate_report`** 契約。
+
+### 3.9 維護者若只拍三條優先權
+
+1. **託管與 deploy 真接上**（否則前端能力難在雲上驗收）。
+2. **隊列 26**（Router 抽出＋明文模組 import 邊界＋route-level `lazy`＋**`manualChunks` + Insights tab `lazy` + `DailyBriefPage` 子元件 `lazy` + `TerminalSymbolCard` 內圖表 `lazy`**）；下一輪若做，優先 **shared API 分層** 與 **首屏圖表預載**（產品可接受再補）。
+3. **隊列 29 已完成 ADR 內第一刀**（inline help + 權限邊界）；下一輪若做，先補測再擴指令，不新增匿名 W 類指令。
+
+---
+
 ## 修訂紀錄
 
+- **2026-05-17（隊列 26 · route-level lazy）**：`PortalRoutes.jsx` 以 `React.lazy`+`Suspense` 分拆板塊與 Report 等頁；§3.2／§3.6／§3.9 對帳更新（主入口 chunk 縮小）。
+- **2026-05-17（隊列 26 · bundle 續拆）**：`vite.config.js` `manualChunks`（react／react-dom／react-router）；`InsightsHome` 各 tab 子頁 `lazy` + `SymbolDeepDive` 條件 lazy；`DailyBriefPage` 對 `TerminalSymbolCard`／`ExecutionIntentsBlotter` `lazy`；§3.2／§3.6／§3.9 對帳更新（終端工作區殼層 chunk 縮小；圖表仍隨 `TerminalSymbolCard` 同 chunk，同日 **圖表子 chunk** 條目拆出）。
+- **2026-05-17（隊列 26 · 圖表子 chunk）**：`TerminalSymbolCard.jsx` 內 `SymbolCandleChart` `lazy`+`Suspense`（`lightweight-charts` 與符號卡殼層 async 分離）；§3.2／§3.6／§3.9 對帳更新。
+- **2026-05-17（隊列 26／29 repo-side 第一刀）**：§3.2 改列 Router 抽出、`PortalRoutes.jsx` 與完整 `src/modules/*` lint 邊界已完成；§3.3 改列 Command Bar inline help 已完成且仍受 ADR 權限邊界約束；§3.9 優先權改為剩餘方向（deploy、code split／shared API、受測指令擴充）。
+- **2026-05-17（§3 對帳儀式）**：§3 增補 Portal ship 後的 `CHANGELOG`／`TODOS` 對帳規則；§3.1 改以 `.github/workflows/` 真實檔名為準；§3.4 澄清隊列 45 已交付 mock／fixture 與待解鎖 live／flag 的分工；修正 §2 `TERMINAL_FRONTEND_PLAN` 繁中用字。
 - **2026-05-16（對帳）**：§0 Phase 3「仍列 backlog」改寫 — SSE 短期 token TTL／`SSE_MAX_EVENTS_PER_SEC` 已於 2026-05-16 交付，僅留四模組 UI 深化；§0 Phase 4 標題與「REVIEW 前可先決」段改為「Gate 0 已 REVIEW（2026-05-16）」並列入五項簽核值。
 - **2026-05-16**：§0 Phase 4 增 **實作規劃**（44a–44d 表、Gate 0、`TODOS` 隊列 44）；§2 `TERMINAL_FRONTEND_PLAN` 建議句改與 **`App.jsx`** 路由現況對齊。
 - **2026-05-15**：§0 下新增 **Phase 4**（Portal **讀者層 × 工作台層** IA 收斂：原則、A／B／C 分段、刻意不做、REVIEW 決策點）；本檔矩陣狀態欄改為 **Phase 0–4**；§1 執行順序增第 4 點對齊 Phase 4。
+- **2026-05-17（§3 初版補登）**：新增 **§3 前端尚缺方向**（CEO 盤點：交付與可觀測、隊列 26 架構、Command Bar／ADR、live 切片、模組深化、效能／a11y、刻意往後與 NOT in scope；§0 矩陣本檔欄同步補「§3」）。實作狀態仍以 `CHANGELOG`／`TODOS`／程式為準。
 - **2026-05-14（Phase 3）**：§0 下新增 **Phase 3 Backlog Go-Live**（M4 SSE 閉環、M5／M4 排程、contract smoke 擴充）；slices 1–5 commit SHA 見 CHANGELOG **2026-05-14** `### Backlog Go-Live`。
 - **2026-05-14**：§0 下新增 **Phase 2**（Portal 產品切片：Crew HUD、Workspace 跨分頁）；本檔矩陣狀態欄改為 **Phase 0–2**。
 - **2026-05-06**：新增並更新 `architecture/` 文件狀態矩陣；同日補上 NotebookLM／Agency／TradingView repo-side scaffold 與視覺化主要 repo backlog。

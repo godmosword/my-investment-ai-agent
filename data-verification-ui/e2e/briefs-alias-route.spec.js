@@ -14,6 +14,13 @@ async function waitTerminalReady(page, activeSymbolsPattern) {
 }
 
 test.describe("legacy terminal aliases", () => {
+  test("/ redirects to /insights and keeps query params", async ({ page }) => {
+    await page.goto("/?e2e_symbols=BTC", { waitUntil: "load" });
+    await expect(page).toHaveURL(/\/insights\?e2e_symbols=BTC/);
+    await waitTerminalReady(page, /BTC/);
+    await expect(page.getByTestId("terminal-quote-last-BTC")).toBeVisible({ timeout: 60_000 });
+  });
+
   test("/briefs redirects to /insights and keeps query params", async ({ page }) => {
     await page.goto("/briefs?e2e_symbols=BTC", { waitUntil: "load" });
     await expect(page).toHaveURL(/\/insights\?e2e_symbols=BTC/);

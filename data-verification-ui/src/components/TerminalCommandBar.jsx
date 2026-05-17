@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 import { useRunCrew, useRunCrewStatus } from "../hooks/useApi";
-import { getTerminalCommandBarPlaceholder } from "../constants/portalPhase4";
+import { getTerminalCommandBarPlaceholder, getTerminalCommandExamples } from "../constants/portalPhase4";
 import {
   TERMINAL_RECENT_SYMBOLS_KEY,
   TERMINAL_SSE_WATCH_CHANGED_EVENT,
@@ -184,6 +184,10 @@ export default function TerminalCommandBar({ trailing = null }) {
     () => getTerminalCommandBarPlaceholder(location.pathname),
     [location.pathname],
   );
+  const commandExamples = useMemo(
+    () => getTerminalCommandExamples(location.pathname),
+    [location.pathname],
+  );
 
   const showToast = useCallback((msg, isError = false) => {
     setRunToast({ msg, isError });
@@ -361,6 +365,21 @@ export default function TerminalCommandBar({ trailing = null }) {
           ))}
         </div>
       ) : null}
+      <details
+        data-testid="terminal-command-help"
+        className="w-full rounded border border-white/10 bg-white/[0.02] px-2 py-1 text-[11px] text-[var(--muted)]"
+      >
+        <summary className="cursor-pointer select-none text-white/75">指令範例與權限邊界</summary>
+        <div className="mt-1 grid gap-1 sm:grid-cols-3">
+          {commandExamples.map((item) => (
+            <div key={`${item.label}:${item.command}`} className="rounded border border-white/10 bg-black/20 px-2 py-1">
+              <span className="text-white/60">{item.label}</span>
+              <code className="ml-1 rounded bg-black/35 px-1 font-mono text-emerald-200">{item.command}</code>
+              <span className="block text-white/45">{item.note}</span>
+            </div>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
