@@ -5,6 +5,11 @@
 
 ## 2026-05-16
 
+### CI（`pwa-deploy` — `setup-node` npm 快取）
+
+- **根因**：根目錄 [`.gitignore`](.gitignore) 之 `*.json` 規則排除了 [`data-verification-ui/package-lock.json`](data-verification-ui/package-lock.json)，遠端 checkout 後無該檔 → `actions/setup-node@v4` 的 `cache-dependency-path` 回報 **Some specified paths were not resolved**；同檔亦為 **`npm ci`** 所必需。
+- **修正**：`.gitignore` 增加 `!data-verification-ui/package-lock.json` 例外，並將 lockfile **納入版本庫**（與既有 `pwa-deploy.yml` 對齊）。
+
 ### PWA — 正式上線前生產準備（env／banner／shell 錯誤／Settings 探活／SW）
 
 - **範本**：[`data-verification-ui/.env.example`](data-verification-ui/.env.example)（`VITE_*` 必填／選填／僅 CI 註解）。

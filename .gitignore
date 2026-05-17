@@ -3,6 +3,7 @@
 upload_secrets.sh
 *.json
 !package.json
+!data-verification-ui/package-lock.json
 !assets_config.json
 !docs/oss_candidates/*.json
 !tests/fixtures/reports/**/expected_validation.json
