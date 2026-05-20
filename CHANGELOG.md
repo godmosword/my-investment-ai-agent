@@ -5,6 +5,21 @@
 
 ## 2026-05-20
 
+### PWA（隊列 50 · FE-5 Command Bar + Shortcuts 差距補完）
+
+- **背景**：規格的新 `CommandBar.jsx` 與既有 [`components/TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 重複（既有已涵蓋 `Cmd+K` 聚焦、symbol search、board navigation、RUN 節流）。本切片改以「鍵盤快捷鍵 registry + SideNav hint tooltip」補差距，不另建 CommandBar。
+- **新 hook**：[`hooks/useKeyboardShortcuts.js`](data-verification-ui/src/hooks/useKeyboardShortcuts.js)
+  - Chord registry：`G → B` 觀點 `/insights`、`G → M` 監控 `/portfolio?tab=monitor`、`G → S` 設定 `/settings`（仿 GitHub / Linear 模式）。
+  - 第二鍵 1500ms 視窗；逾時或非註冊鍵清除 armed 狀態。
+  - 不影響輸入：`isEditableTarget()` 對 `input`／`textarea`／`select`／`contenteditable` 早返；`Ctrl/Meta/Alt` 修飾鍵不攔截。
+  - 手機 no-op：`window.innerWidth < 768` 在 `useEffect` 內早返，listener 不掛。
+- **`Shell.jsx`**：呼叫 `useKeyboardShortcuts()` 一次，所有掛 Shell 的路由自動拿到 chord 功能。
+- **`SideNav.jsx`**：footer 新增 `.side-nav__hint`（`data-testid="side-nav-shortcut-hint"`）顯示 `⌘K · G B · G M · G S` kbd 鏈與 `title` tooltip；既有「即時串流」狀態列保留。
+- **CSS**：[`index.css`](data-verification-ui/src/index.css) 末段新增 `.side-nav__hint` flex-wrap 與 `kbd` 樣式（10px、`var(--text)`、邊框 chip）。
+- **刻意未實作**：規格的 Profile 快速切換／Gate log 快速查看（既有 `BriefProfileBar` 與 `GlobalGateBadge` 已分別提供）、`/monitor?symbol=…` 新路徑（沿用 FE-3 收斂的 `/portfolio?tab=monitor` 與 `/insights?symbol=`）、另立 `CommandBar.jsx`（與 TerminalCommandBar 重複）。
+- **E2E**：新增 [`e2e/command-bar.spec.js`](data-verification-ui/e2e/command-bar.spec.js) 五案（1280px viewport）：`Cmd+K` 聚焦 Command Bar input、`G→B` 導 `/insights`、`G→M` 導 `/portfolio?tab=monitor`、SideNav hint 渲染、輸入框內打 `GB` 不觸發跳轉。
+- **驗證**：`cd data-verification-ui && npm run lint && npm run build` 綠；`npm run test:e2e` 全綠（80/80，含本次新增 5 案）。
+
 ### API（`GET /api/gate-failures`）
 
 - 新增 `GET /api/gate-failures?days=7`（[`api.py`](api.py)，FE-4 / 隊列 49 對應）：read-only 摘要近 N 天（1–30）`gate_failure_log` BQ 表，ORDER BY timestamp DESC LIMIT 20，回 `{ days, count, source: bq|fixture|empty, entries: [{timestamp, attempt, blocking_count, warning_count, issue_count, profile, used_fallback, issues_preview}] }`。BQ 不可用時 fallback [`fixtures/gate_failure_log_fixture.json`](fixtures/gate_failure_log_fixture.json)，仍滿足同一 shape。
