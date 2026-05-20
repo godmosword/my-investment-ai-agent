@@ -3,6 +3,13 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-21
+
+### Docs（NEXT-4 · 44b high-density audit）
+
+- 新增 [`docs/PHASE4_44B_DENSITY_AUDIT.md`](docs/PHASE4_44B_DENSITY_AUDIT.md)：盤點 `/news`、`/columns`、`/insights`、`/dashboard`、`/portfolio` 與 global dock 共 25 個具體區塊，欄位含 route、DOM/testid anchor、density label、first viewport、current treatment、建議收斂、N=3 路徑影響與維護者 A/B/C 勾選欄。
+- 文件確認現有 44b baseline：Dashboard depth panels 已在 `?tab=depth`；Portfolio inline watchlist 已 dock 化；Portfolio risk panel 已在 `?tab=risk`；Insights 多工作台已 tab 化。隊列 62 的 React 實作需等待 maintainer pick。
+
 ## 2026-05-20
 
 ### Docs（Session 總表 · 隊列 57–71）
