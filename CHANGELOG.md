@@ -5,6 +5,24 @@
 
 ## 2026-05-20
 
+### API（`GET /api/gate-failures`）
+
+- 新增 `GET /api/gate-failures?days=7`（[`api.py`](api.py)，FE-4 / 隊列 49 對應）：read-only 摘要近 N 天（1–30）`gate_failure_log` BQ 表，ORDER BY timestamp DESC LIMIT 20，回 `{ days, count, source: bq|fixture|empty, entries: [{timestamp, attempt, blocking_count, warning_count, issue_count, profile, used_fallback, issues_preview}] }`。BQ 不可用時 fallback [`fixtures/gate_failure_log_fixture.json`](fixtures/gate_failure_log_fixture.json)，仍滿足同一 shape。
+- [`tests/api/test_gate_failures_api.py`](tests/api/test_gate_failures_api.py)：default shape、fixture fallback（`SKIP_BIGQUERY=1`）、`days` 邊界（0 / 31 → 422）— 3/3 綠。
+- [`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 補對應 mock，供 PWA E2E。
+
+### PWA（隊列 49 · FE-4 Settings 集中化差距補完）
+
+- **背景**：規格的 `src/modules/settings/pages/SettingsPage.jsx` 新檔與既有 [`pages/Settings.jsx`](data-verification-ui/src/pages/Settings.jsx) 重複；改在既有檔頂部加 `.settings-grid` 承載 FE-4 三大新增區段，避免分裂 canonical 路徑。
+- **`.settings-grid`**：[`index.css`](data-verification-ui/src/index.css) 末段新增；mobile 單欄、`min-width: 768px` 後 `grid-template-columns: repeat(3, 1fr)`；子卡 `margin-bottom: 0` 收斂。
+- **三段新區**：
+  - **Gate 通過率（近 7 天）**：走既有 `useQsrecStats(7)` → `GET /api/reports/qsrec-stats?days=7`，顯示 `pass_rate_pct` + total_days / degraded / fail。
+  - **盤中輪詢頻率 toggle**：15s / 45s（預設） / 120s 三 toggle + 「使用預設」清除按鈕；狀態存 `localStorage["qs_terminal_poll_ms_override"]`；`aria-pressed` 對應 active 樣式。
+  - **Gate 失敗記錄**：新 hook [`useGateFailures`](data-verification-ui/src/hooks/useApi.js)；顯示前 5 row（timestamp 19 字、profile / blocking / warn 三 chip、`issues_preview`），`source` 角標標示 `bq` ／ `fixture` ／ `empty`。
+- **刻意未實作**：規格的 Telegram bot 連線狀態（無對應 endpoint，跳過避免假狀態）；既有 [`pages/Settings.jsx`](data-verification-ui/src/pages/Settings.jsx) 的 Web Push 偏好／Workspace 匯出／SW 探活／API health 區段保留，僅在頁頂插入 `.settings-grid`。
+- **E2E**：新增 [`e2e/settings-page.spec.js`](data-verification-ui/e2e/settings-page.spec.js) 兩案：① grid 渲染、80% 通過率（mock）、`settings-poll-15000` 點擊 → localStorage `15000` + `aria-pressed=true`、clear → `null`、`settings-gate-failures-list` 顯示 2 mock row 含 `exec_summary 缺 market_regime`；② 桌面 1280px viewport `grid-template-columns` 解析為 3 欄。
+- **驗證**：`cd data-verification-ui && npm run lint && npm run build` 綠；`npm run test:e2e` 全綠（75/75，含本次新增 2 案）；`pytest tests/api/test_gate_failures_api.py` 3 passed。
+
 ### PWA（隊列 48 · FE-3 Monitor tab 差距補完）
 
 - **背景**：FE-3 規格的 `/monitor` 獨立路由與 5 板塊收斂（隊列 37–43）衝突；改為在 [`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) 既有 tab 系統新增 `Monitor` tab（`/portfolio?tab=monitor`），位於 `總覽` 與 `風險與 TP/SL` 之間。

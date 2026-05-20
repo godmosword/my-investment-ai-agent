@@ -328,6 +328,16 @@ export function useQsrecStats(days = 7) {
   });
 }
 
+/** FE-4 — recent gate_failure_log rows for the Settings hub. */
+export function useGateFailures(days = 7) {
+  return useQuery({
+    queryKey: ["gate-failures", days],
+    queryFn: () => apiFetch(`/api/gate-failures?days=${days}`),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}
+
 /** V2 block-based report envelope (`GET /api/reports/{date}/structured`). */
 export function useStructuredReport(date, profile = "full", queryOptions = {}) {
   const q = encodeURIComponent(profile);

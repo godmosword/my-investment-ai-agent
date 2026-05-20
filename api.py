@@ -14,7 +14,7 @@ import os
 import re
 import time
 import yaml
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +24,13 @@ from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from google.cloud import bigquery
 from pydantic import BaseModel, Field, field_validator
 
-from config import METRICS_TABLE, RECOMMENDATIONS_TABLE, LLM_RUN_LOG_TABLE, REVIEWER_LOG_TABLE
+from config import (
+    METRICS_TABLE,
+    RECOMMENDATIONS_TABLE,
+    LLM_RUN_LOG_TABLE,
+    REVIEWER_LOG_TABLE,
+    GATE_FAILURE_LOG_TABLE,
+)
 from execution_intents import (
     intent_store_mtime,
     latest_execution_intents,
@@ -803,6 +809,75 @@ def get_qsrec_stats(days: int = Query(default=7, ge=1, le=90)) -> dict[str, Any]
         "pass_rate_pct": 0.0,
         "avg_trade_count": 0.0,
     }
+
+
+@app.get("/api/gate-failures")
+def get_gate_failures(days: int = Query(default=7, ge=1, le=30)) -> dict[str, Any]:
+    """Recent ``gate_failure_log`` rows for the Settings hub (FE-4, queue 49).
+
+    Read-only summary view. Returns up to 20 rows ordered by timestamp DESC,
+    each with ``timestamp``, ``attempt``, ``blocking_count``, ``warning_count``,
+    ``issue_count``, ``profile``, ``used_fallback``, ``issues_preview``.
+    Falls back to ``fixtures/gate_failure_log_fixture.json`` when BQ is unavailable.
+    """
+    skip_bq = os.getenv("SKIP_BIGQUERY", "0") == "1"
+
+    if not skip_bq:
+        try:
+            client = _get_bq_client()
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[bigquery.ScalarQueryParameter("days", "INT64", days)],
+            )
+            rows = list(
+                client.query(
+                    f"""
+                    SELECT
+                      timestamp,
+                      attempt,
+                      blocking_count,
+                      warning_count,
+                      issue_count,
+                      profile,
+                      used_fallback,
+                      issues_preview
+                    FROM `{GATE_FAILURE_LOG_TABLE}`
+                    WHERE TIMESTAMP_TRUNC(timestamp, DAY) >= TIMESTAMP_SUB(
+                      CURRENT_TIMESTAMP(), INTERVAL @days DAY
+                    )
+                    ORDER BY timestamp DESC
+                    LIMIT 20
+                    """,
+                    job_config=job_config,
+                ).result()
+            )
+            entries = [
+                {
+                    "timestamp": str(r.get("timestamp")) if r.get("timestamp") is not None else None,
+                    "attempt": int(r.get("attempt") or 0),
+                    "blocking_count": int(r.get("blocking_count") or 0),
+                    "warning_count": int(r.get("warning_count") or 0),
+                    "issue_count": int(r.get("issue_count") or 0),
+                    "profile": r.get("profile"),
+                    "used_fallback": bool(r.get("used_fallback")),
+                    "issues_preview": r.get("issues_preview") or "",
+                }
+                for r in rows
+            ]
+            return {"days": days, "count": len(entries), "entries": entries, "source": "bq"}
+        except Exception as exc:
+            logger.warning("gate-failures BQ query failed: %s", exc)
+
+    fixture_path = _REPO_ROOT / "fixtures" / "gate_failure_log_fixture.json"
+    if fixture_path.exists():
+        try:
+            entries: list[dict[str, Any]] = json.loads(fixture_path.read_text())
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+            recent = [e for e in entries if str(e.get("timestamp", "")) >= cutoff][:20]
+            return {"days": days, "count": len(recent), "entries": recent, "source": "fixture"}
+        except Exception as exc:
+            logger.warning("gate-failures fixture read failed: %s", exc)
+
+    return {"days": days, "count": 0, "entries": [], "source": "empty"}
 
 
 @app.get("/api/reports/{report_date}")
