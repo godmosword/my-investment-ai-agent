@@ -21,7 +21,7 @@
 ## 2) 已審核來源清單（Approved Sources）
 
 `tier`：`free` ＝ 公開／免費；`freemium` ＝ 有免費額度；`paid` ＝ 付費訂閱。  
-`status`：`active` ＝ 已上線；`fallback` ＝ 僅備援；`removed` ＝ 已下線。
+`status`：`active` ＝ 已上線；`fallback` ＝ 僅備援；`pending` ＝ 已登錄但未接入；`removed` ＝ 已下線。
 
 | Source | Tier | 用途 | ToS / Rate limits | repo 接入點 | Status |
 |--------|------|------|--------------------|-------------|--------|
@@ -35,6 +35,10 @@
 | CoreWeave public pricing | free | GPU hourly spot（H100／H200／B200／A100） | 公開定價頁；非官方 API；ToS 允許資訊性引用 | `tools/coreweave_gpu_spot.py`、`api_routers/macro.py:get_compute_memory()` | active |
 | TrendForce / DRAMeXchange | paid | HBM／DRAM contract spot | 付費訂閱；免費 tier 不足；需採購後再接入 | （未接入；占位） | pending |
 | Binance public futures API | free | 永續資費（BTC/ETH funding rate） | 公開 endpoint；不需 API key；rate limit ~2400 req/min | `tools/binance_funding_rate.py`、`api_routers/macro.py:get_onchain_metrics()` | active |
+| CoinGecko public / Demo API | freemium | BTC market cap、dominance、market chart 等 crypto valuation 輔助 | Demo API 需 key；官方列 10k calls/month、100 calls/min；既有 legacy public endpoint 需保守 cache | `tools_legacy.py`（`ml_quant_tool`、`_nvt_ratio`、`bitcoin_market_structure_tool`）；Portal live 接入待新 `tools/*.py` | active（legacy） |
+| Alternative.me Fear & Greed API | free | Crypto Fear & Greed index | 公開 API；官方允許商業使用但須標註 attribution；建議 cache ≥15 分鐘 | `tools_legacy.py:fear_greed_index_tool()` | active |
+| Blockchain.com charts API | free | BTC active addresses、estimated transaction volume、NVT proxy 輔助 | 公開 charts endpoint；無 key；需保守 cache 與 schema 檢查 | `tools_legacy.py:_nvt_ratio()`、`_blockchain_active_addresses()` | active |
+| DefiLlama public API | free | TVL／protocol revenue 等 optional DeFi breadth | 公開 API；尚未接入；如接入需新增 `tools/*.py` + cache + pytest | （未接入；候選） | pending |
 | Glassnode（free tier） | freemium | MVRV-Z、Realized Price 等 BTC 估值 | 免費 tier 延遲 ~1 年；MVRV 需 paid | （未接入；占位） | pending |
 | CryptoQuant | paid | 交易所 CEX 淨流入（BTC） | 全付費；無實用免費 tier | （未接入；占位） | pending |
 
@@ -224,3 +228,106 @@
 ```
 
 維護者勾選（全未勾選）。
+
+---
+
+## 8) F0 免費資料擴充來源登錄（queue 52）
+
+登錄日期：**2026-05-21**。本節只補治理登錄；不代表 Portal 已新增 live block。所有新接入仍須遵守第 3 節審核表、`tools/*.py` + cache、pytest 與 [`DASHBOARD_CONTRACT.md`](DASHBOARD_CONTRACT.md) 欄位更新。
+
+### 8.1 CoinGecko public / Demo API（crypto valuation breadth）
+
+```
+- Name: CoinGecko public / Demo API
+- Vendor / Provider: CoinGecko
+- Tier: freemium
+- ToS URL: https://www.coingecko.com/en/terms
+- Rate limit / quota: Demo API 官方 pricing 頁列 10,000 calls/month、100 calls/min；public endpoint 仍須保守 cache
+- 是否需要 API key：新 Demo API 接入需 key；既有 legacy public endpoint 不需
+- 建議環境變數名稱：COINGECKO_DEMO_API_KEY（未接入前不要求）
+- 是否可用於商業用途：受 CoinGecko ToS / plan 限制；不得轉售資料
+- 是否包含個人資料：否
+- 失敗模式：fetcher 回 None 或 DATA_MISSING；Portal block 顯示 N/A，不由 LLM 補數字
+- 是否覆蓋既有來源：否；僅補 crypto valuation breadth
+- 接入點：既有 tools_legacy.py；Portal 新接入時須新建 tools/coingecko_metrics.py 或同級薄封裝
+- 對齊 DASHBOARD_CONTRACT 欄位：onchain valuation items[].{metric, value, as_of, source, status}
+- 測試：新增來源時至少 tests/api/test_coingecko_metrics.py + onchain router test
+```
+
+維護者勾選：
+- [x] 已登錄來源與用途
+- [x] 明確標示 freemium 與 quota
+- [x] 未新增 live Portal 接入或 secret requirement
+- [x] 後續接入需 pytest 與 contract 更新
+
+### 8.2 Alternative.me Fear & Greed API（crypto sentiment）
+
+```
+- Name: Crypto Fear & Greed Index API
+- Vendor / Provider: Alternative.me
+- Tier: free
+- ToS URL: https://alternative.me/crypto/fear-and-greed-index/
+- Rate limit / quota: 官方頁提供公開 API；要求 attribution，且可用於商業用途但需標註來源
+- 是否需要 API key：否
+- 是否可用於商業用途：可，需 attribution
+- 是否包含個人資料：否
+- 失敗模式：fetcher 回 DATA_MISSING；不可由 LLM 補 sentiment 數字
+- 是否覆蓋既有來源：否；可補 onchain valuation / sentiment 區塊
+- 接入點：tools_legacy.py:fear_greed_index_tool()；Portal 新接入時須封裝至 tools/alternative_me_fng.py 或同級
+- 對齊 DASHBOARD_CONTRACT 欄位：sentiment items[].{metric, value, classification, as_of, source}
+- 測試：新增來源時至少正常／HTTP error／schema 異常
+```
+
+維護者勾選：
+- [x] 已登錄來源與 attribution 約束
+- [x] 無 secret
+- [x] 未新增 Portal live block
+- [x] 後續接入需 pytest 與 contract 更新
+
+### 8.3 Blockchain.com charts API（free on-chain proxy）
+
+```
+- Name: Blockchain.com charts API
+- Vendor / Provider: Blockchain.com
+- Tier: free
+- ToS URL: https://www.blockchain.com/explorer/api
+- Rate limit / quota: 公開 charts endpoint；無 key；需保守 cache
+- 是否需要 API key：否
+- 是否可用於商業用途：受官方 API/website terms 限制；僅資訊性引用
+- 是否包含個人資料：否
+- 失敗模式：fetcher 回 DATA_MISSING；不可由 LLM 補 active addresses / tx volume
+- 是否覆蓋既有來源：否；可作 Glassnode/CryptoQuant 無付費時的 proxy
+- 接入點：tools_legacy.py:_nvt_ratio()、_blockchain_active_addresses()；Portal 新接入時須封裝至 tools/blockchain_charts.py 或同級
+- 對齊 DASHBOARD_CONTRACT 欄位：onchain proxy items[].{metric, value, as_of, source, status}
+- 測試：新增來源時至少正常／HTTP error／schema 異常
+```
+
+維護者勾選：
+- [x] 已登錄來源與用途
+- [x] 無 secret
+- [x] 已標示 proxy 性質，不冒充 paid MVRV / CEX netflow
+- [x] 後續接入需 pytest 與 contract 更新
+
+### 8.4 DefiLlama public API（optional DeFi breadth）— pending
+
+```
+- Name: DefiLlama public API
+- Vendor / Provider: DefiLlama
+- Tier: free
+- ToS URL: https://defillama.com/docs/api
+- Rate limit / quota: 公開 API；未接入前不假設 SLA
+- 是否需要 API key：否
+- 是否可用於商業用途：待維護者依 ToS / usage policy 確認
+- 是否包含個人資料：否
+- 失敗模式：若未來接入，fetcher 回 DATA_MISSING；Portal block 顯示 N/A
+- 是否覆蓋既有來源：否；僅 optional TVL / protocol breadth
+- 接入點：未接入；候選 tools/defillama_metrics.py
+- 對齊 DASHBOARD_CONTRACT 欄位：defi breadth items[].{metric, protocol_or_chain, value, as_of, source}
+- 測試：未接入
+```
+
+維護者勾選（全未勾選）：
+- [ ] ToS / usage policy 已確認
+- [ ] 已定義 Portal block 與欄位
+- [ ] 有 pytest 覆蓋
+- [ ] CHANGELOG 與第 2 節同步更新

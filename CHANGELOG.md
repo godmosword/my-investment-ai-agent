@@ -10,6 +10,12 @@
 - 新增 [`docs/PHASE4_44B_DENSITY_AUDIT.md`](docs/PHASE4_44B_DENSITY_AUDIT.md)：盤點 `/news`、`/columns`、`/insights`、`/dashboard`、`/portfolio` 與 global dock 共 25 個具體區塊，欄位含 route、DOM/testid anchor、density label、first viewport、current treatment、建議收斂、N=3 路徑影響與維護者 A/B/C 勾選欄。
 - 文件確認現有 44b baseline：Dashboard depth panels 已在 `?tab=depth`；Portfolio inline watchlist 已 dock 化；Portfolio risk panel 已在 `?tab=risk`；Insights 多工作台已 tab 化。隊列 62 的 React 實作需等待 maintainer pick。
 
+### Docs（隊列 52 · F0 免費資料治理底座）
+
+- [`docs/REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2／§8 補登 CoinGecko public/Demo API、Alternative.me Fear & Greed、Blockchain.com charts 與 DefiLlama public API（pending）：註明 tier、用途、rate/ToS 約束、接入點、失敗模式與後續 pytest/contract 要求。
+- [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 新增「免費資料擴充區塊（隊列 52 F0）」：規範 `enabled`、`live`、`as_of`、`source`、`cached`、`live_block_status`、`reason` 等欄位，以及 crypto valuation、exchange-flow honesty、compute/memory、macro series、earnings/fundamentals 的降級語意。
+- [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 CoinGecko／Alternative.me／Blockchain.com／DefiLlama 的治理註記；未新增任何實際讀取中的 secret，也未新增外部 fetcher。
+
 ## 2026-05-20
 
 ### Docs（Session 總表 · 隊列 57–71）

@@ -8,6 +8,8 @@
 
 **同步狀態（2026-05-21 — NEXT-4 44b 高密度盤點）**：新增 [`docs/PHASE4_44B_DENSITY_AUDIT.md`](docs/PHASE4_44B_DENSITY_AUDIT.md)，盤點 `/news`、`/columns`、`/insights`、`/dashboard`、`/portfolio` 與 global dock 共 25 個區塊，附 DOM／`data-testid` 錨點、密度標籤、首屏可見性、建議收斂、N≤3 影響與維護者 A/B/C 勾選欄。此切片純文件，隊列 **62** 實作需等待 maintainer pick。CHANGELOG **2026-05-21** `### Docs（NEXT-4 · 44b high-density audit）`。
 
+**同步狀態（2026-05-21 — 隊列 52 F0 免費資料治理底座）**：[`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) 補登 CoinGecko public/Demo API、Alternative.me Fear & Greed、Blockchain.com charts、DefiLlama public API（pending）；[`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 新增「免費資料擴充區塊」欄位語意與降級契約；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補治理註記。未新增 fetcher、未新增讀取中的 secret。CHANGELOG **2026-05-21** `### Docs（隊列 52 · F0 免費資料治理底座）`。
+
 **同步狀態（2026-05-20 — 免費資料擴充路線 F0～FD · A/B/C/D 入列）**：維護者決策 **不採** Glassnode／CryptoQuant／TrendForce 付費訂閱；改以 **free／freemium 盤活 + Portal 露出** 拉高 Bloomberg 對齊之資料廣度（隊列 **52–56**）。橫切 **F0** 對齊 [`CODEX_NEXT_BATCH`](docs/CODEX_NEXT_BATCH.md) NEXT-5／治理表；**FA** 加密鏈上／情緒、**FB** 算力／半導體、**FC** 宏觀、**FD** 財報／基本面。隊列 **45** 付費 live backlog 改列「刻意延後」。見本檔 [「免費資料擴充（隊列 52–56）」](#free-data-expansion-queue-52)。
 
 **同步狀態（2026-05-20 — Codex 下一批 handoff 文件）**：新增 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)（NEXT-1 touch target／dead CSS、NEXT-2 Quant intraday、NEXT-3 Gate failure drawer、NEXT-4 44b 密度盤點、NEXT-5 `api.py` contract tests；建議順序與 FE-6 延後項對齊）。CHANGELOG **2026-05-20** `### Docs（Codex 下一批 handoff）`。
@@ -354,9 +356,9 @@
 | 切片 | 目標 | 主要產出 | 驗收（最小） |
 |------|------|----------|--------------|
 | ~~**F0-1**~~ | `api.py` 契約安全網 | **2026-05-20 已交付**：新增 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py)（≥8 條 `api.py` inline route） | `pytest tests/api/test_api_py_contract.py -q` 綠；全 `tests/api/` 驗證見本次紀錄 |
-| **F0-2** | 免費源治理登錄 | [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2 增 **CoinGecko**／**alternative.me**（active）；**DefiLlama**、**Blockchain.info** 等若接入走 §3 審核表 | 文件 + ENV 註記 |
-| **F0-3** | 共用 fetch 契約 | 新指標一律 `tools/*.py` + `_get_cache`／`_set_cache`（或抽 `tools/market_free.py`），**禁止**在 JSX 直接打外部 URL | 每源 ≥1 pytest |
-| **F0-4** | `DASHBOARD_CONTRACT` 一節 | 補「免費擴充區塊」欄位語意（onchain valuation／macro series／earnings strip） | 與 API JSON 一致 |
+| ~~**F0-2**~~ | 免費源治理登錄 | **2026-05-21 已交付**：[`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2／§8 補 CoinGecko public/Demo API、Alternative.me Fear & Greed、Blockchain.com charts、DefiLlama public API（pending）；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補治理註記 | 文件 + ENV 註記 |
+| **F0-3** | 共用 fetch 契約 | 新指標一律 `tools/*.py` + `_get_cache`／`_set_cache`（或抽 `tools/market_free.py`），**禁止**在 JSX 直接打外部 URL；2026-05-21 contract 已先寫入治理文件，程式抽象待首個新 source 實作時落地 | 每源 ≥1 pytest |
+| ~~**F0-4**~~ | `DASHBOARD_CONTRACT` 一節 | **2026-05-21 已交付**：[`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 新增「免費資料擴充區塊（隊列 52 F0）」欄位語意（onchain valuation／exchange-flow honesty／compute-memory／macro series／earnings）與降級契約 | 文件契約已就緒；API JSON 待各 phase 實作時逐項對齊 |
 
 **紅線**：F0 **不**改 `main.py` pipeline、**不**接付費 key 為前提的功能。
 
@@ -424,7 +426,7 @@
 
 ### 隊列 52–56 一覽（勾選用）
 
-52. **免費資料擴充 — Phase F0 橫切底座** — **F0-1 / NEXT-5 已交付（2026-05-20）**；剩 **F0-2～F0-4**（治理登錄、共用 fetch 契約、`DASHBOARD_CONTRACT` 免費擴充區塊）。**依賴**：無。P1 / S。
+52. **免費資料擴充 — Phase F0 橫切底座** — **F0-1 / NEXT-5 已交付（2026-05-20）**；**F0-2／F0-4 已交付（2026-05-21）**：治理登錄 + ENV 註記 + `DASHBOARD_CONTRACT` 免費擴充區塊。剩 **F0-3**：首個新 source 實作時落 `tools/*.py` + cache 契約與 pytest。**依賴**：無。P1 / S。
 
 53. **免費資料擴充 — Phase FA 加密鏈上／情緒（軸 A）** — 見上表 **FA-1～FA-4**；**刻意不做** CryptoQuant／Glassnode 付費 MVRV／CEX 淨流。**依賴**：隊列 **52** F0-2／F0-3。**可與** CODEX NEXT-2（Quant intraday）**同迭代或緊鄰**。P1 / M。
 

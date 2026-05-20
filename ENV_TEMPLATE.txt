@@ -51,7 +51,9 @@ CRYPTOQUANT_API_KEY=
 # GLASSNODE_API_KEY：Glassnode API — NUPL 未實現損益比
 # 申請：https://glassnode.com/  （免費方案有延遲）
 GLASSNODE_API_KEY=
-# 注意：活躍地址數使用 Blockchain.info 免費 API，無需額外金鑰
+# CoinGecko / Alternative.me / Blockchain.com：隊列 52 F0 已登錄治理；既有 legacy 工具使用 public endpoints。
+# 若後續新增 Portal live fetcher，CoinGecko Demo API key 預留名稱：COINGECKO_DEMO_API_KEY（目前未被程式讀取）。
+# 注意：Alternative.me Fear & Greed、Blockchain.com charts 無需額外金鑰；DefiLlama 仍為 pending 候選來源。
 # FRED_API_KEY：美債 DGS2 等 fallback（macro_context_tool）
 FRED_API_KEY=
 # FMP_API_KEY：可選，/api/macro/snapshot 的 Next Fed/CPI catalyst calendar

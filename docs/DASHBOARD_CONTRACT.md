@@ -106,6 +106,34 @@ Streamlit 若需重用 Symbol 快照，應優先消費 `GET /api/symbols/{symbol
 
 Ship readiness checklist 見 [`PORTAL_SHIP_CHECKLIST.md`](PORTAL_SHIP_CHECKLIST.md)。其中 18–21／35 為雲端與 staging signoff，不由本地 contract tests 自動關閉。
 
+## 免費資料擴充區塊（隊列 52 F0）
+
+本節定義後續免費／freemium 擴充（隊列 53–56）進 Portal 時的欄位語意。接入前須先在 [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](REALTIME_DATA_SOURCES_GOVERNANCE.md) 登錄來源；實作上必須走 `tools/*.py` 或既有 server-side helper + cache，**禁止**在 JSX 直接打外部 URL。
+
+通用欄位：
+
+| 欄位 | 語意 |
+|------|------|
+| `enabled` | block 是否有可展示資料；false 時 UI 顯示 N/A／說明，不用 mock 數字冒充 live |
+| `live` | 是否由 live provider 成功回填；fixture/mock 應為 false |
+| `as_of` | 來源資料時間；未知則 null，不由 LLM 推測 |
+| `source` | provider slug，如 `coingecko`、`alternative_me`、`blockchain_charts`、`fred`、`financial_datasets` |
+| `cached` | router 或 tool 是否回傳進程內 cache |
+| `live_block_status` | 每子區塊 `live`／`fallback`／`mock`／`disabled`；用於前端 badge |
+| `reason` | disabled / fallback 時的機器可讀原因，如 `missing_api_key`、`rate_limited`、`provider_error` |
+
+規劃中的免費擴充 block：
+
+| Block | 候選 route | 候選來源 | 欄位語意 | 降級 |
+|-------|------------|----------|----------|------|
+| Crypto valuation / sentiment | `GET /api/macro/onchain` 既有 `btc_valuation` 或後續 `valuation_live` 子欄 | CoinGecko、Alternative.me、Blockchain.com charts | `items[].{metric, value, classification?, as_of, source, status}`；只能標成 proxy，不可冒充 paid MVRV-Z | 無 key／429／schema error → `enabled=false` 或該子區 `live_block_status=disabled/fallback` |
+| Exchange flow honesty | `GET /api/macro/onchain` 既有 `exchange_flow` | 無免費同級來源；可選 Binance public 衍生資料但須另標語意 | 若無來源，回 `enabled=false` + `reason="no_free_equivalent"`；UI 應明示不是 CryptoQuant netflow | 不用 mock 淨流冒充 live |
+| Compute / memory | `GET /api/macro/compute-memory` | SEC EDGAR、CoreWeave；TrendForce 保 pending | 既有 `hbm_dram_spot`、`hyperscaler_capex`、`gpu_spot` items 保留 `source`／`as_of` | live fetch 失敗退 fixture 或 N/A，`live_block_status` 標 fallback/mock |
+| Macro series | `GET /api/macro/snapshot` 或後續 `GET /api/macro/fred-series` | FRED、FMP catalyst（可選） | `items[].{series_id, label, value, unit, as_of, source}`；事件日曆不可捏造日期 | 缺 key → N/A；不阻斷 dashboard |
+| Earnings / fundamentals | `GET /api/earnings/upcoming`、`GET /api/analysis/{symbol}` | yfinance calendar、Financial Datasets freemium | `items[].{symbol, event_date, timing?, source}`；fundamentals 有資料才渲染 | 無 key或無資料 → empty/disabled；不顯示假 EPS consensus |
+
+新增 block 的 PR 必須同步更新：本節、[`REALTIME_DATA_SOURCES_GOVERNANCE.md`](REALTIME_DATA_SOURCES_GOVERNANCE.md)、對應 pytest、PWA E2E 或 mock API。
+
 **PWA（Vite）**：[`data-verification-ui`](../data-verification-ui/) 的 **`/insights`** 頁對 `snapshot`、`execution-intents`、`war-room/latest` 啟用 **輪詢**（預設 45s）；`/briefs`、`/terminal` 保留相容 redirect。可選 **`VITE_TERMINAL_POLL_MS`**（毫秒，建議 ≥15000）覆寫；見 [`docs/TERMINAL_MID_TIER_ROADMAP.md`](TERMINAL_MID_TIER_ROADMAP.md)。可選 **`VITE_TERMINAL_QUERY_COALESCE=1`**（預設）讓同頁多卡之 `snapshot`／`quote`／`intents` 輪詢 **微錯開**，降低 burst（設 **`0`** 關閉）。**2026-04-21 起的 T3c 約束**：`PATCH /api/execution-intents/{signal_id}` 成功後，前端需先**寫回 react-query cache**，僅對**活躍**的 `execution-intents`／`war-room` query 做即時 refetch；`metrics/latest`／`report`／`positions/open` 只標記 stale，不可每次 mutation 都同步全頁重抓。
 可選 **`VITE_WEB_PUSH_REGISTER=1`** + **`VITE_WEB_PUSH_VAPID_PUBLIC_KEY`**（URL-safe base64）在 SW 就緒後嘗試 `pushManager.subscribe` 並 `POST /api/push/subscribe`（後端須 `WEB_PUSH_ENABLED=1`）；預設關閉。  
 可選 **`VITE_SSE_ENABLED=1`** + **`VITE_SSE_STREAM_KEY`**（與後端 `API_STREAM_AUTH_KEY` 對齊）以 **EventSource** 訂閱 `/api/stream/war-room` 並同步 React Query（後端須 `TERMINAL_SSE_ENABLED=1`）。**T3c 約束**：SSE **message** 應節流後再刷新活躍 `war-room`／`execution-intents`；**`event: node_complete`** 之 `data` 為 LangGraph **v1** 圖遙測 JSON（`v=1`、`kind=graph_node`、`phase`=`begin|end`、`summary`、`run_id`、`category`、`payload`，並保留頂層扁平欄位向後相容），由 `WarRoomSseProvider` 寫入 Pipeline 終端（`data-testid="war-room-pipeline-terminal"`）；SSE **error** 僅視為連線退化，不可反覆 invalidate 全頁 query，以保留 polling 作為降級路徑。
