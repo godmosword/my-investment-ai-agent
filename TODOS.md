@@ -4,6 +4,8 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
+**同步狀態（2026-05-20 — Session 總表 · 隊列 57–71 入列）**：維護者策略 **工作流脊骨優先**、**不採** Glassnode／CryptoQuant／TrendForce 付費訂閱；[Session 總執行順序](#session-2026-05-20-execution-order) 收斂 CODEX **NEXT-1～5**（隊列 **57–61**）、免費資料 **52–56**、工作流／閉環／研究／規劃流程（隊列 **62–71**）。見 [§ Codex／FE-6 收尾](#codex-fe6-closeout-queue-57)、[§ 工作流脊骨](#workflow-spine-queue-62)、[§ Terminal 閉環](#terminal-closed-loop-queue-65)、[§ 研究與 Gate](#research-gate-queue-68)。
+
 **同步狀態（2026-05-20 — 免費資料擴充路線 F0～FD · A/B/C/D 入列）**：維護者決策 **不採** Glassnode／CryptoQuant／TrendForce 付費訂閱；改以 **free／freemium 盤活 + Portal 露出** 拉高 Bloomberg 對齊之資料廣度（隊列 **52–56**）。橫切 **F0** 對齊 [`CODEX_NEXT_BATCH`](docs/CODEX_NEXT_BATCH.md) NEXT-5／治理表；**FA** 加密鏈上／情緒、**FB** 算力／半導體、**FC** 宏觀、**FD** 財報／基本面。隊列 **45** 付費 live backlog 改列「刻意延後」。見本檔 [「免費資料擴充（隊列 52–56）」](#free-data-expansion-queue-52)。
 
 **同步狀態（2026-05-20 — Codex 下一批 handoff 文件）**：新增 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)（NEXT-1 touch target／dead CSS、NEXT-2 Quant intraday、NEXT-3 Gate failure drawer、NEXT-4 44b 密度盤點、NEXT-5 `api.py` contract tests；建議順序與 FE-6 延後項對齊）。CHANGELOG **2026-05-20** `### Docs（Codex 下一批 handoff）`。
@@ -258,9 +260,9 @@
 
 ## 下一批隊列（建議接續實作，邊界清楚）
 
-**Codex／Agent 自包含 handoff（2026-05-20）**：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md) — NEXT-1..NEXT-5 切片規格、驗收與驗證指令（建議順序：契約測試 → a11y → Gate drawer → Quant intraday → 44b 文件）。
+**Codex／Agent 自包含 handoff（2026-05-20）**：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md) — NEXT-1..NEXT-5 已入列 **隊列 57–61**；**跨軸總順序**見 [Session 2026-05-20 總執行順序](#session-2026-05-20-execution-order)（**57／NEXT-5 ≈ 52 F0** → **58 NEXT-1** → **59 NEXT-3** → **53 FA**（可與 **60 NEXT-2** 同迭代）→ **61 NEXT-4** → **62 44b 實作** → **54–56** → **63–71**）。
 
-**免費資料擴充（2026-05-20 規劃 · 隊列 52–56）**：付費源（Glassnode／CryptoQuant／TrendForce）**暫緩**；四軸 **A 鏈上／B 算力／C 宏觀／D 財報** 分 Phase **F0→FA→FB→FC→FD** 入列，見 [§ 免費資料擴充](#free-data-expansion-queue-52)。**建議實作順序**：**52（F0）→ 53（FA）→ 54（FB）→ 55（FC）→ 56（FD）**；可與 CODEX NEXT-5（隊列 52 重疊）／NEXT-2（Quant 與 FA 末尾）交錯，但 **每切片一 PR**。
+**免費資料擴充（2026-05-20 規劃 · 隊列 52–56）**：付費源（Glassnode／CryptoQuant／TrendForce）**暫緩**；四軸 **A 鏈上／B 算力／C 宏觀／D 財報** 分 Phase **F0→FA→FB→FC→FD** 入列，見 [§ 免費資料擴充](#free-data-expansion-queue-52)。**建議實作順序**：**52（F0）→ 53（FA）→ 54（FB）→ 55（FC）→ 56（FD）**；**F0 與隊列 57（NEXT-5）同一 PR 或緊鄰**；FA 末尾可與 **隊列 60（NEXT-2）** 交錯；**每切片一 PR**。
 
 依維護者順序與工程可切性排列；**完成後**把對應句寫進 CHANGELOG，並在本節刪行或改「✓」。
 
@@ -421,6 +423,93 @@
 56. **免費資料擴充 — Phase FD 財報／基本面（軸 D）** — 見上表 **FD-1～FD-4**；**FINANCIAL_DATASETS_API_KEY** 可選。**依賴**：隊列 **52**；與隊列 **45-P3** earnings 頁互補（不重寫 router）。P2 / M。
 
 **NOT in scope（本路線）**：Glassnode／CryptoQuant／TrendForce 訂閱、全市場 screener、tick 行情牆、MDI 多視窗、真實下單。
+
+---
+
+<a id="session-2026-05-20-execution-order"></a>
+
+## Session 2026-05-20 — 總執行順序（Bloomberg 對齊）
+
+> **產品策略（維護者 · 一行）**：**工作流脊骨優先**（可審計監控路徑、Command Bar、Gate 可追溯、工作台 **N≤3**），再以 **free／freemium** 拉高資料廣度（隊列 52–56）；**刻意不採** Glassnode／CryptoQuant／TrendForce 付費訂閱。對齊 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md)（工作流＋可審計，非複製 BBG UI／專有 feed）。
+
+| 序 | 隊列／切片 | 主軸 | 說明 |
+|:--:|------------|------|------|
+| 1 | **57** ≈ **52-F0**／CODEX **NEXT-5** | 契約＋F0 | `api.py` 契約測試；免費源治理；`tools` cache 契約；`DASHBOARD_CONTRACT` 一節 |
+| 2 | **58**／**NEXT-1** | a11y／CSS | 全站 44px 掃描 + `index.css` dead CSS 小批刪；FE-6 刻意延後項 |
+| 3 | **59**／**NEXT-3** | 工作流 | Settings **Gate failure detail drawer**（展開 `issues_preview`／blocking） |
+| 4 | **53**（FA）＋可併 **60**／**NEXT-2** | 資料＋Quant | 鏈上 free live；Quant **Intraday Monitor**（paper + 既有 quote） |
+| 5 | **61**／**NEXT-4** | 文件 | **44b 高密度盤點表**（維護者勾選後才寫程式） |
+| 6 | **62** | 工作流 | **44b 進階收斂實作**（依 61 產出；Insights／News 等 tab 收斂） |
+| 7 | **54 → 55 → 56** | 資料 | FB 開 ENV live → FC 宏觀 → FD 財報 strip |
+| 8 | **63–67** | 工作流＋閉環 | Command Bar 下一刀；a11y 橫切；OHLC+QSREC 疊圖；Track Record↔Monitor；告警→DeepDive |
+| 9 | **68–70** | 研究／Gate | earnings insight live；NotebookLM／Agency live；`STRICT_INSTITUTIONAL` 生產策略 |
+| 10 | **71** | 流程 | design spec + `writing-plans` 實作計畫（免費資料路線） |
+
+**交錯**：57 與 52 可同一 PR；58 可與 61（純文件）並行；62 **依賴** 61 勾選結果。**紅線**：同 [§ 免費資料擴充](#free-data-expansion-queue-52) 與 [`CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。
+
+---
+
+<a id="codex-fe6-closeout-queue-57"></a>
+
+## Codex／FE-6 收尾（隊列 57–61）
+
+Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建議順序**：57 → 58 → 59 → 60 → 61。
+
+57. **CODEX NEXT-5 — `api.py` 契約測試（≈ 隊列 52 F0-1）** — 擴充 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py) 或 [`test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py)（≥8 條 `api.py` inline route）；與 **52 F0-2～F0-4** 可同 PR。**驗收**：`pytest tests/api/ -q` 綠。**依賴**：無。P1 / S。
+
+58. **CODEX NEXT-1 — Touch target 掃描 + dead CSS 審計** — 375px／1280px 盤點；優先 [`GlobalWatchlistDock.jsx`](data-verification-ui/src/components/GlobalWatchlistDock.jsx)、[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx)；`index.css` 零引用 class **小批**刪（≤15 規則／PR）；新增 touch-target Playwright smoke。**驗收**：`npm run lint && npm run build && npm run test:e2e` 全綠。**依賴**：無（可與 61 並行）。P2 / S。
+
+59. **CODEX NEXT-3 — Gate failure detail drawer** — 在 [`Settings.jsx`](data-verification-ui/src/pages/Settings.jsx) Gate 失敗列表上，點 row 展開 drawer／modal：完整 `issues_preview`、blocking／warning 計數、profile、`used_fallback`；沿用 **`GET /api/gate-failures`**。**DO NOT**：假造 BQ 列、不改 `main.py` Gate。**驗收**：擴充 [`e2e/settings-page.spec.js`](data-verification-ui/e2e/settings-page.spec.js)。**依賴**：57 契約（建議）。P1 / S。
+
+60. **CODEX NEXT-2 — Quant Intraday Monitor（隊列 33 續）** — 在 [`QuantHome.jsx`](data-verification-ui/src/modules/quant-trading/pages/QuantHome.jsx) 新增 tab 或區塊：paper `execution_intents` + `useSymbolQuote({ livePoll: true })` 列表；模式可對齊 [`WatchlistMonitor.jsx`](data-verification-ui/src/modules/portfolio/components/WatchlistMonitor.jsx)。**DO NOT**：新付費行情源。**可與** 隊列 **53 FA-3** 同 PR。**驗收**：新 E2E + `pytest` 既有 quant 綠。P1 / M。
+
+61. **CODEX NEXT-4 — 44b 高密度盤點（僅文件）** — 產出 `docs/PHASE4_44B_DENSITY_AUDIT.md`（或同級）：`/news`、`/columns`、`/insights`、`/dashboard`、`/portfolio` 每路由高密度區塊清單、建議 tab／dock 收斂、維護者勾選欄。**DO NOT**：本切片不動 React。**依賴**：無。**交付後** 才開 **隊列 62**。P2 / S。
+
+---
+
+<a id="workflow-spine-queue-62"></a>
+
+## 工作流脊骨（隊列 62–64）
+
+62. **Phase 4 IA — 44b 進階收斂（實作）** — 依 **隊列 61** 盤點表與 Gate 0 **N=3**；候選：[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 多 tab 再收斂、[`NewsHome.jsx`](data-verification-ui/src/modules/news/pages/NewsHome.jsx) 首屏密度、[`ColumnsHome.jsx`](data-verification-ui/src/modules/columns/pages/ColumnsHome.jsx) 與 side panel 分工。**驗收**：擴充 [`phase4-ia-portal.spec.js`](data-verification-ui/e2e/phase4-ia-portal.spec.js)；人測路徑 ≤3 點。**依賴**：**61**（維護者勾選）。P1 / M。
+
+63. **隊列 29 續 — Command Bar「Bloomberg 感」下一刀** — 在 [`docs/ADR_COMMAND_BAR_PERMISSIONS.md`](docs/ADR_COMMAND_BAR_PERMISSIONS.md) 邊界內擴 [`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx)：例 board 別名、recent 語意、與 **隊列 65–67** 深連結（symbol／告警）；**不**新增 W 類未審核後端指令。**驗收**：[`command-bar-route.spec.js`](data-verification-ui/e2e/command-bar-route.spec.js)。P1 / M。
+
+64. **a11y 橫切（modal／landmark／focus trap）** — 補 **隊列 58** 未涵蓋項：Gate drawer（59）、Settings modal、Command Bar 面板之 `role`／`aria-*`／focus trap；[`DESIGN.md`](DESIGN.md) 與 §4f 對帳。**可併** 59 或接在 62 後。P2 / S。
+
+---
+
+<a id="terminal-closed-loop-queue-65"></a>
+
+## Terminal 產品閉環（隊列 65–67）
+
+> 對齊進度表 KPI：**QSREC→監控→告警→紙上交易**（[`§ 進度分析表`](#progress-vs-wall-st-bloomberg)）；工作台路徑仍遵守 **N≤3**。
+
+65. **OHLC + QSREC 疊圖** — 在 [`SymbolDeepDive.jsx`](data-verification-ui/src/modules/insights/pages/SymbolDeepDive.jsx) 或 [`SymbolCandleChart.jsx`](data-verification-ui/src/components/SymbolCandleChart.jsx) 疊加當日／近期 **QSREC** 進場標記（來自 `GET /api/execution-intents` 或 gate-index，**僅 paper**）；**禁止** LLM 標價。**驗收**：E2E mock 至少 1 marker。P1 / M。
+
+66. **Track Record ↔ Monitor 互指** — [`TrackRecordHome.jsx`](data-verification-ui/src/modules/insights/pages/TrackRecordHome.jsx) closed row → `/portfolio?tab=monitor` 或 `/insights?symbol=`；[`WatchlistMonitor.jsx`](data-verification-ui/src/modules/portfolio/components/WatchlistMonitor.jsx) 顯示該 symbol 是否有 closed W/L（讀既有 track-record API）。**驗收**：[`insights-track-record.spec.js`](data-verification-ui/e2e/insights-track-record.spec.js) 擴 1 條。P2 / M。
+
+67. **價格告警 → SymbolDeepDive（N≤3）** — [`PriceAlertToaster.jsx`](data-verification-ui/src/components/PriceAlertToaster.jsx)／digest 點擊 → `/insights?symbol=`（帶 `?from=alert` 可選）；路徑 **告警 → 標的狀態 →（可選）新聞／專欄** ≤3 點；對齊 [`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) `maxWorkbenchPathClicks`。P1 / S。
+
+---
+
+<a id="research-gate-queue-68"></a>
+
+## 研究深化與機構 Gate（隊列 68–70）
+
+68. **Earnings insight live（隊列 45-P3 續）** — [`api_routers/earnings.py`](api_routers/earnings.py) `GET /api/earnings/insight/{symbol}` 由 scaffold `enabled: false` 改 **可選 live**（僅在有審計來源＋ENV 時）；[`EarningsInsightHome.jsx`](data-verification-ui/src/modules/insights/pages/EarningsInsightHome.jsx) 有資料才渲染。**DO NOT**：假 EPS consensus。P2 / M。
+
+69. **NotebookLM／Agency live client（隊列 24–25／32 續）** — 在治理與成本上限下接 [`tools/notebooklm_tool.py`](tools/notebooklm_tool.py)／[`agents/agency/`](agents/agency/) live；預設仍關；staging 小流量驗證後才開 production 旗標。**紅線**：不取代 `validate_report`。P2 / L。
+
+70. **`STRICT_INSTITUTIONAL_PHASE_A/B/C` 生產策略** — 文件化 staging→production 翻轉條件（[`report_html_gates.py`](report_html_gates.py)、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）；可選 BQ 儀表：通過率 vs 降級率；**不**在未量測前強制 production 全開。P2 / S。
+
+---
+
+<a id="planning-process-queue-71"></a>
+
+## 規劃流程（隊列 71）
+
+71. **免費資料路線 — design spec + 實作計畫** — 撰寫 `docs/superpowers/specs/2026-05-20-bloomberg-free-data-design.md`（四軸 A/B/C/D、ENV、降級、與 52–56 切片對照）；再以 `writing-plans` 產出逐步實作計畫（**不**取代本檔隊列勾選）。**依賴**：無（可與 57 並行）。P2 / S。
 
 ---
 
@@ -755,6 +844,10 @@
 ---
 
 ## 修訂紀錄
+
+- **2026-05-20（Session 總表 · 隊列 57–71）**：補 [Session 總執行順序](#session-2026-05-20-execution-order)（工作流優先、不採付費訂閱）；CODEX **NEXT-1～5** 入列 **57–61**；工作流 **62–64**、閉環 **65–67**、研究／Gate **68–70**、規劃 **71**（design spec + writing-plans）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-20** `### Docs（Session 總表 · 隊列 57–71）`。
+
+- **2026-05-20（免費資料擴充 · 隊列 52–56）**：不採 Glassnode／CryptoQuant／TrendForce 付費訂閱；新增 [§ 免費資料擴充](#free-data-expansion-queue-52)（Phase F0→FA→FB→FC→FD 對應軸 A/B/C/D）與隊列 52–56；隊列 45 付費 live backlog 改「刻意延後」。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-20** `### Docs（免費資料擴充路線）`。
 
 - **2026-05-17（Terminal Master Plan §3 對帳 · 純文件）**：[`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) 新增／補強 **§3 前端尚缺方向** 與 Portal ship 後 `CHANGELOG`／本檔對帳儀式；本檔檔首同步狀態新增 2026-05-17 對帳行，避免 §3 成為第二份 backlog。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-17** `### Docs（Terminal Master Plan §3 前端缺口盤點）`。
 - **2026-05-17（隊列 26 · route-level lazy）**：[`PortalRoutes.jsx`](data-verification-ui/src/app/routes/PortalRoutes.jsx) 以 `React.lazy`+`Suspense` 分拆各路由頁；主入口 chunk 縮小、build 單檔 ~500 kB 警告已消除；`InsightsHome` 仍為最大 async chunk。`npm run lint`／`build`／`test:e2e`（65/65）綠。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-17** 隊列 26 小節；[`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) §3.2／§3.6／修訂紀錄。

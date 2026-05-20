@@ -5,6 +5,11 @@
 
 ## 2026-05-20
 
+### Docs（Session 總表 · 隊列 57–71）
+
+- [`TODOS.md`](TODOS.md) 新增 [Session 2026-05-20 總執行順序](TODOS.md#session-2026-05-20-execution-order)：維護者策略 **工作流脊骨優先**、**不採** Glassnode／CryptoQuant／TrendForce 付費訂閱；總表串接 **57／NEXT-5 ≈ 52 F0** → **58–61（CODEX NEXT-1～4）** → **53–56 免費資料** → **62–71**（44b 實作、Command Bar 續、a11y、OHLC+QSREC、Track Record↔Monitor、告警→DeepDive、earnings／NotebookLM／Agency live、`STRICT_INSTITUTIONAL` 生產策略、design spec + writing-plans）。
+- 新增專節：[Codex／FE-6 收尾（57–61）](TODOS.md#codex-fe6-closeout-queue-57)、[工作流脊骨（62–64）](TODOS.md#workflow-spine-queue-62)、[Terminal 閉環（65–67）](TODOS.md#terminal-closed-loop-queue-65)、[研究與 Gate（68–70）](TODOS.md#research-gate-queue-68)、[規劃流程（71）](TODOS.md#planning-process-queue-71)；「下一批隊列」Codex handoff 改指向總表。
+
 ### Docs（免費資料擴充路線 · A/B/C/D → 隊列 52–56）
 
 - [`TODOS.md`](TODOS.md) 新增 [§ 免費資料擴充（隊列 52–56）](TODOS.md#free-data-expansion-queue-52)：付費源（Glassnode／CryptoQuant／TrendForce）**刻意延後**；四軸 **A 鏈上／B 算力／C 宏觀／D 財報** 分 Phase **F0（橫切）→ FA → FB → FC → FD**，每 Phase 含切片表、DO／DO NOT、驗收與隊列 **52–56** 一覽；隊列 **45** backlog 改指向本路線。
