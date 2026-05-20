@@ -5,6 +5,10 @@
 
 ## 2026-05-20
 
+### Docs（免費資料擴充路線 · A/B/C/D → 隊列 52–56）
+
+- [`TODOS.md`](TODOS.md) 新增 [§ 免費資料擴充（隊列 52–56）](TODOS.md#free-data-expansion-queue-52)：付費源（Glassnode／CryptoQuant／TrendForce）**刻意延後**；四軸 **A 鏈上／B 算力／C 宏觀／D 財報** 分 Phase **F0（橫切）→ FA → FB → FC → FD**，每 Phase 含切片表、DO／DO NOT、驗收與隊列 **52–56** 一覽；隊列 **45** backlog 改指向本路線。
+
 ### Docs（Codex 下一批 handoff — NEXT-1..NEXT-5）
 
 - 新增 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)：FE-1..FE-6 收尾後五個可獨立開工切片（touch target／Quant intraday／Gate detail drawer／44b 密度盤點文件／`api.py` 契約測試），含 DO／DO NOT、驗收標準、參考檔案與驗證指令；建議順序 NEXT-5 → NEXT-1 → NEXT-3 → NEXT-2 → NEXT-4。

@@ -4,6 +4,8 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
+**同步狀態（2026-05-20 — 免費資料擴充路線 F0～FD · A/B/C/D 入列）**：維護者決策 **不採** Glassnode／CryptoQuant／TrendForce 付費訂閱；改以 **free／freemium 盤活 + Portal 露出** 拉高 Bloomberg 對齊之資料廣度（隊列 **52–56**）。橫切 **F0** 對齊 [`CODEX_NEXT_BATCH`](docs/CODEX_NEXT_BATCH.md) NEXT-5／治理表；**FA** 加密鏈上／情緒、**FB** 算力／半導體、**FC** 宏觀、**FD** 財報／基本面。隊列 **45** 付費 live backlog 改列「刻意延後」。見本檔 [「免費資料擴充（隊列 52–56）」](#free-data-expansion-queue-52)。
+
 **同步狀態（2026-05-20 — Codex 下一批 handoff 文件）**：新增 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)（NEXT-1 touch target／dead CSS、NEXT-2 Quant intraday、NEXT-3 Gate failure drawer、NEXT-4 44b 密度盤點、NEXT-5 `api.py` contract tests；建議順序與 FE-6 延後項對齊）。CHANGELOG **2026-05-20** `### Docs（Codex 下一批 handoff）`。
 
 **同步狀態（2026-05-20 — FE-6 切片 · Frontend UX Overhaul 收尾）**：新增 [`components/OfflineBanner.jsx`](data-verification-ui/src/components/OfflineBanner.jsx) 共用組件（`navigator.onLine` event listener，`today-offline-banner` class／testid），掛入 [`StructuredReportView`](data-verification-ui/src/components/report/StructuredReportView.jsx)（戰報頁）與 [`WatchlistMonitor`](data-verification-ui/src/modules/portfolio/components/WatchlistMonitor.jsx)（`/portfolio?tab=monitor`）；BottomNav `.nav-item.active .nav-icon { transform: scale(1.1) }` + label opacity fade（[`index.css`](data-verification-ui/src/index.css)）；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 新增 **§4f PWA 行動裝置 + 桌面體驗驗收表**（覆蓋 FE-1～FE-6 全部錨點）；新增 [`e2e/offline-banner.spec.js`](data-verification-ui/e2e/offline-banner.spec.js)；`npm run test:e2e` 全綠（82/82）。**刻意未實作**：規格的全頁 touch target 掃描與 `index.css` dead CSS 清理（blast radius 高，留待 a11y audit 切細片）。CHANGELOG **2026-05-20** `### PWA（隊列 51 · FE-6 PWA Polish + 離線橫幅 + 跨裝置驗收）` + `### Docs（BLOOMBERG_ALIGNMENT §4f）`。**FE-1～FE-6 全數交付**，Frontend UX Overhaul 階段 6/6 收尾完成。
@@ -258,6 +260,8 @@
 
 **Codex／Agent 自包含 handoff（2026-05-20）**：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md) — NEXT-1..NEXT-5 切片規格、驗收與驗證指令（建議順序：契約測試 → a11y → Gate drawer → Quant intraday → 44b 文件）。
 
+**免費資料擴充（2026-05-20 規劃 · 隊列 52–56）**：付費源（Glassnode／CryptoQuant／TrendForce）**暫緩**；四軸 **A 鏈上／B 算力／C 宏觀／D 財報** 分 Phase **F0→FA→FB→FC→FD** 入列，見 [§ 免費資料擴充](#free-data-expansion-queue-52)。**建議實作順序**：**52（F0）→ 53（FA）→ 54（FB）→ 55（FC）→ 56（FD）**；可與 CODEX NEXT-5（隊列 52 重疊）／NEXT-2（Quant 與 FA 末尾）交錯，但 **每切片一 PR**。
+
 依維護者順序與工程可切性排列；**完成後**把對應句寫進 CHANGELOG，並在本節刪行或改「✓」。
 
 **提醒**：**`git pull` 後或讀 codebase 前**請看 [§ git pull／讀 codebase 時請先看](#pull-or-read-codebase-reminder) 與隊列 **18–21**（雲端尚未自動完成的 T4a／觀測表與金鑰）。
@@ -319,7 +323,106 @@
     - **P2-live PR-B**（2026-05-16）：[`tools/coreweave_gpu_spot.py`](tools/coreweave_gpu_spot.py) + `COMPUTE_MEMORY_GPU_LIVE` flag；CoreWeave HTML parse 失敗整批退 fixture；7 backend tests + 2 compute-memory tests 綠。
     - **P5-live PR-0**（governance only，2026-05-16）：§2 + §7 登錄 Binance public futures／Glassnode／CryptoQuant 三來源。
     - **P5-live PR-C**（2026-05-16）：[`tools/binance_funding_rate.py`](tools/binance_funding_rate.py) + `ONCHAIN_FUNDING_LIVE` flag；Binance public futures premiumIndex 抓 BTC/ETH 8h funding 並 annualize；8 backend tests + 3 onchain tests 綠。
-    - **剩 backlog**：MVRV-Z／exchange flow live（Glassnode／CryptoQuant 付費待決）／HBM live（TrendForce 訂閱待決）／44b 進階收斂。P1 / M。
+    - **剩 backlog（付費源 · 2026-05-20 刻意延後）**：MVRV-Z／exchange flow **live**（Glassnode／CryptoQuant）／HBM **live**（TrendForce）— **改由隊列 52–56 免費／freemium 路線承接**（見 [§ 免費資料擴充](#free-data-expansion-queue-52)）；44b 進階收斂仍見隊列 44／[`CODEX_NEXT_BATCH`](docs/CODEX_NEXT_BATCH.md) NEXT-4。P1 / M。
+
+<a id="free-data-expansion-queue-52"></a>
+
+## 免費資料擴充 — Bloomberg 廣度（零付費訂閱 · 隊列 52–56）
+
+> **背景**：維護者評估 Glassnode／CryptoQuant／TrendForce 訂閱過貴；**不**為「像 BBG」購買專有 feed。本路線以 [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) **free／freemium** 為界，把**管線與 tools 已有**、**Portal 未露出**的指標接到 read-only API + Dashboard／Insights，每欄位 **`source` + `as_of`**，失敗 **`DATA_MISSING`／`N/A`**，**禁止 LLM 補數字**。
+>
+> **四軸對照**：**A**＝加密鏈上／情緒（隊列 **53**）｜**B**＝半導體／算力（**54**）｜**C**＝宏觀總經（**55**）｜**D**＝財報／基本面（**56**）。橫切 **F0**（**52**）先於四軸。
+>
+> **與其他隊列**：**52-F0-1** 對齊 CODEX **NEXT-5**；**53-FA-3** 可與 **NEXT-2** Quant intraday 同 PR 或緊鄰；**不**取代隊列 18–21 營運 Push。
+
+### Phase F0 — 橫切底座（隊列 52）
+
+| 切片 | 目標 | 主要產出 | 驗收（最小） |
+|------|------|----------|--------------|
+| **F0-1** | `api.py` 契約安全網 | 擴充 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py) 或 [`test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py)（≥8 條 `api.py` inline route） | `pytest tests/api/ -q` 綠 |
+| **F0-2** | 免費源治理登錄 | [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2 增 **CoinGecko**／**alternative.me**（active）；**DefiLlama**、**Blockchain.info** 等若接入走 §3 審核表 | 文件 + ENV 註記 |
+| **F0-3** | 共用 fetch 契約 | 新指標一律 `tools/*.py` + `_get_cache`／`_set_cache`（或抽 `tools/market_free.py`），**禁止**在 JSX 直接打外部 URL | 每源 ≥1 pytest |
+| **F0-4** | `DASHBOARD_CONTRACT` 一節 | 補「免費擴充區塊」欄位語意（onchain valuation／macro series／earnings strip） | 與 API JSON 一致 |
+
+**紅線**：F0 **不**改 `main.py` pipeline、**不**接付費 key 為前提的功能。
+
+---
+
+### Phase FA — 加密鏈上／情緒（軸 **A** · 隊列 53）
+
+**現況**：[`GET /api/macro/onchain`](api_routers/macro.py) — **funding** 已可 `ONCHAIN_FUNDING_LIVE`（Binance public）；**valuation**／**exchange_flow** 仍 mock（佔位 Glassnode／CryptoQuant）。日報管線已用 **alternative.me** F&G、**CoinGecko**（[`tools_legacy.py`](tools_legacy.py)）。
+
+| 切片 | 目標 | DO | DO NOT |
+|------|------|-----|--------|
+| **FA-1** | 估值區塊 free live | 新 `tools/coingecko_metrics.py`（或薄封裝）拉 BTC market_chart／global；**Fear & Greed** 走 `alternative.me`；併入 `get_onchain_metrics()` `valuation` block，`source`／`as_of`／`ONCHAIN_VALUATION_LIVE` flag | 不假裝 MVRV-Z；不標 CryptoQuant 淨流 |
+| **FA-2** | 淨流區塊誠實降級 | UI 改文案：**「CEX 淨流：無免費同級來源」**；API 回 `exchange_flow.enabled: false` + `reason`；或改顯示 **Binance public** 衍生（OI／long-short，若僅用公開 endpoint）並標 `source` | 不用 mock 數字冒充 live 淨流 |
+| **FA-3** | Portal 整合 | [`OnchainMetricsPanel.jsx`](data-verification-ui/src/components/OnchainMetricsPanel.jsx) 顯示 `live_block_status` 三態；[`dashboard-onchain.spec.js`](data-verification-ui/e2e/dashboard-onchain.spec.js) 擴充；可選 **Insights › Quant** 摘要列 | 不 15s 輪詢 CoinGecko（遵守 rate limit + cache） |
+| **FA-4** | 可選廣度 +1 | 治理審核後接 **DefiLlama**（TVL／協議）**或** Blockchain.info（活躍地址）單一 block | 不一次加多源 |
+
+**驗收**：`pytest tests/api/test_onchain_api.py tests/api/test_binance_funding_rate.py -q` + 相關新 test 綠；`npm run test:e2e` 含 onchain spec 綠。
+
+---
+
+### Phase FB — 半導體／算力（軸 **B** · 隊列 54）
+
+**現況**：[`GET /api/macro/compute-memory`](api_routers/macro.py) — SEC EDGAR capex、CoreWeave GPU **工具已交付**；預設 fixture，需 **`SEC_EDGAR_CONTACT_EMAIL`** + **`COMPUTE_MEMORY_CAPEX_LIVE=1`**／**`COMPUTE_MEMORY_GPU_LIVE=1`**（見 [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）。
+
+| 切片 | 目標 | DO | DO NOT |
+|------|------|-----|--------|
+| **FB-1** | 營運開 live | 文件化 staging checklist：填 `SEC_EDGAR_CONTACT_EMAIL`、開兩個 `*_LIVE=1`、確認 `live_block_status` | 不買 TrendForce |
+| **FB-2** | Dashboard 露出強化 | [`ComputeMemoryPanel.jsx`](data-verification-ui/src/components/ComputeMemoryPanel.jsx) 每區塊 `source`／`as_of`／失敗態；[`dashboard-compute-memory.spec.js`](data-verification-ui/e2e/dashboard-compute-memory.spec.js) 覆蓋 live badge | 不把 HBM 標成 live |
+| **FB-3** | 專欄／觀點 CTA | `/columns` 半導體 tab 或 `/insights` 加 **「算力成本」** 深連結 → `/dashboard?tab=depth` | 不新增付費 DRAM 價 |
+| **FB-4** | 快取與降級 | capex／GPU fetch 失敗 **整批** 回 fixture（沿用既有 all-or-nothing 模式） | 不讓 LLM 寫 capex 數字 |
+
+**驗收**：`pytest tests/api/test_compute_memory_api.py tests/api/test_sec_edgar_capex.py tests/api/test_coreweave_gpu_spot.py -q`；E2E compute-memory 綠。
+
+---
+
+### Phase FC — 宏觀總經（軸 **C** · 隊列 55）
+
+**現況**：[`GET /api/macro/snapshot`](api_routers/macro.py) 8 指標 + spark；**FRED**、**FMP**（catalyst）在 ENV 已列，FMP 為可選 catalyst。
+
+| 切片 | 目標 | DO | DO NOT |
+|------|------|-----|--------|
+| **FC-1** | FRED 加深 | `tools/fred_macro.py`（或擴 `macro_context_tool`）拉 2s10s、實質利率等序列；併入 snapshot 或新 `GET /api/macro/fred-series?ids=...` | 無 `FRED_API_KEY` 時靜默降級 |
+| **FC-2** | FMP catalyst | 有 `FMP_API_KEY` 時 [`CatalystCalendar.jsx`](data-verification-ui/src/components/CatalystCalendar.jsx) 顯示來源；無 key 顯示說明 | 不捏造 Fed／CPI 日期 |
+| **FC-3** | Regime／離線提示 | 延續 `qsi_offline_macro_as_of_hint`；macro 卡逐指標 `source` | 不混用 BQ KPI 與 yfinance 同一欄 |
+| **FC-4** | 可選 yfinance 備援 | 治理審核後 **Polygon.io free tier** 僅作 quote fallback（5 req/min），文件已列 fallback | 不作為主來源 |
+
+**驗收**：`pytest tests/api/test_macro_router.py -q`；[`dashboard-route.spec.js`](data-verification-ui/e2e/dashboard-route.spec.js) 綠。
+
+---
+
+### Phase FD — 財報／基本面（軸 **D** · 隊列 56）
+
+**現況**：[`api_routers/earnings.py`](api_routers/earnings.py) `upcoming` + [`EarningsInsightHome.jsx`](data-verification-ui/src/modules/insights/pages/EarningsInsightHome.jsx)；[`GET /api/analysis/{symbol}`](api.py) bundle；**Financial Datasets** freemium（[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)）。
+
+| 切片 | 目標 | DO | DO NOT |
+|------|------|-----|--------|
+| **FD-1** | Earnings 首屏 | [`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 頂部 **7 日財報雷達** strip（`useEarningsUpcoming`）；row → `/insights?tab=earnings` 或 `?symbol=` | 不承諾 EPS consensus |
+| **FD-2** | FD 基本面帶 | 有 `FINANCIAL_DATASETS_API_KEY` 時 `analysis` bundle 帶 `fundamentals` 摘要；[`SymbolDeepDive.jsx`](data-verification-ui/src/modules/insights/pages/SymbolDeepDive.jsx) 有資料才渲染 | 無 key 不顯示假表格 |
+| **FD-3** | 與日報互指 | 財報列連到 `/report/{date}` 或 watchlist pillar badge（重用 `earnings_watchlist`） | 不開 sell-side 完整模型表（另立專案） |
+| **FD-4** | E2E | 擴 [`insights-symbol-deep-dive.spec.js`](data-verification-ui/e2e/insights-symbol-deep-dive.spec.js) 或新 `insights-earnings-radar.spec.js` | — |
+
+**驗收**：`pytest tests/api/test_earnings_router.py` [`test_api_analysis_bundle.py`](test_api_analysis_bundle.py) -q`；Insights 相關 E2E 綠。
+
+---
+
+### 隊列 52–56 一覽（勾選用）
+
+52. **免費資料擴充 — Phase F0 橫切底座** — 見上表 **F0-1～F0-4**；優先對齊 CODEX **NEXT-5**（契約測試）。**依賴**：無。**交付後**改 ~~刪線~~ 並寫 CHANGELOG `### Tests`／`### Docs（免費資料 F0）`。P1 / S。
+
+53. **免費資料擴充 — Phase FA 加密鏈上／情緒（軸 A）** — 見上表 **FA-1～FA-4**；**刻意不做** CryptoQuant／Glassnode 付費 MVRV／CEX 淨流。**依賴**：隊列 **52** F0-2／F0-3。**可與** CODEX NEXT-2（Quant intraday）**同迭代或緊鄰**。P1 / M。
+
+54. **免費資料擴充 — Phase FB 半導體／算力（軸 B）** — 見上表 **FB-1～FB-4**；以 **開 ENV live** + UI 為主，**零訂閱**。**依賴**：隊列 **52**。**營運**：`SEC_EDGAR_CONTACT_EMAIL` 必填。P1 / M。
+
+55. **免費資料擴充 — Phase FC 宏觀總經（軸 C）** — 見上表 **FC-1～FC-4**；**FRED_API_KEY**／**FMP_API_KEY** 可選。**依賴**：隊列 **52**。**不**把 macro 變行情牆。P2 / M。
+
+56. **免費資料擴充 — Phase FD 財報／基本面（軸 D）** — 見上表 **FD-1～FD-4**；**FINANCIAL_DATASETS_API_KEY** 可選。**依賴**：隊列 **52**；與隊列 **45-P3** earnings 頁互補（不重寫 router）。P2 / M。
+
+**NOT in scope（本路線）**：Glassnode／CryptoQuant／TrendForce 訂閱、全市場 screener、tick 行情牆、MDI 多視窗、真實下單。
+
+---
 
 46. ~~**Frontend UX Overhaul — Mobile + Desktop（FE-1 ~ FE-6）｜FE-1：Responsive App Shell（Mobile Bottom Tab + Desktop Side Nav 共存）**~~ — **2026-05-20 已交付（差距補完，主體沿用既有 BottomNav + SideNav）**：核對現況時發現 FE-1 主體早期已隨 5 板塊改版交付（[`data-verification-ui/src/components/BottomNav.jsx`](data-verification-ui/src/components/BottomNav.jsx) 5 板塊 + 設定、`.bottom-nav { display:none }` at `md+`；[`data-verification-ui/src/app/layout/SideNav.jsx`](data-verification-ui/src/app/layout/SideNav.jsx) `.side-nav { display:none }` 手機、`display:flex` 768px+；BottomNav 與 SideNav 共用同一組 5 routes + `/settings`）；本切片補 **差距**：[`data-verification-ui/src/index.css`](data-verification-ui/src/index.css) 新增 `--bottom-tab-height`（alias `--nav-h`）／`--sidebar-width: 220px`／`--sidebar-width-xl: 240px`，並將 `.side-nav` width hardcode 改用 CSS 變數；新增 [`data-verification-ui/e2e/responsive-app-shell.spec.js`](data-verification-ui/e2e/responsive-app-shell.spec.js) 涵蓋 mobile 375px（BottomNav 顯示／SideNav 隱）、desktop 1280px（反之）與 CSS 變數存在性。**未實作（與 5 板塊衝突，刻意不做）**：規格原文「三 Tab：日報 / 監控 / 設定 + `/briefs` / `/monitor` 新路由」與隊列 37–43 5 板塊收斂衝突，沿用現有 5 板塊不改路由；`BottomTabBar.jsx` 不另建以避免與 `BottomNav.jsx` 重複。CHANGELOG **2026-05-20** `### PWA（隊列 46 · FE-1 Responsive App Shell 差距補完）`。P1 / M。
 
