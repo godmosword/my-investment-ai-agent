@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import { useGateFailures, useQsrecStats } from "../hooks/useApi";
 
 const PREFS_KEY = "qsilicon_push_prefs";
+const POLL_OVERRIDE_KEY = "qs_terminal_poll_ms_override";
+const POLL_OPTIONS = [
+  { value: "15000", label: "15s（高頻）" },
+  { value: "45000", label: "45s（預設）" },
+  { value: "120000", label: "2 分鐘（低頻）" },
+];
 
 // Workspace keys to include in export/import (Q34)
 const WORKSPACE_KEYS = [
@@ -51,7 +58,16 @@ export default function Settings() {
   const [workspaceHint, setWorkspaceHint] = useState("");
   const [healthOkAt, setHealthOkAt] = useState("");
   const [healthErr, setHealthErr] = useState("");
+  const [pollOverride, setPollOverride] = useState(() => {
+    try {
+      return globalThis.localStorage?.getItem(POLL_OVERRIDE_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
   const importRef = useRef(null);
+  const qsrecStats = useQsrecStats(7);
+  const gateFailures = useGateFailures(7);
 
   const pushRegister = envFlag(import.meta.env.VITE_WEB_PUSH_REGISTER);
   const vapidSet = Boolean(String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || "").trim());
@@ -127,6 +143,24 @@ export default function Settings() {
     }
   };
 
+  const choosePoll = (value) => {
+    setPollOverride(value);
+    try {
+      if (value) globalThis.localStorage?.setItem(POLL_OVERRIDE_KEY, value);
+      else globalThis.localStorage?.removeItem(POLL_OVERRIDE_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const passRatePct = qsrecStats.data?.pass_rate_pct;
+  const passRateText =
+    qsrecStats.isLoading
+      ? "…"
+      : typeof passRatePct === "number"
+        ? `${passRatePct.toFixed(1)}%`
+        : "—";
+
   return (
     <div className="settings-page px-3 py-4 pb-24">
       <h1 className="mb-1 text-lg font-semibold tracking-tight">設定</h1>
@@ -135,6 +169,119 @@ export default function Settings() {
         <code className="rounded bg-black/25 px-1 py-0.5 font-mono text-[11px]">pushClient.js</code>{" "}
         對齊）。
       </p>
+
+      <div className="settings-grid" data-testid="settings-grid">
+        <section className="card p-3" data-testid="settings-gate-stats">
+          <h2 className="mb-2 text-[13px] font-semibold">Gate 通過率（近 7 天）</h2>
+          <p className="m-0 text-[12px] text-[var(--muted)]">
+            來自 <code className="font-mono text-[11px]">GET /api/reports/qsrec-stats?days=7</code>
+          </p>
+          <div className="mt-2 flex flex-wrap items-baseline gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">通過率</div>
+              <div className="text-[20px] font-bold text-emerald-300" data-testid="settings-pass-rate">
+                {passRateText}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">統計天數</div>
+              <div className="font-mono text-[14px]">{qsrecStats.data?.total_days ?? "—"}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">Degraded</div>
+              <div className="font-mono text-[14px]">{qsrecStats.data?.degraded_count ?? "—"}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-[var(--muted)]">Fail</div>
+              <div className="font-mono text-[14px]">{qsrecStats.data?.fail_count ?? "—"}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="card p-3" data-testid="settings-poll-toggle">
+          <h2 className="mb-2 text-[13px] font-semibold">盤中輪詢頻率</h2>
+          <p className="m-0 text-[12px] text-[var(--muted)]">
+            覆寫 <code className="font-mono text-[11px]">VITE_TERMINAL_POLL_MS</code>（預設 45s）；存於
+            <code className="font-mono text-[11px]"> localStorage[{POLL_OVERRIDE_KEY}]</code>，下次載入生效。
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {POLL_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                data-testid={`settings-poll-${opt.value}`}
+                aria-pressed={pollOverride === opt.value}
+                className={`min-h-[44px] rounded border px-3 py-1.5 text-[12px] font-semibold ${
+                  pollOverride === opt.value
+                    ? "border-emerald-500/40 bg-emerald-500/[0.10] text-emerald-100/90"
+                    : "border-white/15 text-white/70 hover:bg-white/[0.04]"
+                }`}
+                onClick={() => choosePoll(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              data-testid="settings-poll-clear"
+              className="min-h-[44px] rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/60 hover:bg-white/[0.04]"
+              onClick={() => choosePoll("")}
+            >
+              使用預設
+            </button>
+          </div>
+        </section>
+
+        <section className="card p-3" data-testid="settings-gate-failures">
+          <h2 className="mb-1 text-[13px] font-semibold">Gate 失敗記錄（近 7 天）</h2>
+          <p className="mb-2 text-[12px] text-[var(--muted)]">
+            <code className="font-mono text-[11px]">GET /api/gate-failures?days=7</code>
+            {gateFailures.data?.source ? (
+              <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--muted)]">
+                source: {gateFailures.data.source}
+              </span>
+            ) : null}
+          </p>
+          {gateFailures.isLoading ? (
+            <p className="m-0 text-[12px] text-[var(--muted)]">載入中…</p>
+          ) : gateFailures.isError ? (
+            <p className="m-0 text-[12px] text-amber-300" role="status">
+              {gateFailures.error?.message ?? "載入失敗"}
+            </p>
+          ) : !gateFailures.data?.entries?.length ? (
+            <p className="m-0 text-[12px] text-[var(--muted)]">近 7 天無 Gate 失敗紀錄。</p>
+          ) : (
+            <ul
+              className="m-0 list-none space-y-1 p-0 font-mono text-[11px]"
+              data-testid="settings-gate-failures-list"
+            >
+              {gateFailures.data.entries.slice(0, 5).map((row, i) => (
+                <li
+                  key={`${row.timestamp ?? "row"}-${i}`}
+                  className="rounded border border-white/10 bg-black/15 px-2 py-1.5"
+                  data-testid="settings-gate-failure-row"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[var(--muted)]">{(row.timestamp ?? "").slice(0, 19)}</span>
+                    <span className="rounded bg-amber-500/10 px-1.5 text-amber-200">
+                      profile: {row.profile ?? "—"}
+                    </span>
+                    <span className="rounded bg-red-500/10 px-1.5 text-red-200">
+                      blocking: {row.blocking_count ?? 0}
+                    </span>
+                    <span className="rounded bg-yellow-500/10 px-1.5 text-yellow-200">
+                      warn: {row.warning_count ?? 0}
+                    </span>
+                  </div>
+                  {row.issues_preview ? (
+                    <div className="mt-1 text-white/75">{row.issues_preview}</div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
 
       <section className="card mb-4 p-3">
         <h2 className="mb-2 text-[13px] font-semibold">建置環境（唯讀）</h2>

@@ -1122,6 +1122,37 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (url.pathname === "/api/gate-failures" || url.pathname.startsWith("/api/gate-failures")) {
+    const days = Number(url.searchParams.get("days") || "7") || 7;
+    sendJson(res, 200, {
+      days,
+      count: 2,
+      source: "fixture",
+      entries: [
+        {
+          timestamp: "2026-05-19T02:31:00+00:00",
+          attempt: 2,
+          blocking_count: 1,
+          warning_count: 3,
+          issue_count: 4,
+          profile: "full",
+          used_fallback: false,
+          issues_preview: "e2e mock — exec_summary 缺 market_regime",
+        },
+        {
+          timestamp: "2026-05-18T02:44:00+00:00",
+          attempt: 1,
+          blocking_count: 0,
+          warning_count: 2,
+          issue_count: 2,
+          profile: "lite",
+          used_fallback: false,
+          issues_preview: "e2e mock — trade_legs direction",
+        },
+      ],
+    });
+    return;
+  }
   if (url.pathname === "/api/reports/qsrec-stats" || url.pathname.startsWith("/api/reports/qsrec-stats")) {
     const days = Number(url.searchParams.get("days") || "7") || 7;
     sendJson(res, 200, {
