@@ -18,6 +18,10 @@
 
 - 新增 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)：FE-1..FE-6 收尾後五個可獨立開工切片（touch target／Quant intraday／Gate detail drawer／44b 密度盤點文件／`api.py` 契約測試），含 DO／DO NOT、驗收標準、參考檔案與驗證指令；建議順序 NEXT-5 → NEXT-1 → NEXT-3 → NEXT-2 → NEXT-4。
 
+### Tests（隊列 9 續 · api.py contract / NEXT-5）
+
+- 新增 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py)：補 `api.py` inline routes 契約安全網，覆蓋 `/api/reports`、legacy `/api/reports/{date}`、`/gate-status`、`/html`、`/qsrec-stats`、`/api/trades`、`/api/positions/open`、`/api/trades/performance`、`/api/push/subscribe` 等 status／shape／邊界行為。此切片對齊 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md) **NEXT-5** 與 [`TODOS.md`](TODOS.md#free-data-expansion-queue-52) **52-F0-1**；未改 API 語意。
+
 ### PWA（隊列 51 · FE-6 PWA Polish + 離線橫幅 + 跨裝置驗收）
 
 - **新組件**：[`components/OfflineBanner.jsx`](data-verification-ui/src/components/OfflineBanner.jsx) — 訂閱 `online`／`offline` event，`navigator.onLine === false` 時渲染 `.today-offline-banner`（`role="status"`、`aria-live="polite"`、可覆寫 `testId`／`message`）。

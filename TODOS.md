@@ -341,7 +341,7 @@
 
 | 切片 | 目標 | 主要產出 | 驗收（最小） |
 |------|------|----------|--------------|
-| **F0-1** | `api.py` 契約安全網 | 擴充 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py) 或 [`test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py)（≥8 條 `api.py` inline route） | `pytest tests/api/ -q` 綠 |
+| ~~**F0-1**~~ | `api.py` 契約安全網 | **2026-05-20 已交付**：新增 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py)（≥8 條 `api.py` inline route） | `pytest tests/api/test_api_py_contract.py -q` 綠；全 `tests/api/` 驗證見本次紀錄 |
 | **F0-2** | 免費源治理登錄 | [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2 增 **CoinGecko**／**alternative.me**（active）；**DefiLlama**、**Blockchain.info** 等若接入走 §3 審核表 | 文件 + ENV 註記 |
 | **F0-3** | 共用 fetch 契約 | 新指標一律 `tools/*.py` + `_get_cache`／`_set_cache`（或抽 `tools/market_free.py`），**禁止**在 JSX 直接打外部 URL | 每源 ≥1 pytest |
 | **F0-4** | `DASHBOARD_CONTRACT` 一節 | 補「免費擴充區塊」欄位語意（onchain valuation／macro series／earnings strip） | 與 API JSON 一致 |
@@ -412,7 +412,7 @@
 
 ### 隊列 52–56 一覽（勾選用）
 
-52. **免費資料擴充 — Phase F0 橫切底座** — 見上表 **F0-1～F0-4**；優先對齊 CODEX **NEXT-5**（契約測試）。**依賴**：無。**交付後**改 ~~刪線~~ 並寫 CHANGELOG `### Tests`／`### Docs（免費資料 F0）`。P1 / S。
+52. **免費資料擴充 — Phase F0 橫切底座** — **F0-1 / NEXT-5 已交付（2026-05-20）**；剩 **F0-2～F0-4**（治理登錄、共用 fetch 契約、`DASHBOARD_CONTRACT` 免費擴充區塊）。**依賴**：無。P1 / S。
 
 53. **免費資料擴充 — Phase FA 加密鏈上／情緒（軸 A）** — 見上表 **FA-1～FA-4**；**刻意不做** CryptoQuant／Glassnode 付費 MVRV／CEX 淨流。**依賴**：隊列 **52** F0-2／F0-3。**可與** CODEX NEXT-2（Quant intraday）**同迭代或緊鄰**。P1 / M。
 
