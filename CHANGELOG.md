@@ -3,6 +3,16 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-20
+
+### PWA（隊列 46 · FE-1 Responsive App Shell 差距補完）
+
+- **背景**：核對 [`TODOS.md`](TODOS.md) FE-1 規格時發現 App Shell 主體（mobile BottomNav + desktop SideNav 共存）早期已隨 5 板塊改版交付（[`data-verification-ui/src/components/BottomNav.jsx`](data-verification-ui/src/components/BottomNav.jsx) + `.bottom-nav` 在 768px+ `display:none`；[`data-verification-ui/src/app/layout/SideNav.jsx`](data-verification-ui/src/app/layout/SideNav.jsx) + `.side-nav` 手機 `display:none`、768px+ `display:flex`；BottomNav 與 SideNav 共用同一組 5 板塊 routes + `/settings`）。本切片只補規格的差距。
+- **CSS 變數**：[`data-verification-ui/src/index.css`](data-verification-ui/src/index.css) `:root` 新增 `--bottom-tab-height`（alias `--nav-h`）、`--sidebar-width: 220px`、`--sidebar-width-xl: 240px`；`.side-nav` 在 `min-width: 768px` 與 `min-width: 1280px` 兩個 media query 內的寬度 hardcode 改用 CSS 變數，後續調寬只需動 `:root`。
+- **E2E**：新增 [`data-verification-ui/e2e/responsive-app-shell.spec.js`](data-verification-ui/e2e/responsive-app-shell.spec.js) 三案：mobile 375px（BottomNav 可見／SideNav 隱）、desktop 1280px（反之）、CSS 變數存在性（`--bottom-tab-height` 非空、`--sidebar-width` = `220px`、`--nav-h` = `56px`）。
+- **刻意未實作**：規格原文「三 Tab：日報 / 監控 / 設定 + `/briefs`／`/monitor` 新路由」與隊列 37–43 收斂的 5 板塊路由衝突，沿用 5 板塊不改 routes；`BottomTabBar.jsx` 不另建以避免與 `BottomNav.jsx` 重複（決策見 TODOS 隊列 46 註記）。
+- **驗證**：`cd data-verification-ui && npm run lint && npm run build` 綠；E2E 樣例隨後續 CI run 覆蓋。
+
 ## 2026-05-17
 
 ### Docs（Terminal Master Plan §3 前端缺口盤點）
