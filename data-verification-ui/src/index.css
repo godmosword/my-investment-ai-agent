@@ -1552,3 +1552,145 @@ html, body, #root {
   border-color: rgba(248, 113, 113, 0.35);
   background: rgba(248, 113, 113, 0.08);
 }
+
+/* ── FE-3 — WatchlistMonitor (Portfolio › Monitor tab) ── */
+.watchlist-monitor__header {
+  margin-bottom: 10px;
+}
+
+.watchlist-monitor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.watchlist-monitor__filter {
+  flex: 2 1 180px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.watchlist-monitor__add-input {
+  flex: 1 1 120px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.watchlist-monitor__add-btn {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  border-radius: 6px;
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.watchlist-monitor__add-btn:hover {
+  background: rgba(52, 211, 153, 0.2);
+}
+
+.watchlist-monitor__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.watchlist-monitor__row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.watchlist-monitor__open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.watchlist-monitor__open:hover,
+.watchlist-monitor__open:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.watchlist-monitor__symbol {
+  flex: 0 0 auto;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  min-width: 60px;
+}
+
+.watchlist-monitor__price {
+  flex: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.watchlist-monitor__change {
+  flex: 0 0 auto;
+  min-width: 64px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.watchlist-monitor__change--up {
+  color: var(--green);
+}
+
+.watchlist-monitor__change--down {
+  color: var(--red);
+}
+
+.watchlist-monitor__change--flat {
+  color: var(--muted);
+}
+
+.watchlist-monitor__remove {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.watchlist-monitor__remove:hover {
+  color: var(--red);
+}
