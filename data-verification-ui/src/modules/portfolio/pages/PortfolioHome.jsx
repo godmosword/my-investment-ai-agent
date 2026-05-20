@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PortfolioRiskPanel from "../../../components/PortfolioRiskPanel";
+import WatchlistMonitor from "../components/WatchlistMonitor";
 import {
   useAddHolding,
   useDeleteHolding,
@@ -12,6 +13,7 @@ import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
 
 const PORTFOLIO_TABS = [
   { id: "overview", label: "總覽", testId: "portfolio-tab-overview" },
+  { id: "monitor", label: "Monitor", testId: "portfolio-tab-monitor" },
   { id: "risk", label: "風險與 TP/SL", testId: "portfolio-tab-risk" },
 ];
 const PORTFOLIO_TAB_IDS = new Set(PORTFOLIO_TABS.map((t) => t.id));
@@ -508,6 +510,8 @@ export default function PortfolioHome() {
             ) : null}
           </>
         ) : null}
+
+        {activeTab === "monitor" ? <WatchlistMonitor /> : null}
 
         {activeTab === "risk" ? <PortfolioRiskPanel /> : null}
       </div>

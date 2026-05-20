@@ -5,6 +5,20 @@
 
 ## 2026-05-20
 
+### PWA（隊列 48 · FE-3 Monitor tab 差距補完）
+
+- **背景**：FE-3 規格的 `/monitor` 獨立路由與 5 板塊收斂（隊列 37–43）衝突；改為在 [`PortfolioHome.jsx`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx) 既有 tab 系統新增 `Monitor` tab（`/portfolio?tab=monitor`），位於 `總覽` 與 `風險與 TP/SL` 之間。
+- **新組件**：[`modules/portfolio/components/WatchlistMonitor.jsx`](data-verification-ui/src/modules/portfolio/components/WatchlistMonitor.jsx)
+  - 共用既有 `qsi_watchlist` localStorage（避免規格的 `wl_symbols` 與現況分裂），跟 [`Watchlist.jsx`](data-verification-ui/src/components/Watchlist.jsx)／[`GlobalWatchlistDock.jsx`](data-verification-ui/src/components/GlobalWatchlistDock.jsx) 跨頁同步（`qsi_watchlist_changed` + `storage` event）。
+  - 逐 row 以 `useSymbolQuote(sym, { livePoll: true })` 拉即時報價，輪詢沿用 `VITE_TERMINAL_POLL_MS`（預設 45s）；row 顯示 symbol / 最新價 / 漲跌幅 badge，badge 以 `data-trend="up|down|flat"` 與 `--up`／`--down`／`--flat` 色碼。
+  - row 點擊（最小 48px 觸控高度）navigate 至 `/insights?symbol=…`（既有 `SymbolDeepDive` 即「symbol 詳情」）。
+  - 上方 toolbar：`搜尋 watchlist…` client-side 篩選框（不重新 fetch）、`新增代號` input + `Add` 按鈕；Max 20 個代號。
+- **CSS**：[`index.css`](data-verification-ui/src/index.css) 末段加 `.watchlist-monitor`／`__header`／`__toolbar`／`__filter`／`__add-input`／`__add-btn`／`__list`／`__row`／`__open`／`__symbol`／`__price`／`__change`（`--up`／`--down`／`--flat`）／`__remove`；row 與按鈕 44px 觸控對齊。
+- **PortfolioHome 連動**：`PORTFOLIO_TABS` 新增 `{ id: "monitor", label: "Monitor", testId: "portfolio-tab-monitor" }`；`activeTab === "monitor"` 時渲染 `<WatchlistMonitor />`；其他 tab 行為不變。
+- **E2E**：新增 [`e2e/monitor-watchlist.spec.js`](data-verification-ui/e2e/monitor-watchlist.spec.js) 兩案：① `addInitScript` seed `qsi_watchlist=["BTC","SPY","NVDA"]`，3 row 渲染、BTC 報價非 `—`、篩選 `BT` 後 row 數 1、清空後復原；② NVDA row click 跳轉 `/insights?symbol=NVDA`。
+- **刻意未實作**：規格的桌面 split-pane（左 watchlist / 右 `SymbolCandleChart` + snapshot）— `/insights?symbol=…` 已是現成詳情頁、且 split-pane 需新增容器、與 1120px max-width 桌面 layout 衝突；改以「row → /insights?symbol=」收斂。也未使用 `assets_config.json` 預載（避免覆蓋使用者既有 watchlist）；spec 提的 `wl_symbols` key 沿用 `qsi_watchlist`，與現況不分裂。
+- **驗證**：`cd data-verification-ui && npm run lint && npm run build` 綠；`npm run test:e2e` 全綠（73/73，含本次新增 2 案 + 既有 71 案）。
+
 ### PWA（隊列 47 · FE-2 Daily Brief 重構差距補完）
 
 - **背景**：FE-2 規格目標檔 [`data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx`](data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx) 實際是 Terminal 工作區（symbol cards 容器），真正的「每日戰報頁」是 [`/report/:date` → `pages/Report.jsx`](data-verification-ui/src/pages/Report.jsx) 渲染的 [`components/report/StructuredReportView.jsx`](data-verification-ui/src/components/report/StructuredReportView.jsx)。本切片在 `StructuredReportView` 補 FE-2 差距。
