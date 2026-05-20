@@ -32,6 +32,9 @@ button {
   --text:      #e5eef7;
   --muted:     #94a3b8;
   --nav-h:     56px;
+  --bottom-tab-height: var(--nav-h);
+  --sidebar-width: 220px;
+  --sidebar-width-xl: 240px;
   font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif;
 }
 
@@ -153,8 +156,8 @@ html, body, #root {
   .side-nav {
     display: flex;
     flex-direction: column;
-    width: 220px;
-    min-width: 220px;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
     flex-shrink: 0;
     background: rgba(8, 17, 26, 0.92);
     backdrop-filter: blur(20px);
@@ -172,8 +175,8 @@ html, body, #root {
 
 @media (min-width: 1280px) {
   .side-nav {
-    width: 240px;
-    min-width: 240px;
+    width: var(--sidebar-width-xl);
+    min-width: var(--sidebar-width-xl);
   }
 
   .metrics-grid {
