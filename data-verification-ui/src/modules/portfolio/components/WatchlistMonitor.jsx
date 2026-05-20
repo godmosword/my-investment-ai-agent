@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSymbolQuote } from "../../../hooks/useApi";
+import OfflineBanner from "../../../components/OfflineBanner";
 
 const STORAGE_KEY = "qsi_watchlist";
 const WATCHLIST_CHANGED_EVENT = "qsi_watchlist_changed";
@@ -134,6 +135,7 @@ export default function WatchlistMonitor() {
 
   return (
     <section className="watchlist-monitor card p-3" data-testid="watchlist-monitor">
+      <OfflineBanner testId="watchlist-monitor-offline-banner" />
       <div className="watchlist-monitor__header">
         <div>
           <div className="card-title">Monitor</div>

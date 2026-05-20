@@ -108,6 +108,22 @@ Streamlit 與 PWA 應消費**同一 JSON**（`build_symbol_snapshot` 或 `SYMBOL
 - **工作台關鍵路徑** ≤ **N=3** 點擊（Gate 0 #5）：警報 → 標的／狀態 →（可選）回新聞／專欄脈絡。**人測驗收**，未自動化；44b 進階收斂時再以此為尺。
 - **融合方向**：雙向，但**反向（workbench → reader）僅做 CTA + `?focus=`**，不在工作台層放讀者導覽元件。
 
+### 4f) PWA 行動裝置 + 桌面體驗（2026-05-20 — FE-1～FE-6 收尾）
+
+| 面向 | 現況 | 錨點 |
+|------|------|------|
+| Mobile bottom-tab + Desktop side-nav 共存 | `.bottom-nav` 手機顯示、768px+ 隱；`.side-nav` 手機隱、768px+ `display:flex`；五板塊 routes 共用 | FE-1 / 隊列 46；[`responsive-app-shell.spec.js`](../data-verification-ui/e2e/responsive-app-shell.spec.js) |
+| CSS 變數 | `--bottom-tab-height`、`--sidebar-width`、`--sidebar-width-xl` 在 `:root`；`.side-nav` 寬度全部走變數 | FE-1；[`index.css`](../data-verification-ui/src/index.css) |
+| Daily Brief 折疊 + 主代號條 + Gate 徽章 | `StructuredReportView` 包覆 `BriefSectionCard` 折疊；頁頂 `TickerStrip` 手機 scroll／桌面 wrap；`GateBadge` 緊湊 ✓／✗ | FE-2 / 隊列 47；[`daily-brief-collapse.spec.js`](../data-verification-ui/e2e/daily-brief-collapse.spec.js) |
+| Watchlist Monitor + live 報價 | Portfolio `?tab=monitor` 掛 `WatchlistMonitor`，逐 row `useSymbolQuote(livePoll)`，row click → `/insights?symbol=` | FE-3 / 隊列 48；[`monitor-watchlist.spec.js`](../data-verification-ui/e2e/monitor-watchlist.spec.js) |
+| Settings 集中化 | `.settings-grid`（手機單欄 → 768px+ 3 欄）：Gate 通過率、輪詢頻率 toggle、Gate 失敗列表 + `GET /api/gate-failures` | FE-4 / 隊列 49；[`settings-page.spec.js`](../data-verification-ui/e2e/settings-page.spec.js) + [`tests/api/test_gate_failures_api.py`](../tests/api/test_gate_failures_api.py) |
+| 桌面鍵盤捷徑 | `useKeyboardShortcuts` chord `G B / G M / G S` + SideNav `⌘K · G B · G M · G S` hint；手機 `< 768px` no-op | FE-5 / 隊列 50；[`command-bar.spec.js`](../data-verification-ui/e2e/command-bar.spec.js) |
+| 離線提示 | `OfflineBanner`（`today-offline-banner`）掛在 `StructuredReportView` 與 `WatchlistMonitor`，`navigator.onLine === false` 時顯示；對齊 [`service-worker.js`](../data-verification-ui/src/service-worker.js) `/api` NetworkOnly 策略 | FE-6 / 隊列 51；[`offline-banner.spec.js`](../data-verification-ui/e2e/offline-banner.spec.js) |
+| BottomNav active 動畫 | `.nav-item.active .nav-icon { transform: scale(1.1) }` + label fade（opacity 0.85 → 1） | FE-6 / 隊列 51 |
+| 觸控標準 | BottomNav／SideNav／Settings toggle／Monitor row／Brief 折疊按鈕 ≥ 44px；既有 `min-h-[44px]` Tailwind 慣例延續 | DESIGN.md §響應式與無障礙 |
+
+**驗證**：mobile 375px + desktop 1280px viewport 由 [`responsive-app-shell.spec.js`](../data-verification-ui/e2e/responsive-app-shell.spec.js)、[`daily-brief-collapse.spec.js`](../data-verification-ui/e2e/daily-brief-collapse.spec.js)、[`settings-page.spec.js`](../data-verification-ui/e2e/settings-page.spec.js)、[`command-bar.spec.js`](../data-verification-ui/e2e/command-bar.spec.js)、[`offline-banner.spec.js`](../data-verification-ui/e2e/offline-banner.spec.js) 分別覆蓋；`npm run test:e2e` 整體 ≥ 80 案綠（隊列 50 已 80/80，隊列 51 視 CI 為準）。
+
 ---
 
 ## 5) 分階實作路徑（Execution Slices）
