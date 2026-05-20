@@ -276,14 +276,14 @@ export default function TerminalCommandBar({ trailing = null }) {
         }}
         placeholder={cmdPlaceholder}
         aria-label="Terminal command input"
-        className="min-h-[40px] min-w-[150px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:min-h-[44px] sm:max-w-md"
+        className="min-h-[44px] min-w-[150px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
         autoComplete="off"
         spellCheck={false}
         ref={inputRef}
       />
       <button
         type="button"
-        className="min-h-[40px] rounded bg-emerald-700/80 px-3 py-1 text-[12px] font-semibold text-white hover:bg-emerald-600 sm:min-h-[44px]"
+        className="min-h-[44px] rounded bg-emerald-700/80 px-3 py-1 text-[12px] font-semibold text-white hover:bg-emerald-600"
         onClick={onGo}
       >
         GO
@@ -292,7 +292,7 @@ export default function TerminalCommandBar({ trailing = null }) {
         type="button"
         data-testid="cmd-bar-run"
         disabled={runCrew.isPending}
-        className="min-h-[40px] rounded border border-amber-500/40 bg-amber-600/20 px-3 py-1 text-[12px] font-semibold text-amber-300 hover:bg-amber-600/40 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[44px]"
+        className="min-h-[44px] rounded border border-amber-500/40 bg-amber-600/20 px-3 py-1 text-[12px] font-semibold text-amber-300 hover:bg-amber-600/40 disabled:cursor-not-allowed disabled:opacity-40"
         onClick={onRun}
         title="觸發研究 Crew（需 CREW_HTTP_ENABLED=1）"
       >
@@ -331,7 +331,7 @@ export default function TerminalCommandBar({ trailing = null }) {
       <button
         type="button"
         disabled={!focused}
-        className="min-h-[40px] rounded border border-white/20 bg-white/[0.03] px-3 py-1 text-[12px] text-white/90 hover:bg-white/5 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-white/30 sm:min-h-[44px]"
+        className="min-h-[44px] rounded border border-white/20 bg-white/[0.03] px-3 py-1 text-[12px] text-white/90 hover:bg-white/5 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-white/30"
         onClick={toggleWatch}
         title="納入 SSE watch_symbols（最多 8 個由後端截斷）"
       >
@@ -354,7 +354,7 @@ export default function TerminalCommandBar({ trailing = null }) {
               key={sym}
               type="button"
               onClick={() => onPickRecent(sym)}
-              className={`min-h-[32px] rounded border px-2 py-0.5 font-mono ${
+              className={`min-h-[44px] min-w-[44px] rounded border px-2 py-0.5 font-mono ${
                 focused === sym
                   ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-200"
                   : "border-white/15 text-white/80 hover:bg-white/5"
@@ -369,7 +369,7 @@ export default function TerminalCommandBar({ trailing = null }) {
         data-testid="terminal-command-help"
         className="w-full rounded border border-white/10 bg-white/[0.02] px-2 py-1 text-[11px] text-[var(--muted)]"
       >
-        <summary className="cursor-pointer select-none text-white/75">指令範例與權限邊界</summary>
+        <summary className="flex min-h-[44px] cursor-pointer select-none items-center text-white/75">指令範例與權限邊界</summary>
         <div className="mt-1 grid gap-1 sm:grid-cols-3">
           {commandExamples.map((item) => (
             <div key={`${item.label}:${item.command}`} className="rounded border border-white/10 bg-black/20 px-2 py-1">

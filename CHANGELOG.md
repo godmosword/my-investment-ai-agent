@@ -22,6 +22,13 @@
 
 - 新增 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py)：補 `api.py` inline routes 契約安全網，覆蓋 `/api/reports`、legacy `/api/reports/{date}`、`/gate-status`、`/html`、`/qsrec-stats`、`/api/trades`、`/api/positions/open`、`/api/trades/performance`、`/api/push/subscribe` 等 status／shape／邊界行為。此切片對齊 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md) **NEXT-5** 與 [`TODOS.md`](TODOS.md#free-data-expansion-queue-52) **52-F0-1**；未改 API 語意。
 
+### PWA（NEXT-1 · touch target sweep）
+
+- 新增 [`e2e/touch-target.spec.js`](data-verification-ui/e2e/touch-target.spec.js)：375px mobile 與 1280px desktop 量測 Command Bar 主要控制（input / GO / RUN / WATCH）與 `global-watchlist-toggle` bounding box，要求互動目標 ≥44px。
+- 修正 [`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx)：小屏 input、GO、RUN、WATCH 由 40px 提升到 44px；recent chips 補 `min-w/min-h 44px`；help `<summary>` 補 44px 觸控高度。
+- 修正 [`GlobalWatchlistDock.jsx`](data-verification-ui/src/components/GlobalWatchlistDock.jsx)：mobile floating toggle 由 36px 提升到 44px，panel `Close` 由 32px 提升到 44px。
+- `index.css` dead-CSS audit 本切片只做 scoped 搜尋確認：touch-target 相關錨點與近期 FE class 仍被 `src/` 或 E2E 引用；未做大批 CSS 刪除，以避免誤傷歷史樣式與測試錨點。
+
 ### PWA（隊列 51 · FE-6 PWA Polish + 離線橫幅 + 跨裝置驗收）
 
 - **新組件**：[`components/OfflineBanner.jsx`](data-verification-ui/src/components/OfflineBanner.jsx) — 訂閱 `online`／`offline` event，`navigator.onLine === false` 時渲染 `.today-offline-banner`（`role="status"`、`aria-live="polite"`、可覆寫 `testId`／`message`）。
