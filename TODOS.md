@@ -4,6 +4,8 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
+**同步狀態（2026-05-20 — Codex 下一批 handoff 文件）**：新增 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)（NEXT-1 touch target／dead CSS、NEXT-2 Quant intraday、NEXT-3 Gate failure drawer、NEXT-4 44b 密度盤點、NEXT-5 `api.py` contract tests；建議順序與 FE-6 延後項對齊）。CHANGELOG **2026-05-20** `### Docs（Codex 下一批 handoff）`。
+
 **同步狀態（2026-05-20 — FE-6 切片 · Frontend UX Overhaul 收尾）**：新增 [`components/OfflineBanner.jsx`](data-verification-ui/src/components/OfflineBanner.jsx) 共用組件（`navigator.onLine` event listener，`today-offline-banner` class／testid），掛入 [`StructuredReportView`](data-verification-ui/src/components/report/StructuredReportView.jsx)（戰報頁）與 [`WatchlistMonitor`](data-verification-ui/src/modules/portfolio/components/WatchlistMonitor.jsx)（`/portfolio?tab=monitor`）；BottomNav `.nav-item.active .nav-icon { transform: scale(1.1) }` + label opacity fade（[`index.css`](data-verification-ui/src/index.css)）；[`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 新增 **§4f PWA 行動裝置 + 桌面體驗驗收表**（覆蓋 FE-1～FE-6 全部錨點）；新增 [`e2e/offline-banner.spec.js`](data-verification-ui/e2e/offline-banner.spec.js)；`npm run test:e2e` 全綠（82/82）。**刻意未實作**：規格的全頁 touch target 掃描與 `index.css` dead CSS 清理（blast radius 高，留待 a11y audit 切細片）。CHANGELOG **2026-05-20** `### PWA（隊列 51 · FE-6 PWA Polish + 離線橫幅 + 跨裝置驗收）` + `### Docs（BLOOMBERG_ALIGNMENT §4f）`。**FE-1～FE-6 全數交付**，Frontend UX Overhaul 階段 6/6 收尾完成。
 
 **同步狀態（2026-05-20 — FE-5 切片）**：規格新 `CommandBar.jsx` 與既有 [`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx)（已含 `Cmd+K`）重複；本切片補差距 — 新增 [`hooks/useKeyboardShortcuts.js`](data-verification-ui/src/hooks/useKeyboardShortcuts.js)（chord `G→B`／`G→M`／`G→S`，1500ms 視窗，輸入框不攔截，`window.innerWidth < 768` 早返），於 [`Shell.jsx`](data-verification-ui/src/app/layout/Shell.jsx) 掛全域 listener；[`SideNav.jsx`](data-verification-ui/src/app/layout/SideNav.jsx) footer 補 `⌘K · G B · G M · G S` kbd 鏈；新增 [`e2e/command-bar.spec.js`](data-verification-ui/e2e/command-bar.spec.js) 五案。`npm run test:e2e` 全綠（80/80）。CHANGELOG **2026-05-20** `### PWA（隊列 50 · FE-5 Command Bar + Shortcuts 差距補完）`。
@@ -253,6 +255,8 @@
 ---
 
 ## 下一批隊列（建議接續實作，邊界清楚）
+
+**Codex／Agent 自包含 handoff（2026-05-20）**：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md) — NEXT-1..NEXT-5 切片規格、驗收與驗證指令（建議順序：契約測試 → a11y → Gate drawer → Quant intraday → 44b 文件）。
 
 依維護者順序與工程可切性排列；**完成後**把對應句寫進 CHANGELOG，並在本節刪行或改「✓」。
 
