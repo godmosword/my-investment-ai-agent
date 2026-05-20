@@ -1,5 +1,7 @@
 """Tests for GET /api/quant/signals and GET /api/quant/backtest (Q33)."""
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -35,6 +37,52 @@ def test_quant_signals_schema(client):
         assert "id" in sig
         assert "direction" in sig
         assert "confidence" in sig
+
+
+def test_quant_signals_derive_active_rows_from_execution_intents(client, tmp_path, monkeypatch):
+    store = tmp_path / "execution_intents.jsonl"
+    rows = [
+        {
+            "signal_id": "ai-nvda-long-1",
+            "created_at": "2026-05-20T01:00:00Z",
+            "category": "AI",
+            "asset": "NVDA",
+            "direction": "LONG",
+            "star_rating": 2,
+            "thesis_one_liner": "AI capex momentum",
+            "status": "PAPER_FILLED",
+            "status_updated_at": "2026-05-20T02:00:00Z",
+            "reference_entry_price": 900,
+            "reference_target_price": 960,
+            "reference_stop_price": 870,
+        },
+        {
+            "signal_id": "crypto-btc-long-1",
+            "created_at": "2026-05-19T01:00:00Z",
+            "category": "CRYPTO",
+            "asset": "BTC",
+            "direction": "LONG",
+            "star_rating": 1,
+            "thesis_one_liner": "closed row should not show",
+            "status": "PAPER_CLOSED",
+            "status_updated_at": "2026-05-19T02:00:00Z",
+        },
+    ]
+    store.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+    monkeypatch.setenv("EXECUTION_INTENT_STORE", str(store))
+
+    r = client.get("/api/quant/signals")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source"] == "execution_intents.jsonl"
+    assert body["count"] == 1
+    signal = body["signals"][0]
+    assert signal["id"] == "ai-nvda-long-1"
+    assert signal["symbol"] == "NVDA"
+    assert signal["status"] == "PAPER_FILLED"
+    assert signal["confidence"] == 1.0
+    assert signal["reference_entry_price"] == 900
 
 
 # ── /api/quant/backtest ─────────────────────────────────────────────────────

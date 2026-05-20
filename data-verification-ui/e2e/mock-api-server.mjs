@@ -1535,7 +1535,30 @@ const server = http.createServer((req, res) => {
   if (url.pathname === "/api/quant/signals") {
     sendJson(res, 200, {
       disclaimer: "e2e mock; not investment advice.",
-      signals: [{ id: "e2e-neutral", label: "RSI14 band (mock)", direction: "neutral", confidence: 0 }],
+      source: "execution_intents.jsonl",
+      count: 2,
+      signals: [
+        {
+          id: "e2e-nvda-filled",
+          symbol: "NVDA",
+          asset: "NVDA",
+          label: "AI capex momentum",
+          direction: "long",
+          confidence: 1,
+          status: "PAPER_FILLED",
+          category: "AI",
+        },
+        {
+          id: "e2e-spy-review",
+          symbol: "SPY",
+          asset: "SPY",
+          label: "Index hedge watch",
+          direction: "long",
+          confidence: 0.5,
+          status: "PENDING_REVIEW",
+          category: "AI",
+        },
+      ],
     });
     return;
   }

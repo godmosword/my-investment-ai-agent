@@ -1,7 +1,16 @@
 import { useState } from "react";
-import { useExecutionIntents, useGateStatus, useReports, useQuantSignals, useQuantBacktest } from "../../../hooks/useApi";
+import { useNavigate } from "react-router-dom";
+import {
+  useExecutionIntents,
+  useGateStatus,
+  useReports,
+  useQuantSignals,
+  useQuantBacktest,
+  useSymbolQuote,
+} from "../../../hooks/useApi";
 import { DEFAULT_GATE_STATUS } from "../../../constants/gateDisplay";
 import { finiteNumber, paperEntry, paperExit, isPaperClosedRow, calcStats } from "../../../utils/positionStats";
+import OfflineBanner from "../../../components/OfflineBanner";
 
 const GATE_BADGE = {
   pass:     { label: "通過",  bg: "rgba(52,211,153,0.15)", color: "var(--green)" },
@@ -82,6 +91,87 @@ function isActiveIntent(r) {
 }
 
 const BACKTEST_SYMBOLS = ["BTC", "SPY", "NVDA", "MSFT", "AAPL"];
+
+function formatQuote(value) {
+  if (!finiteNumber(value)) return "—";
+  return Number(value).toLocaleString(undefined, {
+    maximumFractionDigits: Math.abs(Number(value)) >= 100 ? 2 : 4,
+  });
+}
+
+function IntradaySignalRow({ signal }) {
+  const navigate = useNavigate();
+  const symbol = String(signal.symbol || signal.asset || "").trim().toUpperCase();
+  const quote = useSymbolQuote(symbol, { livePoll: true });
+  if (!symbol) return null;
+  return (
+    <button
+      type="button"
+      className="grid min-h-[52px] w-full grid-cols-[minmax(70px,0.8fr)_minmax(90px,1fr)_minmax(86px,0.8fr)] items-center gap-2 rounded border border-white/10 bg-black/15 px-3 py-2 text-left text-[12px] hover:bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+      data-testid="quant-intraday-row"
+      data-symbol={symbol}
+      onClick={() => navigate(`/insights?symbol=${encodeURIComponent(symbol)}`)}
+    >
+      <span>
+        <span className="block font-mono text-[14px] font-semibold text-white">{symbol}</span>
+        <span className="block text-[10px] uppercase text-[var(--muted)]">{signal.direction || "neutral"}</span>
+      </span>
+      <span>
+        <span className="block text-white/80">{signal.status || "—"}</span>
+        <span className="block truncate text-[11px] text-[var(--muted)]">{signal.label || signal.id || "—"}</span>
+      </span>
+      <span className="text-right">
+        <span className="block font-mono text-white" data-testid="quant-intraday-price">
+          {quote.isLoading ? "…" : quote.isError ? "—" : formatQuote(quote.data?.last)}
+        </span>
+        <span className="block text-[10px] text-[var(--muted)]">{quote.data?.source || "quote"}</span>
+      </span>
+    </button>
+  );
+}
+
+function IntradayMonitor({ signals = [], isLoading, error }) {
+  const [filter, setFilter] = useState("");
+  const filtered = signals
+    .filter((signal) => String(signal.symbol || signal.asset || "").trim())
+    .filter((signal) => {
+      const q = filter.trim().toUpperCase();
+      if (!q) return true;
+      const haystack = `${signal.symbol || signal.asset || ""} ${signal.status || ""} ${signal.label || ""}`.toUpperCase();
+      return haystack.includes(q);
+    })
+    .slice(0, 12);
+
+  return (
+    <section data-testid="quant-intraday-monitor" className="mb-4 rounded border border-[color:var(--border)] p-3">
+      <OfflineBanner testId="quant-intraday-offline-banner" />
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[13px] font-semibold text-white/85">Intraday Monitor</div>
+          <div className="text-[11px] text-[var(--muted)]">Paper signals + existing quote polling · no new feed</div>
+        </div>
+        <input
+          type="search"
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+          placeholder="Filter symbol/status"
+          className="min-h-[44px] rounded border border-white/15 bg-black/35 px-3 text-[12px] text-white placeholder:text-white/35"
+          data-testid="quant-intraday-filter"
+        />
+      </div>
+      {isLoading ? <div className="text-[12px] text-[var(--muted)]">載入盤中監控…</div> : null}
+      {error ? <div className="text-[12px] text-amber-300">無法載入：{error.message}</div> : null}
+      {!isLoading && !error && filtered.length === 0 ? (
+        <div className="text-[12px] text-[var(--muted)]">目前沒有可監控的 paper signal。</div>
+      ) : null}
+      <div className="grid gap-2">
+        {filtered.map((signal) => (
+          <IntradaySignalRow key={signal.id || signal.symbol || signal.asset} signal={signal} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function BacktestPanel() {
   const [sym, setSym] = useState("BTC");
@@ -173,6 +263,12 @@ export default function QuantHome() {
 
       {/* Backtest panel (Q33) */}
       <BacktestPanel />
+
+      <IntradayMonitor
+        signals={quantPayload?.signals ?? []}
+        isLoading={qSigLoading}
+        error={qSigError}
+      />
 
       {/* QSREC gate-status — last 3 days */}
       <div className="card" style={{ marginBottom: 12 }} data-testid="quant-m7-signals">

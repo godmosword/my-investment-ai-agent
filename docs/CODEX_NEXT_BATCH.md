@@ -73,6 +73,8 @@ cd data-verification-ui && npm run lint && npm run build && npm run test:e2e
 
 ## NEXT-2 — Quant Intraday Monitor scaffold（隊列 33 續）
 
+> **2026-05-20 已交付**：`GET /api/quant/signals` 改 paper-derived active rows；`QuantHome.jsx` 新增 Intraday Monitor（既有 quote polling、filter、offline banner、row deep link）；測試見 `test_api_quant_signals.py` 與 `e2e/quant-intraday-monitor.spec.js`。
+
 **對齊**：隊列 **33**「仍待：Intraday Monitor」· [`TODOS.md`](../TODOS.md) 隊列 33 · [`QuantHome.jsx`](../data-verification-ui/src/modules/quant-trading/pages/QuantHome.jsx)
 
 ### 為什麼現在做
@@ -97,10 +99,10 @@ M7 已交付 backtest 與 stub `GET /api/quant/signals`；缺 **盤中監控列�
 
 ### 驗收標準
 
-- [ ] `/insights?tab=quant`（或文件化之 deep link）可見 Intraday 區塊與 ≥1 筆 paper 列（fixture／mock 下）。
-- [ ] live quote 欄位在 mock 下顯示價格或 `—`；`livePoll` 不新增 env 旗標。
-- [ ] `pytest test_api_quant_signals.py -q` 綠；`npm run test:e2e` 綠。
-- [ ] `CHANGELOG`：`### PWA（隊列 33 續 · Quant Intraday Monitor）`；`TODOS` 隊列 33「仍待」改寫。
+- [x] `/insights?tab=quant`（或文件化之 deep link）可見 Intraday 區塊與 ≥1 筆 paper 列（fixture／mock 下）。
+- [x] live quote 欄位在 mock 下顯示價格或 `—`；`livePoll` 不新增 env 旗標。
+- [x] `pytest test_api_quant_signals.py -q` 綠；`npm run test:e2e` 綠。
+- [x] `CHANGELOG`：`### PWA/API（NEXT-2 · Quant Intraday Monitor）`；`TODOS` 隊列 33「仍待」改寫。
 
 ### 參考檔案
 

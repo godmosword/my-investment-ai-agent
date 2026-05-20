@@ -34,6 +34,13 @@
 - [`Settings.jsx`](data-verification-ui/src/pages/Settings.jsx) Gate 失敗記錄 row 改為可點擊 44px 目標；點擊後開啟 `settings-gate-failure-drawer` modal/drawer，顯示完整 `timestamp`、`attempt`、`profile`、blocking／warning／issue 計數、`used_fallback` 與完整 `issues_preview`。支援 Close 按鈕與 Escape 關閉。
 - 擴充 [`settings-page.spec.js`](data-verification-ui/e2e/settings-page.spec.js)：新增 row → drawer → metadata / issue preview → close flow。此切片沿用既有 `GET /api/gate-failures?days=7`，未改 `main.py` Gate 或 BQ schema。
 
+### PWA/API（NEXT-2 · Quant Intraday Monitor）
+
+- `GET /api/quant/signals`（[`api.py`](api.py)）由 placeholder 升級為 paper-derived 訊號列表：讀取最新 `execution_intents.jsonl`，僅回 `PENDING_REVIEW`／`APPROVED_FOR_PAPER`／`PAPER_SUBMITTED`／`PAPER_FILLED` 等 active paper rows，附 `source`、`count`、`symbol`、`status`、`reference_*`；沒有 active rows 時保留教育用 placeholder fallback。
+- [`QuantHome.jsx`](data-verification-ui/src/modules/quant-trading/pages/QuantHome.jsx) 新增 `Intraday Monitor` 區塊：使用 `/api/quant/signals` rows + 既有 `useSymbolQuote(symbol, { livePoll: true })` 顯示盤中報價，支援 symbol/status filter、offline banner、row click → `/insights?symbol=...`。
+- [`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 的 `/api/quant/signals` mock 改為 NVDA／SPY paper rows；新增 [`quant-intraday-monitor.spec.js`](data-verification-ui/e2e/quant-intraday-monitor.spec.js) 覆蓋列渲染、報價非 dash、filter、deep link。
+- 紅線維持：未新增付費行情源、未改日報 pipeline、未自動交易；僅使用 paper intents 與既有 quote API。
+
 ### PWA（隊列 51 · FE-6 PWA Polish + 離線橫幅 + 跨裝置驗收）
 
 - **新組件**：[`components/OfflineBanner.jsx`](data-verification-ui/src/components/OfflineBanner.jsx) — 訂閱 `online`／`offline` event，`navigator.onLine === false` 時渲染 `.today-offline-banner`（`role="status"`、`aria-live="polite"`、可覆寫 `testId`／`message`）。

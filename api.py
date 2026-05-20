@@ -990,12 +990,53 @@ def get_analysis_bundle_m6(
 
 @app.get("/api/quant/signals")
 def list_quant_signals_m7() -> dict[str, Any]:
-    """Quant signals stub (M7). Educational only — no auto-trading or performance claims."""
+    """Quant signals (M7). Educational only — no auto-trading or performance claims."""
+    rows = latest_execution_intents(limit=100, dedupe=True, sort_by="updated_desc")
+    active_statuses = {"PENDING_REVIEW", "APPROVED_FOR_PAPER", "PAPER_SUBMITTED", "PAPER_FILLED"}
+    signals: list[dict[str, Any]] = []
+    for row in rows:
+        status = str(row.get("status") or "").strip().upper()
+        symbol = str(row.get("asset") or "").strip().upper().lstrip("$")
+        direction = str(row.get("direction") or "").strip().lower()
+        if status not in active_statuses or not symbol:
+            continue
+        try:
+            confidence = max(0.0, min(1.0, float(row.get("star_rating") or 0) / 2.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        signals.append(
+            {
+                "id": row.get("signal_id") or f"{symbol}-{status}".lower(),
+                "symbol": symbol,
+                "asset": symbol,
+                "label": row.get("thesis_one_liner") or f"{symbol} {direction or 'signal'}",
+                "direction": direction or "neutral",
+                "confidence": round(confidence, 3),
+                "status": status,
+                "category": row.get("category") or "",
+                "created_at": row.get("created_at") or "",
+                "updated_at": row.get("status_updated_at") or row.get("created_at") or "",
+                "quality": row.get("quality_grade") or row.get("quality") or None,
+                "reference_entry_price": row.get("reference_entry_price"),
+                "reference_target_price": row.get("reference_target_price"),
+                "reference_stop_price": row.get("reference_stop_price"),
+            }
+        )
+    if signals:
+        return {
+            "disclaimer": "Paper / educational only; no performance guarantee; not investment advice.",
+            "source": "execution_intents.jsonl",
+            "count": len(signals),
+            "signals": signals,
+        }
     return {
         "disclaimer": "Paper / educational only; no performance guarantee; not investment advice.",
+        "source": "placeholder",
+        "count": 1,
         "signals": [
             {
                 "id": "placeholder-neutral",
+                "symbol": "",
                 "label": "RSI14 neutral band (example)",
                 "direction": "neutral",
                 "confidence": 0.0,
