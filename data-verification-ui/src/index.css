@@ -1734,3 +1734,41 @@ html, body, #root {
   letter-spacing: 0.04em;
   color: var(--text);
 }
+
+/* ── FE-6 — OfflineBanner (shared) ── */
+.today-offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--yellow);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* ── FE-6 — BottomNav active animation (icon scale + label fade) ── */
+.nav-item {
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.nav-item .nav-icon {
+  transition: transform 0.18s ease;
+}
+
+.nav-item.active .nav-icon {
+  transform: scale(1.1);
+}
+
+.nav-item .nav-item__label,
+.nav-item > :not(.nav-icon) {
+  transition: opacity 0.18s ease;
+  opacity: 0.85;
+}
+
+.nav-item.active > :not(.nav-icon) {
+  opacity: 1;
+}

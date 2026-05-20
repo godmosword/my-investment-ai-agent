@@ -5,6 +5,24 @@
 
 ## 2026-05-20
 
+### PWA（隊列 51 · FE-6 PWA Polish + 離線橫幅 + 跨裝置驗收）
+
+- **新組件**：[`components/OfflineBanner.jsx`](data-verification-ui/src/components/OfflineBanner.jsx) — 訂閱 `online`／`offline` event，`navigator.onLine === false` 時渲染 `.today-offline-banner`（`role="status"`、`aria-live="polite"`、可覆寫 `testId`／`message`）。
+- **掛載**：
+  - [`StructuredReportView.jsx`](data-verification-ui/src/components/report/StructuredReportView.jsx)：`SymbolFocusBar` 後、`TickerStrip` 前插入 `<OfflineBanner />`（戰報頁離線提示）。
+  - [`WatchlistMonitor.jsx`](data-verification-ui/src/modules/portfolio/components/WatchlistMonitor.jsx)：卡片頂部插入 `<OfflineBanner testId="watchlist-monitor-offline-banner" />`（`/portfolio?tab=monitor` 離線提示）。
+  - 對齊 [`service-worker.js`](data-verification-ui/src/service-worker.js) `/api` NetworkOnly 策略：離線時 `/api/*` 必然失敗，banner 提前向使用者揭露。
+- **BottomNav active 動畫**：[`index.css`](data-verification-ui/src/index.css) `.nav-item.active .nav-icon { transform: scale(1.1) }`（0.18s ease）+ label opacity 0.85 → 1 過渡。
+- **`.today-offline-banner` 樣式**：黃色邊框／背景、12px 字、`flex` 圖示 + 文字、`margin-bottom: 10px`；統一感與既有 `error-msg` 區隔（後者為紅色錯誤、本 banner 為黃色降級提示）。
+- **E2E**：新增 [`e2e/offline-banner.spec.js`](data-verification-ui/e2e/offline-banner.spec.js) 兩案 — ① mobile 375px viewport 戰報頁 `/report/2026-04-14`，初始無 banner、`context.setOffline(true)` + 派發 `offline` event 後 banner 可見、`setOffline(false)` + `online` event 後 banner 消失；② `/portfolio?tab=monitor` 同樣切換驗證（含 `addInitScript` seed `qsi_watchlist=["BTC"]`）。
+- **刻意未實作**：規格的「全頁 touch target < 44px 掃描」與「`index.css` dead CSS 清理」blast radius 高、測試保護薄弱，留待 a11y audit 切細片；既有 BottomNav／SideNav／Module nav／Settings toggle／Monitor row／Brief 折疊按鈕在 FE-1～FE-5 切片中已分別採 `min-height: 44px`。
+- **驗證**：`cd data-verification-ui && npm run lint && npm run build` 綠；`npm run test:e2e` 全綠（82/82，含本次新增 2 案）。
+- **Frontend UX Overhaul 階段收尾**：FE-1（隊列 46）→ FE-6（隊列 51）全 6 切片交付完成；對齊紀錄入 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) §4f。
+
+### Docs（BLOOMBERG_ALIGNMENT §4f — PWA 行動裝置 + 桌面體驗）
+
+- [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 新增 **§4f**：表格化記錄 FE-1～FE-6 9 個面向（BottomNav/SideNav 共存、CSS 變數、Daily Brief 折疊 + Ticker + Gate badge、Watchlist Monitor + live 報價、Settings 集中化、桌面鍵盤捷徑、離線提示、BottomNav 動畫、44px 觸控標準）與對應 E2E 錨點，作為 PWA 跨裝置體驗的驗收清單。
+
 ### PWA（隊列 50 · FE-5 Command Bar + Shortcuts 差距補完）
 
 - **背景**：規格的新 `CommandBar.jsx` 與既有 [`components/TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 重複（既有已涵蓋 `Cmd+K` 聚焦、symbol search、board navigation、RUN 節流）。本切片改以「鍵盤快捷鍵 registry + SideNav hint tooltip」補差距，不另建 CommandBar。

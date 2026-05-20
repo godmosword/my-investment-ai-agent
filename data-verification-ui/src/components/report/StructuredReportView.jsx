@@ -8,6 +8,7 @@ import BlockSection from "./BlockSection";
 import BriefSectionCard from "./BriefSectionCard";
 import TickerStrip from "./TickerStrip";
 import GateBadge from "./GateBadge";
+import OfflineBanner from "../OfflineBanner";
 import GateIssuesNavigator from "./GateIssuesNavigator";
 import GateIssuesDrawer from "./GateIssuesDrawer";
 import BriefLayoutsReference from "./BriefLayoutsReference";
@@ -77,6 +78,7 @@ export default function StructuredReportView({
   return (
     <>
       <SymbolFocusBar compact />
+      <OfflineBanner />
       <TickerStrip />
       <div className="page-header" data-testid="structured-report-view">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
