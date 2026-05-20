@@ -266,6 +266,8 @@
 
 **NEXT-1 已交付（2026-05-20）**：新增 [`data-verification-ui/e2e/touch-target.spec.js`](data-verification-ui/e2e/touch-target.spec.js)，在 375px mobile / 1280px desktop 量測 Command Bar 主要控制與 shared monitor toggle ≥44px；[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) 與 [`GlobalWatchlistDock.jsx`](data-verification-ui/src/components/GlobalWatchlistDock.jsx) 補 44px 觸控高度。`index.css` dead-CSS audit 僅做 scoped 搜尋確認，本切片未刪大批全域 CSS。CHANGELOG **2026-05-20** `### PWA（NEXT-1 · touch target sweep）`。
 
+**NEXT-3 / 隊列 59 已交付（2026-05-20）**：[`Settings.jsx`](data-verification-ui/src/pages/Settings.jsx) Gate 失敗 row 可點開 `settings-gate-failure-drawer`，顯示完整 `issues_preview`、timestamp、attempt、profile、blocking／warning／issue 計數與 `used_fallback`；沿用既有 `GET /api/gate-failures?days=7`，未改 Gate pipeline／BQ schema。擴充 [`settings-page.spec.js`](data-verification-ui/e2e/settings-page.spec.js)。CHANGELOG **2026-05-20** `### PWA（NEXT-3 · Gate failure detail drawer）`。
+
 **免費資料擴充（2026-05-20 規劃 · 隊列 52–56）**：付費源（Glassnode／CryptoQuant／TrendForce）**暫緩**；四軸 **A 鏈上／B 算力／C 宏觀／D 財報** 分 Phase **F0→FA→FB→FC→FD** 入列，見 [§ 免費資料擴充](#free-data-expansion-queue-52)。**建議實作順序**：**52（F0）→ 53（FA）→ 54（FB）→ 55（FC）→ 56（FD）**；**F0 與隊列 57（NEXT-5）同一 PR 或緊鄰**；FA 末尾可與 **隊列 60（NEXT-2）** 交錯；**每切片一 PR**。
 
 依維護者順序與工程可切性排列；**完成後**把對應句寫進 CHANGELOG，並在本節刪行或改「✓」。
@@ -463,7 +465,7 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 58. ~~**CODEX NEXT-1 — Touch target 掃描 + dead CSS 審計**~~ — **2026-05-20 已交付**：新增 [`e2e/touch-target.spec.js`](data-verification-ui/e2e/touch-target.spec.js)，375px／1280px 量測 Command Bar 主要控制與 shared monitor toggle ≥44px；[`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx)、[`GlobalWatchlistDock.jsx`](data-verification-ui/src/components/GlobalWatchlistDock.jsx) 補小屏 44px 觸控高度。`index.css` dead-CSS audit 僅做 scoped 搜尋；未刪大批全域 CSS。驗證：`npm run lint`、`npm run build`、`npm run test:e2e` 84 passed。P2 / S。
 
-59. **CODEX NEXT-3 — Gate failure detail drawer** — 在 [`Settings.jsx`](data-verification-ui/src/pages/Settings.jsx) Gate 失敗列表上，點 row 展開 drawer／modal：完整 `issues_preview`、blocking／warning 計數、profile、`used_fallback`；沿用 **`GET /api/gate-failures`**。**DO NOT**：假造 BQ 列、不改 `main.py` Gate。**驗收**：擴充 [`e2e/settings-page.spec.js`](data-verification-ui/e2e/settings-page.spec.js)。**依賴**：57 契約（建議）。P1 / S。
+59. ~~**CODEX NEXT-3 — Gate failure detail drawer**~~ — **2026-05-20 已交付**：[`Settings.jsx`](data-verification-ui/src/pages/Settings.jsx) Gate 失敗列表 row 可點開 drawer／modal，顯示完整 `issues_preview`、blocking／warning／issue 計數、profile、attempt、timestamp、`used_fallback`；沿用 **`GET /api/gate-failures`**，未改 `main.py` Gate 或 BQ schema。驗收：[`e2e/settings-page.spec.js`](data-verification-ui/e2e/settings-page.spec.js) 新增 detail drawer flow。P1 / S。
 
 60. **CODEX NEXT-2 — Quant Intraday Monitor（隊列 33 續）** — 在 [`QuantHome.jsx`](data-verification-ui/src/modules/quant-trading/pages/QuantHome.jsx) 新增 tab 或區塊：paper `execution_intents` + `useSymbolQuote({ livePoll: true })` 列表；模式可對齊 [`WatchlistMonitor.jsx`](data-verification-ui/src/modules/portfolio/components/WatchlistMonitor.jsx)。**DO NOT**：新付費行情源。**可與** 隊列 **53 FA-3** 同 PR。**驗收**：新 E2E + `pytest` 既有 quant 綠。P1 / M。
 

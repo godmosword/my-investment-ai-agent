@@ -58,6 +58,7 @@ export default function Settings() {
   const [workspaceHint, setWorkspaceHint] = useState("");
   const [healthOkAt, setHealthOkAt] = useState("");
   const [healthErr, setHealthErr] = useState("");
+  const [selectedGateFailure, setSelectedGateFailure] = useState(null);
   const [pollOverride, setPollOverride] = useState(() => {
     try {
       return globalThis.localStorage?.getItem(POLL_OVERRIDE_KEY) || "";
@@ -85,6 +86,15 @@ export default function Settings() {
       setSwState(reg ? "已註冊" : "未註冊");
     });
   }, []);
+
+  useEffect(() => {
+    if (!selectedGateFailure) return undefined;
+    const onKey = (event) => {
+      if (event.key === "Escape") setSelectedGateFailure(null);
+    };
+    globalThis.addEventListener("keydown", onKey);
+    return () => globalThis.removeEventListener("keydown", onKey);
+  }, [selectedGateFailure]);
 
   useEffect(() => {
     const base = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
@@ -256,32 +266,88 @@ export default function Settings() {
               data-testid="settings-gate-failures-list"
             >
               {gateFailures.data.entries.slice(0, 5).map((row, i) => (
-                <li
-                  key={`${row.timestamp ?? "row"}-${i}`}
-                  className="rounded border border-white/10 bg-black/15 px-2 py-1.5"
-                  data-testid="settings-gate-failure-row"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[var(--muted)]">{(row.timestamp ?? "").slice(0, 19)}</span>
-                    <span className="rounded bg-amber-500/10 px-1.5 text-amber-200">
-                      profile: {row.profile ?? "—"}
-                    </span>
-                    <span className="rounded bg-red-500/10 px-1.5 text-red-200">
-                      blocking: {row.blocking_count ?? 0}
-                    </span>
-                    <span className="rounded bg-yellow-500/10 px-1.5 text-yellow-200">
-                      warn: {row.warning_count ?? 0}
-                    </span>
-                  </div>
-                  {row.issues_preview ? (
-                    <div className="mt-1 text-white/75">{row.issues_preview}</div>
-                  ) : null}
+                <li key={`${row.timestamp ?? "row"}-${i}`}>
+                  <button
+                    type="button"
+                    className="min-h-[44px] w-full rounded border border-white/10 bg-black/15 px-2 py-1.5 text-left hover:bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                    data-testid="settings-gate-failure-row"
+                    onClick={() => setSelectedGateFailure(row)}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[var(--muted)]">{(row.timestamp ?? "").slice(0, 19)}</span>
+                      <span className="rounded bg-amber-500/10 px-1.5 text-amber-200">
+                        profile: {row.profile ?? "—"}
+                      </span>
+                      <span className="rounded bg-red-500/10 px-1.5 text-red-200">
+                        blocking: {row.blocking_count ?? 0}
+                      </span>
+                      <span className="rounded bg-yellow-500/10 px-1.5 text-yellow-200">
+                        warn: {row.warning_count ?? 0}
+                      </span>
+                    </div>
+                    {row.issues_preview ? (
+                      <div className="mt-1 text-white/75">{row.issues_preview}</div>
+                    ) : null}
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </section>
       </div>
+
+      {selectedGateFailure ? (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-2 sm:items-center sm:justify-end sm:p-4">
+          <section
+            className="max-h-[88vh] w-full overflow-auto rounded-lg border border-white/15 bg-[var(--bg,#05070a)] p-4 shadow-2xl sm:max-w-md"
+            data-testid="settings-gate-failure-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gate failure detail"
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="m-0 text-[14px] font-semibold">Gate failure detail</h2>
+                <p className="m-0 mt-1 font-mono text-[11px] text-[var(--muted)]">
+                  {selectedGateFailure.timestamp ?? "—"}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="min-h-[44px] rounded border border-white/15 px-3 text-[12px] text-white/70 hover:text-white"
+                data-testid="settings-gate-failure-drawer-close"
+                onClick={() => setSelectedGateFailure(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="mb-3 flex flex-wrap gap-2 font-mono text-[11px]">
+              <span className="rounded bg-white/5 px-2 py-1">attempt: {selectedGateFailure.attempt ?? "—"}</span>
+              <span className="rounded bg-amber-500/10 px-2 py-1 text-amber-200">
+                profile: {selectedGateFailure.profile ?? "—"}
+              </span>
+              <span className="rounded bg-red-500/10 px-2 py-1 text-red-200">
+                blocking: {selectedGateFailure.blocking_count ?? 0}
+              </span>
+              <span className="rounded bg-yellow-500/10 px-2 py-1 text-yellow-200">
+                warn: {selectedGateFailure.warning_count ?? 0}
+              </span>
+              <span className="rounded bg-cyan-500/10 px-2 py-1 text-cyan-200">
+                issues: {selectedGateFailure.issue_count ?? 0}
+              </span>
+              <span className="rounded bg-white/5 px-2 py-1">
+                fallback: {selectedGateFailure.used_fallback ? "yes" : "no"}
+              </span>
+            </div>
+            <div className="rounded border border-white/10 bg-black/20 p-3">
+              <div className="mb-1 text-[10px] uppercase tracking-wide text-[var(--muted)]">issues_preview</div>
+              <p className="m-0 whitespace-pre-wrap text-[12px] leading-relaxed text-white/80">
+                {selectedGateFailure.issues_preview || "—"}
+              </p>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <section className="card mb-4 p-3">
         <h2 className="mb-2 text-[13px] font-semibold">建置環境（唯讀）</h2>

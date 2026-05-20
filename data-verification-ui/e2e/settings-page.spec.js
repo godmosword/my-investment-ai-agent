@@ -40,4 +40,24 @@ test.describe("FE-4 Settings hub — gate stats / poll toggle / gate failures", 
     );
     expect(cols.split(" ").length).toBe(3);
   });
+
+  test("opens gate failure detail drawer from a row", async ({ page }) => {
+    await page.goto("/settings", { waitUntil: "load" });
+    const rows = page.getByTestId("settings-gate-failure-row");
+    await expect(rows).toHaveCount(2);
+
+    await rows.first().click();
+
+    const drawer = page.getByTestId("settings-gate-failure-drawer");
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toContainText("2026-05-19T02:31:00+00:00");
+    await expect(drawer).toContainText("attempt: 2");
+    await expect(drawer).toContainText("blocking: 1");
+    await expect(drawer).toContainText("warn: 3");
+    await expect(drawer).toContainText("fallback: no");
+    await expect(drawer).toContainText("e2e mock — exec_summary 缺 market_regime");
+
+    await page.getByTestId("settings-gate-failure-drawer-close").click();
+    await expect(drawer).toHaveCount(0);
+  });
 });
