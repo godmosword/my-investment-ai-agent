@@ -4,6 +4,8 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
+**同步狀態（2026-05-20）**：新增 Frontend UX Overhaul FE-1～FE-6 隊列規劃（Mobile + Desktop Responsive；底部 Tab、SideNav 共存、可折疊卡片、Monitor split-pane、Command Bar、PWA Polish）；程式未動，純文件對齊。
+
 **同步狀態（2026-05-17 — Terminal Master Plan §3 對帳）**：[`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) 新增／補強 **§3 前端尚缺方向**，將前端缺口收斂為交付與可觀測、隊列 26 架構、Command Bar／ADR、隊列 45 live 解鎖、模組深度、效能／a11y／i18n、刻意往後與 NOT in scope；同節補 **Portal ship 對帳儀式**，規定重大 ship 後回寫 `CHANGELOG`／本檔，細項仍回 `TODOS` 隊列承接。CHANGELOG **2026-05-17** `### Docs（Terminal Master Plan §3 前端缺口盤點）`。
 
 **同步狀態（2026-05-17 — 隊列 26 Router 抽出／邊界補強／bundle 續拆 + 隊列 29 Command Bar 說明）**：[`App.jsx`](data-verification-ui/src/App.jsx) 將 route table、legacy redirects、`SymbolQuerySync`、`Shell`／`BottomNav` 包裝抽至 [`PortalRoutes.jsx`](data-verification-ui/src/app/routes/PortalRoutes.jsx)；`App.jsx` 保留全域 providers 與 Router wiring，路由行為不變。[`PortalRoutes.jsx`](data-verification-ui/src/app/routes/PortalRoutes.jsx) 以 **`React.lazy` + `<Suspense>`** 做 route-level code split（板塊頁與 `Report`／`Settings`／`ApiKeyPage`／`Archive`），主入口 bundle 縮小、**已無**既有 ~500 kB 單檔警告。[`vite.config.js`](data-verification-ui/vite.config.js) **`manualChunks`** 拆 `react`／`react-dom`／`react-router`；[`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 各 Insights tab **`React.lazy`** + 共用 `Suspense`，`SymbolDeepDive` 僅 `symbol` query 時 lazy；[`DailyBriefPage.jsx`](data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx) 對 `TerminalSymbolCard`／`ExecutionIntentsBlotter` **`lazy`**；[`TerminalSymbolCard.jsx`](data-verification-ui/src/components/TerminalSymbolCard.jsx) 內 **`SymbolCandleChart`** 再 **`lazy` + `Suspense`**，符號卡殼層與 **`lightweight-charts`** 圖表 async 分離。[`eslint.config.js`](data-verification-ui/eslint.config.js) 模組邊界擴至 `daily-brief`、`investment-analysis`、`industry-trends`、`quant-trading`；[`briefs-alias-route.spec.js`](data-verification-ui/e2e/briefs-alias-route.spec.js) 補 `/` redirect smoke。隊列 29 追加 [`TerminalCommandBar.jsx`](data-verification-ui/src/components/TerminalCommandBar.jsx) inline help 與 [`portalPhase4.js`](data-verification-ui/src/constants/portalPhase4.js) `getTerminalCommandExamples()`，只揭示現有指令與權限邊界，不新增後端 W 類指令。驗證：`cd data-verification-ui && npm run lint && npm run build && npm run test:e2e`（65/65）綠。CHANGELOG **2026-05-17** `### PWA（隊列 26 · Router 抽出／bundle 續拆）`、`### PWA（隊列 29 · Command Bar 權限說明）`；[`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) §3.2／§3.6／修訂紀錄。
@@ -302,6 +304,66 @@
     - **P5-live PR-0**（governance only，2026-05-16）：§2 + §7 登錄 Binance public futures／Glassnode／CryptoQuant 三來源。
     - **P5-live PR-C**（2026-05-16）：[`tools/binance_funding_rate.py`](tools/binance_funding_rate.py) + `ONCHAIN_FUNDING_LIVE` flag；Binance public futures premiumIndex 抓 BTC/ETH 8h funding 並 annualize；8 backend tests + 3 onchain tests 綠。
     - **剩 backlog**：MVRV-Z／exchange flow live（Glassnode／CryptoQuant 付費待決）／HBM live（TrendForce 訂閱待決）／44b 進階收斂。P1 / M。
+
+46. **Frontend UX Overhaul — Mobile + Desktop（FE-1 ~ FE-6）｜FE-1：Responsive App Shell（Mobile Bottom Tab + Desktop Side Nav 共存）**
+    **FE-1（待實作）**：建立同時支援手機與桌面的 App Shell，以 CSS breakpoint 決定導覽模式，不拆分 codebase — 見 TODOS.md 本節。
+    - 新增 [`data-verification-ui/src/app/layout/BottomTabBar.jsx`](data-verification-ui/src/app/layout/BottomTabBar.jsx)（三 Tab：日報 / 監控 / 設定）；`md:hidden`（桌面隱藏）；手機固定底部，高度 56px。
+    - 修改 [`data-verification-ui/src/app/layout/SideNav.jsx`](data-verification-ui/src/app/layout/SideNav.jsx)：`hidden md:flex`（手機隱藏，桌面 240px 側欄）。
+    - [`data-verification-ui/src/App.jsx`](data-verification-ui/src/App.jsx) route 統一：`/briefs`（日報）、`/monitor`（監控）、`/settings`（設定）；BottomTab 與 SideNav 共用同一 route，不各自維護。
+    - [`data-verification-ui/src/index.css`](data-verification-ui/src/index.css) 補 CSS variables：`--bottom-tab-height: 56px`（手機 body padding-bottom）、`--sidebar-width: 240px`（桌面 main content offset）。
+    - 桌面主內容區維持現有 `max-width: 1120px` 置中，手機全寬。
+    - 驗收：`cd data-verification-ui && npm run test:e2e` mobile viewport（375px）+ desktop viewport（1280px）smoke。
+    - CHANGELOG 對齊：完成後寫入 `### PWA（隊列 46 · FE-1 Responsive App Shell）`。P1 / M。
+
+47. **Frontend UX Overhaul — FE-2：Daily Brief 頁重構（可折疊卡片 + Profile 切換 + Ticker 橫條）**
+    **FE-2（待實作）**：手機與桌面共用同一組件，版型自動響應；卡片可折疊、Ticker 橫條與 Profile 切換條 — 見 TODOS.md 本節。
+    - [`data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx`](data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx) 拆出 `<BriefSectionCard>`（標題 + chevron + 折疊 body）；手機單欄全寬，桌面可選雙欄（`md:grid md:grid-cols-2`，儀表板 + 新聞並列）。
+    - 頁頂 `<TickerStrip>`：手機橫向 scroll，桌面固定顯示全部代號（wrap 換行）；資料來自 `GET /api/symbols/{symbol}/quote`，symbols 讀 [`assets_config.json`](assets_config.json)。
+    - Header `<GateBadge>`：gate_passed 狀態來自 `GET /api/reports/{report_date}/html`。
+    - `<ProfileSwitcher>` 橫條：full / lite / crypto-only，切換後 re-fetch 對應 profile；手機 scroll 橫條，桌面 inline button group。
+    - 新增組件：[`data-verification-ui/src/modules/daily-brief/components/BriefSectionCard.jsx`](data-verification-ui/src/modules/daily-brief/components/BriefSectionCard.jsx)、[`TickerStrip.jsx`](data-verification-ui/src/modules/daily-brief/components/TickerStrip.jsx)、[`GateBadge.jsx`](data-verification-ui/src/modules/daily-brief/components/GateBadge.jsx)、[`ProfileSwitcher.jsx`](data-verification-ui/src/modules/daily-brief/components/ProfileSwitcher.jsx)。
+    - E2E：[`data-verification-ui/e2e/daily-brief-collapse.spec.js`](data-verification-ui/e2e/daily-brief-collapse.spec.js)（mobile + desktop viewport 各自驗收）。
+    - CHANGELOG 對齊：完成後寫入 `### PWA（隊列 47 · FE-2 Daily Brief 重構）`。P1 / M。
+
+48. **Frontend UX Overhaul — FE-3：Monitor 頁（Watchlist + 搜尋 + 即時報價）**
+    **FE-3（待實作）**：手機列表式，桌面可選 split-pane（左 watchlist / 右 symbol 詳情） — 見 TODOS.md 本節。
+    - 新增 [`data-verification-ui/src/modules/monitor/pages/MonitorPage.jsx`](data-verification-ui/src/modules/monitor/pages/MonitorPage.jsx)。
+    - `<WatchlistRow>`：symbol / 公司名 / price / 漲跌幅 badge（up/dn 色碼）。
+    - 搜尋框 client-side filter（不重新 fetch）。
+    - 桌面增加 `<SymbolDetailPanel>`（右側 pane）：點擊 WatchlistRow 後顯示 `SymbolCandleChart` + snapshot，複用現有 [`data-verification-ui/src/components/SymbolCandleChart.jsx`](data-verification-ui/src/components/SymbolCandleChart.jsx)；手機則 navigate 至 [`data-verification-ui/src/modules/monitor/pages/SymbolDetailPage.jsx`](data-verification-ui/src/modules/monitor/pages/SymbolDetailPage.jsx)。
+    - 輪詢 `useSymbolQuote` hook，間隔沿用 `VITE_TERMINAL_POLL_MS`（預設 45000ms）。
+    - Watchlist symbols 初始讀 [`assets_config.json`](assets_config.json)；使用者自訂存 localStorage（key: `wl_symbols`）。
+    - E2E：[`data-verification-ui/e2e/monitor-watchlist.spec.js`](data-verification-ui/e2e/monitor-watchlist.spec.js)（search filter + split-pane visible on desktop）。
+    - CHANGELOG 對齊：完成後寫入 `### PWA（隊列 48 · FE-3 Monitor 頁）`。P1 / M。
+
+49. **Frontend UX Overhaul — FE-4：Settings 頁集中化**
+    **FE-4（待實作）**：手機與桌面共用，桌面以 sections 並列，手機單欄堆疊 — 見 TODOS.md 本節。
+    - 新增 [`data-verification-ui/src/modules/settings/pages/SettingsPage.jsx`](data-verification-ui/src/modules/settings/pages/SettingsPage.jsx)。
+    - Status 區（唯讀）：Telegram Bot 連線狀態 / BQ 專案 / Gate 近 7 天通過率。
+    - Toggle 區（儲存 localStorage）：推播通知（`WEB_PUSH_*`）/ 盤中輪詢頻率（15s/45s/120s）。
+    - Gate 失敗記錄列表：`GET /api/gate-failures?days=7`；若此 endpoint 不存在，同步於 [`api.py`](api.py) 新增，讀 BQ `gate_failure_log`。
+    - 桌面三欄 grid（`md:grid-cols-3`）：狀態 / 設定 / 記錄；手機單欄堆疊。
+    - E2E：[`data-verification-ui/e2e/settings-page.spec.js`](data-verification-ui/e2e/settings-page.spec.js)（smoke：toggle renders + gate list visible）。
+    - CHANGELOG 對齊：完成後寫入 `### PWA（隊列 49 · FE-4 Settings 集中化）` 與必要時 `### API（/api/gate-failures）`。P2 / M。
+
+50. **Frontend UX Overhaul — FE-5：Desktop Power Features（Command Bar + 鍵盤快捷鍵）**
+    **FE-5（待實作）**：桌面專屬體驗提升，手機不顯示 — 見 TODOS.md 本節。
+    - 新增 [`data-verification-ui/src/components/CommandBar.jsx`](data-verification-ui/src/components/CommandBar.jsx)（`hidden md:block`）：`Cmd+K` 開啟，支援代號搜尋跳轉（`/monitor?symbol=NVDA`）、Profile 快速切換、Gate log 快速查看。
+    - 鍵盤快捷鍵 registry（[`data-verification-ui/src/hooks/useKeyboardShortcuts.js`](data-verification-ui/src/hooks/useKeyboardShortcuts.js)）：`G B` → 日報、`G M` → 監控、`G S` → 設定（仿 GitHub / Linear 模式）。
+    - [`data-verification-ui/src/app/layout/SideNav.jsx`](data-verification-ui/src/app/layout/SideNav.jsx) 桌面版新增 keyboard hint tooltip（`⌘K`）。
+    - 不影響手機：所有 event listener 在 `useEffect` 內加 `if (window.innerWidth < 768) return`。
+    - E2E：[`data-verification-ui/e2e/command-bar.spec.js`](data-verification-ui/e2e/command-bar.spec.js)（desktop only：Cmd+K opens + symbol search navigates）。
+    - CHANGELOG 對齊：完成後寫入 `### PWA（隊列 50 · FE-5 Command Bar + Shortcuts）`。P2 / M。
+
+51. **Frontend UX Overhaul — FE-6：Mobile 觸控優化 + PWA Polish + 跨裝置驗收**
+    **FE-6（待實作）**：對齊 [`DESIGN.md`](DESIGN.md) 的 44px 觸控標準，確保手機與桌面都通過 E2E — 見 TODOS.md 本節。
+    - 全頁掃描 touch target < 44px 的可互動元素，補 `min-height: 44px`。
+    - BottomTabBar active 狀態動畫（icon scale 1.1 + label fade）。
+    - 離線橫幅：DailyBriefPage 與 MonitorPage 在 `navigator.onLine === false` 時顯示 `today-offline-banner`（對齊 [`data-verification-ui/src/service-worker.js`](data-verification-ui/src/service-worker.js) NetworkOnly /api 策略）。
+    - [`data-verification-ui/src/index.css`](data-verification-ui/src/index.css) 清理 dead CSS（以 Find All References 確認無組件引用後移除）。
+    - `cd data-verification-ui && npm run build && npm run test:e2e`（mobile 375px + desktop 1280px）全綠。
+    - 更新 [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) 「PWA 行動裝置 + 桌面體驗」驗收欄。
+    - CHANGELOG 對齊：完成後寫入 `### PWA（隊列 51 · FE-6 Mobile 觸控 + PWA Polish）`。P2 / M。
 
 ---
 
