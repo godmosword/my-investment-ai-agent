@@ -56,16 +56,19 @@ export default function BriefSectionCard({ blockId, label, children, defaultColl
 
   return (
     <div className="brief-section-card" data-testid="brief-section-card" data-block-id={blockId} data-collapsed={collapsed}>
-      <button
-        type="button"
-        className="brief-section-card__toggle"
-        aria-expanded={!collapsed}
-        aria-label={buttonLabel}
-        title={buttonLabel}
-        onClick={toggle}
-      >
-        <span aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
-      </button>
+      <div className="brief-section-card__header">
+        <span className="brief-section-card__label">{label || blockId}</span>
+        <button
+          type="button"
+          className="brief-section-card__toggle"
+          aria-expanded={!collapsed}
+          aria-label={buttonLabel}
+          title={buttonLabel}
+          onClick={toggle}
+        >
+          <span aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
+        </button>
+      </div>
       <div className="brief-section-card__body" hidden={collapsed}>
         {children}
       </div>

@@ -1414,22 +1414,46 @@ html, body, #root {
 
 /* ── FE-2 — BriefSectionCard / TickerStrip / GateBadge ── */
 .brief-section-card {
-  position: relative;
-  margin-bottom: 0;
+  margin-bottom: 10px;
 }
 
 .brief-section-card[data-collapsed="true"] .brief-section-card__body {
   display: none;
 }
 
+.brief-section-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.brief-section-card[data-collapsed="true"] .brief-section-card__header {
+  border-radius: 8px;
+}
+
+.brief-section-card__label {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .brief-section-card__toggle {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 2;
-  min-width: 32px;
-  min-height: 32px;
-  padding: 4px 8px;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 12px;
   font-size: 14px;
   line-height: 1;
   color: var(--muted);
