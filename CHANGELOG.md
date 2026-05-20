@@ -5,6 +5,19 @@
 
 ## 2026-05-20
 
+### PWA（隊列 47 · FE-2 Daily Brief 重構差距補完）
+
+- **背景**：FE-2 規格目標檔 [`data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx`](data-verification-ui/src/modules/daily-brief/pages/DailyBriefPage.jsx) 實際是 Terminal 工作區（symbol cards 容器），真正的「每日戰報頁」是 [`/report/:date` → `pages/Report.jsx`](data-verification-ui/src/pages/Report.jsx) 渲染的 [`components/report/StructuredReportView.jsx`](data-verification-ui/src/components/report/StructuredReportView.jsx)。本切片在 `StructuredReportView` 補 FE-2 差距。
+- **新組件**：
+  - [`components/report/BriefSectionCard.jsx`](data-verification-ui/src/components/report/BriefSectionCard.jsx) — chevron 折疊鈕；折疊狀態以 `qs_brief_card_collapse_v1` localStorage 按 `blockId` 持久化；不重複顯示標題，純疊加折疊行為（內含 `BlockSection` 仍負責標題、anchor、gate badge）。
+  - [`components/report/TickerStrip.jsx`](data-verification-ui/src/components/report/TickerStrip.jsx) — 頁頂主代號條，預設 `BTC / ETH / SPY / NVDA / MSFT / TSM`；手機 `overflow-x` 橫向 scroll、桌面 `min-width: 768px` 後 `flex-wrap: wrap`；資料源走既有 `useSymbolQuote`（不開額外輪詢、stale time 60s）。
+  - [`components/report/GateBadge.jsx`](data-verification-ui/src/components/report/GateBadge.jsx) — 緊湊 `Gate ✓` ／ `Gate ✗ (N)` 徽章；`gate_summary.available !== true` 時不渲染，與既有大紅色 `gateBanner` 共存（後者仍顯示問題清單）。
+- **`StructuredReportView`**：頂部插入 `<TickerStrip />`、頭部副標 inline 插入 `<GateBadge gateSummary=…/>`、`blockIds.map` 改以 `<BriefSectionCard blockId={bid} label={blockSectionTitle(...)}>` 包覆每個 `<BlockSection>`。每塊區段的 anchor／GateStatusBadge／AsOf chip 全部沿用，折疊不影響 hash 跳轉。
+- **CSS**：[`index.css`](data-verification-ui/src/index.css) 末段新增 `.brief-section-card`／`.brief-section-card__toggle`（44px 觸控）、`.ticker-strip`（mobile scroll → 768px+ wrap）、`.gate-badge`／`--ok`／`--fail` 三套樣式。
+- **E2E**：新增 [`e2e/daily-brief-collapse.spec.js`](data-verification-ui/e2e/daily-brief-collapse.spec.js) 三案：ticker chip（BTC）渲染、chevron 折疊／展開 `data-collapsed` 切換、桌面 1280px viewport `flex-wrap: wrap`。
+- **刻意未實作**：規格的「桌面雙欄（儀表板 + 新聞並列）」對長敘事戰報可讀性不利，沿用單欄；ProfileSwitcher 已存在於 [`BriefProfileBar.jsx`](data-verification-ui/src/components/report/BriefProfileBar.jsx)（`full / lite / crypto-only` select），不另建。
+- **驗證**：`cd data-verification-ui && npm run lint && npm run build` 綠（67 modules transformed、PWA bundle 重建成功）；E2E 隨後續 CI run 覆蓋。
+
 ### PWA（隊列 46 · FE-1 Responsive App Shell 差距補完）
 
 - **背景**：核對 [`TODOS.md`](TODOS.md) FE-1 規格時發現 App Shell 主體（mobile BottomNav + desktop SideNav 共存）早期已隨 5 板塊改版交付（[`data-verification-ui/src/components/BottomNav.jsx`](data-verification-ui/src/components/BottomNav.jsx) + `.bottom-nav` 在 768px+ `display:none`；[`data-verification-ui/src/app/layout/SideNav.jsx`](data-verification-ui/src/app/layout/SideNav.jsx) + `.side-nav` 手機 `display:none`、768px+ `display:flex`；BottomNav 與 SideNav 共用同一組 5 板塊 routes + `/settings`）。本切片只補規格的差距。

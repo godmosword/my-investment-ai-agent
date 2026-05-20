@@ -1411,3 +1411,120 @@ html, body, #root {
   padding-left: 1.75rem;
   color: var(--muted);
 }
+
+/* ── FE-2 — BriefSectionCard / TickerStrip / GateBadge ── */
+.brief-section-card {
+  position: relative;
+  margin-bottom: 0;
+}
+
+.brief-section-card[data-collapsed="true"] .brief-section-card__body {
+  display: none;
+}
+
+.brief-section-card__toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.brief-section-card__toggle:hover,
+.brief-section-card__toggle:focus-visible {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ticker-strip {
+  display: flex;
+  gap: 8px;
+  padding: 8px 4px 10px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 768px) {
+  .ticker-strip {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+.ticker-strip__chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ticker-strip__symbol {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.ticker-strip__price {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.ticker-strip__price--muted {
+  color: var(--muted);
+}
+
+.ticker-strip__change {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ticker-strip__chip--up .ticker-strip__change {
+  color: var(--green);
+}
+
+.ticker-strip__chip--down .ticker-strip__change {
+  color: var(--red);
+}
+
+.gate-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+}
+
+.gate-badge--ok {
+  color: var(--green);
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.gate-badge--fail {
+  color: var(--red);
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.08);
+}

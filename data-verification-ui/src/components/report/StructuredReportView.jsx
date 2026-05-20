@@ -5,9 +5,13 @@ import SymbolFocusBar from "../SymbolFocusBar";
 import AsOfChip from "../common/AsOfChip";
 import BriefProfileBar from "./BriefProfileBar";
 import BlockSection from "./BlockSection";
+import BriefSectionCard from "./BriefSectionCard";
+import TickerStrip from "./TickerStrip";
+import GateBadge from "./GateBadge";
 import GateIssuesNavigator from "./GateIssuesNavigator";
 import GateIssuesDrawer from "./GateIssuesDrawer";
 import BriefLayoutsReference from "./BriefLayoutsReference";
+import { blockSectionTitle } from "./legacyBlockContent";
 import { gateIssueLiClass } from "./gateIssueSeverity";
 
 /**
@@ -73,6 +77,7 @@ export default function StructuredReportView({
   return (
     <>
       <SymbolFocusBar compact />
+      <TickerStrip />
       <div className="page-header" data-testid="structured-report-view">
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <Link to="/insights" style={{ color: "var(--muted)", textDecoration: "none", fontSize: 14 }}>
@@ -95,6 +100,7 @@ export default function StructuredReportView({
           {typeof onProfileChange === "function" ? (
             <BriefProfileBar value={profileUi} onChange={onProfileChange} />
           ) : null}
+          <GateBadge gateSummary={gateSummary} />
           <AsOfChip label="資料截至" asOf={asOf} source="BigQuery · daily_metrics" />
           <a
             href={`/api/reports/${reportDate}/html?download=1&profile=${profileUi}`}
@@ -190,16 +196,17 @@ export default function StructuredReportView({
       </div>
 
       {blockIds.map((bid) => (
-        <BlockSection
-          key={bid}
-          blockId={bid}
-          registryEntry={registry[bid]}
-          legacy={legacy}
-          dailyBriefReport={dailyBriefReport}
-          structuredOk={structuredOk}
-          blockGateIssues={issuesByBlock[bid]}
-          asOf={asOf}
-        />
+        <BriefSectionCard key={bid} blockId={bid} label={blockSectionTitle(bid, registry[bid])}>
+          <BlockSection
+            blockId={bid}
+            registryEntry={registry[bid]}
+            legacy={legacy}
+            dailyBriefReport={dailyBriefReport}
+            structuredOk={structuredOk}
+            blockGateIssues={issuesByBlock[bid]}
+            asOf={asOf}
+          />
+        </BriefSectionCard>
       ))}
     </>
   );
