@@ -260,6 +260,8 @@
 
 **Codex／Agent 自包含 handoff（2026-05-20）**：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md) — NEXT-1..NEXT-5 切片規格、驗收與驗證指令（建議順序：契約測試 → a11y → Gate drawer → Quant intraday → 44b 文件）。
 
+**NEXT-5 / 52-F0-1 已交付（2026-05-20）**：新增 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py)，補 `api.py` inline routes 契約安全網（reports list／legacy report／gate-status／html 404／qsrec-stats／trades／positions/open／trades performance／push subscribe 422 等），未改 API 語意。CHANGELOG **2026-05-20** `### Tests（隊列 9 續 · api.py contract / NEXT-5）`。
+
 **免費資料擴充（2026-05-20 規劃 · 隊列 52–56）**：付費源（Glassnode／CryptoQuant／TrendForce）**暫緩**；四軸 **A 鏈上／B 算力／C 宏觀／D 財報** 分 Phase **F0→FA→FB→FC→FD** 入列，見 [§ 免費資料擴充](#free-data-expansion-queue-52)。**建議實作順序**：**52（F0）→ 53（FA）→ 54（FB）→ 55（FC）→ 56（FD）**；可與 CODEX NEXT-5（隊列 52 重疊）／NEXT-2（Quant 與 FA 末尾）交錯，但 **每切片一 PR**。
 
 依維護者順序與工程可切性排列；**完成後**把對應句寫進 CHANGELOG，並在本節刪行或改「✓」。
@@ -339,7 +341,7 @@
 
 | 切片 | 目標 | 主要產出 | 驗收（最小） |
 |------|------|----------|--------------|
-| **F0-1** | `api.py` 契約安全網 | 擴充 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py) 或 [`test_api_contract_smoke.py`](tests/api/test_api_contract_smoke.py)（≥8 條 `api.py` inline route） | `pytest tests/api/ -q` 綠 |
+| ~~**F0-1**~~ | `api.py` 契約安全網 | **2026-05-20 已交付**：新增 [`tests/api/test_api_py_contract.py`](tests/api/test_api_py_contract.py)（≥8 條 `api.py` inline route） | `pytest tests/api/test_api_py_contract.py -q` 綠；全 `tests/api/` 驗證見本次紀錄 |
 | **F0-2** | 免費源治理登錄 | [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) §2 增 **CoinGecko**／**alternative.me**（active）；**DefiLlama**、**Blockchain.info** 等若接入走 §3 審核表 | 文件 + ENV 註記 |
 | **F0-3** | 共用 fetch 契約 | 新指標一律 `tools/*.py` + `_get_cache`／`_set_cache`（或抽 `tools/market_free.py`），**禁止**在 JSX 直接打外部 URL | 每源 ≥1 pytest |
 | **F0-4** | `DASHBOARD_CONTRACT` 一節 | 補「免費擴充區塊」欄位語意（onchain valuation／macro series／earnings strip） | 與 API JSON 一致 |
@@ -410,7 +412,7 @@
 
 ### 隊列 52–56 一覽（勾選用）
 
-52. **免費資料擴充 — Phase F0 橫切底座** — 見上表 **F0-1～F0-4**；優先對齊 CODEX **NEXT-5**（契約測試）。**依賴**：無。**交付後**改 ~~刪線~~ 並寫 CHANGELOG `### Tests`／`### Docs（免費資料 F0）`。P1 / S。
+52. **免費資料擴充 — Phase F0 橫切底座** — **F0-1 / NEXT-5 已交付（2026-05-20）**；剩 **F0-2～F0-4**（治理登錄、共用 fetch 契約、`DASHBOARD_CONTRACT` 免費擴充區塊）。**依賴**：無。P1 / S。
 
 53. **免費資料擴充 — Phase FA 加密鏈上／情緒（軸 A）** — 見上表 **FA-1～FA-4**；**刻意不做** CryptoQuant／Glassnode 付費 MVRV／CEX 淨流。**依賴**：隊列 **52** F0-2／F0-3。**可與** CODEX NEXT-2（Quant intraday）**同迭代或緊鄰**。P1 / M。
 
