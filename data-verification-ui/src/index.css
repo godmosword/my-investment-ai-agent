@@ -1712,3 +1712,25 @@ html, body, #root {
 .settings-grid > .card {
   margin-bottom: 0;
 }
+
+/* ── FE-5 — SideNav keyboard shortcut hint (desktop hint chip) ── */
+.side-nav__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.side-nav__hint kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}

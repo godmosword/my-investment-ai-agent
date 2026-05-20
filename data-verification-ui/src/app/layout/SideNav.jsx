@@ -81,6 +81,18 @@ export default function SideNav() {
 
       <div className="side-nav__footer">
         <div
+          className="side-nav__hint"
+          data-testid="side-nav-shortcut-hint"
+          title="鍵盤捷徑：⌘K 聚焦 Command Bar；G→B 觀點 / G→M 監控 / G→S 設定"
+        >
+          <span>捷徑</span>
+          <kbd>⌘K</kbd>
+          <span>·</span>
+          <kbd>G B</kbd>
+          <kbd>G M</kbd>
+          <kbd>G S</kbd>
+        </div>
+        <div
           style={{
             fontSize: 10,
             color: "var(--muted)",
@@ -88,6 +100,7 @@ export default function SideNav() {
             display: "flex",
             alignItems: "center",
             gap: 6,
+            marginTop: 6,
           }}
         >
           <span>即時串流</span>
