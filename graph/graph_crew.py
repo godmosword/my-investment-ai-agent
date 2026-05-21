@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+import threading
 from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
@@ -132,10 +132,16 @@ def build_research_graph() -> Any:
     return builder.compile()
 
 
-@lru_cache(maxsize=1)
+_thread_local_graph = threading.local()
+
+
 def get_compiled_research_graph() -> Any:
-    """Singleton graph to reduce compile overhead in production pipeline."""
-    return build_research_graph()
+    """Per-thread compiled graph: main.py 雙 category 並行 invoke 時避免共用 Pregel 實例。"""
+    compiled = getattr(_thread_local_graph, "compiled", None)
+    if compiled is None:
+        compiled = build_research_graph()
+        _thread_local_graph.compiled = compiled
+    return compiled
 
 
 def run_langgraph_category(

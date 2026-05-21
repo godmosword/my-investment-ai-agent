@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 import graph.graph_nodes as graph_nodes
-from graph.graph_crew import build_research_graph, run_langgraph_category
+from graph.graph_crew import build_research_graph, get_compiled_research_graph, run_langgraph_category
 from graph.graph_nodes import (
     arbiter_node,
     deep_research_node,
@@ -65,6 +67,22 @@ class _FakeFormatterLLM:
             )
 
         return _runner
+
+
+def test_get_compiled_research_graph_is_per_thread() -> None:
+    """main.py 雙 category ThreadPool 並行時，各 thread 應有獨立 compiled graph。"""
+    results: dict[str, int] = {}
+
+    def _worker(key: str) -> None:
+        results[key] = id(get_compiled_research_graph())
+
+    t1 = threading.Thread(target=_worker, args=("a",))
+    t2 = threading.Thread(target=_worker, args=("b",))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    assert results["a"] != results["b"]
 
 
 def test_merge_raw_data_is_non_mutating() -> None:
