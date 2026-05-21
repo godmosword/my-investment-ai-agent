@@ -98,6 +98,23 @@ function BtcValuationBlock({ block }) {
 }
 
 function ExchangeFlowBlock({ block }) {
+  if (block?.enabled === false) {
+    return (
+      <section data-testid="onchain-exchange-flow" className="rounded border border-amber-300/25 bg-amber-400/[0.03] p-3">
+        <header className="mb-2 flex items-center justify-between gap-2">
+          <div>
+            <div className="card-title">交易所淨流入</div>
+            <div className="text-[11px] text-[var(--muted)]">CEX 淨流：無免費同級來源</div>
+          </div>
+          <SourceBadge source="disabled" />
+        </header>
+        <div className="rounded border border-white/10 bg-black/20 p-2 text-[12px] text-amber-100/85">
+          無免費同級來源；CryptoQuant / Glassnode 付費資料仍為 pending。此區塊不使用 mock 淨流數字。
+        </div>
+        {block.reason ? <div className="mt-2 text-[11px] text-[var(--muted)]">reason: <code>{block.reason}</code></div> : null}
+      </section>
+    );
+  }
   const items = Array.isArray(block?.items) ? block.items : [];
   return (
     <section data-testid="onchain-exchange-flow" className="rounded border border-white/10 bg-white/[0.02] p-3">

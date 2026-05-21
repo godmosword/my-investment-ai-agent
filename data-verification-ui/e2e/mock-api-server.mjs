@@ -1384,13 +1384,11 @@ const server = http.createServer((req, res) => {
       },
       exchange_flow: {
         as_of: "2026-05-16",
-        source: "mock",
-        note: "7-day net flow (USD).",
-        items: [
-          { venue: "All CEX", window_days: 7, net_flow_usd: -210_000_000 },
-          { venue: "Binance", window_days: 7, net_flow_usd: -85_000_000 },
-          { venue: "Coinbase", window_days: 7, net_flow_usd: 12_500_000 },
-        ],
+        enabled: false,
+        source: "none",
+        reason: "no_free_equivalent",
+        note: "CEX netflow has no approved free equivalent.",
+        items: [],
       },
       funding_rate: {
         as_of: "2026-05-16",
@@ -1401,6 +1399,7 @@ const server = http.createServer((req, res) => {
           { asset: "ETH", venue: "Binance", funding_apr_pct: 4.2 },
         ],
       },
+      live_block_status: { valuation: "mock", exchange_flow: "disabled", funding: "mock" },
     });
     return;
   }

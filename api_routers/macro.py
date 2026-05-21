@@ -586,6 +586,16 @@ def get_onchain_metrics() -> dict[str, Any]:
         else:
             funding_status = "fallback"
 
+    exchange_flow_block = dict(body.get("exchange_flow") or {})
+    exchange_flow_block = {
+        "enabled": False,
+        "as_of": exchange_flow_block.get("as_of") or body.get("as_of"),
+        "source": "none",
+        "reason": "no_free_equivalent",
+        "note": "CEX netflow has no approved free equivalent; CryptoQuant/Glassnode paid feeds remain pending.",
+        "items": [],
+    }
+
     payload = {
         "enabled": True,
         "live": bool(body.get("live", False)) and live_env,
@@ -593,11 +603,11 @@ def get_onchain_metrics() -> dict[str, Any]:
         "as_of": body.get("as_of"),
         "disclaimer": body.get("disclaimer"),
         "btc_valuation": body.get("btc_valuation") or {},
-        "exchange_flow": body.get("exchange_flow") or {},
+        "exchange_flow": exchange_flow_block,
         "funding_rate": funding_block,
         "live_block_status": {
             "valuation": "mock",
-            "exchange_flow": "mock",
+            "exchange_flow": "disabled",
             "funding": funding_status,
         },
     }

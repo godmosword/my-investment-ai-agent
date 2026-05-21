@@ -10,6 +10,8 @@
 
 **同步狀態（2026-05-21 — 隊列 52 F0 免費資料治理底座）**：[`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) 補登 CoinGecko public/Demo API、Alternative.me Fear & Greed、Blockchain.com charts、DefiLlama public API（pending）；[`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 新增「免費資料擴充區塊」欄位語意與降級契約；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補治理註記。未新增 fetcher、未新增讀取中的 secret。CHANGELOG **2026-05-21** `### Docs（隊列 52 · F0 免費資料治理底座）`。
 
+**同步狀態（2026-05-21 — 隊列 53 FA-2 exchange-flow honesty）**：[`GET /api/macro/onchain`](api_routers/macro.py) 的 `exchange_flow` 改為 `enabled=false`／`reason=no_free_equivalent`／`live_block_status.exchange_flow=disabled`，Portal [`OnchainMetricsPanel.jsx`](data-verification-ui/src/components/OnchainMetricsPanel.jsx) 顯示「CEX 淨流：無免費同級來源」，不再渲染 All CEX／Binance／Coinbase mock 淨流表。未新增資料源、未用 funding 冒充 netflow、未動日報 pipeline。CHANGELOG **2026-05-21** `### API/PWA（隊列 53 · FA-2 exchange-flow honesty）`。
+
 **同步狀態（2026-05-20 — 免費資料擴充路線 F0～FD · A/B/C/D 入列）**：維護者決策 **不採** Glassnode／CryptoQuant／TrendForce 付費訂閱；改以 **free／freemium 盤活 + Portal 露出** 拉高 Bloomberg 對齊之資料廣度（隊列 **52–56**）。橫切 **F0** 對齊 [`CODEX_NEXT_BATCH`](docs/CODEX_NEXT_BATCH.md) NEXT-5／治理表；**FA** 加密鏈上／情緒、**FB** 算力／半導體、**FC** 宏觀、**FD** 財報／基本面。隊列 **45** 付費 live backlog 改列「刻意延後」。見本檔 [「免費資料擴充（隊列 52–56）」](#free-data-expansion-queue-52)。
 
 **同步狀態（2026-05-20 — Codex 下一批 handoff 文件）**：新增 [`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)（NEXT-1 touch target／dead CSS、NEXT-2 Quant intraday、NEXT-3 Gate failure drawer、NEXT-4 44b 密度盤點、NEXT-5 `api.py` contract tests；建議順序與 FE-6 延後項對齊）。CHANGELOG **2026-05-20** `### Docs（Codex 下一批 handoff）`。
@@ -371,7 +373,7 @@
 | 切片 | 目標 | DO | DO NOT |
 |------|------|-----|--------|
 | **FA-1** | 估值區塊 free live | 新 `tools/coingecko_metrics.py`（或薄封裝）拉 BTC market_chart／global；**Fear & Greed** 走 `alternative.me`；併入 `get_onchain_metrics()` `valuation` block，`source`／`as_of`／`ONCHAIN_VALUATION_LIVE` flag | 不假裝 MVRV-Z；不標 CryptoQuant 淨流 |
-| **FA-2** | 淨流區塊誠實降級 | UI 改文案：**「CEX 淨流：無免費同級來源」**；API 回 `exchange_flow.enabled: false` + `reason`；或改顯示 **Binance public** 衍生（OI／long-short，若僅用公開 endpoint）並標 `source` | 不用 mock 數字冒充 live 淨流 |
+| ~~**FA-2**~~ | 淨流區塊誠實降級 | **2026-05-21 已交付**：API 回 `exchange_flow.enabled=false` + `reason=no_free_equivalent` + `live_block_status.exchange_flow=disabled`；UI 顯示 **「CEX 淨流：無免費同級來源」**，不再顯示 mock CEX row | 不用 mock 數字冒充 live 淨流 |
 | **FA-3** | Portal 整合 | [`OnchainMetricsPanel.jsx`](data-verification-ui/src/components/OnchainMetricsPanel.jsx) 顯示 `live_block_status` 三態；[`dashboard-onchain.spec.js`](data-verification-ui/e2e/dashboard-onchain.spec.js) 擴充；可選 **Insights › Quant** 摘要列 | 不 15s 輪詢 CoinGecko（遵守 rate limit + cache） |
 | **FA-4** | 可選廣度 +1 | 治理審核後接 **DefiLlama**（TVL／協議）**或** Blockchain.info（活躍地址）單一 block | 不一次加多源 |
 
@@ -428,7 +430,7 @@
 
 52. **免費資料擴充 — Phase F0 橫切底座** — **F0-1 / NEXT-5 已交付（2026-05-20）**；**F0-2／F0-4 已交付（2026-05-21）**：治理登錄 + ENV 註記 + `DASHBOARD_CONTRACT` 免費擴充區塊。剩 **F0-3**：首個新 source 實作時落 `tools/*.py` + cache 契約與 pytest。**依賴**：無。P1 / S。
 
-53. **免費資料擴充 — Phase FA 加密鏈上／情緒（軸 A）** — 見上表 **FA-1～FA-4**；**刻意不做** CryptoQuant／Glassnode 付費 MVRV／CEX 淨流。**依賴**：隊列 **52** F0-2／F0-3。**可與** CODEX NEXT-2（Quant intraday）**同迭代或緊鄰**。P1 / M。
+53. **免費資料擴充 — Phase FA 加密鏈上／情緒（軸 A）** — **FA-2 已交付（2026-05-21）**；剩 **FA-1／FA-3／FA-4**。**刻意不做** CryptoQuant／Glassnode 付費 MVRV／CEX 淨流；CEX 淨流已明確 disabled。**依賴**：隊列 **52** F0-3（首個新 source fetch 契約）。P1 / M。
 
 54. **免費資料擴充 — Phase FB 半導體／算力（軸 B）** — 見上表 **FB-1～FB-4**；以 **開 ENV live** + UI 為主，**零訂閱**。**依賴**：隊列 **52**。**營運**：`SEC_EDGAR_CONTACT_EMAIL` 必填。P1 / M。
 

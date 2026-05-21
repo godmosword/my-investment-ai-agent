@@ -15,13 +15,11 @@
   },
   "exchange_flow": {
     "as_of": "2026-05-16",
-    "source": "mock",
-    "note": "Net flow USD over the last N days (illustrative). Positive = inflow (sell-side risk).",
-    "items": [
-      {"venue": "All CEX", "window_days": 7, "net_flow_usd": null, "note": "Replace with CryptoQuant aggregated CEX net flow."},
-      {"venue": "Binance", "window_days": 7, "net_flow_usd": null, "note": ""},
-      {"venue": "Coinbase", "window_days": 7, "net_flow_usd": null, "note": ""}
-    ]
+    "enabled": false,
+    "source": "none",
+    "reason": "no_free_equivalent",
+    "note": "CEX netflow has no approved free equivalent; CryptoQuant/Glassnode paid feeds remain pending.",
+    "items": []
   },
   "funding_rate": {
     "as_of": "2026-05-16",

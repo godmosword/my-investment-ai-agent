@@ -58,8 +58,34 @@ def test_onchain_returns_three_blocks_from_fixture(client, monkeypatch, tmp_path
     assert body["enabled"] is True
     assert body["live"] is False
     assert body["btc_valuation"]["items"][0]["metric"] == "MVRV-Z"
-    assert body["exchange_flow"]["items"][0]["venue"] == "All CEX"
+    assert body["exchange_flow"]["enabled"] is False
+    assert body["exchange_flow"]["reason"] == "no_free_equivalent"
     assert body["funding_rate"]["items"][0]["asset"] == "BTC"
+
+
+def test_exchange_flow_is_disabled_without_free_equivalent(client, monkeypatch, tmp_path):
+    path = tmp_path / "exchange-flow.json"
+    path.write_text(
+        json.dumps(
+            {
+                "btc_valuation": {"source": "mock", "items": []},
+                "exchange_flow": {
+                    "source": "mock",
+                    "items": [{"venue": "All CEX", "window_days": 7, "net_flow_usd": None}],
+                },
+                "funding_rate": {"source": "mock", "items": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ONCHAIN_FIXTURE_FILE", str(path))
+
+    body = client.get("/api/macro/onchain").json()
+
+    assert body["live_block_status"]["exchange_flow"] == "disabled"
+    assert body["exchange_flow"]["enabled"] is False
+    assert body["exchange_flow"]["reason"] == "no_free_equivalent"
+    assert body["exchange_flow"]["items"] == []
 
 
 def test_onchain_live_flag_requires_both_env_and_fixture(client, monkeypatch, tmp_path):
@@ -114,7 +140,7 @@ def test_funding_live_uses_binance_when_flag_on(client, monkeypatch, tmp_path):
     body = client.get("/api/macro/onchain").json()
     assert body["live_block_status"]["funding"] == "live"
     assert body["live_block_status"]["valuation"] == "mock"
-    assert body["live_block_status"]["exchange_flow"] == "mock"
+    assert body["live_block_status"]["exchange_flow"] == "disabled"
     assert body["funding_rate"]["source"] == "binance_fapi"
     assert {row["asset"] for row in body["funding_rate"]["items"]} == {"BTC", "ETH"}
 

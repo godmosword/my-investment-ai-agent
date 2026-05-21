@@ -16,6 +16,12 @@
 - [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 新增「免費資料擴充區塊（隊列 52 F0）」：規範 `enabled`、`live`、`as_of`、`source`、`cached`、`live_block_status`、`reason` 等欄位，以及 crypto valuation、exchange-flow honesty、compute/memory、macro series、earnings/fundamentals 的降級語意。
 - [`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補 CoinGecko／Alternative.me／Blockchain.com／DefiLlama 的治理註記；未新增任何實際讀取中的 secret，也未新增外部 fetcher。
 
+### API/PWA（隊列 53 · FA-2 exchange-flow honesty）
+
+- [`GET /api/macro/onchain`](api_routers/macro.py) 的 `exchange_flow` 不再回傳 mock CEX 淨流 row；固定回 `enabled=false`、`reason="no_free_equivalent"`、`items=[]`，且 `live_block_status.exchange_flow="disabled"`，明確表示 CryptoQuant／Glassnode 付費 feed 尚未採購。
+- [`OnchainMetricsPanel.jsx`](data-verification-ui/src/components/OnchainMetricsPanel.jsx) 對 disabled exchange-flow block 顯示「CEX 淨流：無免費同級來源」與 pending 說明，不再渲染 All CEX／Binance／Coinbase mock 淨流表。
+- 更新 [`data/onchain_metrics_mock.json`](data/onchain_metrics_mock.json)、[`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs)、[`tests/api/test_onchain_api.py`](tests/api/test_onchain_api.py)、[`dashboard-onchain.spec.js`](data-verification-ui/e2e/dashboard-onchain.spec.js)。紅線維持：未新增資料源、未用 Binance funding 冒充 CEX netflow、未動日報 pipeline。
+
 ## 2026-05-20
 
 ### Docs（Session 總表 · 隊列 57–71）

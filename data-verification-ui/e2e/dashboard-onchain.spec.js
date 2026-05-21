@@ -15,8 +15,8 @@ test.describe("Dashboard — Crypto on-chain mock panel (queue 45 · P5)", () =>
     await expect(valuation.getByText("Realized Price", { exact: true })).toBeVisible();
 
     const flow = page.getByTestId("onchain-exchange-flow");
-    await expect(flow.getByText("All CEX", { exact: true })).toBeVisible();
-    await expect(flow.getByText("Binance", { exact: true })).toBeVisible();
+    await expect(flow).toContainText("無免費同級來源");
+    await expect(flow.getByText("All CEX", { exact: true })).toHaveCount(0);
 
     const funding = page.getByTestId("onchain-funding-rate");
     await expect(funding.getByText("BTC", { exact: true })).toBeVisible();
