@@ -75,6 +75,28 @@ def _crew_parallel_research_enabled() -> bool:
     return os.getenv("CREW_DISABLE_ASYNC_RESEARCH", "").lower() not in ("1", "true", "yes")
 
 
+
+
+def _agent_for_async_lane(agent: Agent, lane: str) -> Agent:
+    """CrewAI 1.13+ AgentExecutor 禁止同一 instance 並行 invoke；async 子任務須各用獨立 Agent。"""
+    cloned = agent.copy()
+    logger.debug("async lane %s: cloned agent role=%s", lane, agent.role)
+    return cloned
+
+
+def _crew_agent_roster(*agents: Agent) -> list[Agent]:
+    """Dedupe agents by identity for Crew.agents (async lanes use agent.copy())."""
+    seen: set[int] = set()
+    roster: list[Agent] = []
+    for agent in agents:
+        aid = id(agent)
+        if aid in seen:
+            continue
+        seen.add(aid)
+        roster.append(agent)
+    return roster
+
+
 def _crypto_researcher_tools():
     core = [
         market_search_tool,
@@ -952,7 +974,7 @@ class CryptoResearchCrew:
                     產出：結構化 bullet 摘要（數值須來自工具回傳）；禁止捏造。
                 """),
                 expected_output="加密市場數據指標摘要",
-                agent=self.crypto_researcher,
+                agent=_agent_for_async_lane(self.crypto_researcher, "crypto_data"),
                 async_execution=True,
             )
             crypto_macro_task = Task(
@@ -971,7 +993,7 @@ class CryptoResearchCrew:
                     產出：宏觀日曆、相關係數、估值錨、COT、GBTC/ETHE、歷史類比之摘要 bullet；禁止捏造。
                 """),
                 expected_output="加密市場宏觀與籌碼指標摘要",
-                agent=self.crypto_researcher,
+                agent=_agent_for_async_lane(self.crypto_researcher, "crypto_macro"),
                 async_execution=True,
             )
             crypto_news_task = Task(
@@ -1000,7 +1022,7 @@ class CryptoResearchCrew:
                     另附 1～2 句市場呢喃式短評（口語、非標題），供主編參考。
                 """),
                 expected_output="3 則加密貨幣新聞結構化初稿與呢喃",
-                agent=self.crypto_researcher,
+                agent=_agent_for_async_lane(self.crypto_researcher, "crypto_news"),
                 async_execution=True,
             )
             crypto_research_tasks = [crypto_data_task, crypto_macro_task, crypto_news_task]
@@ -1098,7 +1120,11 @@ class CryptoResearchCrew:
         )
 
         crew = Crew(
-            agents=[self.crypto_researcher, self.risk_critic, self.quant_strategist],
+            agents=_crew_agent_roster(
+                *[t.agent for t in crypto_research_tasks],
+                self.risk_critic,
+                self.quant_strategist,
+            ),
             tasks=[*crypto_research_tasks, review_task, final_report_task],
             process=Process.sequential,
         )
@@ -1209,7 +1235,7 @@ class AIResearchCrew:
                     產出：可交易市場、基本面／財報錨點與可連結 ticker 的需求代理摘要；禁止捏造數字。
                 """),
                 expected_output="AI 可交易雷達、需求代理與相關美股財務摘要",
-                agent=self.ai_researcher,
+                agent=_agent_for_async_lane(self.ai_researcher, "ai_data"),
                 async_execution=True,
             )
             ai_news_task = Task(
@@ -1232,7 +1258,7 @@ class AIResearchCrew:
                     🤖 研判：2~3 句，必須點名受影響美股或 ETF；禁止捏造來源。
                 """),
                 expected_output="3 則 AI 產業新聞結構化初稿",
-                agent=self.ai_researcher,
+                agent=_agent_for_async_lane(self.ai_researcher, "ai_news"),
                 async_execution=True,
             )
             ai_research_tasks = [ai_data_task, ai_news_task]
@@ -1302,7 +1328,11 @@ class AIResearchCrew:
         )
 
         crew = Crew(
-            agents=[self.ai_researcher, self.risk_critic, self.quant_strategist],
+            agents=_crew_agent_roster(
+                *[t.agent for t in ai_research_tasks],
+                self.risk_critic,
+                self.quant_strategist,
+            ),
             tasks=[*ai_research_tasks, review_task, final_report_task],
             process=Process.sequential,
         )

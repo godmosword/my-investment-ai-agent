@@ -5,6 +5,12 @@
 
 ## 2026-05-21
 
+### Fix（GATE_EXECUTION_FAILED · CrewAI executor 並行）
+
+- **[`crew.py`](crew.py)**：`async_execution` 子任務改以 **`agent.copy()`** 各綁獨立研究員 Agent，避免 CrewAI 1.13 `AgentExecutor` 對同一 instance 並行 `invoke` 拋出 `Executor is already running` 而觸發 **`GATE_EXECUTION_FAILED`**（LangGraph legacy formatter 與 `USE_LANGGRAPH_ENGINE=0` 雙 Crew 路徑皆適用）。
+- **[`graph/graph_crew.py`](graph/graph_crew.py)**：`get_compiled_research_graph()` 改為 **per-thread** 快取，避免 `main.py` 雙 category `ThreadPoolExecutor` 共用單一 compiled graph。
+- 新增 [`test_crew_async_agent.py`](test_crew_async_agent.py)、[`test_graph_crew.py`](test_graph_crew.py) 迴歸。
+
 ### Docs（NEXT-4 · 44b high-density audit）
 
 - 新增 [`docs/PHASE4_44B_DENSITY_AUDIT.md`](docs/PHASE4_44B_DENSITY_AUDIT.md)：盤點 `/news`、`/columns`、`/insights`、`/dashboard`、`/portfolio` 與 global dock 共 25 個具體區塊，欄位含 route、DOM/testid anchor、density label、first viewport、current treatment、建議收斂、N=3 路徑影響與維護者 A/B/C 勾選欄。
