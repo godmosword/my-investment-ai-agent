@@ -70,6 +70,7 @@ from schemas import (
     MetricLine,
     NewsItem,
     TradeRecommendation,
+    normalize_optional_agency_research_output,
 )
 from validation_rules import ensure_news_timestamp_line_utc8
 
@@ -1167,8 +1168,11 @@ def _assemble_ai_section(
     }
     if state.get("deep_filing_analysis"):
         payload["deep_filing_analysis"] = state.get("deep_filing_analysis")
-    if state.get("agency_research_output"):
-        payload["agency_research_output"] = state.get("agency_research_output")
+    agency_payload = normalize_optional_agency_research_output(
+        state.get("agency_research_output")
+    )
+    if agency_payload is not None:
+        payload["agency_research_output"] = agency_payload
     return AISection.model_validate(payload)
 
 
@@ -2237,10 +2241,10 @@ def agency_researcher_node(state: ResearchGraphState) -> dict[str, Any]:
             risk_register=list(template.critical_rules[:3]),
             success_metrics={"fallback_template": str(bool(template.fallback)).lower()},
         )
-        payload = output.model_dump(mode="json")
+        agency_payload = output.model_dump(mode="json")
         return {
-            "agency_research_output": payload,
-            "raw_data": {"agency_research_output": payload},
+            "agency_research_output": agency_payload,
+            "raw_data": {"agency_research_output": output.model_dump(mode="json")},
         }
     except Exception as exc:
         logger.warning("agency_researcher_node skipped: %s", exc)
@@ -2283,11 +2287,14 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
                 langgraph_debate_context=debate_context,
                 recent_lessons=state.get("recent_lessons", ""),
             )
-            updates = {
-                k: state.get(k)
-                for k in ("deep_filing_analysis", "agency_research_output")
-                if state.get(k)
-            }
+            updates: dict[str, Any] = {}
+            if state.get("deep_filing_analysis"):
+                updates["deep_filing_analysis"] = state.get("deep_filing_analysis")
+            agency_payload = normalize_optional_agency_research_output(
+                state.get("agency_research_output")
+            )
+            if agency_payload is not None:
+                updates["agency_research_output"] = agency_payload
             if updates:
                 section = section.model_copy(update=updates)
         degraded = bool(state.get("degraded"))

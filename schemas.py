@@ -1309,6 +1309,30 @@ class AgencyResearchOutput(BaseModel):
         return self
 
 
+def normalize_optional_agency_research_output(value: object) -> dict[str, Any] | None:
+    """Return a validated agency payload dict, or None if absent/invalid.
+
+    Prevents GATE_EXECUTION_FAILED when LangGraph state carries a partial
+    agency_research_output (e.g. empty deliverables) into AISection parsing.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return None
+    if not isinstance(value, dict):
+        return None
+    if not value:
+        return None
+    try:
+        return AgencyResearchOutput.model_validate(value).model_dump(mode="json")
+    except Exception as exc:
+        logger.warning(
+            "Dropping invalid agency_research_output before AISection parse: %s",
+            exc,
+        )
+        return None
+
+
 class AISection(BaseModel):
     """AI / US equities crew structured output."""
 
@@ -1445,6 +1469,11 @@ class AISection(BaseModel):
         default=None,
         description="Optional Agency supplemental finance research; empty values are omitted from renders.",
     )
+
+    @field_validator("agency_research_output", mode="before")
+    @classmethod
+    def _coerce_agency_research_output(cls, v: object) -> object:
+        return normalize_optional_agency_research_output(v)
 
     @field_validator("qsrec", mode="before")
     @classmethod

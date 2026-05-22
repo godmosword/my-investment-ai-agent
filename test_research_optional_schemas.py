@@ -3,8 +3,12 @@ import pytest
 from schemas import (
     AgencyDeliverable,
     AgencyResearchOutput,
+    AISection,
     Citation,
     DeepFilingAnalysis,
+    MetricLine,
+    NewsItem,
+    TradeRecommendation,
 )
 
 
@@ -22,7 +26,6 @@ def test_deep_filing_analysis_requires_citations():
 
 
 def test_deep_filing_analysis_coerces_string_citation_values():
-    """Upstream may send a section label string per question instead of list[Citation]."""
     model = DeepFilingAnalysis(
         ticker="NVDA",
         filing_type="10-Q",
@@ -52,3 +55,54 @@ def test_agency_research_output_requires_cited_deliverables():
         ],
     )
     assert model.deliverables[0].citations[0].excerpt == "capex note"
+
+
+def test_aisection_drops_invalid_agency_research_output():
+    ai = AISection.model_validate(
+        {
+            "dashboard": [MetricLine(label="NVDA", value="100", change="0%")],
+            "news": [
+                NewsItem(
+                    index=i,
+                    timestamp_line="[05/22 10:00 UTC+8]",
+                    title=f"Headline {i}",
+                    source_and_nature="Source",
+                    summary="Summary.",
+                    investment_takeaway="NVDA filing context.",
+                    editor_consensus="Neutral.",
+                    pricing_note="大致已定價",
+                )
+                for i in (4, 5, 6)
+            ],
+            "pick_reason": "Filing-driven setup.",
+            "signal_conflict_summary": "多空一致。",
+            "trade_legs": [],
+            "qsrec": [
+                TradeRecommendation(
+                    asset="NVDA",
+                    direction="LONG",
+                    current_price=100.0,
+                    entry=99.0,
+                    target=110.0,
+                    stop=95.0,
+                    confidence=3,
+                    category="EQUITY",
+                    trigger="Filing",
+                    invalidation="Break stop",
+                    position_pct=6,
+                    timeframe="5-10天",
+                    narrative="Filing clarity supports the long thesis.",
+                    bull_scenario="Filing supports upside.",
+                    bear_scenario="Macro headwinds cap gains.",
+                    base_scenario="Hold above entry on filing clarity.",
+                )
+            ],
+            "agency_research_output": {
+                "agent_type": "investment_researcher",
+                "ticker": "NVDA",
+                "deliverables": [],
+                "success_metrics": {"fallback_template": "true"},
+            },
+        }
+    )
+    assert ai.agency_research_output is None
