@@ -186,8 +186,6 @@ def run_langgraph_category(
         "review_history": [],
         "trade_watch_final": [],
         "degraded": False,
-        "deep_filing_analysis": {},
-        "agency_research_output": {},
     }
 
     result = graph.invoke(initial_state, config={"recursion_limit": 40})

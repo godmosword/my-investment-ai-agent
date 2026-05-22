@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-05-22
+
+### Fix（GATE_EXECUTION_FAILED · AgencyResearchOutput 空 deliverables）
+
+- **[`schemas.py`](schemas.py)**：新增 **`normalize_optional_agency_research_output`**；**`AISection.agency_research_output`** 於解析前丟棄無效／空 **`deliverables`** payload，避免 **`AgencyResearchOutput requires at least one deliverable`** 使 **`AISection.model_validate`** 失敗並觸發 **`GATE_EXECUTION_FAILED`**／**`STRICT_CONSISTENCY_GATE`** 擋推送。
+- **[`graph/graph_nodes.py`](graph/graph_nodes.py)**：Native／Legacy formatter 組裝前套用正規化；**`agency_researcher_node`** 對 state 與 **`raw_data`** 使用獨立 **`model_dump`**，避免共用 dict 被後續改寫。
+- **[`graph/graph_crew.py`](graph/graph_crew.py)**：LangGraph 初始 state 不再預填空 **`agency_research_output: {}`**。
+- 測試：**[`test_research_optional_schemas.py`](test_research_optional_schemas.py)** **`test_aisection_drops_invalid_agency_research_output`**。
+
 ## 2026-05-21
 
 ### Fix（GATE_EXECUTION_FAILED · CrewAI executor 並行）

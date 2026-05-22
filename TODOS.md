@@ -6,6 +6,8 @@
 
 **同步狀態（2026-05-20 — Session 總表 · 隊列 57–71 入列）**：維護者策略 **工作流脊骨優先**、**不採** Glassnode／CryptoQuant／TrendForce 付費訂閱；[Session 總執行順序](#session-2026-05-20-execution-order) 收斂 CODEX **NEXT-1～5**（隊列 **57–61**）、免費資料 **52–56**、工作流／閉環／研究／規劃流程（隊列 **62–71**）。見 [§ Codex／FE-6 收尾](#codex-fe6-closeout-queue-57)、[§ 工作流脊骨](#workflow-spine-queue-62)、[§ Terminal 閉環](#terminal-closed-loop-queue-65)、[§ 研究與 Gate](#research-gate-queue-68)。
 
+**同步狀態（2026-05-22 — GATE_EXECUTION_FAILED · Agency 空 deliverables）**：[`schemas.py`](schemas.py) **`normalize_optional_agency_research_output`** + **`AISection`** 解析前丟棄無效 payload；[`graph/graph_nodes.py`](graph/graph_nodes.py) formatter 組裝與 **`agency_researcher_node`** 獨立 dump；[`graph/graph_crew.py`](graph/graph_crew.py) 初始 state 移除空 **`agency_research_output`**。CHANGELOG **2026-05-22** `### Fix（GATE_EXECUTION_FAILED · AgencyResearchOutput 空 deliverables）`。
+
 **同步狀態（2026-05-21 — NEXT-4 44b 高密度盤點）**：新增 [`docs/PHASE4_44B_DENSITY_AUDIT.md`](docs/PHASE4_44B_DENSITY_AUDIT.md)，盤點 `/news`、`/columns`、`/insights`、`/dashboard`、`/portfolio` 與 global dock 共 25 個區塊，附 DOM／`data-testid` 錨點、密度標籤、首屏可見性、建議收斂、N≤3 影響與維護者 A/B/C 勾選欄。此切片純文件，隊列 **62** 實作需等待 maintainer pick。CHANGELOG **2026-05-21** `### Docs（NEXT-4 · 44b high-density audit）`。
 
 **同步狀態（2026-05-21 — 隊列 52 F0 免費資料治理底座）**：[`REALTIME_DATA_SOURCES_GOVERNANCE.md`](docs/REALTIME_DATA_SOURCES_GOVERNANCE.md) 補登 CoinGecko public/Demo API、Alternative.me Fear & Greed、Blockchain.com charts、DefiLlama public API（pending）；[`DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) 新增「免費資料擴充區塊」欄位語意與降級契約；[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 補治理註記。未新增 fetcher、未新增讀取中的 secret。CHANGELOG **2026-05-21** `### Docs（隊列 52 · F0 免費資料治理底座）`。
