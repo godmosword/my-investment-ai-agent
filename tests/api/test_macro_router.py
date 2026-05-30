@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
 from api_routers import macro
+from tests.api.helpers import make_api_client
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
     macro._macro_cache = None
-    return TestClient(app)
+    return make_api_client(monkeypatch)
 
 
 def test_macro_snapshot_returns_eight_indicators(client, monkeypatch):

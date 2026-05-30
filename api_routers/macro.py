@@ -586,6 +586,18 @@ def get_onchain_metrics() -> dict[str, Any]:
         else:
             funding_status = "fallback"
 
+    valuation_block = dict(body.get("btc_valuation") or {})
+    valuation_status = "mock"
+    if (os.getenv("ONCHAIN_VALUATION_LIVE") or "0").strip().lower() in ("1", "true", "yes"):
+        from tools import coingecko_metrics
+
+        live_valuation = coingecko_metrics.fetch_valuation_snapshot()
+        if live_valuation:
+            valuation_block = live_valuation
+            valuation_status = "live"
+        else:
+            valuation_status = "fallback"
+
     exchange_flow_block = dict(body.get("exchange_flow") or {})
     exchange_flow_block = {
         "enabled": False,
@@ -602,11 +614,11 @@ def get_onchain_metrics() -> dict[str, Any]:
         "fixture_path": str(path),
         "as_of": body.get("as_of"),
         "disclaimer": body.get("disclaimer"),
-        "btc_valuation": body.get("btc_valuation") or {},
+        "btc_valuation": valuation_block,
         "exchange_flow": exchange_flow_block,
         "funding_rate": funding_block,
         "live_block_status": {
-            "valuation": "mock",
+            "valuation": valuation_status,
             "exchange_flow": "disabled",
             "funding": funding_status,
         },

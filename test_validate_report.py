@@ -42,7 +42,7 @@ from main import (
     _conflicting_total_risk_budget_lines,
     _qsrec_opposing_direction_same_asset,
 )
-from report_postprocess_legacy import (
+from tests.report_postprocess_legacy import (
     _auto_prefix_missing_news_tags,
     _ensure_rumor_grade_marker,
     _fix_glued_na_suffix,

@@ -2,16 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-from fastapi.testclient import TestClient
 
-from api import app
-
-
-@pytest.fixture()
-def client(monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
-    return TestClient(app)
 
 
 def test_gate_intent_index_shape(client):

@@ -6,17 +6,15 @@ import json
 from datetime import date
 
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
 from api_routers import earnings as earnings_router
+from tests.api.helpers import make_api_client
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
     earnings_router.reset_cache_for_tests()
-    return TestClient(app)
+    return make_api_client(monkeypatch)
 
 
 def test_upcoming_shape_with_no_results(client, monkeypatch):

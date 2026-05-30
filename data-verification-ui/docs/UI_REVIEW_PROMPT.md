@@ -7,7 +7,7 @@
 - `src/index.css` — responsive breakpoints（768px、1280px）、`.side-nav`、`.sse-dot`
 - `src/app/layout/Shell.jsx` — SideNav、內層 wrapper、`md:flex-row`
 - `src/components/SymbolCandleChart.jsx` — period tabs、MA20/MA50、volume histogram
-- `src/pages/Today.jsx` — regime glow、`SignalPipeline`
+- `src/modules/insights/pages/InsightsHome.jsx` — regime glow、`SignalPipeline`
 - `src/components/report/blocks/MetricsDashboardBlock.jsx` — SVG sparkline
 - `src/components/report/blocks/NewsItemsBlock.jsx` — urgency、`UrgencyBadge`
 - `src/App.jsx` — root `ErrorBoundary`

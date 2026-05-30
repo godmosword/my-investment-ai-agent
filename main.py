@@ -1374,7 +1374,9 @@ if __name__ == "__main__":
 
     # ── Tracker：儲存建議 & 每日回查未平倉部位 ───────────────────────────────
     _report_ok = bool(final_report and not final_report.startswith("🚨") and (report_valid or not STRICT_CONSISTENCY_GATE))
-    if not SKIP_BIGQUERY and _report_ok:
+    _validation_clean = bool(validation_result and validation_result.get("valid") is True)
+    _tracker_ok = bool(final_report and not final_report.startswith("🚨") and _validation_clean)
+    if not SKIP_BIGQUERY and _tracker_ok:
         _saved = tracker.save_recommendations(final_report)
         if _saved:
             logger.info("Tracker: saved %d trade recommendations.", _saved)
@@ -1382,7 +1384,7 @@ if __name__ == "__main__":
         if _closed:
             logger.info("Tracker: %d positions updated today: %s", len(_closed), _closed)
     elif not SKIP_BIGQUERY:
-        # 即使報告失敗，仍每日回查已有的未平倉建議
+        # 即使報告未達 clean pass（含 warn-pass），仍每日回查已有的未平倉建議
         tracker.check_and_update_positions()
 
     # ── Tracker：週一發送績效週報 ─────────────────────────────────────────────

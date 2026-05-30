@@ -5,17 +5,15 @@ from __future__ import annotations
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
 from api_routers import macro as macro_router
+from tests.api.helpers import make_api_client
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
     macro_router._compute_memory_reset_cache_for_tests()
-    return TestClient(app)
+    return make_api_client(monkeypatch)
 
 
 def test_compute_memory_returns_enabled_false_when_fixture_missing(client, monkeypatch, tmp_path):

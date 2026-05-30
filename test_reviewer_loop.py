@@ -23,6 +23,7 @@ from graph.graph_nodes import (
     gate_exclude_unwanted_markets,
     llm_reviewer_node,
     market_gate_node,
+    final_formatter_node,
     python_validate_node,
 )
 from graph.graph_crew import _route_after_llm_reviewer, _route_after_python_validate
@@ -118,8 +119,8 @@ def test_python_validate_enabled_valid_trades(monkeypatch: pytest.MonkeyPatch):
     assert "revision_count" not in result or result.get("revision_count") == 0
 
 
-def test_market_gate_blocks_taiwan_assets_and_writes_only_allowed(monkeypatch: pytest.MonkeyPatch):
-    """Taiwan assets are stripped before execution-intent persistence."""
+def test_market_gate_blocks_taiwan_assets_without_persisting_intents(monkeypatch: pytest.MonkeyPatch):
+    """Taiwan assets are stripped at market_gate; intents persist only in final_formatter."""
     trades = [
         _valid_trade("2330"),
         _valid_trade("00878"),
@@ -138,8 +139,39 @@ def test_market_gate_blocks_taiwan_assets_and_writes_only_allowed(monkeypatch: p
     result = market_gate_node(_base_state(category="AI", proposed_trades=trades))
 
     assert [t["asset"] for t in result["proposed_trades"]] == ["TSM", "AVGO"]
-    assert [t["asset"] for t in written[0]["proposed_trades"]] == ["TSM", "AVGO"]
+    assert written == []
 
+
+
+
+def test_final_formatter_persists_execution_intents(monkeypatch: pytest.MonkeyPatch):
+    """Execution intents are written once after review completes (final_formatter)."""
+    trades = [_valid_trade("TSM"), _valid_trade("AVGO")]
+    written: list[dict[str, Any]] = []
+    monkeypatch.setattr("graph.graph_nodes._formatter_uses_legacy_crews", lambda: True)
+    monkeypatch.setattr("graph.graph_nodes._emit_node_event", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "graph.graph_nodes.append_execution_intents",
+        lambda **kwargs: written.append(kwargs) or [],
+    )
+
+    class _FakeSection:
+        def model_dump(self, mode="json"):
+            return {"stub": True}
+
+    fake_crew = MagicMock()
+    fake_crew.run.return_value = _FakeSection()
+    state = _base_state(
+        category="AI",
+        proposed_trades=trades,
+        trade_watch_final=trades,
+        degraded=False,
+    )
+    with patch("crew.AIResearchCrew", return_value=fake_crew):
+        final_formatter_node(state)
+
+    assert len(written) == 1
+    assert [t["asset"] for t in written[0]["proposed_trades"]] == ["TSM", "AVGO"]
 
 def test_gate_exclude_unwanted_markets_ai_allows_equity_blocks_tw_crypto_and_hk():
     trades = [
@@ -282,9 +314,26 @@ def test_llm_reviewer_disabled_pass_through():
 
 
 @pytest.mark.smoke
-def test_llm_reviewer_no_api_key_pass_through(monkeypatch: pytest.MonkeyPatch):
-    """Without OPENAI_API_KEY, llm_reviewer passes through transparently."""
+def test_llm_reviewer_no_api_key_fail_closed(monkeypatch: pytest.MonkeyPatch):
+    """Without OPENAI_API_KEY, llm_reviewer fail-closed by default."""
     monkeypatch.setenv("GRAPH_LLM_REVIEWER", "1")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("GRAPH_LLM_REVIEWER_FAIL_OPEN", raising=False)
+    trades = [_valid_trade()]
+    state = _base_state(proposed_trades=trades)
+
+    result = llm_reviewer_node(state)
+
+    assert len(result["review_issues"]) > 0
+    assert result["trade_watch_final"] == []
+    assert result.get("revision_count", 0) == 1
+
+
+@pytest.mark.smoke
+def test_llm_reviewer_no_api_key_fail_open_when_enabled(monkeypatch: pytest.MonkeyPatch):
+    """GRAPH_LLM_REVIEWER_FAIL_OPEN=1 restores legacy pass-through without API key."""
+    monkeypatch.setenv("GRAPH_LLM_REVIEWER", "1")
+    monkeypatch.setenv("GRAPH_LLM_REVIEWER_FAIL_OPEN", "1")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     trades = [_valid_trade()]
     state = _base_state(proposed_trades=trades)
@@ -342,9 +391,31 @@ def test_llm_reviewer_mocked_pass(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.mark.smoke
-def test_llm_reviewer_exception_pass_through(monkeypatch: pytest.MonkeyPatch):
-    """LLM call exception causes fail-open pass-through (never blocks pipeline)."""
+def test_llm_reviewer_exception_fail_closed(monkeypatch: pytest.MonkeyPatch):
+    """LLM call exception fail-closed by default."""
     monkeypatch.setenv("GRAPH_LLM_REVIEWER", "1")
+    monkeypatch.delenv("GRAPH_LLM_REVIEWER_FAIL_OPEN", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    trades = [_valid_trade()]
+    state = _base_state(proposed_trades=trades)
+
+    with patch(
+        "symbol_snapshot_service.build_reviewer_ground_truth_block",
+        return_value="[GROUND_TRUTH — test]\n  BTC: last=1",
+    ):
+        with patch("graph.graph_nodes._get_reviewer_llm", side_effect=RuntimeError("network error")):
+            result = llm_reviewer_node(state)
+
+    assert len(result["review_issues"]) > 0
+    assert result["trade_watch_final"] == []
+    assert result.get("revision_count", 0) == 1
+
+
+@pytest.mark.smoke
+def test_llm_reviewer_exception_fail_open_when_enabled(monkeypatch: pytest.MonkeyPatch):
+    """GRAPH_LLM_REVIEWER_FAIL_OPEN=1 restores legacy pass-through on LLM errors."""
+    monkeypatch.setenv("GRAPH_LLM_REVIEWER", "1")
+    monkeypatch.setenv("GRAPH_LLM_REVIEWER_FAIL_OPEN", "1")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     trades = [_valid_trade()]
     state = _base_state(proposed_trades=trades)
@@ -427,7 +498,7 @@ def test_degrade_node_sets_degraded_flag():
         result = degrade_node(state)
 
     assert result["degraded"] is True
-    assert result["trade_watch_final"] == trades
+    assert result["trade_watch_final"] == []
 
 
 @pytest.mark.boundary

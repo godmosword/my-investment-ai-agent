@@ -1,27 +1,18 @@
 from __future__ import annotations
 
-import json
-
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
+from tests.api.helpers import make_api_client, write_jsonl_rows
+
 from track_record import build_mark_to_market_rows
 
 
-def _write_rows(path, rows):
-    path.write_text(
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
-        encoding="utf-8",
-    )
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
     store = tmp_path / "execution_intents.jsonl"
-    monkeypatch.setenv("EXECUTION_INTENT_STORE", str(store))
-    _write_rows(
+    write_jsonl_rows(
         store,
         [
             {
@@ -74,8 +65,7 @@ def client(tmp_path, monkeypatch):
             },
         ],
     )
-    return TestClient(app)
-
+    return make_api_client(monkeypatch, EXECUTION_INTENT_STORE=str(store))
 
 def test_track_record_summary_from_closed_intents(client):
     response = client.get("/api/track-record/summary")

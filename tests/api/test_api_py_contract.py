@@ -6,17 +6,8 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
 
 import api
-from api import app
-
-
-@pytest.fixture()
-def client(monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
-    monkeypatch.setenv("SKIP_BIGQUERY", "1")
-    return TestClient(app)
 
 
 def _query_result(rows: list[dict[str, Any]]) -> MagicMock:
@@ -28,9 +19,14 @@ def _query_result(rows: list[dict[str, Any]]) -> MagicMock:
 
 
 def _bq_client(*row_sets: list[dict[str, Any]]) -> MagicMock:
-    client = MagicMock()
-    client.query.side_effect = [_query_result(rows) for rows in row_sets]
-    return client
+    bq = MagicMock()
+    bq.query.side_effect = [_query_result(rows) for rows in row_sets]
+    return bq
+
+
+@pytest.fixture()
+def client(client_skip_bq):
+    return client_skip_bq
 
 
 def test_reports_list_contract_keys(client, monkeypatch):

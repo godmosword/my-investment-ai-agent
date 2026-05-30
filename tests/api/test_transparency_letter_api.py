@@ -1,30 +1,16 @@
 from __future__ import annotations
 
-import json
-
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
+from tests.api.helpers import write_jsonl_rows
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
-    monkeypatch.setenv("EXECUTION_INTENT_STORE", str(tmp_path / "execution_intents.jsonl"))
-    monkeypatch.setenv("PORTFOLIO_HOLDINGS_FILE", str(tmp_path / "portfolio_holdings.jsonl"))
-    return TestClient(app)
-
-
-def _write_jsonl(path, rows):
-    path.write_text(
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
-        encoding="utf-8",
-    )
-
+def client(client_intents_portfolio):
+    return client_intents_portfolio
 
 def test_transparency_letter_summarizes_closed_month_and_alignment(client, tmp_path):
-    _write_jsonl(
+    write_jsonl_rows(
         tmp_path / "execution_intents.jsonl",
         [
             {
@@ -68,7 +54,7 @@ def test_transparency_letter_summarizes_closed_month_and_alignment(client, tmp_p
             },
         ],
     )
-    _write_jsonl(
+    write_jsonl_rows(
         tmp_path / "portfolio_holdings.jsonl",
         [
             {"id": "1", "symbol": "NVDA", "shares": 1, "cost_basis": 100, "opened_at": "2026-01-01"},

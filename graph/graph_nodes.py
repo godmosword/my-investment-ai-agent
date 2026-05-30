@@ -483,14 +483,6 @@ def market_gate_node(state: ResearchGraphState) -> dict[str, Any]:
             category,
         )
 
-    try:
-        append_execution_intents(
-            category=str(state.get("category") or ""),
-            regime=state.get("agreed_regime"),
-            proposed_trades=[t for t in allowed if isinstance(t, dict)],
-        )
-    except Exception as exc:
-        logger.warning("[GATE] execution intent append failed: %s", exc)
     blocked_assets = [str(b.get("asset", "?")) for b in blocked]
     if blocked:
         prev = _blocked_assets_preview(blocked_assets)
@@ -624,6 +616,28 @@ def _reviewer_enabled() -> bool:
         os.getenv("GRAPH_LLM_REVIEWER", "0").lower() in ("1", "true", "yes")
         or os.getenv("GRAPH_LLM_TRADE_REVIEWER", "0").lower() in ("1", "true", "yes")
     )
+
+
+def _reviewer_fail_open() -> bool:
+    """Dev-only escape hatch; production default is fail-closed on reviewer errors."""
+    return os.getenv("GRAPH_LLM_REVIEWER_FAIL_OPEN", "0").lower() in ("1", "true", "yes")
+
+
+def _persist_reviewed_execution_intents(state: ResearchGraphState) -> None:
+    """Write execution intents once, after review loop completes (not at market_gate)."""
+    if state.get("degraded"):
+        return
+    trades = list(state.get("trade_watch_final") or [])
+    if not trades:
+        return
+    try:
+        append_execution_intents(
+            category=str(state.get("category") or ""),
+            regime=state.get("agreed_regime"),
+            proposed_trades=[t for t in trades if isinstance(t, dict)],
+        )
+    except Exception as exc:
+        logger.warning("[FORMATTER] execution intent append failed: %s", exc)
 
 
 @lru_cache(maxsize=1)
@@ -1521,8 +1535,9 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
          or the latest OHLC close, set passed=false; if there is no explicit price in
          thesis, do **not** infer or sanity-check prices (no invented numbers).
 
-    When GRAPH_LLM_REVIEWER=0 or OPENAI_API_KEY missing, passes through transparently.
-    Fails open (passes) on any exception to prevent pipeline stall.
+    When GRAPH_LLM_REVIEWER=0, passes through transparently.
+    When reviewer is enabled, missing API key or LLM errors fail closed (empty trades)
+    unless ``GRAPH_LLM_REVIEWER_FAIL_OPEN=1`` (dev only).
     Uses slim ReviewerVerdict schema — only verdict + issues, never a full rewrite.
     """
     proposed = list(state.get("proposed_trades") or [])
@@ -1557,20 +1572,36 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
 
     api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not api_key:
-        logger.info("llm_reviewer_node: OPENAI_API_KEY not set — pass-through")
+        if _reviewer_fail_open():
+            logger.info("llm_reviewer_node: OPENAI_API_KEY not set — fail-open pass-through")
+            _emit_node_event(
+                "llm_reviewer",
+                {
+                    "passed": True,
+                    "revision_count": revision_count,
+                    "issues": [],
+                    "reason": "missing_api_key",
+                },
+                summary="LLM 審查：未設定 API key，fail-open 略過",
+                run_id=rid,
+                category=gcat,
+            )
+            return {"review_issues": [], "trade_watch_final": proposed}
+        logger.warning("llm_reviewer_node: OPENAI_API_KEY not set — fail-closed")
+        issues = [{"field": "llm_reviewer", "reason": "OPENAI_API_KEY missing while reviewer enabled"}]
         _emit_node_event(
             "llm_reviewer",
             {
-                "passed": True,
+                "passed": False,
                 "revision_count": revision_count,
-                "issues": [],
+                "issues": issues,
                 "reason": "missing_api_key",
             },
-            summary="LLM 審查：未設定 API key，略過",
+            summary="LLM 審查：未設定 API key，fail-closed",
             run_id=rid,
             category=gcat,
         )
-        return {"review_issues": [], "trade_watch_final": proposed}
+        return {"review_issues": issues, "trade_watch_final": [], "revision_count": revision_count + 1}
 
     raw_news = state.get("raw_news") or []
     news_titles = [
@@ -1640,20 +1671,36 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
             "ground_truth_block": ground_truth_block,
         })
     except Exception as exc:
-        logger.warning("llm_reviewer_node error — pass-through: %s", exc)
+        if _reviewer_fail_open():
+            logger.warning("llm_reviewer_node error — fail-open pass-through: %s", exc)
+            _emit_node_event(
+                "llm_reviewer",
+                {
+                    "passed": True,
+                    "revision_count": revision_count,
+                    "issues": [],
+                    "reason": "fail_open",
+                },
+                summary=f"LLM 審查例外，fail-open：{exc!s}"[:200],
+                run_id=rid,
+                category=gcat or category,
+            )
+            return {"review_issues": [], "trade_watch_final": proposed}
+        logger.warning("llm_reviewer_node error — fail-closed: %s", exc)
+        issues = [{"field": "llm_reviewer", "reason": f"reviewer_error: {exc}"}]
         _emit_node_event(
             "llm_reviewer",
             {
-                "passed": True,
+                "passed": False,
                 "revision_count": revision_count,
-                "issues": [],
-                "reason": "fail_open",
+                "issues": issues,
+                "reason": "fail_closed",
             },
-            summary=f"LLM 審查例外，fail-open：{exc!s}"[:200],
+            summary=f"LLM 審查例外，fail-closed：{exc!s}"[:200],
             run_id=rid,
             category=gcat or category,
         )
-        return {"review_issues": [], "trade_watch_final": proposed}
+        return {"review_issues": issues, "trade_watch_final": [], "revision_count": revision_count + 1}
 
     if verdict.passed:
         logger.info("llm_reviewer_node: passed (revision_count=%d)", revision_count)
@@ -1684,24 +1731,23 @@ def llm_reviewer_node(state: ResearchGraphState) -> dict[str, Any]:
 
 
 def degrade_node(state: ResearchGraphState) -> dict[str, Any]:
-    """Hard-cap fallback: retain last proposed_trades with degraded=True warning flag.
+    """Hard-cap fallback: mark degraded and clear trade_watch_final for downstream safety.
 
-    Strategy B from REVIEWER_LOOP_DESIGN.md: preserve information rather than
-    returning an empty trade list so users can judge the flagged output themselves.
+    Review issues remain in state for logging; trades are not promoted to the report
+    or execution-intent store when the reviewer loop exhausts retries.
     Writes a reviewer_log entry to BigQuery (best-effort, non-blocking).
     """
-    proposed = list(state.get("proposed_trades") or [])
     review_issues = list(state.get("review_issues") or [])
     revision_count = int(state.get("revision_count") or 0)
 
     logger.warning(
         "degrade_node: hard cap hit (revision_count=%d). "
-        "Retaining last trade output with degraded=True. Unresolved issues: %s",
+        "Clearing trade_watch_final (degraded=True). Unresolved issues: %s",
         revision_count,
         review_issues[:3],
     )
     _write_reviewer_log_safe(state, degraded=True)
-    return {"degraded": True, "trade_watch_final": proposed}
+    return {"degraded": True, "trade_watch_final": []}
 
 
 def _write_reviewer_log_safe(state: ResearchGraphState, *, degraded: bool) -> None:
@@ -2305,6 +2351,7 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
             run_id=rid,
             category=fmt_cat,
         )
+        _persist_reviewed_execution_intents(state)
         return {"final_report": section.model_dump(mode="json"), "needs_deep_dive": False}
 
     _emit_node_event(
@@ -2385,4 +2432,5 @@ def final_formatter_node(state: ResearchGraphState) -> dict[str, Any]:
         run_id=rid,
         category=fmt_cat,
     )
+    _persist_reviewed_execution_intents(state)
     return {"final_report": section.model_dump(mode="json"), "needs_deep_dive": False}

@@ -1,26 +1,13 @@
 from __future__ import annotations
 
-import json
-
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
+from tests.api.helpers import write_jsonl_rows
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
-    monkeypatch.setenv("EXECUTION_INTENT_STORE", str(tmp_path / "execution_intents.jsonl"))
-    return TestClient(app)
-
-
-def _write_rows(path, rows):
-    path.write_text(
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
-        encoding="utf-8",
-    )
-
+def client(client_intents):
+    return client_intents
 
 def test_manual_execution_intent_create_list_patch(client):
     created = client.post(
@@ -59,7 +46,7 @@ def test_manual_execution_intent_create_list_patch(client):
 def test_paper_lifecycle_summary_and_risk_metrics(client, tmp_path, monkeypatch):
     store = tmp_path / "execution_intents.jsonl"
     monkeypatch.setenv("EXECUTION_INTENT_STORE", str(store))
-    _write_rows(
+    write_jsonl_rows(
         store,
         [
             {
@@ -109,7 +96,7 @@ def test_paper_lifecycle_summary_and_risk_metrics(client, tmp_path, monkeypatch)
 def test_paper_pnl_marks_active_rows_and_keeps_quote_errors(client, tmp_path, monkeypatch):
     store = tmp_path / "execution_intents.jsonl"
     monkeypatch.setenv("EXECUTION_INTENT_STORE", str(store))
-    _write_rows(
+    write_jsonl_rows(
         store,
         [
             {

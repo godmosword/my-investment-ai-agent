@@ -19,6 +19,7 @@ from tracker import (
     _validate_rec,
     get_recent_lessons,
     generate_performance_summary,
+    save_recommendations,
 )
 
 # ── realistic snippet mirroring actual LLM-generated report ──
@@ -425,6 +426,27 @@ class TestGeneratePerformanceSummary(unittest.TestCase):
         self.assertIn("缺 regime", out)
         self.assertIn("少於 10 筆", out)
         self.assertIn("解讀建議", out)
+
+
+class TestSaveRecommendationsDeleteScope(unittest.TestCase):
+    @patch("tracker._ensure_table")
+    @patch("tracker._get_bq_client")
+    def test_delete_only_open_rows_for_report_date(self, mock_get_client, _mock_ensure):
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        delete_job = MagicMock()
+        delete_job.result.return_value = None
+        mock_client.query.return_value = delete_job
+        mock_client.insert_rows_json.return_value = []
+
+        n = save_recommendations(SAMPLE_REPORT, project_id="test-proj", report_date="2026-05-30")
+
+        self.assertEqual(n, 3)
+        mock_client.query.assert_called_once()
+        sql = mock_client.query.call_args[0][0]
+        self.assertIn("status = 'OPEN'", sql)
+        self.assertIn("@report_date", sql)
+        self.assertIn("job_config", mock_client.query.call_args[1])
 
 
 if __name__ == "__main__":

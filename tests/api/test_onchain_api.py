@@ -5,17 +5,15 @@ from __future__ import annotations
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
 from api_routers import macro as macro_router
+from tests.api.helpers import make_api_client
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
     macro_router._onchain_reset_cache_for_tests()
-    return TestClient(app)
+    return make_api_client(monkeypatch)
 
 
 def test_onchain_enabled_false_when_fixture_missing(client, monkeypatch, tmp_path):
@@ -143,6 +141,65 @@ def test_funding_live_uses_binance_when_flag_on(client, monkeypatch, tmp_path):
     assert body["live_block_status"]["exchange_flow"] == "disabled"
     assert body["funding_rate"]["source"] == "binance_fapi"
     assert {row["asset"] for row in body["funding_rate"]["items"]} == {"BTC", "ETH"}
+
+
+def test_valuation_live_uses_free_sources_when_flag_on(client, monkeypatch, tmp_path):
+    path = tmp_path / "valuation.json"
+    path.write_text(
+        json.dumps(
+            {
+                "btc_valuation": {"source": "mock", "items": [{"metric": "MVRV-Z"}]},
+                "exchange_flow": {"items": []},
+                "funding_rate": {"source": "mock", "items": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ONCHAIN_FIXTURE_FILE", str(path))
+    monkeypatch.setenv("ONCHAIN_VALUATION_LIVE", "1")
+
+    from tools import coingecko_metrics
+
+    live_block = {
+        "as_of": "2026-05-21",
+        "source": "coingecko_altme",
+        "note": "Free valuation proxy",
+        "items": [{"metric": "BTC Dominance", "value": 51.23, "regime": "neutral"}],
+    }
+    monkeypatch.setattr(coingecko_metrics, "fetch_valuation_snapshot", lambda: live_block)
+
+    macro_router._onchain_reset_cache_for_tests()
+    body = client.get("/api/macro/onchain").json()
+
+    assert body["live_block_status"]["valuation"] == "live"
+    assert body["btc_valuation"]["source"] == "coingecko_altme"
+    assert body["btc_valuation"]["items"][0]["metric"] == "BTC Dominance"
+
+
+def test_valuation_live_falls_back_to_fixture_when_fetch_fails(client, monkeypatch, tmp_path):
+    path = tmp_path / "valuation-fallback.json"
+    path.write_text(
+        json.dumps(
+            {
+                "btc_valuation": {"source": "mock", "items": [{"metric": "MVRV-Z"}]},
+                "exchange_flow": {"items": []},
+                "funding_rate": {"source": "mock", "items": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ONCHAIN_FIXTURE_FILE", str(path))
+    monkeypatch.setenv("ONCHAIN_VALUATION_LIVE", "1")
+
+    from tools import coingecko_metrics
+
+    monkeypatch.setattr(coingecko_metrics, "fetch_valuation_snapshot", lambda: None)
+
+    macro_router._onchain_reset_cache_for_tests()
+    body = client.get("/api/macro/onchain").json()
+
+    assert body["live_block_status"]["valuation"] == "fallback"
+    assert body["btc_valuation"]["source"] == "mock"
 
 
 def test_funding_live_falls_back_to_fixture_when_fetch_fails(client, monkeypatch, tmp_path):

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { syncWarRoomRelatedQueries } from "./useApi";
+import { mergeSiliconHeaders } from "../lib/siliconApiHeaders";
 import { useSymbolFocus } from "../context/SymbolFocusContext";
 import {
   TERMINAL_SSE_WATCH_CHANGED_EVENT,
@@ -44,6 +45,23 @@ function readWatchCsv() {
 }
 
 /** Up to 8 symbols for ``watch_symbols`` query (server truncates). */
+
+async function mintWarRoomStreamToken() {
+  const streamKey = String(import.meta.env.VITE_SSE_STREAM_KEY ?? "").trim();
+  if (!streamKey || !BASE) return null;
+  try {
+    const headers = mergeSiliconHeaders();
+    headers.set("X-QS-Stream-Key", streamKey);
+    const resp = await fetch(`${BASE}/api/stream/token`, { method: "POST", headers });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const token = String(data?.token ?? "").trim();
+    return token || null;
+  } catch {
+    return null;
+  }
+}
+
 function buildWatchSymbolsParam(focusSymbol) {
   const parts = [];
   const focus = (focusSymbol ?? "").trim().toUpperCase();
@@ -132,22 +150,8 @@ export function WarRoomSseProvider({ children }) {
       return undefined;
     }
 
-    const params = new URLSearchParams();
-    if (SSE_KEY) params.set("stream_key", SSE_KEY);
-    const watch = buildWatchSymbolsParam(symbol);
-    if (watch) params.set("watch_symbols", watch);
-    const q = params.toString() ? `?${params.toString()}` : "";
-    const url = `${BASE}/api/stream/war-room${q}`;
+    let cancelled = false;
     let es;
-    try {
-      es = new EventSource(url);
-    } catch {
-      setSseStatus("error");
-      return undefined;
-    }
-
-    es.onopen = () => setSseStatus("connected");
-
     let refreshTimer = null;
     let lastRefreshAt = 0;
 
@@ -158,6 +162,7 @@ export function WarRoomSseProvider({ children }) {
     };
 
     const scheduleRefresh = () => {
+      if (cancelled) return;
       setSseStatus("connected");
       const sinceLastRefresh = Date.now() - lastRefreshAt;
       if (sinceLastRefresh >= 1_000) {
@@ -222,14 +227,38 @@ export function WarRoomSseProvider({ children }) {
       }
     };
 
-    es.onmessage = scheduleRefresh;
-    es.addEventListener("war_room_update", scheduleRefresh);
-    es.addEventListener("symbol_quote", onSymbolQuote);
-    es.addEventListener("node_complete", onNodeComplete);
-    es.addEventListener("price_alert", onPriceAlert);
-    es.onerror = () => setSseStatus("error");
+    (async () => {
+      const params = new URLSearchParams();
+      const streamToken = await mintWarRoomStreamToken();
+      if (cancelled) return;
+      if (streamToken) params.set("stream_token", streamToken);
+      else if (SSE_KEY) params.set("stream_key", SSE_KEY);
+      const watch = buildWatchSymbolsParam(symbol);
+      if (watch) params.set("watch_symbols", watch);
+      const q = params.toString() ? `?${params.toString()}` : "";
+      const url = `${BASE}/api/stream/war-room${q}`;
+      try {
+        es = new EventSource(url);
+      } catch {
+        if (!cancelled) setSseStatus("error");
+        return;
+      }
+
+      es.onopen = () => {
+        if (!cancelled) setSseStatus("connected");
+      };
+      es.onmessage = scheduleRefresh;
+      es.addEventListener("war_room_update", scheduleRefresh);
+      es.addEventListener("symbol_quote", onSymbolQuote);
+      es.addEventListener("node_complete", onNodeComplete);
+      es.addEventListener("price_alert", onPriceAlert);
+      es.onerror = () => {
+        if (!cancelled) setSseStatus("error");
+      };
+    })();
 
     return () => {
+      cancelled = true;
       if (refreshTimer != null) {
         globalThis.clearTimeout(refreshTimer);
       }
@@ -237,10 +266,12 @@ export function WarRoomSseProvider({ children }) {
         globalThis.cancelAnimationFrame(graphRafRef.current);
         graphRafRef.current = null;
       }
-      es.removeEventListener("symbol_quote", onSymbolQuote);
-      es.removeEventListener("node_complete", onNodeComplete);
-      es.removeEventListener("price_alert", onPriceAlert);
-      es.close();
+      if (es) {
+        es.removeEventListener("symbol_quote", onSymbolQuote);
+        es.removeEventListener("node_complete", onNodeComplete);
+        es.removeEventListener("price_alert", onPriceAlert);
+        es.close();
+      }
     };
   }, [qc, symbol, watchRev, scheduleGraphAppend]);
 

@@ -3,24 +3,14 @@ from __future__ import annotations
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
-
-
-def _write_rows(path, rows):
-    path.write_text(
-        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
-        encoding="utf-8",
-    )
+from tests.api.helpers import write_jsonl_rows
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
-    monkeypatch.setenv("EXECUTION_INTENT_STORE", str(tmp_path / "execution_intents.jsonl"))
-    monkeypatch.setenv("PORTFOLIO_HOLDINGS_FILE", str(tmp_path / "portfolio_holdings.jsonl"))
-    return TestClient(app)
+def client(client_intents_portfolio):
+    return client_intents_portfolio
+
 
 
 def test_scenario_optimizer_disabled_by_default(client, monkeypatch):
@@ -48,7 +38,7 @@ def test_scenario_optimizer_returns_payload(client, tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setenv("PORTFOLIO_HOLDINGS_FILE", str(ph))
-    _write_rows(
+    write_jsonl_rows(
         store,
         [
             {

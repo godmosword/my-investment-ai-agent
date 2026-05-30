@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
+
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
-    monkeypatch.setenv("PORTFOLIO_HOLDINGS_FILE", str(tmp_path / "portfolio_holdings.jsonl"))
-    return TestClient(app)
-
+def client(client_portfolio):
+    return client_portfolio
 
 def test_portfolio_crud_round_trip(client):
     create = client.post(

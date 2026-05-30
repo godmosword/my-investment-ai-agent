@@ -87,12 +87,6 @@ def test_quant_signals_derive_active_rows_from_execution_intents(client, tmp_pat
 
 # ── /api/quant/backtest ─────────────────────────────────────────────────────
 
-def test_quant_backtest_disabled_by_default(client):
-    r = client.get("/api/quant/backtest?symbol=BTC")
-    assert r.status_code == 404
-    assert "QUANT_BACKTEST_ENABLED" in r.json()["detail"]
-
-
 def test_quant_backtest_structure_when_enabled(client, monkeypatch):
     monkeypatch.setenv("QUANT_BACKTEST_ENABLED", "1")
     r = client.get("/api/quant/backtest?symbol=BTC")

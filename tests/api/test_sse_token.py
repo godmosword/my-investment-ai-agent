@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
 
 import sse_token
-from api import app
+from tests.api.helpers import make_api_client
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
     sse_token.reset_for_tests()
-    return TestClient(app)
+    return make_api_client(monkeypatch)
 
 
 def test_stream_token_404_without_key(client, monkeypatch):

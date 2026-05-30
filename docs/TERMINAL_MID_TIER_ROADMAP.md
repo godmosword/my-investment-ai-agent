@@ -45,7 +45,7 @@
 
 **目標**：讓操作者在 **不開後台** 的情況下，完成「看來源 → 看意圖 → 改狀態」，且畫面以可預期節奏刷新（中段「感覺即時」）。
 
-**已落地（repo）**：[`data-verification-ui/src/hooks/useApi.js`](../data-verification-ui/src/hooks/useApi.js)（`getTerminalRefetchIntervalMs`、`useSymbolSnapshot`/`useExecutionIntents`/`useWarRoomLatest` 之 `livePoll`、`usePatchExecutionIntent`）、[`TerminalSymbolCard.jsx`](../data-verification-ui/src/components/TerminalSymbolCard.jsx)（`data_provenance` 摺疊）、[`ExecutionIntentsBlotter.jsx`](../data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)、[`Terminal.jsx`](../data-verification-ui/src/pages/Terminal.jsx) 掛載意圖表。
+**已落地（repo）**：[`data-verification-ui/src/hooks/useApi.js`](../data-verification-ui/src/hooks/useApi.js)（`getTerminalRefetchIntervalMs`、`useSymbolSnapshot`/`useExecutionIntents`/`useWarRoomLatest` 之 `livePoll`、`usePatchExecutionIntent`）、[`TerminalSymbolCard.jsx`](../data-verification-ui/src/components/TerminalSymbolCard.jsx)（`data_provenance` 摺疊）、[`ExecutionIntentsBlotter.jsx`](../data-verification-ui/src/components/ExecutionIntentsBlotter.jsx)、[`DashboardHome.jsx`](../data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) 掛載意圖表。
 
 ### 驗收（DoD）
 
@@ -60,7 +60,7 @@
 |------|------|
 | [`data-verification-ui/src/hooks/useApi.js`](../data-verification-ui/src/hooks/useApi.js) | 新增 `apiPatch(path, body)`；`useSymbolSnapshot` 接受 options `{ refetchInterval }` 或讀 env；新增 `useExecutionIntents`、`useExecutionIntentStatuses`、`usePatchExecutionIntent`（`useMutation`） |
 | [`data-verification-ui/src/components/TerminalSymbolCard.jsx`](../data-verification-ui/src/components/TerminalSymbolCard.jsx) | 摺疊 **資料溯源** 區；必要時小字重複 `as_of` 與 provenance 對齊 BLOOMBERG Phase 0 §2 |
-| 新檔 `ExecutionIntentsBlotter.jsx`（或內嵌 [`Terminal.jsx`](../data-verification-ui/src/pages/Terminal.jsx)） | 表格 + 狀態按鈕 + optional note textarea |
+| 新檔 `ExecutionIntentsBlotter.jsx`（或內嵌 [`DashboardHome.jsx`](../data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx)） | 表格 + 狀態按鈕 + optional note textarea |
 | [`ENV_TEMPLATE.txt`](../ENV_TEMPLATE.txt)（可選） | 註解 `VITE_TERMINAL_POLL_MS`；README PWA 小節一行 |
 
 ### 測試

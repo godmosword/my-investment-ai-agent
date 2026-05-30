@@ -11,12 +11,13 @@ import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from google.cloud import bigquery
 
 from config import METRICS_TABLE, RECOMMENDATIONS_TABLE
+from api_deps import rows_to_dicts
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +38,6 @@ def _quote_cache_put(sym: str, payload: dict[str, Any]) -> None:
     if len(_quote_cache) > _QUOTE_CACHE_MAX_KEYS:
         oldest = min(_quote_cache.items(), key=lambda x: x[1][0])[0]
         _quote_cache.pop(oldest, None)
-
-
-def rows_to_dicts(rows) -> list[dict[str, Any]]:
-    """Convert BigQuery RowIterator rows to JSON-serialisable dicts."""
-    result: list[dict[str, Any]] = []
-    for row in rows:
-        result.append(
-            {k: v.isoformat() if isinstance(v, (datetime, date)) else v for k, v in row.items()}
-        )
-    return result
 
 
 def validate_symbol_for_snapshot(symbol: str) -> str:

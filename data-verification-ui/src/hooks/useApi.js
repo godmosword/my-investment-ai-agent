@@ -79,13 +79,28 @@ function e2eSymbolQuery(symbol, endpoint) {
   return qstr ? `?${qstr}` : "";
 }
 
-/** Insights Terminal workspace 輪詢間隔（ms）；可由 `VITE_TERMINAL_POLL_MS` 覆寫，預設 45s，最小 5s、最大 5min。 */
+const TERMINAL_POLL_OVERRIDE_KEY = "qs_terminal_poll_ms_override";
+
+function clampTerminalPollMs(n) {
+  return Math.min(300_000, Math.max(5_000, Math.floor(n)));
+}
+
+/** Insights Terminal workspace 輪詢間隔（ms）；Settings 可寫 localStorage override，或由 `VITE_TERMINAL_POLL_MS` 覆寫，預設 45s。 */
 export function getTerminalRefetchIntervalMs() {
+  try {
+    const override = globalThis.localStorage?.getItem(TERMINAL_POLL_OVERRIDE_KEY);
+    if (override !== null && override !== "") {
+      const o = Number(override);
+      if (Number.isFinite(o)) return clampTerminalPollMs(o);
+    }
+  } catch {
+    /* ignore */
+  }
   const raw = import.meta.env.VITE_TERMINAL_POLL_MS;
   if (raw === "" || raw === undefined || raw === null) return 45_000;
   const n = Number(raw);
   if (!Number.isFinite(n)) return 45_000;
-  return Math.min(300_000, Math.max(5_000, Math.floor(n)));
+  return clampTerminalPollMs(n);
 }
 
 /** 同頁多卡共用 snapshot 時，避免每卡獨立 refetchInterval（T3c）。 */

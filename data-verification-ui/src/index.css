@@ -561,10 +561,6 @@ html, body, #root {
   line-height: 1.45;
 }
 
-/* ── Recharts dark overrides ── */
-.recharts-text { fill: var(--muted) !important; }
-.recharts-cartesian-grid line { stroke: rgba(148, 163, 184, 0.13) !important; }
-
 /* ── Summary blocks ── */
 .summary-block {
   background: rgba(34, 211, 238, 0.07);

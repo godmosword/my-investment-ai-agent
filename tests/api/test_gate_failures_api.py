@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
 
-from api import app
+
 
 
 @pytest.fixture()
-def client(monkeypatch):
-    monkeypatch.setenv("SKIP_BIGQUERY", "1")
-    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
-    return TestClient(app)
-
+def client(client_skip_bq):
+    return client_skip_bq
 
 def test_gate_failures_default_shape(client):
     r = client.get("/api/gate-failures")
