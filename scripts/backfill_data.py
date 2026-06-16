@@ -27,8 +27,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from api_schema import require_json_dict, require_list
-from config import METRICS_TABLE, PROJECT_ID
+from api_schema import require_json_dict, require_list  # noqa: E402
+from config import METRICS_TABLE, PROJECT_ID  # noqa: E402
 
 load_dotenv(_REPO_ROOT / ".env")
 
