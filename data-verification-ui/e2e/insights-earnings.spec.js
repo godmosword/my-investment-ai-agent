@@ -35,6 +35,10 @@ test.describe("Insights — Earnings calendar tab (P3)", () => {
       "href",
       "/columns?focus=NVDA",
     );
+    await expect(page.getByTestId("earnings-cta-to-tech-pulse")).toHaveAttribute(
+      "href",
+      "https://tech-pulse.e2e.example/earnings/NVDA",
+    );
   });
 
   test("ticker without scaffold shows empty state, not fabricated numbers", async ({ page }) => {

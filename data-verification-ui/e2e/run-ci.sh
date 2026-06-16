@@ -27,6 +27,7 @@ export VITE_API_URL="${API_URL}"
 export VITE_GLASSBOX_MOCK=0
 export VITE_E2E=1
 export VITE_STRUCTURED_REPORT=1
+export VITE_TECH_PULSE_URL="https://tech-pulse.e2e.example"
 
 npm run build
 

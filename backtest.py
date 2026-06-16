@@ -932,7 +932,7 @@ def main() -> None:
     if df_ind.empty:
         logging.warning(
             "BigQuery 無歷史指標數據，僅以 BTC Buy & Hold 作為輸出。\n"
-            "請先執行 backfill_data.py 補入歷史數據，或等待戰報寫入後再回測。"
+            "請先執行 scripts/backfill_data.py 補入歷史數據，或等待戰報寫入後再回測。"
         )
         df_price["position"] = 1.0
         df_price["dxy"] = float("nan")

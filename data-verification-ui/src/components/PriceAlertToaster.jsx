@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { PRICE_ALERT_SSE_EVENT } from "../hooks/useWarRoomSse";
 
 const TOAST_TTL_MS = 8000;
@@ -19,10 +20,24 @@ const MAX_VISIBLE = 4;
 export default function PriceAlertToaster() {
   /** @type {[Array<PriceAlertDetail & {key: string}>, Function]} */
   const [toasts, setToasts] = useState([]);
+  const navigate = useNavigate();
 
   const dismiss = useCallback((key) => {
     setToasts((prev) => prev.filter((t) => t.key !== key));
   }, []);
+
+  const openDeepDive = useCallback(
+    (symbol, key) => {
+      const s = String(symbol ?? "").trim().toUpperCase();
+      if (!s) {
+        dismiss(key);
+        return;
+      }
+      dismiss(key);
+      navigate(`/insights?symbol=${encodeURIComponent(s)}&from=alert`);
+    },
+    [dismiss, navigate],
+  );
 
   useEffect(() => {
     const onAlert = (ev) => {
@@ -65,7 +80,7 @@ export default function PriceAlertToaster() {
           <button
             key={t.key}
             type="button"
-            onClick={() => dismiss(t.key)}
+            onClick={() => openDeepDive(t.symbol, t.key)}
             className="card"
             style={{
               cursor: "pointer",
@@ -76,7 +91,7 @@ export default function PriceAlertToaster() {
               backdropFilter: "blur(8px)",
               boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
             }}
-            aria-label={`Dismiss price alert for ${t.symbol}`}
+            aria-label={`Open ${t.symbol} deep dive from price alert`}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700 }}>
               <span style={{ color }}>{arrow}</span>

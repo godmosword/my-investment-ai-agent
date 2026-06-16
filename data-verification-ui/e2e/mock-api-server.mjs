@@ -634,6 +634,15 @@ const snapshotBtcMisaligned = baseSnapshot("BTC", BTC_OHLC_LAST_MIS, btcMisalign
 const snapshotBtcAlignmentNa = baseSnapshot("BTC", BTC_LAST, btcAlignmentNa);
 const snapshotSpy = baseSnapshot("SPY", SPY_OHLC_LAST, spyMisaligned);
 const snapshotNvda = baseSnapshot("NVDA", NVDA_OHLC_LAST, nvdaMisaligned);
+snapshotNvda.event_markers = [
+  {
+    time: "2026-04-14",
+    direction: "LONG",
+    label: "QSREC OPEN",
+    signal_id: "manual-nvda-long-e2e",
+    type: "signal",
+  },
+];
 const priceAlerts = [];
 
 function quoteBody(symbol, last) {

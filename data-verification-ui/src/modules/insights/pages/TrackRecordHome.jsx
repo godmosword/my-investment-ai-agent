@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Sparkline from "../../../components/Sparkline";
 import {
   useTrackRecordByTag,
   useTrackRecordClosed,
   useTrackRecordSummary,
 } from "../../../hooks/useApi";
+import { insightsSymbolHref } from "../../../constants/portalPhase4";
 
 const TAGS = ["AI", "CRYPTO", "WIN", "LOSS"];
 
@@ -165,6 +167,7 @@ export default function TrackRecordHome() {
                   <th className="px-3 py-2">Return</th>
                   <th className="px-3 py-2">Closed</th>
                   <th className="px-3 py-2">Source</th>
+                  <th className="px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -195,6 +198,24 @@ export default function TrackRecordHome() {
                       <code className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-cyan-200">
                         {row.source_id}
                       </code>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          to={insightsSymbolHref(row.asset)}
+                          data-testid="track-record-action-deep-dive"
+                          className="rounded border border-emerald-500/30 px-2 py-1 text-[11px] text-emerald-100/90 hover:bg-emerald-950/20"
+                        >
+                          Deep dive
+                        </Link>
+                        <Link
+                          to={`/portfolio?tab=monitor&focus=${encodeURIComponent(String(row.asset || "").toUpperCase())}`}
+                          data-testid="track-record-action-monitor"
+                          className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
+                        >
+                          Monitor
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

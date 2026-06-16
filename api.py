@@ -118,15 +118,21 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow local dev (Vite) and same-origin production
-_CORS_ORIGINS = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:5173,http://localhost:4173,http://localhost:3000",
-).split(",")
+# Allow local dev (Vite), explicit production origins, and Vercel preview (*.vercel.app).
+_CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://localhost:4173,http://localhost:3000",
+    ).split(",")
+    if o.strip()
+]
+_CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX", r"https://.*\.vercel\.app").strip() or None
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in _CORS_ORIGINS],
+    allow_origins=_CORS_ORIGINS,
+    allow_origin_regex=_CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],

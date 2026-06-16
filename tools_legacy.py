@@ -1939,7 +1939,7 @@ def ml_quant_tool() -> str:
         except Exception as e:
             logger.warning("ml_quant_tool BigQuery history load failed: %s", e)
             return (
-                "ML 模型建置中（BigQuery 無歷史數據，請先執行 backfill_data.py）。"
+                "ML 模型建置中（BigQuery 無歷史數據，請先執行 scripts/backfill_data.py）。"
                 "請在儀表板中寫：ML 模型建置中（需積累歷史數據）｜部位建議：暫不適用"
             )
 
@@ -2021,7 +2021,7 @@ def ml_quant_tool() -> str:
         _set_cache(cache_key, result)
         return _append_data_as_of(result, "ml_quant")
     except Exception as e:
-        return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 backfill_data.py 補入歷史數據。"
+        return f"ML Quant Tool Failed：BigQuery 查詢失敗（{e}）。請先執行 scripts/backfill_data.py 補入歷史數據。"
 
 
 # ═══════════════════════════════════════════════════════════════════

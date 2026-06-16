@@ -44,6 +44,14 @@ export function columnsContextHref(symbol) {
   return `/columns?focus=${encodeURIComponent(s)}`;
 }
 
+/** Tech-Pulse 聯邦：外連至 tech-pulse `/earnings/[ticker]`（需 VITE_TECH_PULSE_URL）。 */
+export function techPulseEarningsHref(symbol) {
+  const base = String(import.meta.env.VITE_TECH_PULSE_URL || "").trim().replace(/\/$/, "");
+  const s = String(symbol ?? "").trim().toUpperCase();
+  if (!base || !s) return null;
+  return `${base}/earnings/${encodeURIComponent(s)}`;
+}
+
 /** 文案表（44c）：跨板塊人話 CTA 統一文字，避免 UI 文案散落。 */
 export const PORTAL_PHASE4_CTA = {
   toInsights: "去觀點工作台",
@@ -53,6 +61,7 @@ export const PORTAL_PHASE4_CTA = {
   workbenchToColumns: "看相關專欄",
   symbolToNews: "在新聞中查 {symbol}",
   symbolToColumns: "看 {symbol} 的專欄",
+  toTechPulseEarnings: "Tech-Pulse 財報深度",
 };
 
 /** 套入 symbol 的 CTA 文案 helper。 */

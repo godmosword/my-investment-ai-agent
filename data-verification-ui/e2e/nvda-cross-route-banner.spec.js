@@ -20,5 +20,7 @@ test.describe("Bloomberg §6 — NVDA cross-route banner (mock BQ + divergent OH
     await expect(page.getByTestId("terminal-price-mismatch-banner-NVDA")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("terminal-price-mismatch-banner-NVDA")).toContainText("BigQuery");
     await expect(page.getByTestId("terminal-price-mismatch-banner-NVDA")).toContainText("yfinance");
+
+    await expect(page.getByText("QSREC OPEN", { exact: false })).toBeVisible({ timeout: 30_000 });
   });
 });

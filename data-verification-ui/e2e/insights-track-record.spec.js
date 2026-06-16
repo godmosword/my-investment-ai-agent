@@ -12,6 +12,19 @@ test.describe("Insights Track Record tab", () => {
     await expect(page.getByTestId("track-record-closed-table").getByText("NVDA", { exact: true })).toBeVisible();
     await expect(page.getByText("ai-nvda-long-1")).toBeVisible();
 
+    const deepDive = page.getByTestId("track-record-action-deep-dive").first();
+    await expect(deepDive).toBeVisible();
+    await deepDive.click();
+    await expect(page).toHaveURL(/\/insights\?symbol=NVDA/i);
+
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    const monitor = page.getByTestId("track-record-action-monitor").first();
+    await expect(monitor).toBeVisible();
+    await monitor.click();
+    await expect(page).toHaveURL(/\/portfolio\?tab=monitor.*focus=NVDA/i);
+
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
     await page.getByTestId("track-record-tag-ai").click();
     await expect(page.getByTestId("track-record-closed-table").getByText("MSFT", { exact: true })).toBeVisible();
     await expect(page.getByTestId("track-record-closed-table").getByText("BTC", { exact: true })).toBeHidden();

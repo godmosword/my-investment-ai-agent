@@ -6,6 +6,7 @@ import {
   insightsSymbolHref,
   newsContextHref,
   PORTAL_PHASE4_CTA,
+  techPulseEarningsHref,
 } from "../../../constants/portalPhase4";
 import { useEarningsInsight, useEarningsUpcoming } from "../../../hooks/useApi";
 
@@ -105,6 +106,17 @@ function InsightPanel({ symbol, onClose }) {
         >
           {ctaWithSymbol(PORTAL_PHASE4_CTA.symbolToColumns, symbol)}
         </Link>
+        {techPulseEarningsHref(symbol) ? (
+          <a
+            href={techPulseEarningsHref(symbol)}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="earnings-cta-to-tech-pulse"
+            className="inline-flex min-h-[36px] items-center rounded border border-cyan-500/30 bg-cyan-950/[0.12] px-3 py-1.5 text-[12px] font-semibold text-cyan-100/90 hover:bg-cyan-900/[0.18]"
+          >
+            {PORTAL_PHASE4_CTA.toTechPulseEarnings}
+          </a>
+        ) : null}
       </div>
 
       {query.isLoading ? (

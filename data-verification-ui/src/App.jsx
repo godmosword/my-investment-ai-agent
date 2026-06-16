@@ -22,8 +22,8 @@ export default function App() {
             <BrowserRouter>
               <PortalShellAlerts />
               <PortalRoutes />
+              <PriceAlertToaster />
             </BrowserRouter>
-            <PriceAlertToaster />
           </WarRoomSseProvider>
         </SymbolFocusProvider>
       </QueryClientProvider>

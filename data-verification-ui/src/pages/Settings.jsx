@@ -67,6 +67,8 @@ export default function Settings() {
     }
   });
   const importRef = useRef(null);
+  const gateDrawerRef = useRef(null);
+  const gateCloseRef = useRef(null);
   const qsrecStats = useQsrecStats(7);
   const gateFailures = useGateFailures(7);
 
@@ -299,6 +301,7 @@ export default function Settings() {
       {selectedGateFailure ? (
         <div className="fixed inset-0 z-50 flex items-end bg-black/60 p-2 sm:items-center sm:justify-end sm:p-4">
           <section
+            ref={gateDrawerRef}
             className="max-h-[88vh] w-full overflow-auto rounded-lg border border-white/15 bg-[var(--bg,#05070a)] p-4 shadow-2xl sm:max-w-md"
             data-testid="settings-gate-failure-drawer"
             role="dialog"
@@ -313,6 +316,7 @@ export default function Settings() {
                 </p>
               </div>
               <button
+                ref={gateCloseRef}
                 type="button"
                 className="min-h-[44px] rounded border border-white/15 px-3 text-[12px] text-white/70 hover:text-white"
                 data-testid="settings-gate-failure-drawer-close"
@@ -362,6 +366,12 @@ export default function Settings() {
             VITE_WEB_PUSH_VAPID_PUBLIC_KEY:{" "}
             <span className={vapidSet ? "text-emerald-300" : "text-amber-300"}>
               {vapidSet ? "已設定" : "未設定"}
+            </span>
+          </li>
+          <li>
+            VITE_TECH_PULSE_URL:{" "}
+            <span className={String(import.meta.env.VITE_TECH_PULSE_URL || "").trim() ? "text-emerald-200/90" : "text-[var(--muted)]"}>
+              {String(import.meta.env.VITE_TECH_PULSE_URL || "").trim() || "未設定"}
             </span>
           </li>
           <li>
