@@ -22,6 +22,8 @@ jobs:
   verify:
     timeout-minutes: 35
     runs-on: ubuntu-22.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-jammy
     defaults:
       run:
         working-directory: data-verification-ui
@@ -40,26 +42,6 @@ jobs:
 
       - name: Lint
         run: npm run lint
-
-      - name: Cache Playwright browsers
-        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_e2e }}
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('data-verification-ui/package-lock.json') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Install Playwright OS dependencies
-        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_e2e }}
-        timeout-minutes: 5
-        run: npx playwright install-deps chromium
-
-      - name: Install Playwright Chromium
-        if: ${{ (github.event_name != 'workflow_dispatch' || !inputs.skip_e2e) && steps.playwright-cache.outputs.cache-hit != 'true' }}
-        timeout-minutes: 10
-        run: npx playwright install chromium
 
       - name: E2E
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_e2e }}
