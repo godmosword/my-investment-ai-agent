@@ -102,5 +102,4 @@ jobs:
           mkdir -p dist/data-verification-ui
           find dist -maxdepth 1 -mindepth 1 ! -name data-verification-ui -exec mv {} dist/data-verification-ui/ \;
           cp vercel.json dist/data-verification-ui/vercel.json
-          cd dist/data-verification-ui
           npx vercel deploy --prod --yes --token "${VERCEL_TOKEN}"
