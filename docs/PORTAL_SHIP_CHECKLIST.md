@@ -66,7 +66,7 @@ Then update `TODOS.md` and `CHANGELOG.md` with the staging dates.
 
 ## Vercel PWA Deploy (CI)
 
-When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`, `VITE_API_URL`, optional `VITE_TECH_PULSE_URL`), workflow `.github/workflows/pwa-deploy.yml` runs `npx vercel deploy dist --prod` after lint/E2E. If any Vercel secret is missing, the deploy job exits 0 with a warning so CI stays green until secrets are added. Cloud Run API must allow Vercel origins via `CORS_ORIGIN_REGEX` (default `https://.*\.vercel\.app`).
+When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`, `VITE_API_URL`, optional `VITE_TECH_PULSE_URL`), workflow `.github/workflows/pwa-deploy.yml` builds with Vite, stages output under `dist/data-verification-ui/` (matches Vercel project **Output Directory**), then runs `npx vercel deploy --prod` from that folder after lint/E2E. If any Vercel secret is missing, the deploy job exits 0 with a warning so CI stays green until secrets are added. Cloud Run API must allow Vercel origins via `CORS_ORIGIN_REGEX` (default `https://.*\.vercel\.app`).
 
 ### CI timing and emergency deploy
 

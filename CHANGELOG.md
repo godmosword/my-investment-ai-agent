@@ -13,6 +13,7 @@
 - **Hotfix（run #27772957639）**：拆分 install 仍於 zip 100% 後解壓卡 10m；`verify`／`pwa-e2e` 改 **Playwright 官方 Docker 映像** `mcr.microsoft.com/playwright:v1.59.1-jammy`（對齊 lockfile），移除 runner 上 `install`／browser cache。
 - **[`data-verification-ui/playwright.config.js`](data-verification-ui/playwright.config.js)**：CI 設 `globalTimeout` 25 分鐘、`maxFailures: 8`；reporter 加 html／junit。
 - **[`data-verification-ui/e2e/run-ci.sh`](data-verification-ui/e2e/run-ci.sh)**：mock API／preview 未就緒 fail-fast；`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` 時略過重複 `playwright install`。
+- **Hotfix（run #27795573529／#27795682635）**：`deploy-vercel` 失敗——Vercel 專案 **Output Directory** 為 `dist/data-verification-ui`，Vite 輸出 `dist/`；deploy 步驟改將 build 產物搬至 `dist/data-verification-ui/` 再 `vercel deploy --prod`（含 `vercel.json`）。
 
 ## 2026-05-22
 
