@@ -98,8 +98,9 @@ jobs:
             echo "::warning::Vercel deploy skipped — set GitHub secrets VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID (see docs/PORTAL_SHIP_CHECKLIST.md)."
             exit 0
           fi
-          # Vercel project Output Directory is dist/data-verification-ui (dashboard); Vite emits dist/.
-          mkdir -p dist/data-verification-ui
-          find dist -maxdepth 1 -mindepth 1 ! -name data-verification-ui -exec mv {} dist/data-verification-ui/ \;
-          cp vercel.json dist/data-verification-ui/vercel.json
+          # Vercel project Output Directory is data-verification-ui (dashboard); Vite emits dist/.
+          rm -rf data-verification-ui
+          mkdir -p data-verification-ui
+          mv dist/* data-verification-ui/
+          cp vercel.json data-verification-ui/vercel.json
           npx vercel deploy --prod --yes --token "${VERCEL_TOKEN}"
