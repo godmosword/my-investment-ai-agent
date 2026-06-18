@@ -66,4 +66,11 @@ Then update `TODOS.md` and `CHANGELOG.md` with the staging dates.
 
 ## Vercel PWA Deploy (CI)
 
-When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`, `VITE_API_URL`, optional `VITE_TECH_PULSE_URL`), workflow `.github/workflows/pwa-deploy.yml` runs `npx vercel deploy dist --prod` after lint/build/E2E. If any Vercel secret is missing, the deploy job exits 0 with a warning so CI stays green until secrets are added. Cloud Run API must allow Vercel origins via `CORS_ORIGIN_REGEX` (default `https://.*\.vercel\.app`).
+When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`, `VITE_API_URL`, optional `VITE_TECH_PULSE_URL`), workflow `.github/workflows/pwa-deploy.yml` runs `npx vercel deploy dist --prod` after lint/E2E. If any Vercel secret is missing, the deploy job exits 0 with a warning so CI stays green until secrets are added. Cloud Run API must allow Vercel origins via `CORS_ORIGIN_REGEX` (default `https://.*\.vercel\.app`).
+
+### CI timing and emergency deploy
+
+- **Expected duration**: `verify` (lint + E2E) typically **1–15 minutes** on green runs; job hard cap **35 minutes** (Playwright `globalTimeout` 25m + `maxFailures: 8`).
+- **Failure artifacts**: failed E2E uploads `playwright-report` and `e2e-results/junit.xml` (7-day retention).
+- **Emergency deploy**: GitHub Actions → **PWA deploy** → **Run workflow** → enable **`skip_e2e`** to deploy without Playwright (lint only). Use only when E2E is blocked and production fix is urgent.
+- **Duplicate E2E**: `pwa-e2e.yml` no longer runs on **main push**; main-path E2E is only in `pwa-deploy` `verify`. PRs still get `pwa-e2e.yml`.

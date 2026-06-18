@@ -1,4 +1,4 @@
-# PWA: lint → build → E2E → Vercel deploy (production on main).
+# PWA: lint → E2E → Vercel deploy (production on main).
 name: PWA deploy
 
 on:
@@ -8,6 +8,11 @@ on:
       - "data-verification-ui/**"
       - ".github/workflows/pwa-deploy.yml"
   workflow_dispatch:
+    inputs:
+      skip_e2e:
+        description: "Skip Playwright E2E (emergency deploy only)"
+        type: boolean
+        default: false
 
 concurrency:
   group: pwa-deploy-${{ github.ref }}
@@ -15,6 +20,7 @@ concurrency:
 
 jobs:
   verify:
+    timeout-minutes: 35
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -35,16 +41,38 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Build (E2E bundle)
-        env:
-          VITE_E2E: "1"
-        run: npm run build
+      - name: Cache Playwright browsers
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_e2e }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('data-verification-ui/package-lock.json') }}
+
+      - name: Install Playwright Chromium
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_e2e }}
+        run: npx playwright install --with-deps chromium
 
       - name: E2E
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.skip_e2e }}
+        env:
+          CI: true
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure() && (github.event_name != 'workflow_dispatch' || !inputs.skip_e2e)
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            data-verification-ui/playwright-report/
+            data-verification-ui/e2e-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   deploy-vercel:
     needs: verify
+    timeout-minutes: 20
     runs-on: ubuntu-22.04
     if: github.ref == 'refs/heads/main'
     defaults:

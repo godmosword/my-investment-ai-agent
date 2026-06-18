@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-06-16
+
+### CI（`pwa-deploy` — E2E 掛死防護）
+
+- **[`.github/workflows/pwa-deploy.yml`](.github/workflows/pwa-deploy.yml)**：`verify`／`deploy-vercel` 設 `timeout-minutes`（35／20）；移除冗餘 **Build (E2E bundle)**（E2E 內 `run-ci.sh` 已 build）；Playwright 瀏覽器 `actions/cache` + workflow 層 `install --with-deps`；`workflow_dispatch` 新增 **`skip_e2e`**（緊急部署略過 E2E）；失敗上傳 `playwright-report`／`e2e-results` artifact。
+- **[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml)**：移除 **main push** 觸發（避免與 `pwa-deploy` 雙跑）；改 `npm ci`、35 分鐘 timeout、Playwright cache／install、失敗 artifact。
+- **[`data-verification-ui/playwright.config.js`](data-verification-ui/playwright.config.js)**：CI 設 `globalTimeout` 25 分鐘、`maxFailures: 8`；reporter 加 html／junit。
+- **[`data-verification-ui/e2e/run-ci.sh`](data-verification-ui/e2e/run-ci.sh)**：mock API／preview 未就緒 fail-fast；`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` 時略過重複 `playwright install`。
+
 ## 2026-05-22
 
 ### Fix（GATE_EXECUTION_FAILED · AgencyResearchOutput 空 deliverables）

@@ -1,13 +1,9 @@
 name: PWA — Playwright E2E
 
 # PR 若僅改 PWA 會略過根目錄 ci.yml；此 workflow 專責 data-verification-ui（含 Bloomberg §6 跨頁價格 E2E）。
+# main push 的 E2E 由 pwa-deploy.yml verify job 負責，避免雙跑。
 on:
   pull_request:
-    paths:
-      - "data-verification-ui/**"
-      - ".github/workflows/pwa-e2e.yml"
-  push:
-    branches: [main]
     paths:
       - "data-verification-ui/**"
       - ".github/workflows/pwa-e2e.yml"
@@ -15,6 +11,7 @@ on:
 
 jobs:
   playwright:
+    timeout-minutes: 35
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -27,12 +24,33 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: data-verification-ui/package.json
+          cache-dependency-path: data-verification-ui/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('data-verification-ui/package-lock.json') }}
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run Playwright E2E (mock API + preview)
         run: npm run test:e2e
         env:
           CI: true
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            data-verification-ui/playwright-report/
+            data-verification-ui/e2e-results/
+          retention-days: 7
+          if-no-files-found: ignore
