@@ -63,3 +63,4 @@ data/deep_filing_analysis.jsonl
 .qsilicon/last_gate_failure/
 .pytest_gate_fail_tmp/
 .gstack/
+.vercel
