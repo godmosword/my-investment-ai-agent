@@ -98,4 +98,6 @@ jobs:
             echo "::warning::Vercel deploy skipped — set GitHub secrets VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID (see docs/PORTAL_SHIP_CHECKLIST.md)."
             exit 0
           fi
-          npx vercel deploy dist --prod --yes --token "${VERCEL_TOKEN}"
+          cp vercel.json dist/vercel.json
+          cd dist
+          npx vercel deploy --prod --yes --token "${VERCEL_TOKEN}"
