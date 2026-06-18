@@ -7,8 +7,9 @@
 
 ### CI（`pwa-deploy` — E2E 掛死防護）
 
-- **[`.github/workflows/pwa-deploy.yml`](.github/workflows/pwa-deploy.yml)**：`verify`／`deploy-vercel` 設 `timeout-minutes`（35／20）；移除冗餘 **Build (E2E bundle)**（E2E 內 `run-ci.sh` 已 build）；Playwright 瀏覽器 `actions/cache` + workflow 層 `install --with-deps`；`workflow_dispatch` 新增 **`skip_e2e`**（緊急部署略過 E2E）；失敗上傳 `playwright-report`／`e2e-results` artifact。
-- **[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml)**：移除 **main push** 觸發（避免與 `pwa-deploy` 雙跑）；改 `npm ci`、35 分鐘 timeout、Playwright cache／install、失敗 artifact。
+- **[`.github/workflows/pwa-deploy.yml`](.github/workflows/pwa-deploy.yml)**：`verify`／`deploy-vercel` 設 `timeout-minutes`（35／20）；移除冗餘 **Build (E2E bundle)**（E2E 內 `run-ci.sh` 已 build）；Playwright 瀏覽器 `actions/cache`（`restore-keys`）+ **拆分** `install-deps`（5m）／`install chromium`（10m，cache hit 略過）；`workflow_dispatch` 新增 **`skip_e2e`**（緊急部署略過 E2E）；失敗上傳 `playwright-report`／`e2e-results` artifact。
+- **[`.github/workflows/pwa-e2e.yml`](.github/workflows/pwa-e2e.yml)**：移除 **main push** 觸發（避免與 `pwa-deploy` 雙跑）；改 `npm ci`、35 分鐘 timeout、Playwright cache（`restore-keys`）+ **拆分** install 步驟與 step timeout、失敗 artifact。
+- **Hotfix（run #27770267116）**：`install --with-deps` 在 zip 下載後解壓卡死 ~33 分鐘導致 verify job timeout、E2E 未跑；改拆步驟並為 browser install 設獨立上限。
 - **[`data-verification-ui/playwright.config.js`](data-verification-ui/playwright.config.js)**：CI 設 `globalTimeout` 25 分鐘、`maxFailures: 8`；reporter 加 html／junit。
 - **[`data-verification-ui/e2e/run-ci.sh`](data-verification-ui/e2e/run-ci.sh)**：mock API／preview 未就緒 fail-fast；`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` 時略過重複 `playwright install`。
 

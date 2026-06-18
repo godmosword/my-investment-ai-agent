@@ -30,13 +30,22 @@ jobs:
         run: npm ci
 
       - name: Cache Playwright browsers
+        id: playwright-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('data-verification-ui/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright OS dependencies
+        timeout-minutes: 5
+        run: npx playwright install-deps chromium
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 10
+        run: npx playwright install chromium
 
       - name: Run Playwright E2E (mock API + preview)
         run: npm run test:e2e
