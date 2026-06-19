@@ -277,6 +277,46 @@ export function useMacroSnapshot() {
   });
 }
 
+/** GET /api/options/summary — watchlist 級 GEX + 異常流計數（pending envelope 視為正常回應）。 */
+export function useOptionsSummary() {
+  return useQuery({
+    queryKey: ["options", "summary"],
+    queryFn: () => apiFetch("/api/options/summary"),
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
+/**
+ * GET /api/options/gex/{symbol} — 單標的最新 GEX + 60 日歷史。
+ * @param {string} symbol
+ */
+export function useOptionsGex(symbol) {
+  const sym = String(symbol || "").trim().toUpperCase();
+  return useQuery({
+    queryKey: ["options", "gex", sym],
+    queryFn: () => apiFetch(`/api/options/gex/${encodeURIComponent(sym)}`),
+    enabled: !!sym,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
+/**
+ * GET /api/options/flow/{symbol} — 單標的近期異常流訊號。
+ * @param {string} symbol
+ */
+export function useOptionsFlow(symbol) {
+  const sym = String(symbol || "").trim().toUpperCase();
+  return useQuery({
+    queryKey: ["options", "flow", sym],
+    queryFn: () => apiFetch(`/api/options/flow/${encodeURIComponent(sym)}`),
+    enabled: !!sym,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
 /**
  * @param {number} [limit]
  * @param {string | null | undefined} [profile] — 與 `GET /api/reports?profile=` 對齊（full / lite / crypto-only）；省略則不篩選。

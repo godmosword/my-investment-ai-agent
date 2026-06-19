@@ -5,6 +5,12 @@
 
 ## 2026-06-19
 
+### PWA（Options Flow + GEX — Insights 分頁 F1）
+
+- **[`OptionsFlowHome.jsx`](data-verification-ui/src/modules/insights/pages/OptionsFlowHome.jsx)** 掛上 [`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 新分頁 **「選擇權流」**（`insights-tab-options`，lazy）：watchlist GEX 概覽條（regime chip + 異常計數）、單標的 GEX 讀數（total/call/put + 正負 gamma regime）、近期異常流列表；`?symbol=` 同步。**三態**：`enabled:false` → pending 卡、無資料 → 等待狀態、有資料 → 渲染；數字一律照 API、前端不自算（無數據幻覺紅線）。
+- **[`useApi.js`](data-verification-ui/src/hooks/useApi.js)**：`useOptionsSummary`／`useOptionsGex`／`useOptionsFlow`（pending envelope 視為正常回應）。
+- E2E [`options-flow-route.spec.js`](data-verification-ui/e2e/options-flow-route.spec.js)（3 例：概覽條／選標的顯示 GEX+flow／`?symbol=` 同步）+ mock server 三 endpoint fixture；`npm run lint`／`build`／`test:e2e`（**89/89**）綠。設計稿見 [`docs/OPTIONS_FRONTEND_DESIGN.md`](docs/OPTIONS_FRONTEND_DESIGN.md)（placement A）。**後續**：F2 GEX 歷史圖（lightweight-charts）、F3 完整異常流表／symbol 切換深化。
+
 ### Feat（Options 讀取 API + 前端設計稿）
 
 - **[`api_routers/options.py`](api_routers/options.py)**（掛載於 [`api.py`](api.py)）：`GET /api/options/summary`／`/gex/{underlying}`／`/flow/{underlying}`，唯讀消費 BigQuery 歷史；**三態穩定契約**——Polygon 未上線/表未設 → `{enabled:false, reason:"polygon_options_pending"}`、已啟用但無資料 → `reason:"no_data_yet"`、有資料 → 完整 payload；缺料不捏造數字（無數據幻覺紅線）。讀取分離於 [`options_bigquery_reader.py`](options_bigquery_reader.py)（表未設/查詢失敗一律回空，不崩 API）。測試 [`tests/api/test_options_router.py`](tests/api/test_options_router.py)（pending envelope + BQ 資料路徑 monkeypatch）。

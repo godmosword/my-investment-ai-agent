@@ -10,6 +10,7 @@ const PaperLifecycleHome = lazy(() => import("./PaperLifecycleHome"));
 const ScenarioPlannerHome = lazy(() => import("./ScenarioPlannerHome"));
 const SymbolDeepDive = lazy(() => import("./SymbolDeepDive"));
 const TrackRecordHome = lazy(() => import("./TrackRecordHome"));
+const OptionsFlowHome = lazy(() => import("./OptionsFlowHome"));
 
 const tabFallback = <div className="loading text-[13px] text-white/60">載入中…</div>;
 
@@ -20,6 +21,7 @@ const TABS = [
   { id: "track-record", label: "Track Record", testId: "insights-tab-track-record" },
   { id: "scenario", label: "情境建議", testId: "insights-tab-scenario" },
   { id: "signals", label: "訊號", testId: "insights-tab-signals" },
+  { id: "options", label: "選擇權流", testId: "insights-tab-options" },
 ];
 
 const TAB_IDS = new Set(TABS.map((t) => t.id));
@@ -104,6 +106,7 @@ export default function InsightsHome() {
           {active === "track-record" ? <TrackRecordHome /> : null}
           {active === "scenario" ? <ScenarioPlannerHome /> : null}
           {active === "signals" ? <QuantHome /> : null}
+          {active === "options" ? <OptionsFlowHome /> : null}
         </Suspense>
       </div>
     </div>

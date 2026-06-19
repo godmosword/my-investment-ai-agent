@@ -1358,6 +1358,47 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (url.pathname === "/api/options/summary") {
+    sendJson(res, 200, {
+      enabled: true,
+      as_of: "2026-06-19T22:30:00Z",
+      watchlist: ["MU", "NVDA", "AMD"],
+      items: [
+        { underlying: "MU", gex: { total_gex: 300000, call_gex: 500000, put_gex: -200000, spot_price: 100, regime: "positive", trade_date: "2026-06-19" }, unusual_count: 2 },
+        { underlying: "NVDA", gex: { total_gex: -450000, call_gex: 250000, put_gex: -700000, spot_price: 130, regime: "negative", trade_date: "2026-06-19" }, unusual_count: 1 },
+        { underlying: "AMD", gex: null, unusual_count: 0 },
+      ],
+    });
+    return;
+  }
+  if (url.pathname.startsWith("/api/options/gex/")) {
+    const sym = decodeURIComponent(url.pathname.split("/").pop() || "").toUpperCase();
+    sendJson(res, 200, {
+      enabled: true,
+      underlying: sym,
+      as_of: "2026-06-19T22:30:00Z",
+      gex: { underlying: sym, total_gex: 300000, call_gex: 500000, put_gex: -200000, spot_price: 100, regime: "positive", trade_date: "2026-06-19" },
+      history: [
+        { trade_date: "2026-06-17", total_gex: 220000, call_gex: 400000, put_gex: -180000, spot_price: 98 },
+        { trade_date: "2026-06-18", total_gex: 260000, call_gex: 450000, put_gex: -190000, spot_price: 99 },
+        { trade_date: "2026-06-19", total_gex: 300000, call_gex: 500000, put_gex: -200000, spot_price: 100 },
+      ],
+    });
+    return;
+  }
+  if (url.pathname.startsWith("/api/options/flow/")) {
+    const sym = decodeURIComponent(url.pathname.split("/").pop() || "").toUpperCase();
+    sendJson(res, 200, {
+      enabled: true,
+      underlying: sym,
+      as_of: "2026-06-19T22:30:00Z",
+      signals: [
+        { trade_date: "2026-06-19", option_ticker: `O:${sym}260116C00100000`, signal_type: "volume_oi", score: 0.5, premium: null, volume: 5000, open_interest: 1000, rationale: "day_volume 5000 = 5.0x open_interest 1000" },
+        { trade_date: "2026-06-19", option_ticker: `O:${sym}260116C00110000`, signal_type: "sweep", score: 0.4, premium: 690000, volume: 300, open_interest: 800, rationale: "sweep across 3 exchanges" },
+      ],
+    });
+    return;
+  }
   if (url.pathname === "/api/run-crew/status") {
     const within = mockCrewLastStartMs > 0 && Date.now() - mockCrewLastStartMs < 12_000;
     if (within) {
