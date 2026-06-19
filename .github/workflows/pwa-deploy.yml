@@ -89,6 +89,7 @@ jobs:
         run: npm run build
 
       - name: Deploy to Vercel
+        working-directory: .
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -100,7 +101,8 @@ jobs:
             echo "::warning::Vercel deploy skipped — set GitHub secrets VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID (see docs/PORTAL_SHIP_CHECKLIST.md)."
             exit 0
           fi
-          test -f dist/index.html
+          # Vercel project Root Directory is data-verification-ui; run CLI from repo root.
+          test -f data-verification-ui/dist/index.html
           npx vercel@54.14.2 pull --yes --environment=production --token="${VERCEL_TOKEN}"
           npx vercel@54.14.2 build --prod --token="${VERCEL_TOKEN}"
           npx vercel@54.14.2 deploy --prebuilt --prod --yes --token="${VERCEL_TOKEN}"
