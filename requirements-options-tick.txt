@@ -1,0 +1,9 @@
+# 僅供 options-flow-tick GitHub Action 使用（Polygon options flow + GEX 每日管線）。
+# 不包含 CrewAI / LiteLLM 以縮短安裝時間（agent_tools 的 crewai import 為 soft import）。
+pydantic>=2.7.0
+polygon-api-client>=1.14.0
+yfinance>=0.2.50
+pandas>=2.2.0
+numpy>=1.26.0
+requests>=2.32.0
+google-cloud-bigquery>=3.14.0

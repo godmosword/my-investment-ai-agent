@@ -1,0 +1,48 @@
+{
+  "MU": [
+    {
+      "details": {
+        "ticker": "O:MU260116C00100000",
+        "strike_price": 100,
+        "expiration_date": "2026-01-16",
+        "contract_type": "call"
+      },
+      "greeks": {"delta": 0.55, "gamma": 0.05, "theta": -0.03, "vega": 0.12},
+      "open_interest": 1000,
+      "implied_volatility": 0.45,
+      "day": {"volume": 5000, "close": 2.30},
+      "last_trade": {"price": 2.31},
+      "underlying_asset": {"ticker": "MU"}
+    },
+    {
+      "details": {
+        "ticker": "O:MU260116P00095000",
+        "strike_price": 95,
+        "expiration_date": "2026-01-16",
+        "contract_type": "put"
+      },
+      "greeks": {"delta": -0.40, "gamma": 0.04, "theta": -0.02, "vega": 0.10},
+      "open_interest": 500,
+      "implied_volatility": 0.48,
+      "day": {"volume": 200, "close": 1.80},
+      "last_trade": {"price": 1.79},
+      "underlying_asset": {"ticker": "MU"}
+    }
+  ],
+  "SPY": [
+    {
+      "details": {
+        "ticker": "O:SPY260116C00500000",
+        "strike_price": 500,
+        "expiration_date": "2026-01-16",
+        "contract_type": "call"
+      },
+      "greeks": {"delta": 0.52, "gamma": 0.02, "theta": -0.05, "vega": 0.20},
+      "open_interest": 8000,
+      "implied_volatility": 0.18,
+      "day": {"volume": 1000, "close": 5.0},
+      "last_trade": {"price": 5.01},
+      "underlying_asset": {"ticker": "SPY"}
+    }
+  ]
+}

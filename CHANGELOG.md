@@ -3,6 +3,18 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-06-19
+
+### Feat（Polygon Options Flow + GEX 每日管線）
+
+- **新增 [`tools/options/`](tools/options/) 子套件**：`client.py`（Polygon contracts/snapshot+Greeks/trades；官方 `polygon` RESTClient 惰性匯入；`MOCK_APIS=1` 離線 fixture；retry/backoff；走共用 `tools_cache_http._get_cache/_set_cache`）、`analyzer.py`（`UnusualOptionsAnalyzer` 偵測 volume/OI 異常與 tick sweep/block；`calculate_gex()` 標準 dealer 慣例：calls 正/puts 負、OI、乘數 100、含 spot² 縮放、每 1% 移動 USD）、`models.py`（Pydantic v2，數字帶 `source/as_of/method` provenance）、`pipeline.py`（`run_daily_options_pipeline()` per-symbol 錯誤隔離 + capability probe 分級降級）、`agent_tools.py`（`options_gex_tool`／`options_flow_tool`，掛快取）、`prompts.py`（**analysis-only**：LLM 僅解讀已算好的 JSON，缺料回 `[DATA_MISSING:...]`，不自算）。
+- **資料層 BigQuery**：[`options_bigquery_writer.py`](options_bigquery_writer.py) + DDL [`docs/SQL/options_snapshots.sql`](docs/SQL/options_snapshots.sql)／[`options_unusual_trades.sql`](docs/SQL/options_unusual_trades.sql)／[`options_gex_history.sql`](docs/SQL/options_gex_history.sql)（partition by `trade_date`、cluster、deterministic `insert_id` 防重跑重複）；表名 env override 見 [`config.py`](config.py)（未設則略過寫入）。
+- **排程**：[`scripts/options_flow_tick.py`](scripts/options_flow_tick.py) entrypoint + [`.github/workflows/options-flow-tick.yml`](.github/workflows/options-flow-tick.yml)（週一至週五 22:30 UTC；`OPTIONS_FLOW_ENABLED=0` 暫停）+ slim [`requirements-options-tick.txt`](requirements-options-tick.txt)。
+- **資料源約束**：Polygon options snapshots/Greeks/trades 需付費 Options 方案；capability probe 探測層級——Starter 拿 Greeks→GEX 為真，Advanced 拿 trades→tick sweep/block 為真，缺則對應輸出回 `[DATA_MISSING:polygon_options_*]`（無數據幻覺紅線）。
+- **部署 secret**：[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 掛 `POLYGON_API_KEY` Secret Manager；env 範本 [`.env.example`](.env.example)／[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt) 與 [`requirements.txt`](requirements.txt)（`polygon-api-client`）同步。
+- **測試**：`test_options_gex.py`（手算 golden：+500k call − 200k put = +300k total）、`test_options_analyzer.py`、`test_options_pipeline_smoke.py`（`@pytest.mark.smoke`）、`test_options_tool_contract.py`（斷言走共用快取、無自建 cache、缺料回 marker）+ mock fixtures `tests/fixtures/mock_data/polygon_*.json`；範例 [`examples/run_daily_options.py`](examples/run_daily_options.py)（`MOCK_APIS=1` 離線）。
+- 規劃／審稿：`/agent-plan` 雙審（架構自審 + codex gpt-5.5 工程審）→ Approved Plan → `/agent-action` 實作。**戰報整合（Telegram 四大區塊）／前端視覺化另開隊列**。
+
 ## 2026-06-16
 
 ### CI（`pwa-deploy` — E2E 掛死防護）

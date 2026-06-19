@@ -17,6 +17,7 @@ plotly>=5.22.0
 numpy>=1.26.0
 scipy>=1.13.0
 yfinance>=0.2.50
+polygon-api-client>=1.14.0  # Polygon options snapshots/Greeks/trades (options flow + GEX pipeline; lazy-imported, CI runs MOCK_APIS)
 matplotlib>=3.8.0
 feedparser>=6.0.11
 sentence-transformers>=2.2.0

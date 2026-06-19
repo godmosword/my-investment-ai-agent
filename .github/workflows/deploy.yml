@@ -115,6 +115,8 @@ jobs:
           SECRETS="$SECRETS,GNEWS_API_KEY=GNEWS_API_KEY:latest"
           SECRETS="$SECRETS,FMP_API_KEY=FMP_API_KEY:latest"
           SECRETS="$SECRETS,RAPIDAPI_KEY=RAPIDAPI_KEY:latest"
+          # Polygon options（options flow + GEX 管線）；先在 Secret Manager 建立 POLYGON_API_KEY。
+          SECRETS="$SECRETS,POLYGON_API_KEY=POLYGON_API_KEY:latest"
 
           # 曾以 --set-env-vars 注入的明文 key，改掛 secret 後須刪除舊 value，避免 describe 仍見明文。
           # 若你的 Job 從未存在這四個明文變數，首次 deploy 可能因 --remove-env-vars 報錯，請暫時刪除該旗標一行後再跑。

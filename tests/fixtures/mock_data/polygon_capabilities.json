@@ -1,0 +1,3 @@
+{
+  "capabilities": ["snapshot_greeks", "trades", "reference"]
+}

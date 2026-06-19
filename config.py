@@ -36,6 +36,12 @@ PAPER_EXECUTION_AUDIT_TABLE = os.getenv("PAPER_EXECUTION_AUDIT_TABLE", "").strip
 # Recommendation outcome snapshots（隊列 41，可選 BQ）；空字串則略過寫入。DDL 見 docs/SQL/recommendation_outcomes.sql
 RECOMMENDATION_OUTCOMES_TABLE = os.getenv("RECOMMENDATION_OUTCOMES_TABLE", "").strip()
 
+# Options flow + GEX 歷史（Polygon options 管線，可選 BQ）；空字串則略過寫入。
+# DDL 見 docs/SQL/options_snapshots.sql / options_unusual_trades.sql / options_gex_history.sql
+OPTIONS_SNAPSHOTS_TABLE = os.getenv("OPTIONS_SNAPSHOTS_TABLE", "").strip()
+OPTIONS_UNUSUAL_TRADES_TABLE = os.getenv("OPTIONS_UNUSUAL_TRADES_TABLE", "").strip()
+OPTIONS_GEX_HISTORY_TABLE = os.getenv("OPTIONS_GEX_HISTORY_TABLE", "").strip()
+
 # LiteLLM 模型字串（crew fallback 鏈與 _API_KEY_MAP 依此比對）
 MODEL_GROK = _env_model("MODEL_GROK", default="xai/grok-4-1-fast-reasoning")
 # 相容舊慣例：OPENAI_MODEL 優先，其次 MODEL_GPT

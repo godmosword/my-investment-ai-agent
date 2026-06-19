@@ -35,6 +35,10 @@ ANTHROPIC_API_KEY=
 # CoinGlass API v4：Base open-api-v4.coinglass.com，Header CG-API-KEY。若 JSON 回 code=401、msg=Upgrade plan＝方案不含該端點（非 URL 錯），見 README / AGENTS.md
 COINGLASS_API_KEY=
 CRYPTOPANIC_API_KEY=
+# POLYGON_API_KEY：polygon.io — options snapshots/Greeks/trades（options flow + GEX 管線）
+# 需付費 Options 方案：Starter 拿 Greeks→GEX；Advanced 拿 trades→tick sweep/block
+# 缺 key 或方案不足 → pipeline 回 [DATA_MISSING:polygon_options_*]，不捏造數據
+POLYGON_API_KEY=
 # NEWSAPI_KEY：newsapi.org — Bloomberg/Reuters/CNBC 主流財經新聞，每月 1000 次免費
 # 申請：https://newsapi.org/register
 NEWSAPI_KEY=

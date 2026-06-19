@@ -1,0 +1,8 @@
+{
+  "O:MU260116C00100000": [
+    {"price": 2.30, "size": 100, "sip_timestamp": 1736966400000000000, "exchange": 300, "conditions": [227]},
+    {"price": 2.30, "size": 100, "sip_timestamp": 1736966400000000000, "exchange": 301, "conditions": [227]},
+    {"price": 2.30, "size": 100, "sip_timestamp": 1736966400000000000, "exchange": 302, "conditions": [227]},
+    {"price": 10.00, "size": 300, "sip_timestamp": 1736966500000000000, "exchange": 300, "conditions": [227]}
+  ]
+}
