@@ -14,6 +14,7 @@
 - **[`data-verification-ui/playwright.config.js`](data-verification-ui/playwright.config.js)**：CI 設 `globalTimeout` 25 分鐘、`maxFailures: 8`；reporter 加 html／junit。
 - **[`data-verification-ui/e2e/run-ci.sh`](data-verification-ui/e2e/run-ci.sh)**：mock API／preview 未就緒 fail-fast；`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` 時略過重複 `playwright install`。
 - **Hotfix（run #27795573529／#27795682635）**：`deploy-vercel` 失敗——Vercel 專案 **Output Directory** 為 `dist/data-verification-ui`，Vite 輸出 `dist/`；deploy 步驟改將 build 產物搬至 `dist/data-verification-ui/` 再 `vercel deploy --prod`（含 `vercel.json`）。
+- **Hotfix（run #27796042835）**：staging 改 `data-verification-ui/` 後 deploy 觸發 Vercel **遠端** `vite build`（exit 127）；deploy 改 **`vercel pull` → `vercel build` → `vercel deploy --prebuilt --prod`**（`vercel@54.14.2`），不再猜 Output 子目錄或 source deploy。
 
 ## 2026-05-22
 

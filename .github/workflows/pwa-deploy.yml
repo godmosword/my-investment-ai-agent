@@ -93,14 +93,14 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_TECH_PULSE_URL: ${{ secrets.VITE_TECH_PULSE_URL }}
         run: |
           if [ -z "${VERCEL_TOKEN}" ] || [ -z "${VERCEL_ORG_ID}" ] || [ -z "${VERCEL_PROJECT_ID}" ]; then
             echo "::warning::Vercel deploy skipped — set GitHub secrets VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID (see docs/PORTAL_SHIP_CHECKLIST.md)."
             exit 0
           fi
-          # Vercel project Output Directory is data-verification-ui (dashboard); Vite emits dist/.
-          rm -rf data-verification-ui
-          mkdir -p data-verification-ui
-          mv dist/* data-verification-ui/
-          cp vercel.json data-verification-ui/vercel.json
-          npx vercel deploy --prod --yes --token "${VERCEL_TOKEN}"
+          test -f dist/index.html
+          npx vercel@54.14.2 pull --yes --environment=production --token="${VERCEL_TOKEN}"
+          npx vercel@54.14.2 build --prod --token="${VERCEL_TOKEN}"
+          npx vercel@54.14.2 deploy --prebuilt --prod --yes --token="${VERCEL_TOKEN}"
