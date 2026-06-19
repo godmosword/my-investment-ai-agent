@@ -1,0 +1,58 @@
+---
+description: Agent 編排 — 僅在 /agent-plan、/agent-action 時啟用（勿 alwaysApply）
+alwaysApply: false
+---
+
+# Agent Orchestration
+
+> **啟用方式：** 使用者輸入 **`/agent-plan`** 或 **`/agent-action`** 時才依本規則與指令檔執行；一般對話不自動進入 Leader 編排模式。
+
+- Meta：[`docs/AGENT-WORKFLOW.md`](../../docs/AGENT-WORKFLOW.md)
+- Domain：[`docs/AGENT-DOMAIN.md`](../../docs/AGENT-DOMAIN.md)
+
+## 入口指令
+
+| 指令 | 做什麼 | 不做什麼 |
+|------|--------|----------|
+| **`/agent-plan`** | Leader 寫 Plan → **架構 + 工程並行審核** → Approved Plan | 預設不實作、不 commit |
+| **`/agent-action`** | 讀 Approved Plan → **Task 派工** → 整合 → Verify →（可選）Ship | 不重做完整 Plan（blocked 除外） |
+
+## 紅線
+
+見 **AGENT-DOMAIN.md** § 紅線（Plan 違反 → CRITICAL）。
+
+## Leader
+
+當前 session 主模型：Plan、拆任務、整合、git scope。
+
+## 模型 slug（Task `model`）
+
+| 用途 | slug |
+|------|------|
+| Leader | `composer-2.5-fast` |
+| Plan 架構審 / L3 | `claude-opus-4-8-thinking-medium` |
+| Plan 工程審 / diff review | `gpt-5.5-medium` |
+| L2 | `claude-4.6-sonnet-medium-thinking` |
+| explore | `grok-4.3` |
+| shell / 批次 | `grok-build-0.1` |
+| 備選 Plan 審 | `claude-fable-5-thinking-medium` |
+
+遵守 Domain § Protected paths / models。
+
+## `/agent-action` 路由
+
+- L3 → Leader 或 Opus | L2 → Sonnet 4.6 | L1 → explore + Leader | L0 → `shell`
+- 可並行不同檔；**禁止**多 agent 同檔
+- commit → Leader only；**只 stage 相關檔**；預設不 push
+
+## Verify
+
+依 **AGENT-DOMAIN.md** § 驗證矩陣。
+
+## CRITICAL
+
+A/B/C 格式 — 見 `review-user-choice.mdc`（若有）
+
+## 跳過 `/agent-plan`
+
+單檔小改、一條命令、使用者說「直接做」→ 可只 `/agent-action`。
