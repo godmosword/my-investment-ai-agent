@@ -5,6 +5,11 @@
 
 ## 2026-06-19
 
+### Feat（Options 讀取 API + 前端設計稿）
+
+- **[`api_routers/options.py`](api_routers/options.py)**（掛載於 [`api.py`](api.py)）：`GET /api/options/summary`／`/gex/{underlying}`／`/flow/{underlying}`，唯讀消費 BigQuery 歷史；**三態穩定契約**——Polygon 未上線/表未設 → `{enabled:false, reason:"polygon_options_pending"}`、已啟用但無資料 → `reason:"no_data_yet"`、有資料 → 完整 payload；缺料不捏造數字（無數據幻覺紅線）。讀取分離於 [`options_bigquery_reader.py`](options_bigquery_reader.py)（表未設/查詢失敗一律回空，不崩 API）。測試 [`tests/api/test_options_router.py`](tests/api/test_options_router.py)（pending envelope + BQ 資料路徑 monkeypatch）。
+- **[`docs/OPTIONS_FRONTEND_DESIGN.md`](docs/OPTIONS_FRONTEND_DESIGN.md)**：Portal 前端設計稿（IA placement 建議 Insights 新分頁、react-query hooks、元件樹、pending/empty/data 三態、分期 F1–F4 + E2E）。**尚未實作 React**，待 placement 確認後進 `/agent-action`。
+
 ### Feat（Polygon Options Flow + GEX 每日管線）
 
 - **新增 [`tools/options/`](tools/options/) 子套件**：`client.py`（Polygon contracts/snapshot+Greeks/trades；官方 `polygon` RESTClient 惰性匯入；`MOCK_APIS=1` 離線 fixture；retry/backoff；走共用 `tools_cache_http._get_cache/_set_cache`）、`analyzer.py`（`UnusualOptionsAnalyzer` 偵測 volume/OI 異常與 tick sweep/block；`calculate_gex()` 標準 dealer 慣例：calls 正/puts 負、OI、乘數 100、含 spot² 縮放、每 1% 移動 USD）、`models.py`（Pydantic v2，數字帶 `source/as_of/method` provenance）、`pipeline.py`（`run_daily_options_pipeline()` per-symbol 錯誤隔離 + capability probe 分級降級）、`agent_tools.py`（`options_gex_tool`／`options_flow_tool`，掛快取）、`prompts.py`（**analysis-only**：LLM 僅解讀已算好的 JSON，缺料回 `[DATA_MISSING:...]`，不自算）。

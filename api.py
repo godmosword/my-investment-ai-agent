@@ -69,6 +69,7 @@ from api_routers.execution_intents import (
     _latest_gate_failure_summary,
 )
 from api_routers import execution_intents as execution_intents_router
+from api_routers import options as options_router
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,7 @@ app.include_router(track_record_router.router)
 app.include_router(industries_router.router)
 app.include_router(earnings_router.router)
 app.include_router(execution_intents_router.router)
+app.include_router(options_router.router)
 
 
 def _qsilicon_master_key_required() -> str:
