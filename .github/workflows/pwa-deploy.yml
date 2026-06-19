@@ -101,8 +101,17 @@ jobs:
             echo "::warning::Vercel deploy skipped — set GitHub secrets VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID (see docs/PORTAL_SHIP_CHECKLIST.md)."
             exit 0
           fi
+          if [ -z "${VITE_API_URL}" ]; then
+            echo "::error::VITE_API_URL secret is required when Vercel deploy is configured (FastAPI base URL baked into production bundle)."
+            exit 1
+          fi
           # Vercel project Root Directory is data-verification-ui; run CLI from repo root.
+          # npm run build dist/ is fail-fast only; deploy artifact is vercel build output.
           test -f data-verification-ui/dist/index.html
           npx vercel@54.14.2 pull --yes --environment=production --token="${VERCEL_TOKEN}"
           npx vercel@54.14.2 build --prod --token="${VERCEL_TOKEN}"
+          if [ ! -f .vercel/output/config.json ] && [ ! -f .vercel/output/static/index.html ]; then
+            echo "::error::vercel build did not produce .vercel/output (missing config.json and static/index.html). Check Vercel Root Directory=output settings; see docs/PORTAL_SHIP_CHECKLIST.md troubleshooting."
+            exit 1
+          fi
           npx vercel@54.14.2 deploy --prebuilt --prod --yes --token="${VERCEL_TOKEN}"

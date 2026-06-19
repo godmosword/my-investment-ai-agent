@@ -9,7 +9,8 @@ recorded the date in `TODOS.md` / `CHANGELOG.md`.
 Run against local API or staging API:
 
 ```bash
-curl -fsS "$API_BASE/healthz"
+# Liveness: prefer /docs or /openapi.json (Cloud Run edge may return 404 for /healthz)
+curl -fsS "$API_BASE/docs" || curl -fsS "$API_BASE/openapi.json"
 curl -fsS "$API_BASE/api/execution-intents?limit=5"
 curl -fsS "$API_BASE/api/execution-intents/allowed-statuses"
 curl -fsS "$API_BASE/api/execution-intents/gate-index"
@@ -66,7 +67,53 @@ Then update `TODOS.md` and `CHANGELOG.md` with the staging dates.
 
 ## Vercel PWA Deploy (CI)
 
-When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`, `VITE_API_URL`, optional `VITE_TECH_PULSE_URL`), workflow `.github/workflows/pwa-deploy.yml` runs lint/E2E in `verify`, then in `deploy-vercel`: `npm run build` (fail-fast), `vercel pull` → `vercel build` → `vercel deploy --prebuilt --prod` (pinned `vercel@54.14.2`) so Vercel does **not** re-run `vite build` on remote builders. If any Vercel secret is missing, the deploy job exits 0 with a warning so CI stays green until secrets are added. Cloud Run API must allow Vercel origins via `CORS_ORIGIN_REGEX` (default `https://.*\.vercel\.app`). If prebuilt deploy still fails on output path, set Vercel project **Root Directory** to `data-verification-ui` and **Output Directory** to `dist` in the project settings.
+When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`, **`VITE_API_URL`** required, optional `VITE_TECH_PULSE_URL`), workflow `.github/workflows/pwa-deploy.yml` runs lint/E2E in `verify`, then in `deploy-vercel`:
+
+1. `npm run build` — local fail-fast (`data-verification-ui/dist/index.html` must exist).
+2. **Deploy step runs from repo root** (Vercel dashboard **Root Directory** = `data-verification-ui`; do not run `vercel` CLI from inside `data-verification-ui/` or paths double-stack).
+3. `vercel pull` → `vercel build` → check `.vercel/output/` → `vercel deploy --prebuilt --prod` (pinned `vercel@54.14.2`).
+
+The artifact uploaded to Vercel is **`.vercel/output`** from `vercel build`, not the earlier `dist/` folder copied as-is. Remote builders must **not** re-run `vite build`.
+
+**Env contract (CI)**: GitHub Actions **secrets** (`VITE_API_URL`, `VITE_TECH_PULSE_URL`) are injected into the deploy step environment for `vercel build`. If `vercel pull` also downloads Vercel dashboard env, treat **GitHub secrets as source of truth** for production API URLs unless you intentionally manage them only in Vercel.
+
+**Skip vs fail**:
+
+- Missing `VERCEL_*` → deploy step **exits 0** with warning (CI green until secrets exist).
+- `VERCEL_*` present but **`VITE_API_URL` empty** → deploy step **fails** (avoid shipping a bundle with missing API banner).
+
+Cloud Run **FastAPI** must allow Vercel origins via `CORS_ORIGIN_REGEX` (default `https://.*\.vercel\.app`). Note: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) deploys the **Cloud Run Job** (daily pipeline), not the HTTP API Service — see **Production API base URL** below.
+
+### Production API base URL (`VITE_API_URL` / `API_BASE`)
+
+PWA and `npm run smoke:prod` need the **FastAPI** origin (`uvicorn api:app`), typically a **Cloud Run Service** (not the Job):
+
+```bash
+gcloud config set project my-investment-ai-agent
+gcloud run services list --region=asia-east1 --format='table(name,status.url)'
+```
+
+In [Cloud Console → Cloud Run → Services](https://console.cloud.google.com/run), copy the service **URL** (format `https://…-….a.run.app`). Set GitHub secret **`VITE_API_URL`** to that base (no trailing slash). If no Service exists yet, deploy API separately before expecting production Portal data calls or full `smoke:prod`.
+
+### Post-deploy smoke
+
+```bash
+cd data-verification-ui
+BASE_URL=https://my-investment-ai-agent.vercel.app \
+API_BASE="https://YOUR-CLOUD-RUN-SERVICE.a.run.app" \
+npm run smoke:prod
+```
+
+Static PWA routes must return 200; API checks require a reachable `API_BASE` (`/docs` or `/openapi.json` for liveness; optional quote with `SMOKE_QSILICON_KEY`). `/healthz` may 404 at the Cloud Run edge — use business endpoints if liveness probes fail.
+
+### Prebuilt deploy troubleshooting
+
+If deploy fails after `vercel build`:
+
+1. Read the full failed step log (pull 401 vs build output path vs prebuilt deploy).
+2. Re-run with `VERCEL_DEBUG=1` on the deploy step locally if reproducing.
+3. Confirm dashboard: **Root Directory** = `data-verification-ui`, **Framework** = Vite, **Output Directory** = `dist` — only change settings when logs show root/output mismatch.
+4. Ensure `.vercel/` is not committed (listed in root `.gitignore`).
 
 ### CI timing and emergency deploy
 

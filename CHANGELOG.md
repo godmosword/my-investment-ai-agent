@@ -16,6 +16,13 @@
 - **Hotfix（run #27795573529／#27795682635）**：`deploy-vercel` 失敗——Vercel 專案 **Output Directory** 為 `dist/data-verification-ui`，Vite 輸出 `dist/`；deploy 步驟改將 build 產物搬至 `dist/data-verification-ui/` 再 `vercel deploy --prod`（含 `vercel.json`）。
 - **Hotfix（run #27796042835）**：staging 改 `data-verification-ui/` 後 deploy 觸發 Vercel **遠端** `vite build`（exit 127）；deploy 改 **`vercel pull` → `vercel build` → `vercel deploy --prebuilt --prod`**（`vercel@54.14.2`），不再猜 Output 子目錄或 source deploy。
 - **Hotfix（run #27797147699）**：`vercel build` 在 `data-verification-ui/` cwd 執行時與 dashboard **Root Directory** 疊加，找不到 `index.html`；deploy 步驟改 **repo 根目錄**執行 pull/build/deploy。
+- **Codex 審查落地**：deploy 在 `VERCEL_*` 已設時 **`VITE_API_URL` 空值 fail-fast**；`vercel build` 後檢查 **`.vercel/output`**；[`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md) 補 prebuilt 契約、Cloud Run **Service** URL 查法、`smoke:prod` 範例與 troubleshooting。
+
+### Docs（Agent 編排 + prod smoke liveness）
+
+- **[`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md)**：Q-Silicon Meta 層（`/agent-plan`、`/agent-action`、Task 路由、驗證矩陣、紅線、Ship 政策、gstack 分工）。
+- **[`.cursor/commands/agent-plan.md`](.cursor/commands/agent-plan.md)**、**[`agent-action.md`](.cursor/commands/agent-action.md)**、**[`.cursor/rules/agent-orchestration.mdc`](.cursor/rules/agent-orchestration.mdc)**：Cursor slash commands 與編排規則（雙審 plan、CRITICAL A/B/C、繁體中文）。
+- **[`data-verification-ui/scripts/smoke-prod.sh`](data-verification-ui/scripts/smoke-prod.sh)**、**[`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)**：API liveness 改優先 **`/docs`**／**`/openapi.json`**（Cloud Run 邊界 **`/healthz`** 可能 404）。
 
 ## 2026-05-22
 

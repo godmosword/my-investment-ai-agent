@@ -18,10 +18,18 @@ for path in /insights /news /dashboard /columns /portfolio; do
   echo "OK $u"
 done
 
-echo "== API healthz =="
-hc=$(code "${API_BASE%/}/healthz")
-[[ "$hc" == "200" ]] || { echo "FAIL ${API_BASE%/}/healthz -> $hc"; exit 1; }
-echo "OK ${API_BASE%/}/healthz"
+echo "== API liveness (prefer /docs or /openapi.json; /healthz may 404 at Cloud Run edge) =="
+hc=""
+for path in /docs /openapi.json /healthz; do
+  c=$(code "${API_BASE%/}${path}")
+  if [[ "$c" == "200" ]]; then
+    hc="$c"
+    echo "OK ${API_BASE%/}${path}"
+    break
+  fi
+  echo "skip ${API_BASE%/}${path} -> $c"
+done
+[[ "$hc" == "200" ]] || { echo "FAIL API liveness: none of /docs, /openapi.json, /healthz returned 200"; exit 1; }
 
 echo "== API quote BTC (may be 401 without key — document your backend) =="
 qc=$(curl -sS -o /dev/null -w "%{http_code}" "${HDR[@]}" "${API_BASE%/}/api/symbols/BTC/quote")
