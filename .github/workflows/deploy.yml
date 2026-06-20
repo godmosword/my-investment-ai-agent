@@ -133,6 +133,22 @@ jobs:
           LG_FLAG="${{ vars.USE_LANGGRAPH_ENGINE }}"
           if [ -z "$LG_FLAG" ]; then LG_FLAG=0; fi
 
+          # 日報投遞管道（預設不變：Telegram 開、Web Push 關）。在 GitHub → Settings →
+          # Environments → production 設 WEB_PUSH_DAILY_BRIEF=1 + SKIP_TELEGRAM=1 切換為 Web Push。
+          WP_DAILY="${{ vars.WEB_PUSH_DAILY_BRIEF }}";   [ -z "$WP_DAILY" ]   && WP_DAILY=0
+          SKIP_TG="${{ vars.SKIP_TELEGRAM }}";           [ -z "$SKIP_TG" ]    && SKIP_TG=0
+          WP_ENABLED="${{ vars.WEB_PUSH_ENABLED }}";     [ -z "$WP_ENABLED" ] && WP_ENABLED=0
+          WP_MAILTO="${{ vars.WEB_PUSH_VAPID_MAILTO }}"; [ -z "$WP_MAILTO" ]  && WP_MAILTO=mailto:ops@example.com
+          WP_PORTAL="${{ vars.WEB_PUSH_PORTAL_URL }}"
+          ENVVARS="USE_LANGGRAPH_ENGINE=${LG_FLAG},SKIP_TELEGRAM=${SKIP_TG},WEB_PUSH_DAILY_BRIEF=${WP_DAILY},WEB_PUSH_ENABLED=${WP_ENABLED},WEB_PUSH_VAPID_MAILTO=${WP_MAILTO},WEB_PUSH_PORTAL_URL=${WP_PORTAL}"
+
+          # Web Push 啟用時才掛 VAPID/Redis secret（避免未建 secret 時讓既有 deploy 失敗）。
+          # 先在 Secret Manager 建 WEB_PUSH_VAPID_PRIVATE_KEY 與 WEB_PUSH_REDIS_URL。
+          if [ "$WP_DAILY" = "1" ]; then
+            SECRETS="$SECRETS,WEB_PUSH_VAPID_PRIVATE_KEY=WEB_PUSH_VAPID_PRIVATE_KEY:latest"
+            SECRETS="$SECRETS,WEB_PUSH_REDIS_URL=WEB_PUSH_REDIS_URL:latest"
+          fi
+
           # 日報管線含雙 Crew、多輪 LLM 與重試，實測常超過 1h；3600s 會被 Cloud Run 硬殺。
           # Cloud Run Jobs 單一 task 上限可至 168h；此處 4h 為安全預設，仍不足可再調高。
           gcloud run jobs deploy "${CLOUD_RUN_SERVICE}" \
@@ -143,6 +159,6 @@ jobs:
             --memory 2Gi \
             --task-timeout 14400 \
             --set-secrets="$SECRETS" \
-            --update-env-vars="USE_LANGGRAPH_ENGINE=${LG_FLAG}" \
+            --update-env-vars="$ENVVARS" \
             --remove-env-vars="$REMOVE_PLAIN" \
             --quiet

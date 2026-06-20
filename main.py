@@ -91,6 +91,8 @@ logger = logging.getLogger(__name__)
 # 除錯與乾跑開關（方便本地測試）
 SKIP_TELEGRAM = os.getenv("SKIP_TELEGRAM", "").lower() in ("1", "true", "yes")
 SKIP_BIGQUERY = os.getenv("SKIP_BIGQUERY", "").lower() in ("1", "true", "yes")
+# 日報改 PWA Web Push 投遞（取代 Telegram）：設 WEB_PUSH_DAILY_BRIEF=1 + SKIP_TELEGRAM=1。
+WEB_PUSH_DAILY_BRIEF = os.getenv("WEB_PUSH_DAILY_BRIEF", "").lower() in ("1", "true", "yes")
 STRICT_CONSISTENCY_GATE = os.getenv("STRICT_CONSISTENCY_GATE", "1").lower() in ("1", "true", "yes")
 # Score-based gate: send with banner when warning count <= threshold and no blocking issues.
 # Set GATE_WARN_THRESHOLD=0 to revert to strict binary behaviour.
@@ -143,6 +145,63 @@ def _daily_brief_report_date(report: DailyBriefReport) -> str:
 
     tz = timezone(timedelta(hours=8))
     return datetime.now(tz).strftime("%Y-%m-%d")
+
+
+def _brief_report_date_now() -> str:
+    from datetime import timedelta
+
+    tz = timezone(timedelta(hours=8))
+    return datetime.now(tz).strftime("%Y-%m-%d")
+
+
+def _deliver_daily_brief_webpush(report_date: str, report_ok: bool) -> None:
+    """日報 Web Push 投遞：固定文案＋日期＋深連結（不萃取內文、不重打 tool）。
+
+    Best-effort：preflight 不滿足或無收件人 → 明確 log 不靜默；任何例外都吞掉，
+    絕不阻塞或中斷主流程（main.py 雙線程／收尾安全）。內容零幻覺面：只有固定句子
+    與已知日期，全文由使用者點開 Portal 報告頁查看。
+    """
+    if not WEB_PUSH_DAILY_BRIEF:
+        return
+    if not report_ok:
+        logger.info("daily_brief_webpush skipped: report_ok=False（不送『戰報已更新』）。")
+        return
+    try:
+        import web_push_store
+
+        # Preflight：批次 Job 需共享 Redis 才有收件人；記憶體 store 在新 process 為空。
+        if not web_push_store.web_push_enabled() or not (os.getenv("WEB_PUSH_REDIS_URL") or "").strip():
+            logger.warning(
+                "daily_brief_webpush_unavailable: WEB_PUSH_ENABLED/WEB_PUSH_REDIS_URL 未設；"
+                "批次 Job 無共享訂閱，跳過推送（非送達）。"
+            )
+            return
+        if web_push_store.subscription_count() == 0:
+            logger.warning("daily_brief_webpush no_subscriptions: 共享 store 無訂閱者，跳過。")
+            return
+
+        base = (os.getenv("WEB_PUSH_PORTAL_URL") or "").strip().rstrip("/")
+        url = f"{base}/report/{report_date}" if base.startswith(("http://", "https://")) else None
+        title = "Q-Silicon 戰報"
+        body = f"今日 AI 半導體戰報已更新（{report_date}），點開查看全文。"
+
+        _start = time.monotonic()
+        result = web_push_store.broadcast(
+            title,
+            body,
+            url,
+            cap=web_push_store._int_env("WEB_PUSH_DAILY_SEND_MAX", 50),
+            timeout=10,
+        )
+        logger.info(
+            "daily_brief_webpush result: ok=%s sent=%s attempted=%s elapsed=%.1fs",
+            result.get("ok"),
+            result.get("sent"),
+            result.get("attempted"),
+            time.monotonic() - _start,
+        )
+    except Exception as exc:  # noqa: BLE001 — 推送失敗不得影響日報主流程
+        logger.warning("daily_brief_webpush failed (non-fatal): %s", exc)
 
 
 def _persist_pipeline_raw_report(report: DailyBriefReport | None) -> None:
@@ -1450,6 +1509,9 @@ if __name__ == "__main__":
             logger.warning("Telegram configuration missing. Skipping push.")
     else:
         logger.info("SKIP_TELEGRAM=1: skipping Telegram push.")
+
+    # ── 日報 PWA Web Push 投遞（取代/並行 Telegram；WEB_PUSH_DAILY_BRIEF=1 啟用）──
+    _deliver_daily_brief_webpush(_brief_report_date_now(), _report_ok)
 
     if not SKIP_BIGQUERY and _report_ok:
         extract_and_save_metrics(final_report)

@@ -3,6 +3,17 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-06-20
+
+### Feat（日報改 Web Push 投遞，取代 Telegram）
+
+- **[`web_push_store.broadcast(title, body, url=None)`](web_push_store.py)**：對所有訂閱者送一則 JSON 通知（payload `{title, body, url?}`；body 截斷 180 字；`ok = sent > 0`，保留 `attempted/sent/errors/no_subscriptions`）；`send_test_push` 改 delegate（`/api/push/test-send` 契約相容）。
+- **[`main._deliver_daily_brief_webpush()`](main.py)**（旗標 `WEB_PUSH_DAILY_BRIEF=1`）：日報完成後推「今日 AI 半導體戰報已更新（日期）」+ 深連結到 Portal 報告頁；置於並行工作完成、`clean_report` 後；只在 `report_ok` 才送；**preflight**（`WEB_PUSH_ENABLED`+`WEB_PUSH_REDIS_URL`+訂閱數）不滿足 → 明確 log `daily_brief_webpush_unavailable / no_subscriptions`，不靜默；全程 try/except 不阻塞主流程（雙線程安全）。**零幻覺面**：固定文案+日期，不萃取內文、不重打 tool。取代 Telegram＝`SKIP_TELEGRAM=1`+`WEB_PUSH_DAILY_BRIEF=1`。
+- **[`service-worker.js`](data-verification-ui/src/service-worker.js)**：補 `push` event handler → `showNotification(title,{body,data})`（先前只有 `notificationclick`，通知不會顯示）；notification data **同源化**（`url` 僅留同源 http(s)，另保 `report_date`/`block_id` 供既有 `resolveNotificationUrl` 組報告深連結）。
+- **[`deploy.yml`](.github/workflows/deploy.yml)**：日報投遞 env（`SKIP_TELEGRAM`/`WEB_PUSH_DAILY_BRIEF`/`WEB_PUSH_ENABLED`/`WEB_PUSH_VAPID_MAILTO`/`WEB_PUSH_PORTAL_URL`）由 repo vars 注入（預設不變：TG 開、Web Push 關）；`WEB_PUSH_DAILY_BRIEF=1` 時才掛 `WEB_PUSH_VAPID_PRIVATE_KEY`/`WEB_PUSH_REDIS_URL` secret（避免未建 secret 讓既有 deploy 失敗）。env 範本 + [`docs/PWA_WEB_PUSH.md`](docs/PWA_WEB_PUSH.md)「日報投遞」段同步。
+- 測試：[`test_web_push_broadcast.py`](test_web_push_broadcast.py)（fake pywebpush：url payload、`ok=sent>0`、no-subs/vapid 缺、全失敗、cap、body 截斷、非 http url 丟棄、delegate）、[`test_main_webpush_delivery.py`](test_main_webpush_delivery.py)（旗標/`report_ok`/preflight 閘門 + helper 不外拋）。**其他 Telegram 用途（價警/盤中）不動，HTML 白名單紅線保留。**
+- 規劃/審稿：`/agent-plan` 雙審（架構自審 + codex gpt-5.5）→ codex CRITICAL×5（Redis 收件人 gate、SW push、`ok=sent>0`、`_report_ok`/零幻覺、deploy env+secret）全折入。
+
 ## 2026-06-19
 
 ### PWA（Options Flow + GEX — 完整異常流表 F3）

@@ -60,6 +60,30 @@ python scripts/vapid_generate.py
 
 **新增推送類別流程**：（1）寫入本表新行 + 預設關；（2）若涉及新資料源走 [`REALTIME_DATA_SOURCES_GOVERNANCE.md`](REALTIME_DATA_SOURCES_GOVERNANCE.md)；（3）staging `test-send` 與真 Push Service 驗證後再開生產 flag。
 
+## 日報投遞（取代 Telegram）
+
+日報（daily brief）可改由 Web Push 投遞一則「戰報已更新」通知（標題＋固定文案＋日期＋深連結），點開進 Portal 看全文。**通知內容零幻覺面**：只有固定句子與已知日期，**不萃取報告內文、不 LLM 摘要、不重打 tool**。
+
+**啟用（取代 Telegram）**：
+```
+SKIP_TELEGRAM=1            # 關 Telegram 日報
+WEB_PUSH_DAILY_BRIEF=1     # 開 Web Push 日報
+WEB_PUSH_ENABLED=1
+WEB_PUSH_REDIS_URL=redis://…   # 必須：批次 Job 需共享訂閱（記憶體 store 在新 process 為空）
+WEB_PUSH_VAPID_PRIVATE_KEY=…   # Secret Manager
+WEB_PUSH_PORTAL_URL=https://your-portal.vercel.app   # 組深連結 /report/{date}；空則開 Portal 首頁
+# 可選：WEB_PUSH_DAILY_SEND_MAX=50、WEB_PUSH_VAPID_MAILTO=mailto:…
+```
+
+**硬前提（缺任一只會 no-op 並 log，不假裝送達）**：
+1. **共享 Redis 訂閱**：`WEB_PUSH_ENABLED=1` + `WEB_PUSH_REDIS_URL`，否則日報跑的 Cloud Run Job 無收件人 → log `daily_brief_webpush_unavailable / no_subscriptions`。
+2. **VAPID 私鑰進 Job**：`.github/workflows/deploy.yml` 在 `WEB_PUSH_DAILY_BRIEF=1` 時掛 `WEB_PUSH_VAPID_PRIVATE_KEY`/`WEB_PUSH_REDIS_URL` secret。
+3. **Portal（Vercel）含新 SW**：service worker 的 `push` handler 渲染通知；須重新部署 Portal，並設 `VITE_WEB_PUSH_REGISTER=1` + `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` 讓裝置完成訂閱。
+
+**投遞點**：`main._deliver_daily_brief_webpush(report_date, report_ok)`，置於日報並行工作完成、`clean_report` 之後；只在 `report_ok` 為真才送；全程 best-effort try/except，不阻塞主流程（main.py 雙線程安全）。送出走 `web_push_store.broadcast(title, body, url)`（`ok = sent > 0`）。
+
+**Rollback**：設 `WEB_PUSH_DAILY_BRIEF=0` 即回今日行為（Telegram）；SW `push` handler 留著無害。
+
 ## 修訂紀錄
 
 - **2026-04-14**：初版 — API 雙模式 + 前端可選註冊。
@@ -67,3 +91,4 @@ python scripts/vapid_generate.py
 - **2026-04-14（T4a 小步）**：程序內去重／IP limit。
 - **2026-04-14（T4a 完整）**：Redis、`pywebpush`、`POST /api/push/test-send`、可選 BQ persist／audit、[`scripts/vapid_generate.py`](../scripts/vapid_generate.py)。
 - **2026-05-16（T4b × Queue 34）**：通知事件語意改寫為 `price_alert` 主通道 + 共用 `triggered_at` 去重；新增推送類別流程入治理。
+- **2026-06-20（日報投遞）**：`web_push_store.broadcast()` + `main._deliver_daily_brief_webpush()` + SW `push` handler；日報改 Web Push 取代 Telegram（`WEB_PUSH_DAILY_BRIEF=1`+`SKIP_TELEGRAM=1`）。

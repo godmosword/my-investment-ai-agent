@@ -88,3 +88,51 @@ self.addEventListener("notificationclick", (event) => {
   const url = resolveNotificationUrl(event.notification.data);
   event.waitUntil(openOrFocus(url));
 });
+
+/**
+ * 同源化 notification data：url 僅保留與 SW scope 同源的 http(s)；另保留
+ * report_date / block_id 供 resolveNotificationUrl 在缺絕對 url 時組 Portal 報告頁。
+ */
+function sanitizeNotificationData(payload) {
+  const d = payload && typeof payload === "object" ? payload : {};
+  const out = {};
+  const origin = new URL(self.registration.scope).origin;
+  if (typeof d.url === "string") {
+    try {
+      const u = new URL(d.url);
+      if ((u.protocol === "http:" || u.protocol === "https:") && u.origin === origin) {
+        out.url = u.href;
+      }
+    } catch {
+      /* ignore malformed url */
+    }
+  }
+  if (d.report_date || d.reportDate) out.report_date = String(d.report_date || d.reportDate);
+  if (d.block_id != null || d.blockId != null) out.block_id = String(d.block_id ?? d.blockId);
+  return out;
+}
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    try {
+      payload = { body: event.data ? event.data.text() : "" };
+    } catch {
+      payload = {};
+    }
+  }
+  const title =
+    payload && typeof payload.title === "string" && payload.title.trim() ? payload.title : "Q-Silicon";
+  const body = payload && typeof payload.body === "string" ? payload.body : "";
+  const data = sanitizeNotificationData(payload);
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      data,
+      tag: "qs-daily-brief",
+      renotify: true,
+    }),
+  );
+});

@@ -400,35 +400,60 @@ def clear_subscriptions_for_tests() -> None:
             pass
 
 
-def send_test_push(title: str, body: str) -> dict[str, Any]:
-    """以 ``pywebpush`` 發送一則 JSON 通知（須 ``WEB_PUSH_VAPID_PRIVATE_KEY`` PEM）。"""
+# Web Push 通知 body 上限（payload 須小；全文在 Portal 看）。
+_PUSH_BODY_MAX = 180
+
+
+def broadcast(
+    title: str,
+    body: str,
+    url: str | None = None,
+    *,
+    cap: int | None = None,
+    timeout: int = 15,
+) -> dict[str, Any]:
+    """以 ``pywebpush`` 對所有訂閱者發送一則 JSON 通知（標題＋短 body＋可選深連結）。
+
+    payload schema：``{title, body, url?}``（body 截斷至 ``_PUSH_BODY_MAX``）。SW 的
+    ``resolveNotificationUrl`` 讀 ``data.url``（須絕對 http(s)）。回傳
+    ``{ok: sent>0, sent, attempted, errors, error?}`` — 全失敗或無訂閱不得記成功。
+    """
     priv = (os.getenv("WEB_PUSH_VAPID_PRIVATE_KEY") or "").strip()
     if not priv:
-        return {"ok": False, "error": "WEB_PUSH_VAPID_PRIVATE_KEY unset"}
+        return {"ok": False, "error": "vapid_unset", "sent": 0, "attempted": 0}
     mailto = (os.getenv("WEB_PUSH_VAPID_MAILTO") or "mailto:ops@example.com").strip()
     try:
         from pywebpush import webpush
     except ImportError:
-        return {"ok": False, "error": "pywebpush not installed"}
+        return {"ok": False, "error": "pywebpush_unavailable", "sent": 0, "attempted": 0}
 
     subs = list_subscription_infos_for_send()
     if not subs:
-        return {"ok": False, "error": "no_subscriptions", "sent": 0}
+        return {"ok": False, "error": "no_subscriptions", "sent": 0, "attempted": 0}
 
-    payload = json.dumps({"title": title, "body": body}, ensure_ascii=False)
+    data: dict[str, str] = {"title": str(title), "body": str(body)[:_PUSH_BODY_MAX]}
+    if url and isinstance(url, str) and url.startswith(("http://", "https://")):
+        data["url"] = url
+    payload = json.dumps(data, ensure_ascii=False)
+
+    resolved_cap = cap if cap is not None else _int_env("WEB_PUSH_SEND_MAX", 50)
     sent = 0
     errors: list[str] = []
-    cap = _int_env("WEB_PUSH_SEND_MAX", 50)
-    for info in subs[:cap]:
+    for info in subs[:resolved_cap]:
         try:
             webpush(
                 subscription_info=info,
                 data=payload,
                 vapid_private_key=priv,
                 vapid_claims={"sub": mailto},
-                timeout=15,
+                timeout=timeout,
             )
             sent += 1
         except Exception as exc:  # noqa: BLE001
             errors.append(str(exc)[:200])
-    return {"ok": True, "sent": sent, "errors": errors[:5], "attempted": min(len(subs), cap)}
+    return {"ok": sent > 0, "sent": sent, "attempted": min(len(subs), resolved_cap), "errors": errors[:5]}
+
+
+def send_test_push(title: str, body: str) -> dict[str, Any]:
+    """管理用測試推送（``/api/push/test-send``）。delegate 到 :func:`broadcast`。"""
+    return broadcast(title, body)

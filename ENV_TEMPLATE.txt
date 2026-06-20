@@ -254,7 +254,13 @@ ONCHAIN_FUNDING_LIVE=0
 # WEB_PUSH_ADMIN_KEY=          # 非空時啟用 POST /api/push/test-send（Header: X-Web-Push-Admin-Key）
 # WEB_PUSH_VAPID_PRIVATE_KEY=  # PEM（python scripts/vapid_generate.py）
 # WEB_PUSH_VAPID_MAILTO=mailto:ops@example.com  # pywebpush vapid sub
-# WEB_PUSH_SEND_MAX=50        # test-send 最多發送筆數
+# WEB_PUSH_SEND_MAX=50        # broadcast/test-send 最多發送筆數
+# ---- 日報 Web Push 投遞（取代 Telegram；見 docs/PWA_WEB_PUSH.md「日報投遞」）----
+# 取代 Telegram 日報＝ SKIP_TELEGRAM=1 + WEB_PUSH_DAILY_BRIEF=1。批次 Job 需共享訂閱：
+# 必須 WEB_PUSH_ENABLED=1 + WEB_PUSH_REDIS_URL（記憶體 store 在 Cloud Run Job 新 process 為空）。
+# WEB_PUSH_DAILY_BRIEF=0      # 1=日報完成後對所有訂閱者推「戰報已更新」通知（固定文案+日期+深連結）
+# WEB_PUSH_PORTAL_URL=        # Portal 絕對網址（如 https://your-portal.vercel.app）；組深連結 /report/{date}，空則開 Portal 首頁
+# WEB_PUSH_DAILY_SEND_MAX=50  # 日報 broadcast 最多發送筆數（每筆 10s timeout）
 # （PWA）VITE_WEB_PUSH_REGISTER=0   # 1=SW 就緒後嘗試 subscribe（須 VITE_WEB_PUSH_VAPID_PUBLIC_KEY）
 # （PWA）VITE_WEB_PUSH_VAPID_PUBLIC_KEY=   # URL-safe base64 VAPID public key
 # ---------- 實盤價格觀測（BQ vs yfinance；見 scripts/symbol_price_probe.py）----------
