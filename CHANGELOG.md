@@ -5,6 +5,10 @@
 
 ## 2026-06-19
 
+### PWA（Options Flow + GEX — GEX 歷史圖 F2）
+
+- **[`GexHistoryChart.jsx`](data-verification-ui/src/components/GexHistoryChart.jsx)**（lightweight-charts v5 **BaselineSeries**，以 0 為基準：正 gamma 上方綠、負 gamma 下方紅）lazy 掛入 [`OptionsFlowHome.jsx`](data-verification-ui/src/modules/insights/pages/OptionsFlowHome.jsx) GEX panel；消費 `GET /api/options/gex/{sym}` 的 `history`（每 1% 移動 USD）；無歷史時顯示等待狀態，前端不重算（無數據幻覺紅線）。E2E [`options-flow-route.spec.js`](data-verification-ui/e2e/options-flow-route.spec.js) 補圖表渲染斷言；`lint`／`build`／`test:e2e`（**90/90**）綠。**後續**：F3 完整異常流表（桌機/手機）+ symbol 切換深化。
+
 ### PWA（Options Flow + GEX — Insights 分頁 F1）
 
 - **[`OptionsFlowHome.jsx`](data-verification-ui/src/modules/insights/pages/OptionsFlowHome.jsx)** 掛上 [`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 新分頁 **「選擇權流」**（`insights-tab-options`，lazy）：watchlist GEX 概覽條（regime chip + 異常計數）、單標的 GEX 讀數（total/call/put + 正負 gamma regime）、近期異常流列表；`?symbol=` 同步。**三態**：`enabled:false` → pending 卡、無資料 → 等待狀態、有資料 → 渲染；數字一律照 API、前端不自算（無數據幻覺紅線）。

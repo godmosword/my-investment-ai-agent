@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useOptionsSummary, useOptionsGex, useOptionsFlow } from "../../../hooks/useApi";
+
+const GexHistoryChart = lazy(() => import("../../../components/GexHistoryChart"));
 
 /**
  * Insights「選擇權流」分頁：watchlist GEX 概覽 + 單標的 GEX 讀數與異常流。
@@ -99,6 +101,13 @@ function GexReadout({ symbol }) {
           <div className="font-mono text-rose-200/90">{formatGex(gex.put_gex)}</div>
         </div>
       </div>
+      {Array.isArray(data?.history) && data.history.length > 0 ? (
+        <div className="mt-3 border-t border-white/5 pt-3">
+          <Suspense fallback={<div className="loading text-[12px] text-white/50">載入圖表…</div>}>
+            <GexHistoryChart history={data.history} />
+          </Suspense>
+        </div>
+      ) : null}
     </div>
   );
 }

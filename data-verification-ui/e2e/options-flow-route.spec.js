@@ -26,6 +26,16 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     await expect(flow.getByText("volume_oi", { exact: false })).toBeVisible();
   });
 
+  test("GEX history chart renders when history is present (F2)", async ({ page }) => {
+    await page.goto("/insights?tab=options", { waitUntil: "load" });
+    await expect(page.getByTestId("options-flow-home")).toBeVisible({ timeout: 60_000 });
+
+    await page.locator('[data-testid="options-watchlist-chip"][data-symbol="MU"]').click();
+    const chart = page.getByTestId("options-gex-chart");
+    await expect(chart).toBeVisible();
+    await expect(chart.locator("canvas").first()).toBeVisible();
+  });
+
   test("symbol query param drives the URL on selection", async ({ page }) => {
     await page.goto("/insights?tab=options", { waitUntil: "load" });
     await expect(page.getByTestId("options-flow-home")).toBeVisible({ timeout: 60_000 });
