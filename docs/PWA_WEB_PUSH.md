@@ -82,6 +82,8 @@ WEB_PUSH_PORTAL_URL=https://your-portal.vercel.app   # 組深連結 /report/{dat
 
 **投遞點**：`main._deliver_daily_brief_webpush(report_date, report_ok)`，置於日報並行工作完成、`clean_report` 之後；只在 `report_ok` 為真才送；全程 best-effort try/except，不阻塞主流程（main.py 雙線程安全）。送出走 `web_push_store.broadcast(title, body, url)`（`ok = sent > 0`）。
 
+**staging 端到端驗證**：裝置先在 Portal 訂閱後，跑 [`scripts/webpush_daily_smoke.py`](../scripts/webpush_daily_smoke.py)——先不帶參數看 preflight 診斷（VAPID/Redis/訂閱數/深連結 url），通過後加 `--send` 用與日報相同的 `broadcast()` 路徑實推一則測試通知，於裝置確認顯示並點開導向正確報告頁。
+
 **Rollback**：設 `WEB_PUSH_DAILY_BRIEF=0` 即回今日行為（Telegram）；SW `push` handler 留著無害。
 
 ## 修訂紀錄
