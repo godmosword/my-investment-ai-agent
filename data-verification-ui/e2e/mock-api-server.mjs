@@ -1388,13 +1388,15 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname.startsWith("/api/options/flow/")) {
     const sym = decodeURIComponent(url.pathname.split("/").pop() || "").toUpperCase();
+    const baseStrike = { MU: 100, NVDA: 130, AMD: 160 }[sym] || 100;
+    const occ = (strike) => `O:${sym}260116C${String(Math.round(strike * 1000)).padStart(8, "0")}`;
     sendJson(res, 200, {
       enabled: true,
       underlying: sym,
       as_of: "2026-06-19T22:30:00Z",
       signals: [
-        { trade_date: "2026-06-19", option_ticker: `O:${sym}260116C00100000`, signal_type: "volume_oi", score: 0.5, premium: null, volume: 5000, open_interest: 1000, rationale: "day_volume 5000 = 5.0x open_interest 1000" },
-        { trade_date: "2026-06-19", option_ticker: `O:${sym}260116C00110000`, signal_type: "sweep", score: 0.4, premium: 690000, volume: 300, open_interest: 800, rationale: "sweep across 3 exchanges" },
+        { trade_date: "2026-06-19", option_ticker: occ(baseStrike), signal_type: "volume_oi", score: 0.5, premium: null, volume: 5000, open_interest: 1000, rationale: "day_volume 5000 = 5.0x open_interest 1000" },
+        { trade_date: "2026-06-19", option_ticker: occ(baseStrike + 10), signal_type: "sweep", score: 0.4, premium: 690000, volume: 300, open_interest: 800, rationale: "sweep across 3 exchanges" },
       ],
     });
     return;

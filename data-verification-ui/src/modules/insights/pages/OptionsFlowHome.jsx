@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useOptionsSummary, useOptionsGex, useOptionsFlow } from "../../../hooks/useApi";
+import UnusualFlowTable from "../../../components/UnusualFlowTable";
 
 const GexHistoryChart = lazy(() => import("../../../components/GexHistoryChart"));
 
@@ -116,32 +117,7 @@ function FlowList({ symbol }) {
   const { data, isLoading } = useOptionsFlow(symbol);
   if (isLoading) return <div className="loading text-[13px] text-white/60">載入異常流…</div>;
   if (data && data.enabled === false) return null;
-  const signals = data?.signals || [];
-  if (signals.length === 0) {
-    return (
-      <div data-testid="options-flow-empty" className="card p-3 text-[13px] text-white/60">
-        {symbol}：近期無不尋常期權流訊號。
-      </div>
-    );
-  }
-  return (
-    <div data-testid="options-flow-table" className="card p-3">
-      <div className="mb-2 text-[12px] font-semibold text-white/80">近期不尋常期權流</div>
-      <ul className="flex flex-col gap-2">
-        {signals.map((s, i) => (
-          <li
-            key={`${s.option_ticker}-${i}`}
-            data-testid="options-flow-row"
-            className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-2 text-[12px] last:border-0"
-          >
-            <span className="rounded border border-white/10 px-2 py-0.5 text-[11px] text-white/70">{s.signal_type}</span>
-            <span className="font-mono text-white/85">{s.option_ticker}</span>
-            <span className="text-white/60">{s.rationale}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+  return <UnusualFlowTable signals={data?.signals || []} />;
 }
 
 export default function OptionsFlowHome() {
@@ -151,6 +127,10 @@ export default function OptionsFlowHome() {
   const [selected, setSelected] = useState(symbolQs);
 
   const items = data?.items || [];
+  // Deep-link sync: ?symbol= from other tabs (SymbolDeepDive / earnings CTA) drives selection.
+  useEffect(() => {
+    if (symbolQs && symbolQs !== selected) setSelected(symbolQs);
+  }, [symbolQs, selected]);
   useEffect(() => {
     if (!selected && items.length > 0) setSelected(items[0].underlying);
   }, [items, selected]);

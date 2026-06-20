@@ -5,6 +5,12 @@
 
 ## 2026-06-19
 
+### PWA（Options Flow + GEX — 完整異常流表 F3）
+
+- **[`UnusualFlowTable.jsx`](data-verification-ui/src/components/UnusualFlowTable.jsx)**（桌機表格 + 手機卡片）取代 [`OptionsFlowHome.jsx`](data-verification-ui/src/modules/insights/pages/OptionsFlowHome.jsx) 內舊的簡易清單：類型（中文標籤 chip）／合約（OCC ticker 解析為 Call/Put + strike + 到期）／Score（視覺條）／Premium／Volume／OI／說明欄；數字由 API 注入、前端只格式化（無數據幻覺紅線）。
+- **symbol 切換深化**：`?symbol=` deep-link（來自 SymbolDeepDive／earnings CTA）即時驅動選取並更新 GEX + flow；watchlist chip 點擊同步 URL。
+- E2E [`options-flow-route.spec.js`](data-verification-ui/e2e/options-flow-route.spec.js) 補桌機表格欄位／手機卡片（375px）／切標的更新合約斷言 + mock server flow strike 隨標的；`lint`／`build`／`test:e2e`（**92/92**）綠。**Options 前端 F1–F3 完成**；等 Polygon 訂閱點亮真資料鏈路。
+
 ### PWA（Options Flow + GEX — GEX 歷史圖 F2）
 
 - **[`GexHistoryChart.jsx`](data-verification-ui/src/components/GexHistoryChart.jsx)**（lightweight-charts v5 **BaselineSeries**，以 0 為基準：正 gamma 上方綠、負 gamma 下方紅）lazy 掛入 [`OptionsFlowHome.jsx`](data-verification-ui/src/modules/insights/pages/OptionsFlowHome.jsx) GEX panel；消費 `GET /api/options/gex/{sym}` 的 `history`（每 1% 移動 USD）；無歷史時顯示等待狀態，前端不重算（無數據幻覺紅線）。E2E [`options-flow-route.spec.js`](data-verification-ui/e2e/options-flow-route.spec.js) 補圖表渲染斷言；`lint`／`build`／`test:e2e`（**90/90**）綠。**後續**：F3 完整異常流表（桌機/手機）+ symbol 切換深化。

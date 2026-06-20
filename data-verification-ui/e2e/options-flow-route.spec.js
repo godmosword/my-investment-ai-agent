@@ -23,7 +23,29 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     const flow = page.getByTestId("options-flow-table");
     await expect(flow).toBeVisible();
     await expect(flow.getByTestId("options-flow-row").first()).toBeVisible();
-    await expect(flow.getByText("volume_oi", { exact: false })).toBeVisible();
+    // F3: localized signal label + parsed OCC contract (O:MU260116C00100000 → Call $100)
+    await expect(flow.getByText("量/OI 異常", { exact: false }).first()).toBeVisible();
+    await expect(flow.getByText("Call $100", { exact: false }).first()).toBeVisible();
+  });
+
+  test("flow table renders mobile cards on small viewport (F3)", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto("/insights?tab=options&symbol=MU", { waitUntil: "load" });
+    await expect(page.getByTestId("options-flow-home")).toBeVisible({ timeout: 60_000 });
+
+    const card = page.getByTestId("options-flow-card").first();
+    await expect(card).toBeVisible();
+    await expect(card.getByText("Call $100", { exact: false })).toBeVisible();
+  });
+
+  test("switching symbol updates the flow table contracts (F3)", async ({ page }) => {
+    await page.goto("/insights?tab=options&symbol=MU", { waitUntil: "load" });
+    await expect(page.getByTestId("options-flow-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("options-flow-table")).toContainText("Call $100");
+
+    await page.locator('[data-testid="options-watchlist-chip"][data-symbol="NVDA"]').click();
+    await expect(page).toHaveURL(/symbol=NVDA/);
+    await expect(page.getByTestId("options-flow-table")).toContainText("Call $130");
   });
 
   test("GEX history chart renders when history is present (F2)", async ({ page }) => {
