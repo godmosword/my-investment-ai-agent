@@ -14,6 +14,7 @@ import os
 from datetime import date, datetime, timezone
 
 from config import (
+    OPTIONS_GEX_BY_STRIKE_TABLE,
     OPTIONS_GEX_HISTORY_TABLE,
     OPTIONS_SNAPSHOTS_TABLE,
     OPTIONS_UNUSUAL_TRADES_TABLE,
@@ -131,3 +132,28 @@ def write_gex(trade_date: date, gex: GEXResult) -> bool:
         "computed_at": datetime.now(timezone.utc).isoformat(),
     }
     return _insert(OPTIONS_GEX_HISTORY_TABLE, [(_insert_id("gex", td, gex.underlying), row)])
+
+
+def write_gex_by_strike(trade_date: date, gex: GEXResult) -> bool:
+    """Per-strike GEX 分布（每 strike 一列）。env 未設則 no-op。"""
+    td = trade_date.isoformat()
+    now = datetime.now(timezone.utc).isoformat()
+    rows: list[tuple[str, dict]] = []
+    for sg in gex.per_strike:
+        rows.append(
+            (
+                _insert_id("gexstrike", td, gex.underlying, sg.strike),
+                {
+                    "trade_date": td,
+                    "underlying": gex.underlying,
+                    "spot_price": gex.spot_price,
+                    "strike": sg.strike,
+                    "call_gex": sg.call_gex,
+                    "put_gex": sg.put_gex,
+                    "net_gex": sg.net_gex,
+                    "as_of": gex.provenance.as_of.isoformat(),
+                    "computed_at": now,
+                },
+            )
+        )
+    return _insert(OPTIONS_GEX_BY_STRIKE_TABLE, rows)

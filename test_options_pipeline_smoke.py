@@ -36,6 +36,20 @@ def test_pipeline_text_summary_is_plain_text(_offline):
 
 
 @pytest.mark.smoke
+def test_pipeline_writes_gex_by_strike(_offline, monkeypatch):
+    """by-strike 累積必經 pipeline → 確認 write_gex_by_strike 被呼叫並帶 per_strike。"""
+    import options_bigquery_writer as bq
+    from tools.options.pipeline import run_daily_options_pipeline
+
+    calls: list = []
+    monkeypatch.setattr(bq, "write_gex_by_strike", lambda td, gex: calls.append(gex) or False)
+
+    run_daily_options_pipeline(["MU"])
+    assert len(calls) == 1
+    assert len(calls[0].per_strike) == 2  # MU fixture: strikes 95(put) + 100(call)
+
+
+@pytest.mark.smoke
 def test_pipeline_missing_symbol_degrades_without_crash(_offline):
     from tools.options.pipeline import run_daily_options_pipeline
 

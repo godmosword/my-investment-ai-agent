@@ -5,6 +5,16 @@
 
 ## 2026-06-20
 
+### Feat（Portal 視覺化升級 Phase 1 + Options by-strike GEX + DB 表補齊）
+
+- **共用圖表基礎**：[`charts/themedChart.js`](data-verification-ui/src/components/charts/themedChart.js)（lightweight-charts factory，色彩取自 `design/tokens.palette`）、[`charts/ChartStates.jsx`](data-verification-ui/src/components/charts/ChartStates.jsx)（loading/empty/missing）、[`charts/GammaBarChart.jsx`](data-verification-ui/src/components/charts/GammaBarChart.jsx)（純 SVG by-strike net gamma，0 軸正綠/負紅 + spot 標記）；[`GexHistoryChart.jsx`](data-verification-ui/src/components/GexHistoryChart.jsx) 重構改用 kit（視覺等價）。
+- **Options by-strike**：`/api/options/gex/{sym}` **additive** 回 `per_strike: [{strike,call_gex,put_gex,net_gex}]`（[`api_routers/options.py`](api_routers/options.py) + [`options_bigquery_reader.read_latest_by_strike`](options_bigquery_reader.py)）；**契約**：by-strike 表未設/無資料→`enabled` + `per_strike: []`（不 pending、不示意）。寫入路徑經 [`tools/options/pipeline.py`](tools/options/pipeline.py)→[`options_bigquery_writer.write_gex_by_strike`](options_bigquery_writer.py) + DDL [`docs/SQL/options_gex_by_strike.sql`](docs/SQL/options_gex_by_strike.sql) + `OPTIONS_GEX_BY_STRIKE_TABLE`。[`OptionsFlowHome`](data-verification-ui/src/modules/insights/pages/OptionsFlowHome.jsx) 接 `GammaBarChart`（空狀態不示意）。
+- **Dashboard**：[`DashboardHome`](data-verification-ui/src/modules/dashboard/pages/DashboardHome.jsx) regime driver 色彩改用 tokens 調色板（取代通用 `text-green/red-600`）+ 三態 driver 分數 mini-bar。
+- **DB 補齊**：[`scripts/verify_bq_tables.py`](scripts/verify_bq_tables.py)（診斷：列出 optional 表設定/存在/列數 + DDL 路徑 + auto-create 標註；**env 未設＝optional skip，不阻擋部署**，不自動建表）。
+- **Backfill 誠實註記**：[`scripts/backfill_data.py`](scripts/backfill_data.py) docstring 標明 daily_metrics 真來源 vs placeholder（`etf_flow_millions=0.0`/`avg_risk_score=2.5`）vs None 欄位；options 歷史需 Polygon、不回填。
+- 測試：`tests/api/test_options_router.py`（per_strike 有/空兩態）、`test_options_pipeline_smoke.py`（by-strike 寫入）、`test_options_bigquery_writer.py`、`tests/test_verify_bq_tables.py`、E2E [`options-by-strike.spec.js`](data-verification-ui/e2e/options-by-strike.spec.js)；lint/build/e2e 綠。
+- 分期：本輪 Phase 1（基礎+Options+Dashboard+DB）；VU2–VU5（Portfolio/News/Columns/Report/Streamlit）backlog。`/agent-plan` 雙審（codex CRITICAL：by-strike 接 pipeline 寫入、生產不 mock、backfill placeholder 誠實）。
+
 ### Feat（日報改 Web Push 投遞，取代 Telegram）
 
 - **[`web_push_store.broadcast(title, body, url=None)`](web_push_store.py)**：對所有訂閱者送一則 JSON 通知（payload `{title, body, url?}`；body 截斷 180 字；`ok = sent > 0`，保留 `attempted/sent/errors/no_subscriptions`）；`send_test_push` 改 delegate（`/api/push/test-send` 契約相容）。

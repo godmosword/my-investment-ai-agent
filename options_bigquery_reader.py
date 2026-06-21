@@ -13,6 +13,7 @@ import logging
 from typing import Any
 
 from config import (
+    OPTIONS_GEX_BY_STRIKE_TABLE,
     OPTIONS_GEX_HISTORY_TABLE,
     OPTIONS_UNUSUAL_TRADES_TABLE,
 )
@@ -80,6 +81,24 @@ def read_gex_history(underlying: str, days: int = 60) -> list[dict[str, Any]]:
             bigquery.ScalarQueryParameter("days", "INT64", days),
         ],
     )
+
+
+def read_latest_by_strike(underlying: str) -> list[dict[str, Any]]:
+    """Latest trade_date's per-strike GEX rows (strike asc). [] when unset/empty."""
+    if not OPTIONS_GEX_BY_STRIKE_TABLE or not underlying:
+        return []
+    from google.cloud import bigquery
+
+    sql = f"""
+        SELECT strike, call_gex, put_gex, net_gex
+        FROM `{OPTIONS_GEX_BY_STRIKE_TABLE}`
+        WHERE underlying = @underlying
+          AND trade_date = (
+            SELECT MAX(trade_date) FROM `{OPTIONS_GEX_BY_STRIKE_TABLE}` WHERE underlying = @underlying
+          )
+        ORDER BY strike ASC
+    """
+    return _query(sql, [bigquery.ScalarQueryParameter("underlying", "STRING", underlying)])
 
 
 def read_recent_unusual(underlying: str, limit: int = 50) -> list[dict[str, Any]]:

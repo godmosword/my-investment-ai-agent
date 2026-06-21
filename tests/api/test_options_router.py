@@ -68,3 +68,34 @@ def test_flow_data_path_returns_signals(client, monkeypatch):
     assert body["enabled"] is True
     assert body["signals"][0]["signal_type"] == "volume_oi"
     assert body["signals"][0]["option_ticker"] == "O:MU260116C00100000"
+
+
+def test_gex_per_strike_additive_when_present(client, monkeypatch):
+    monkeypatch.setattr(options.reader, "tables_configured", lambda: True)
+    monkeypatch.setattr(options.reader, "read_latest_gex", lambda syms: {"MU": {"underlying": "MU", "total_gex": 300000.0}})
+    monkeypatch.setattr(options.reader, "read_gex_history", lambda sym, days=60: [])
+    monkeypatch.setattr(
+        options.reader,
+        "read_latest_by_strike",
+        lambda sym: [
+            {"strike": 95.0, "call_gex": 0.0, "put_gex": -200000.0, "net_gex": -200000.0},
+            {"strike": 100.0, "call_gex": 500000.0, "put_gex": 0.0, "net_gex": 500000.0},
+        ],
+    )
+    body = client.get("/api/options/gex/MU").json()
+    assert body["enabled"] is True
+    assert len(body["per_strike"]) == 2
+    assert body["per_strike"][1]["strike"] == 100.0
+    assert body["per_strike"][1]["net_gex"] == 500000.0
+
+
+def test_gex_per_strike_empty_when_table_unset(client, monkeypatch):
+    """by-strike 表未設/無資料 → enabled 且 per_strike: []（不 pending、不示意）。"""
+    monkeypatch.setattr(options.reader, "tables_configured", lambda: True)
+    monkeypatch.setattr(options.reader, "read_latest_gex", lambda syms: {})
+    monkeypatch.setattr(options.reader, "read_gex_history", lambda sym, days=60: [])
+    monkeypatch.setattr(options.reader, "read_latest_by_strike", lambda sym: [])
+    body = client.get("/api/options/gex/MU").json()
+    assert body["enabled"] is True
+    assert body["reason"] == "no_data_yet"
+    assert body["per_strike"] == []

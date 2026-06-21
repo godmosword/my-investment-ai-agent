@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
-import { BaselineSeries, createChart } from "lightweight-charts";
+import { BaselineSeries } from "lightweight-charts";
+import { createThemedChart, CHART_THEME } from "./charts/themedChart";
+import { ChartEmpty } from "./charts/ChartStates";
 
 /**
  * GEX 歷史折線（lightweight-charts BaselineSeries）：以 0 為基準，
@@ -33,25 +35,14 @@ export default function GexHistoryChart({ history = [] }) {
   useEffect(() => {
     if (!rootRef.current || points.length === 0) return undefined;
 
-    const chart = createChart(rootRef.current, {
-      width: rootRef.current.clientWidth,
-      height: 180,
-      layout: { background: { color: "transparent" }, textColor: "#8b9cb3" },
-      grid: {
-        vertLines: { color: "rgba(120, 160, 200, 0.08)" },
-        horzLines: { color: "rgba(120, 160, 200, 0.08)" },
-      },
-      rightPriceScale: { borderColor: "rgba(120, 160, 200, 0.15)" },
-      timeScale: { borderColor: "rgba(120, 160, 200, 0.15)" },
-      crosshair: { mode: 1 },
-    });
+    const chart = createThemedChart(rootRef.current, { height: 180 });
 
     const series = chart.addSeries(BaselineSeries, {
       baseValue: { type: "price", price: 0 },
-      topLineColor: "#34d399",
+      topLineColor: CHART_THEME.up,
       topFillColor1: "rgba(52, 211, 153, 0.22)",
       topFillColor2: "rgba(52, 211, 153, 0.02)",
-      bottomLineColor: "#f87171",
+      bottomLineColor: CHART_THEME.down,
       bottomFillColor1: "rgba(248, 113, 113, 0.02)",
       bottomFillColor2: "rgba(248, 113, 113, 0.22)",
       lineWidth: 2,
@@ -73,8 +64,8 @@ export default function GexHistoryChart({ history = [] }) {
 
   if (points.length === 0) {
     return (
-      <div data-testid="options-gex-chart-empty" className="text-[12px] text-white/50">
-        尚無 GEX 歷史可繪製。
+      <div data-testid="options-gex-chart-empty">
+        <ChartEmpty label="尚無 GEX 歷史可繪製。" />
       </div>
     );
   }

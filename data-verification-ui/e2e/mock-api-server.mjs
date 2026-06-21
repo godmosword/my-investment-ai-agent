@@ -1383,6 +1383,12 @@ const server = http.createServer((req, res) => {
         { trade_date: "2026-06-18", total_gex: 260000, call_gex: 450000, put_gex: -190000, spot_price: 99 },
         { trade_date: "2026-06-19", total_gex: 300000, call_gex: 500000, put_gex: -200000, spot_price: 100 },
       ],
+      per_strike: [
+        { strike: 90, call_gex: 50000, put_gex: -250000, net_gex: -200000 },
+        { strike: 95, call_gex: 120000, put_gex: -120000, net_gex: 0 },
+        { strike: 100, call_gex: 500000, put_gex: -50000, net_gex: 450000 },
+        { strike: 105, call_gex: 300000, put_gex: -20000, net_gex: 280000 },
+      ],
     });
     return;
   }

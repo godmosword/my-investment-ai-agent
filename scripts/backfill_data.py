@@ -7,6 +7,14 @@ Q-Silicon Historical Data Backfill
 執行方式（repo 根目錄）：
     python scripts/backfill_data.py
     python scripts/backfill_data.py --dry-run   # 僅預覽，不寫入 BigQuery
+
+資料誠實註記（避免 daily_metrics 反向踩無數據幻覺紅線）：
+- 真來源：``dxy``（FRED）、MVRV 衍生欄位（CryptoQuant）。
+- Placeholder/default（非真值，回測/UI 解讀時須知）：``etf_flow_millions=0.0``、``avg_risk_score=2.5``。
+- 留空（None，不回填，僅 schema 對齊）：``gpu_b200_price``、``grok_summary``、``gpt_summary``、
+  ``news_titles``、``sentiment_score``、``sopr``、``exchange_netflow``、``regime_score``。
+- options/GEX/unusual/by-strike 歷史不在本腳本範圍：需 Polygon 上線後由 ``options-flow-tick``
+  滾動累積，不回填、不 mock 進生產。
 """
 
 from __future__ import annotations

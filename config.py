@@ -41,6 +41,8 @@ RECOMMENDATION_OUTCOMES_TABLE = os.getenv("RECOMMENDATION_OUTCOMES_TABLE", "").s
 OPTIONS_SNAPSHOTS_TABLE = os.getenv("OPTIONS_SNAPSHOTS_TABLE", "").strip()
 OPTIONS_UNUSUAL_TRADES_TABLE = os.getenv("OPTIONS_UNUSUAL_TRADES_TABLE", "").strip()
 OPTIONS_GEX_HISTORY_TABLE = os.getenv("OPTIONS_GEX_HISTORY_TABLE", "").strip()
+# Per-strike GEX 分布（by-strike 柱狀圖用；可選，未設則略過寫入）。DDL 見 docs/SQL/options_gex_by_strike.sql
+OPTIONS_GEX_BY_STRIKE_TABLE = os.getenv("OPTIONS_GEX_BY_STRIKE_TABLE", "").strip()
 
 # LiteLLM 模型字串（crew fallback 鏈與 _API_KEY_MAP 依此比對）
 MODEL_GROK = _env_model("MODEL_GROK", default="xai/grok-4-1-fast-reasoning")

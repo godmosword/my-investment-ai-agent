@@ -76,6 +76,21 @@ function regimeTone(label) {
   return "regime-neutral";
 }
 
+/** 三態 driver 分數 mini-bar：-1 左紅 / 0 中性 / +1 右綠（對齊 regime 調色板）。 */
+function DriverScoreBar({ score }) {
+  const s = Number(score) || 0;
+  return (
+    <span data-testid="regime-driver-bar" className="inline-flex h-1.5 w-10 overflow-hidden rounded bg-white/10" aria-hidden="true">
+      <span className="h-full w-1/2 border-r border-white/15">
+        {s < 0 ? <span className="block h-full bg-rose-400/80" /> : null}
+      </span>
+      <span className="h-full w-1/2">
+        {s > 0 ? <span className="block h-full bg-emerald-400/80" /> : null}
+      </span>
+    </span>
+  );
+}
+
 function RegimePanel({ regime }) {
   const drivers = regime?.drivers ?? [];
   const label = regime?.label ?? "neutral";
@@ -87,9 +102,21 @@ function RegimePanel({ regime }) {
         {drivers.map((driver) => (
           <div key={driver.name} className="flex items-center justify-between gap-3 text-[13px]">
             <span className="text-[var(--muted)]">{driver.name}</span>
-            <span className={driver.score > 0 ? "text-green-600" : driver.score < 0 ? "text-red-600" : "text-[var(--muted)]"}>
-              {driver.note} · {driver.score > 0 ? "+" : ""}{driver.score}
-            </span>
+            <div className="flex items-center gap-2">
+              <DriverScoreBar score={driver.score} />
+              <span
+                className={
+                  driver.score > 0
+                    ? "text-emerald-300/90"
+                    : driver.score < 0
+                      ? "text-rose-300/90"
+                      : "text-[var(--muted)]"
+                }
+              >
+                {driver.note} · {driver.score > 0 ? "+" : ""}
+                {driver.score}
+              </span>
+            </div>
           </div>
         ))}
       </div>

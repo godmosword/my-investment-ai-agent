@@ -148,3 +148,4 @@ K 線疊加 Entry／Target／Stop（對齊 ROADMAP Phase 4）；建議在 **T5a*
 
 - **2026-04-14**：初版 — 階段 A–D；階段 A 契約 + Streamlit 口徑落地。
 - **2026-04-18**：合併 backlog 主文與階段 A–D 附錄（rebase）。
+- **2026-06-20（VU 視覺升級 Phase 1）**：共用圖表 kit（`charts/themedChart`/`ChartStates`/`GammaBarChart`）+ Options by-strike GEX + Dashboard regime tokens 對齊；VU2–VU5（Portfolio/News/Columns/Report/Streamlit V6）為 backlog。見 CHANGELOG **2026-06-20**。

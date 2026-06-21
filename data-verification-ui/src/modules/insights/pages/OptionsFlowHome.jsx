@@ -4,6 +4,7 @@ import { useOptionsSummary, useOptionsGex, useOptionsFlow } from "../../../hooks
 import UnusualFlowTable from "../../../components/UnusualFlowTable";
 
 const GexHistoryChart = lazy(() => import("../../../components/GexHistoryChart"));
+const GammaBarChart = lazy(() => import("../../../components/charts/GammaBarChart"));
 
 /**
  * Insights「選擇權流」分頁：watchlist GEX 概覽 + 單標的 GEX 讀數與異常流。
@@ -109,6 +110,12 @@ function GexReadout({ symbol }) {
           </Suspense>
         </div>
       ) : null}
+      <div className="mt-3 border-t border-white/5 pt-3">
+        <div className="mb-1 text-[12px] font-semibold text-white/70">GEX by strike（net gamma）</div>
+        <Suspense fallback={<div className="loading text-[12px] text-white/50">載入圖表…</div>}>
+          <GammaBarChart data={data?.per_strike || []} spot={gex.spot_price} />
+        </Suspense>
+      </div>
     </div>
   );
 }

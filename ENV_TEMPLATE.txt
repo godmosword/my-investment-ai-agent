@@ -39,6 +39,12 @@ CRYPTOPANIC_API_KEY=
 # 需付費 Options 方案：Starter 拿 Greeks→GEX；Advanced 拿 trades→tick sweep/block
 # 缺 key 或方案不足 → pipeline 回 [DATA_MISSING:polygon_options_*]，不捏造數據
 POLYGON_API_KEY=
+# Options 管線 BigQuery 歷史表（可選；未設＝該表略過寫入）。DDL 見 docs/SQL/options_*.sql
+# 診斷：python scripts/verify_bq_tables.py
+# OPTIONS_SNAPSHOTS_TABLE=PROJECT.market_data.options_snapshots
+# OPTIONS_UNUSUAL_TRADES_TABLE=PROJECT.market_data.options_unusual_trades
+# OPTIONS_GEX_HISTORY_TABLE=PROJECT.market_data.options_gex_history
+# OPTIONS_GEX_BY_STRIKE_TABLE=PROJECT.market_data.options_gex_by_strike   # by-strike 柱狀圖用
 # NEWSAPI_KEY：newsapi.org — Bloomberg/Reuters/CNBC 主流財經新聞，每月 1000 次免費
 # 申請：https://newsapi.org/register
 NEWSAPI_KEY=

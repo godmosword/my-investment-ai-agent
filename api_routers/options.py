@@ -93,6 +93,16 @@ def get_options_gex(underlying: str) -> dict[str, Any]:
 
     latest = reader.read_latest_gex([sym]).get(sym)
     history = reader.read_gex_history(sym, days=60)
+    # per_strike 為 additive 欄位：by-strike 表未設/無資料 → []（不破壞 totals/history、不示意）。
+    per_strike = [
+        {
+            "strike": r.get("strike"),
+            "call_gex": r.get("call_gex"),
+            "put_gex": r.get("put_gex"),
+            "net_gex": r.get("net_gex"),
+        }
+        for r in reader.read_latest_by_strike(sym)
+    ]
     if latest is None and not history:
         return {
             "enabled": True,
@@ -100,6 +110,7 @@ def get_options_gex(underlying: str) -> dict[str, Any]:
             "as_of": _now_iso(),
             "gex": None,
             "history": [],
+            "per_strike": per_strike,
             "reason": "no_data_yet",
         }
     return {
@@ -117,6 +128,7 @@ def get_options_gex(underlying: str) -> dict[str, Any]:
             }
             for h in history
         ],
+        "per_strike": per_strike,
     }
 
 

@@ -84,6 +84,7 @@ def _process_underlying(
         else:
             gex = result
             bq.write_gex(trade_date, gex)
+            bq.write_gex_by_strike(trade_date, gex)  # per-strike 分布（by-strike 圖）
 
     # Snapshot-level unusual flow (volume vs OI)
     if snapshots:
