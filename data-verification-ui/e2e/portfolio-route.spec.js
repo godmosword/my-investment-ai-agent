@@ -11,4 +11,14 @@ test.describe("Portfolio route (/portfolio)", () => {
     await expect(page.getByTestId("portfolio-add-button")).toBeVisible();
     await expect(page.getByTestId("portfolio-import-button")).toBeVisible();
   });
+
+  test("allocation donut renders slices from holdings (VU2)", async ({ page }) => {
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+
+    const donut = page.getByTestId("allocation-donut");
+    await expect(donut).toBeVisible();
+    await expect(donut.locator('[data-symbol="NVDA"]')).toBeVisible();
+    await expect(page.getByTestId("allocation-slice").first()).toBeVisible();
+  });
 });

@@ -5,6 +5,13 @@
 
 ## 2026-06-20
 
+### Feat（Portal 視覺化升級 VU2 — Portfolio 配置 donut + Track Record 權益曲線）
+
+- **[`charts/AllocationDonut.jsx`](data-verification-ui/src/components/charts/AllocationDonut.jsx)**（純 SVG donut，weight 正規化容忍百分比/分數，色彩取自 tokens；空→ChartEmpty）掛入 [`PortfolioHome`](data-verification-ui/src/modules/portfolio/pages/PortfolioHome.jsx)「持倉配置」卡（真資料：`/api/portfolio/pnl` holdings weight）。
+- **[`charts/EquityCurveChart.jsx`](data-verification-ui/src/components/charts/EquityCurveChart.jsx)**（themedChart line）取代 [`TrackRecordHome`](data-verification-ui/src/modules/insights/pages/TrackRecordHome.jsx) 累積曲線的 Sparkline；消費 `/api/track-record/summary` 的 `equity_curve`（真實現 P&L 曲線，x=closed_at、同日去重保留當日累積權益）。
+- 數字皆由 API 注入、前端只正規化/渲染（無數據幻覺紅線）；空資料走 ChartEmpty 不示意。**組合層級 P&L 時序**無 backend 歷史 → 不硬做（Track Record 權益曲線即已實現 P&L 曲線）。
+- E2E：[`portfolio-route.spec.js`](data-verification-ui/e2e/portfolio-route.spec.js) donut slices、[`insights-track-record.spec.js`](data-verification-ui/e2e/insights-track-record.spec.js) 權益曲線渲染；lint/build/e2e（**95/95**）綠。**VU3–VU5（News/Columns/Report/Streamlit）backlog**。
+
 ### Feat（Portal 視覺化升級 Phase 1 + Options by-strike GEX + DB 表補齊）
 
 - **共用圖表基礎**：[`charts/themedChart.js`](data-verification-ui/src/components/charts/themedChart.js)（lightweight-charts factory，色彩取自 `design/tokens.palette`）、[`charts/ChartStates.jsx`](data-verification-ui/src/components/charts/ChartStates.jsx)（loading/empty/missing）、[`charts/GammaBarChart.jsx`](data-verification-ui/src/components/charts/GammaBarChart.jsx)（純 SVG by-strike net gamma，0 軸正綠/負紅 + spot 標記）；[`GexHistoryChart.jsx`](data-verification-ui/src/components/GexHistoryChart.jsx) 重構改用 kit（視覺等價）。

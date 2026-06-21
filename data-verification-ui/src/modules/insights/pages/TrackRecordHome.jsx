@@ -1,12 +1,13 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
-import Sparkline from "../../../components/Sparkline";
 import {
   useTrackRecordByTag,
   useTrackRecordClosed,
   useTrackRecordSummary,
 } from "../../../hooks/useApi";
 import { insightsSymbolHref } from "../../../constants/portalPhase4";
+
+const EquityCurveChart = lazy(() => import("../../../components/charts/EquityCurveChart"));
 
 const TAGS = ["AI", "CRYPTO", "WIN", "LOSS"];
 
@@ -57,11 +58,6 @@ export default function TrackRecordHome() {
   const summary = tag ? payload?.summary : summaryQuery.data;
   const loading = summaryQuery.isLoading || closedQuery.isLoading || (tag && tagQuery.isLoading);
   const error = summaryQuery.error || closedQuery.error || (tag ? tagQuery.error : null);
-
-  const curve = useMemo(() => {
-    const values = summary?.equity_curve?.map((point) => Number(point.value));
-    return Array.isArray(values) && values.length ? values : [1, 1];
-  }, [summary]);
 
   return (
     <div data-testid="track-record-home" className="px-1">
@@ -141,11 +137,9 @@ export default function TrackRecordHome() {
           </div>
           <div className="font-mono text-[12px] text-[var(--muted)]">{payload?.source ?? summary?.source ?? "—"}</div>
         </div>
-        <Sparkline
-          values={curve}
-          tone={Number(summary?.cumulative_return_pct) >= 0 ? "up" : "down"}
-          label="track record equity curve"
-        />
+        <Suspense fallback={<div className="loading text-[12px] text-white/50">載入曲線…</div>}>
+          <EquityCurveChart curve={summary?.equity_curve || []} />
+        </Suspense>
       </div>
 
       <div className="card overflow-hidden p-0">

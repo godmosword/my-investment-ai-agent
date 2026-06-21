@@ -1,6 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PortfolioRiskPanel from "../../../components/PortfolioRiskPanel";
+
+const AllocationDonut = lazy(() => import("../../../components/charts/AllocationDonut"));
 import WatchlistMonitor from "../components/WatchlistMonitor";
 import {
   useAddHolding,
@@ -463,6 +465,12 @@ export default function PortfolioHome() {
 
             {rows.length > 0 ? (
               <>
+                <div className="card mb-4 p-3" data-testid="portfolio-allocation">
+                  <div className="mb-2 text-[12px] font-semibold text-white/70">持倉配置</div>
+                  <Suspense fallback={<div className="loading text-[12px] text-white/50">載入配置…</div>}>
+                    <AllocationDonut holdings={rows} />
+                  </Suspense>
+                </div>
                 <div data-testid="portfolio-holdings-table" className="mb-4 hidden overflow-x-auto rounded border border-[color:var(--border)] md:block">
                   <table className="w-full min-w-[760px] text-left text-[13px]">
                     <thead className="bg-[var(--panel)] text-[11px] uppercase text-[var(--muted)]">

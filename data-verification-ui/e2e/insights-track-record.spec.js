@@ -29,4 +29,12 @@ test.describe("Insights Track Record tab", () => {
     await expect(page.getByTestId("track-record-closed-table").getByText("MSFT", { exact: true })).toBeVisible();
     await expect(page.getByTestId("track-record-closed-table").getByText("BTC", { exact: true })).toBeHidden();
   });
+
+  test("equity curve renders as themed chart (VU2)", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    const chart = page.getByTestId("equity-curve-chart");
+    await expect(chart).toBeVisible();
+    await expect(chart.locator("canvas").first()).toBeVisible();
+  });
 });
