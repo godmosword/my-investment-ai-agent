@@ -56,11 +56,14 @@ export default function InsightsHome() {
       ) : null}
       <div
         data-testid="insights-workbench-intro"
-        className="card mb-3 border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80"
+        className="card workbench-secondary-panel mb-3 border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80"
       >
-        <span className="font-semibold text-emerald-100/95">工作台</span>
+        <span data-testid="workbench-primary-question" className="font-semibold text-emerald-100/95">工作台</span>
         ：標的深挖、紙上部位、情境與訊號在此切換；題材脈動去「科技即時報／專欄」，宏觀狀態到「數據儀表板」。
         路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊。
+        <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-emerald-300/20 px-2 py-0.5 text-[11px] text-emerald-100/75">
+          source: API
+        </span>
         <div className="mt-2 flex flex-wrap gap-2">
           <Link
             to="/news"

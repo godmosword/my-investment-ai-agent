@@ -11,6 +11,7 @@ test.describe("News route (/news)", () => {
 
     await expect(page.getByText("AI 半導體供應鏈拉高資本支出")).toBeVisible();
     await expect(page.getByText("semianalysis.com")).toBeVisible();
+    await expect(page.getByTestId("reader-source-line").first()).toContainText("stale");
 
     await page.getByTestId("news-filter-semis").click();
     await expect(page.getByText("AI 半導體供應鏈拉高資本支出")).toBeVisible();

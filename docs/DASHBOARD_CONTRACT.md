@@ -57,16 +57,29 @@
 
 ## FastAPI（對 PWA / 外部客戶端）
 
+資料可缺席的 Portal API 應優先使用穩定 envelope，避免前端猜測依賴狀態：
+
+```json
+{
+  "enabled": true,
+  "source": "bigquery|firestore|jsonl|live_api|fixture",
+  "as_of": "ISO-8601 or null",
+  "reason": null
+}
+```
+
+若 `enabled:false`，回應需附 `reason` 與可操作的 `hint`；若 `enabled:true` 但資料陣列為空，可用 `reason:"no_data_yet"` 區分「已設定但尚未跑入資料」。前端不得用 mock 數字填補缺資料狀態。
+
 | 路由 | 用途 | 備註 |
 |------|------|------|
 | `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema；實作於 [`api_routers/metrics.py`](../api_routers/metrics.py)（`APIRouter` prefix `/api/metrics`） |
 | `GET /api/metrics/history` | 歷史指標 | query：`days`；同上 |
 | `GET /api/macro/snapshot` | `/dashboard` macro snapshot | 實作於 [`api_routers/macro.py`](../api_routers/macro.py)；8 指標（10Y、2s10s、DXY、VIX、BTC、SOXX/SPY、AI Momentum、Next Fed/CPI），每列含 `value`、`change_1d`、`change_5d`、7 點 `spark`、`source`、`as_of`；60 秒 in-process cache；yfinance 指標逐列降級，FMP calendar optional |
-| `GET /api/news/digest` | `/news` 科技即時報 digest | 實作於 [`api_routers/news.py`](../api_routers/news.py)；query：可選 `date=YYYY-MM-DD`、`limit`；讀 Firestore collection（`TECH_PULSE_FIRESTORE_COLLECTION`，預設 `tech_pulse_memory_items`）；只回傳有 headline 與 source 的 item |
-| `GET /api/news/deep` | `/columns` 科技專欄 deep brief list | query：可選 `pillar=ai\|semiconductor\|crypto`、`limit`；沿用 Firestore collection 與 source filter；回傳 list items 含 `title`、`summary`、`body`／`content`、`source_domain`、`source_url`、`tickers`、`reading_minutes`、`pillar_key` |
+| `GET /api/news/digest` | `/news` 科技即時報 digest | 實作於 [`api_routers/news.py`](../api_routers/news.py)；query：可選 `date=YYYY-MM-DD`、`limit`；讀 Firestore collection（`TECH_PULSE_FIRESTORE_COLLECTION`，預設 `tech_pulse_memory_items`）；只回傳有 headline 與 source 的 item；每列含 `freshness` 與 `missing_fields` |
+| `GET /api/news/deep` | `/columns` 科技專欄 deep brief list | query：可選 `pillar=ai\|semiconductor\|crypto`、`limit`；沿用 Firestore collection 與 source filter；回傳 list items 含 `title`、`summary`、`body`／`content`、`source_domain`、`source_url`、`tickers`、`reading_minutes`、`pillar_key`、`freshness`、`missing_fields` |
 | `GET /api/news/deep/{item_id}` | `/news` deep brief side panel | 回傳單則 headline、Gemini take、source、time、confidence、`deep_brief`、`thesis_breakdown`、`tickers`；找不到或缺來源回 404 |
 | `GET /api/news/themes` | `/news` 今日主軸 | 由近期 sourced items 的 tags/pillar 聚合 `{ id, label, count }[]` |
-| `GET /api/track-record/summary` | `/insights` Track Record KPI | 實作於 [`api_routers/track_record.py`](../api_routers/track_record.py)；讀最新 `PAPER_CLOSED` execution intents，回傳 W/L、hit rate、avg return、Sharpe 近似、max drawdown、equity curve；paper-only |
+| `GET /api/track-record/summary` | `/insights` Track Record KPI | 實作於 [`api_routers/track_record.py`](../api_routers/track_record.py)；`RECOMMENDATION_OUTCOMES_TABLE` 有資料時讀 BigQuery，否則回退最新 `PAPER_CLOSED` execution intents；回傳 W/L、hit rate、avg return、Sharpe 近似、max drawdown、equity curve；paper-only；`source` 明示 `bigquery` 或 `execution_intents.jsonl` |
 | `GET /api/track-record/closed` | `/insights` closed paper rows | query：`limit`、`offset`；每列含 `source`／`source_id` 供審計 |
 | `GET /api/track-record/by-tag` | `/insights` Track Record 切片 | query：`tag`（如 `AI`、`CRYPTO`、`WIN`、`LOSS`）；回傳同 shape summary + records |
 | `GET /api/scenario/suggestions` | `/insights`「情境建議」分頁（隊列 **28d**） | 實作於 [`api_routers/scenario.py`](../api_routers/scenario.py)；**預設 404**；`SCENARIO_OPTIMIZER_ENABLED=1` 時回傳決定性 read model（`execution_intents` + `portfolio_holdings` 成本口徑權重、HHI、三組 `scenarios` 文案、`target_hints` 僅用 intent 內 **`reference_*`** 錨點算距離 **%**）；**不含**即時報價、**不**下單；與公開績效敘事仍須遵守 paper-only 審計邊界 |
@@ -76,7 +89,7 @@
 | `GET /api/execution-intents/gate-index` | **T5b** 唯讀索引：最近一次 gate artifact 的 issue 預覽 × 意圖列命中摘要 | query：`limit`（1–200，預設 200）。回傳 **`schema_version`**（`qsi_gate_intent_index_v1`）、**`gate_artifact_present`**、**`gate_issue_preview`**、**`gate_issue_count`**、**`intent_scanned`**、**`intent_rows_with_hints`**、**`matches`**（每筆含 `signal_id`、`asset`、`status`、`hint_count`、`gate_issue_hints`）；**非 OMS**、不含下單或成交斷言 |
 | `GET /api/execution-intents/allowed-statuses` | 意圖狀態集合 | 回傳 **`statuses`**（含紙上 `PAPER_*`）與 **`client_patchable`**（僅人審可 PATCH 子集） |
 | `PATCH /api/execution-intents/{signal_id}` | 意圖狀態轉移（append-only；**不下單**） | body：`status`、`note`、可選 **`reference_entry_price`／`reference_target_price`／`reference_stop_price`**（紙上模擬錨點）；成功回傳與 `GET /api/execution-intents` **同 shape** 的單列。若設 **`PAPER_EXECUTION_AUDIT_TABLE`** 且未 `SKIP_BIGQUERY`，成功 append 後另寫稽核列（`source=http_patch`、`prev_status`）；見 [`docs/SQL/paper_execution_audit.sql`](SQL/paper_execution_audit.sql) |
-| `GET /api/portfolio` | Portfolio Tracker holdings | JSONL storage（`PORTFOLIO_HOLDINGS_FILE`，預設 `portfolio_holdings.jsonl`）；回傳 `{ holdings: [...] }` |
+| `GET /api/portfolio` | Portfolio Tracker holdings | 預設 JSONL storage（`PORTFOLIO_HOLDINGS_FILE`，預設 `portfolio_holdings.jsonl`）；回傳 envelope `{ enabled, source, as_of, holdings }`。`PORTFOLIO_STORE_BACKEND=bigquery` 但未設 `PORTFOLIO_HOLDINGS_TABLE` 時回 `enabled:false` pending envelope |
 | `POST /api/portfolio` | 新增 Portfolio holding | body：`symbol`、`shares`、`cost_basis`、`opened_at`、可選 `notes`；`symbol` 正規化為大寫，`shares > 0`、`cost_basis >= 0`、`opened_at` 為 `YYYY-MM-DD` |
 | `PATCH /api/portfolio/{holding_id}` | 更新 Portfolio holding | body 可含 `shares`、`cost_basis`、`opened_at`、`notes`；找不到回 404 |
 | `DELETE /api/portfolio/{holding_id}` | 刪除 Portfolio holding | 成功回 `{ ok: true }`；找不到回 404 |

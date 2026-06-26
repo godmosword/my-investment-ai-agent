@@ -259,6 +259,15 @@ export function useMetricsLatest() {
   });
 }
 
+export function useDataHealth() {
+  return useQuery({
+    queryKey: ["data-health"],
+    queryFn: () => apiFetch("/api/data-health"),
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useMetricsHistory(days = 30) {
   return useQuery({
     queryKey: ["metrics", "history", days],
@@ -279,9 +288,13 @@ export function useMacroSnapshot() {
 
 /** GET /api/options/summary — watchlist 級 GEX + 異常流計數（pending envelope 視為正常回應）。 */
 export function useOptionsSummary() {
+  const pendingSuffix =
+    import.meta.env.VITE_E2E === "1" && getE2eFlag("e2e_options_pending") === "1"
+      ? "?e2e_options_pending=1"
+      : "";
   return useQuery({
     queryKey: ["options", "summary"],
-    queryFn: () => apiFetch("/api/options/summary"),
+    queryFn: () => apiFetch(`/api/options/summary${pendingSuffix}`),
     staleTime: 60 * 1000,
     retry: 1,
   });

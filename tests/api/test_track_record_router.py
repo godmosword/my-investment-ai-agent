@@ -101,6 +101,41 @@ def test_track_record_by_tag_filters_category(client):
     assert {row["asset"] for row in body["records"]} == {"NVDA", "MSFT"}
 
 
+def test_track_record_uses_bigquery_outcomes_when_available(client, monkeypatch):
+    monkeypatch.setattr(
+        "api_routers.track_record.load_track_record_records",
+        lambda limit=500: (
+            [
+                {
+                    "signal_id": "bq-nvda-1",
+                    "asset": "NVDA",
+                    "direction": "LONG",
+                    "category": "AI",
+                    "status": "PAPER_CLOSED",
+                    "opened_at": "",
+                    "closed_at": "2026-05-14T00:00:00Z",
+                    "entry_price": 100,
+                    "exit_price": 112,
+                    "return_pct": 12,
+                    "outcome": "win",
+                    "source": "bigquery",
+                    "source_id": "bq-nvda-1",
+                    "tags": ["AI", "NVDA", "LONG", "WIN"],
+                }
+            ],
+            "bigquery",
+        ),
+    )
+
+    summary = client.get("/api/track-record/summary").json()
+    assert summary["source"] == "bigquery"
+    assert summary["source_row_count"] == 1
+
+    closed = client.get("/api/track-record/closed").json()
+    assert closed["source"] == "bigquery"
+    assert closed["records"][0]["signal_id"] == "bq-nvda-1"
+
+
 def test_mark_to_market_rows_for_active_intents():
     rows = [
         {

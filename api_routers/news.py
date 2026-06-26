@@ -91,6 +91,27 @@ def _as_iso(value: Any) -> str:
     return text
 
 
+def _parse_datetime(value: str) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _freshness(published_at: str) -> str:
+    parsed = _parse_datetime(published_at)
+    if parsed is None:
+        return "unknown"
+    age_hours = (datetime.now(timezone.utc) - parsed).total_seconds() / 3600
+    return "fresh" if age_hours <= 36 else "stale"
+
+
 def _as_float(value: Any) -> float | None:
     if value is None or value == "":
         return None
@@ -208,6 +229,13 @@ def _normalize_item(
         or data.get("updated_at")
         or data.get("date")
     )
+    missing_fields: list[str] = []
+    if not published_at:
+        missing_fields.append("published_at")
+    if not source_url:
+        missing_fields.append("source_url")
+    if not take:
+        missing_fields.append("gemini_take")
     tags = _as_list(data.get("tags") or data.get("topics") or data.get("categories"))
     pillar = _first_text(data, ("pillar", "theme", "primary_theme"))
     if pillar and pillar not in tags:
@@ -235,6 +263,8 @@ def _normalize_item(
         "source_url": source_url,
         "published_at": published_at,
         "date": _first_text(data, ("date",)) or published_at[:10],
+        "freshness": _freshness(published_at),
+        "missing_fields": missing_fields,
         "tags": tags,
         "pillar": pillar,
         "pillar_key": pillar_key,

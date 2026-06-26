@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -145,7 +147,35 @@ def test_news_digest_filters_unsourced_items(client):
     assert "美元回落支撐風險資產" in headlines
     assert "沒有來源的新聞不得出現" not in headlines
     assert all(item["source_domain"] for item in body["items"])
+    assert all(item["freshness"] in {"fresh", "stale", "unknown"} for item in body["items"])
     assert {theme["label"] for theme in body["themes"]} >= {"AI", "半導體", "宏觀"}
+
+
+def test_news_normalization_surfaces_freshness_and_missing_fields():
+    fresh = news._normalize_item(
+        {
+            "headline": "Fresh AI brief",
+            "gemini_take": "Fresh take",
+            "source_url": "https://example.com/fresh",
+            "published_at": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
+        },
+        "fresh",
+    )
+    assert fresh is not None
+    assert fresh["freshness"] == "fresh"
+    assert fresh["missing_fields"] == []
+
+    incomplete = news._normalize_item(
+        {
+            "headline": "Missing published timestamp",
+            "gemini_take": "Still usable, but quality metadata should say what is missing.",
+            "source_domain": "example.com",
+        },
+        "missing",
+    )
+    assert incomplete is not None
+    assert incomplete["freshness"] == "unknown"
+    assert set(incomplete["missing_fields"]) == {"published_at", "source_url"}
 
 
 def test_news_deep_returns_thesis_and_confidence(client):

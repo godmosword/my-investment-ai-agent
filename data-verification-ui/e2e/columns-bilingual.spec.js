@@ -11,6 +11,7 @@ test.describe("Columns — bilingual commentary (queue 45 · P4)", () => {
     await page.getByTestId("columns-pillar-semiconductor").click();
     const card = page.getByTestId("columns-deep-card").first();
     await expect(card).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByTestId("reader-source-line")).toContainText("stale");
     await card.click();
 
     const panel = page.getByTestId("columns-deep-panel");

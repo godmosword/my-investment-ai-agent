@@ -47,6 +47,14 @@ Manual route pass:
 - Confirm symbol cards show snapshot/quote provenance and degrade cleanly on quote failure.
 - PATCH one non-production execution intent in staging and confirm the UI updates without a full-page refetch.
 
+## Data Backing
+
+- [ ] `/settings` data-health panel shows every board ready or pending with a setup hint.
+- [ ] Options has either `enabled:false` pending UI or live GEX rows from BigQuery.
+- [ ] Portfolio persistence mode is explicit in API payload and production env.
+- [ ] News/Columns show source + freshness metadata.
+- [ ] Track Record source is explicit: BigQuery or JSONL fallback.
+
 ## Staging-Only Signoff
 
 Do not mark these complete from repo tests alone:

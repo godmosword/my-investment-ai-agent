@@ -2,6 +2,15 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Insights — Options Flow + GEX tab (F1)", () => {
+  test("shows pending card when options backend is not configured", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem("e2e_options_pending", "1");
+    });
+    await page.goto("/insights?tab=options", { waitUntil: "load" });
+    await expect(page.getByTestId("options-pending")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("options-pending")).toContainText("選擇權數據尚未上線");
+  });
+
   test("watchlist strip shows GEX regime + unusual counts", async ({ page }) => {
     await page.goto("/insights?tab=options", { waitUntil: "load" });
     await expect(page.getByTestId("options-flow-home")).toBeVisible({ timeout: 60_000 });

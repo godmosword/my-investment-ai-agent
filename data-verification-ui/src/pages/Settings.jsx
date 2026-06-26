@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useGateFailures, useQsrecStats } from "../hooks/useApi";
+import { useDataHealth, useGateFailures, useQsrecStats } from "../hooks/useApi";
 
 const PREFS_KEY = "qsilicon_push_prefs";
 const POLL_OVERRIDE_KEY = "qs_terminal_poll_ms_override";
@@ -71,6 +71,8 @@ export default function Settings() {
   const gateCloseRef = useRef(null);
   const qsrecStats = useQsrecStats(7);
   const gateFailures = useGateFailures(7);
+  const dataHealth = useDataHealth();
+  const dataHealthItems = dataHealth.data?.items ?? [];
 
   const pushRegister = envFlag(import.meta.env.VITE_WEB_PUSH_REGISTER);
   const vapidSet = Boolean(String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || "").trim());
@@ -293,6 +295,44 @@ export default function Settings() {
                   </button>
                 </li>
               ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="card p-3" data-testid="data-health-panel">
+          <h2 className="mb-2 text-[13px] font-semibold">資料後台狀態</h2>
+          <p className="m-0 text-[12px] text-[var(--muted)]">
+            來自 <code className="font-mono text-[11px]">GET /api/data-health</code>
+          </p>
+          {dataHealth.isLoading ? (
+            <p className="mt-2 mb-0 text-[12px] text-[var(--muted)]">載入中…</p>
+          ) : dataHealth.isError ? (
+            <p className="mt-2 mb-0 text-[12px] text-amber-300" role="status">
+              {dataHealth.error?.message ?? "資料後台狀態載入失敗"}
+            </p>
+          ) : (
+            <ul className="mt-2 m-0 list-none space-y-2 p-0 text-[12px]">
+              {dataHealthItems.map((item) => {
+                const ready = item.status === "ready";
+                return (
+                  <li key={item.id} className="rounded border border-white/10 bg-black/15 px-2 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-white/85">{item.label}</span>
+                      <span
+                        className={`rounded px-2 py-0.5 font-mono text-[11px] ${
+                          ready ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200"
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                    </div>
+                    <div className="mt-1 font-mono text-[11px] text-[var(--muted)]">{item.source}</div>
+                    {!ready && item.hint ? (
+                      <div className="mt-1 text-[11px] leading-snug text-white/60">{item.hint}</div>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

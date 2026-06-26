@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, File, HTTPException, UploadFile
@@ -18,17 +20,57 @@ from symbol_snapshot_service import fetch_symbol_quote
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 
+PENDING_HINT = "Set PORTFOLIO_HOLDINGS_TABLE or switch PORTFOLIO_STORE_BACKEND=jsonl."
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _store_backend() -> str:
+    backend = os.getenv("PORTFOLIO_STORE_BACKEND", "jsonl").strip().lower()
+    return "bigquery" if backend == "bigquery" else "jsonl"
+
+
+def _portfolio_table() -> str:
+    return os.getenv("PORTFOLIO_HOLDINGS_TABLE", "").strip()
+
+
+def _pending_payload() -> dict[str, Any]:
+    return {
+        "enabled": False,
+        "source": "bigquery",
+        "as_of": _now_iso(),
+        "reason": "portfolio_bigquery_table_missing",
+        "hint": PENDING_HINT,
+        "holdings": [],
+    }
+
+
+def _ensure_writeable_store() -> None:
+    if _store_backend() == "bigquery" and not _portfolio_table():
+        raise HTTPException(status_code=503, detail=PENDING_HINT)
+
+
 def _unprocessable(exc: ValueError) -> HTTPException:
     return HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("")
-def get_portfolio() -> dict[str, list[dict[str, Any]]]:
-    return {"holdings": load_holdings()}
+def get_portfolio() -> dict[str, Any]:
+    if _store_backend() == "bigquery" and not _portfolio_table():
+        return _pending_payload()
+    return {
+        "enabled": True,
+        "source": _store_backend(),
+        "as_of": _now_iso(),
+        "holdings": load_holdings(),
+    }
 
 
 @router.post("")
 def create_holding(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    _ensure_writeable_store()
     try:
         return add_holding(body)
     except ValueError as exc:
@@ -37,6 +79,7 @@ def create_holding(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 @router.patch("/{holding_id}")
 def patch_holding(holding_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    _ensure_writeable_store()
     try:
         updated = update_holding(holding_id, body)
     except ValueError as exc:
@@ -48,6 +91,7 @@ def patch_holding(holding_id: str, body: dict[str, Any] = Body(...)) -> dict[str
 
 @router.delete("/{holding_id}")
 def remove_holding(holding_id: str) -> dict[str, bool]:
+    _ensure_writeable_store()
     if not delete_holding(holding_id):
         raise HTTPException(status_code=404, detail="holding not found")
     return {"ok": True}
@@ -55,6 +99,7 @@ def remove_holding(holding_id: str) -> dict[str, bool]:
 
 @router.post("/import")
 async def import_holdings(file: UploadFile = File(...)) -> dict[str, Any]:
+    _ensure_writeable_store()
     try:
         raw = await file.read()
         csv_text = raw.decode("utf-8-sig")
@@ -68,6 +113,13 @@ async def import_holdings(file: UploadFile = File(...)) -> dict[str, Any]:
 
 @router.get("/pnl")
 def get_portfolio_pnl() -> dict[str, Any]:
+    if _store_backend() == "bigquery" and not _portfolio_table():
+        return {
+            **_pending_payload(),
+            "total_value": 0.0,
+            "total_pnl": 0.0,
+            "total_day_pnl": 0.0,
+        }
     holdings = load_holdings()
     enriched: list[dict[str, Any]] = []
     total_value = 0.0

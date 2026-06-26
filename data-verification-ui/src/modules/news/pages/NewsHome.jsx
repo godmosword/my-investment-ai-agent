@@ -45,6 +45,22 @@ function sourceLabel(item) {
   return item?.source_domain || item?.source_name || "來源待補";
 }
 
+function freshnessLabel(value) {
+  if (value === "fresh") return "fresh";
+  if (value === "stale") return "stale";
+  return "freshness unknown";
+}
+
+function freshnessClass(value) {
+  if (value === "fresh") return "border-emerald-400/20 text-emerald-200/80";
+  if (value === "stale") return "border-amber-400/20 text-amber-200/80";
+  return "border-white/10 text-white/50";
+}
+
+function hasMissingQualityFields(item) {
+  return Array.isArray(item?.missing_fields) && item.missing_fields.length > 0;
+}
+
 function filterItems(items, filterId) {
   const filter = FILTERS.find((row) => row.id === filterId) ?? FILTERS[0];
   if (filter.id === "all") return items;
@@ -65,11 +81,17 @@ function NewsItemButton({ item, active, onClick }) {
       }`}
       onClick={onClick}
     >
-      <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
+      <div data-testid="reader-source-line" className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
         <span className="rounded border border-white/10 px-2 py-0.5 font-mono text-cyan-200">
           {sourceLabel(item)}
         </span>
         <span>{formatTime(item.published_at)}</span>
+        <span className={`rounded border px-2 py-0.5 ${freshnessClass(item.freshness)}`}>
+          {freshnessLabel(item.freshness)}
+        </span>
+        {hasMissingQualityFields(item) ? (
+          <span className="rounded border border-white/10 px-2 py-0.5 text-white/45">資料待補</span>
+        ) : null}
         {tags.map((tag) => (
           <span key={tag} className="rounded bg-white/5 px-2 py-0.5 text-white/60">
             {tag}
@@ -134,7 +156,7 @@ function DeepPanel({ item, detail, loading, onClose }) {
             關閉
           </button>
         </div>
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-[var(--muted)]">
+        <div data-testid="reader-source-line" className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-[var(--muted)]">
           {current.source_url ? (
             <a className="text-cyan-200 hover:text-cyan-100" href={current.source_url} target="_blank" rel="noreferrer">
               {sourceLabel(current)}
@@ -143,6 +165,12 @@ function DeepPanel({ item, detail, loading, onClose }) {
             <span className="text-cyan-200">{sourceLabel(current)}</span>
           )}
           <span>{formatTime(current.published_at)}</span>
+          <span className={`rounded border px-2 py-0.5 text-[11px] ${freshnessClass(current.freshness)}`}>
+            {freshnessLabel(current.freshness)}
+          </span>
+          {hasMissingQualityFields(current) ? (
+            <span className="rounded border border-white/10 px-2 py-0.5 text-[11px] text-white/45">資料待補</span>
+          ) : null}
           <span>信心 {pct(current.confidence)}</span>
         </div>
         {loading ? <div className="text-[13px] text-[var(--muted)]">載入 deep brief…</div> : null}

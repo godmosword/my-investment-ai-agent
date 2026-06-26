@@ -41,6 +41,7 @@ CRYPTOPANIC_API_KEY=
 POLYGON_API_KEY=
 # Options 管線 BigQuery 歷史表（可選；未設＝該表略過寫入）。DDL 見 docs/SQL/options_*.sql
 # 診斷：python scripts/verify_bq_tables.py
+# Cloud Run deploy：Secret Manager 未建 POLYGON_API_KEY 時會略過掛載並讓前端顯示 pending，不阻塞主日報部署
 # OPTIONS_SNAPSHOTS_TABLE=PROJECT.market_data.options_snapshots
 # OPTIONS_UNUSUAL_TRADES_TABLE=PROJECT.market_data.options_unusual_trades
 # OPTIONS_GEX_HISTORY_TABLE=PROJECT.market_data.options_gex_history
@@ -235,6 +236,8 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # DASHBOARD_SYMBOL_FOCUS=BTC   # Streamlit「載入快照」輸入框預設代號（可選；見 dashboard.py）
 # EXECUTION_INTENT_STORE=.qsilicon/execution_intents.jsonl  # 執行意圖 JSONL（相對 repo 根）
 # PORTFOLIO_HOLDINGS_FILE=portfolio_holdings.jsonl  # Portfolio Tracker v1 JSONL（可設到 .qsilicon/portfolio_holdings.jsonl 或測試 tmp_path）
+# PORTFOLIO_STORE_BACKEND=jsonl  # jsonl|bigquery；未設或非 bigquery 時使用 JSONL
+# PORTFOLIO_HOLDINGS_TABLE=  # BigQuery backend 用；未設時 /api/portfolio 顯示 pending 且寫入回 503
 # SCENARIO_OPTIMIZER_ENABLED=0  # 1=啟用 GET /api/scenario/suggestions（隊列 28d；僅 execution_intents + portfolio 成本口徑之決定性建議，須人工確認、不下單）
 # PRICE_ALERTS_FILE=price_alerts.jsonl  # Queue 43 price alert JSONL queue（可設到 .qsilicon/price_alerts.jsonl 或測試 tmp_path）
 # RECOMMENDATION_OUTCOMES_TABLE=  # 可選；Track Record nightly mark-to-market BQ sink（見 docs/SQL/recommendation_outcomes.sql）

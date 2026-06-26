@@ -263,7 +263,7 @@ export default function TerminalCommandBar({ trailing = null }) {
   return (
     <div
       data-testid="terminal-command-bar"
-      className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-black/30 px-2 py-1.5 md:gap-2 md:px-3"
+      className="workbench-secondary-panel flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-black/30 px-2 py-1.5 md:gap-2 md:px-3"
       aria-label="Terminal Command Bar"
     >
       <span className="hidden text-[11px] uppercase tracking-wide text-[var(--muted)] sm:inline">Cmd</span>

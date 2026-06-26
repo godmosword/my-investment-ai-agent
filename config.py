@@ -35,6 +35,8 @@ PRICE_PROBE_LOG_TABLE = os.getenv("PRICE_PROBE_LOG_TABLE", "").strip()
 PAPER_EXECUTION_AUDIT_TABLE = os.getenv("PAPER_EXECUTION_AUDIT_TABLE", "").strip()
 # Recommendation outcome snapshots（隊列 41，可選 BQ）；空字串則略過寫入。DDL 見 docs/SQL/recommendation_outcomes.sql
 RECOMMENDATION_OUTCOMES_TABLE = os.getenv("RECOMMENDATION_OUTCOMES_TABLE", "").strip()
+# Portfolio holdings（可選 BQ；預設仍使用本地 JSONL）。DDL 見 docs/SQL/portfolio_holdings.sql
+PORTFOLIO_HOLDINGS_TABLE = os.getenv("PORTFOLIO_HOLDINGS_TABLE", "").strip()
 
 # Options flow + GEX 歷史（Polygon options 管線，可選 BQ）；空字串則略過寫入。
 # DDL 見 docs/SQL/options_snapshots.sql / options_unusual_trades.sql / options_gex_history.sql

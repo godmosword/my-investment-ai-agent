@@ -269,6 +269,9 @@ export default function PortfolioHome() {
   };
 
   const rawHoldings = holdingsQuery.data?.holdings ?? [];
+  const portfolioEnabled = holdingsQuery.data?.enabled !== false;
+  const portfolioSource = holdingsQuery.data?.source ?? "jsonl";
+  const portfolioHint = holdingsQuery.data?.hint ?? "";
   const rows = pnlQuery.data?.holdings ?? rawHoldings;
   const totalValue = pnlQuery.data?.total_value ?? 0;
   const totalPnl = pnlQuery.data?.total_pnl ?? 0;
@@ -344,20 +347,41 @@ export default function PortfolioHome() {
 
       <div className="page-header">
         <div className="page-title">Portfolio Tracker</div>
-        <div className="page-subtitle">手動倉位 · CSV 匯入 · quote MTM（JSONL v1）</div>
+        <div className="page-subtitle">
+          手動倉位 · CSV 匯入 · quote MTM
+          <span
+            data-testid="portfolio-source-badge"
+            className="ml-2 inline-flex rounded border border-white/15 px-2 py-0.5 text-[11px] font-semibold text-white/65"
+          >
+            source: {portfolioSource}
+          </span>
+        </div>
       </div>
+
+      {!portfolioEnabled ? (
+        <div
+          data-testid="portfolio-pending"
+          className="card mb-3 border border-amber-500/25 bg-amber-500/10 p-3 text-[13px] text-amber-50"
+        >
+          <div className="font-semibold">Portfolio backend 尚未完成設定</div>
+          <div className="mt-1 text-[12px] text-amber-100/80">{portfolioHint || "請完成資料表設定後再使用持倉寫入。"}</div>
+        </div>
+      ) : null}
 
       <div
         data-testid="portfolio-workbench-intro"
-        className="card mb-3 border border-emerald-500/20 bg-emerald-950/15 p-3 text-[12px] leading-relaxed text-white/80"
+        className="card workbench-secondary-panel mb-3 border border-emerald-500/20 bg-emerald-950/15 p-3 text-[12px] leading-relaxed text-white/80"
       >
-        <span className="font-semibold text-emerald-100/95">工作台 · 持倉主問</span>
+        <span data-testid="workbench-primary-question" className="font-semibold text-emerald-100/95">工作台 · 持倉主問</span>
         ：先確認總市值與今日損益，再用
         <Link to="/insights" className="mx-1 text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline">
           觀點
         </Link>
         對照訊號與標的深挖；需要宏觀背景可到「數據儀表板」。路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks}{" "}
         次點擊。
+        <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-emerald-300/20 px-2 py-0.5 text-[11px] text-emerald-100/75">
+          source: {portfolioSource}
+        </span>
       </div>
 
       <div
@@ -387,7 +411,7 @@ export default function PortfolioHome() {
       <div role="tabpanel" aria-label={activeTabLabel}>
         {activeTab === "overview" ? (
           <>
-            <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="workbench-primary-panel mb-3 grid grid-cols-1 gap-3 md:grid-cols-3" data-workbench-role="primary">
               <KpiCard
                 label="總市值"
                 value={money(totalValue)}
@@ -412,8 +436,9 @@ export default function PortfolioHome() {
         <button
           type="button"
           data-testid="portfolio-add-button"
-          className="rounded bg-emerald-700 px-3 py-2 text-[13px] font-semibold text-white hover:bg-emerald-600"
+          className="rounded bg-emerald-700 px-3 py-2 text-[13px] font-semibold text-white hover:bg-emerald-600 disabled:opacity-40"
           onClick={() => setModalOpen(true)}
+          disabled={!portfolioEnabled}
         >
           + 新增倉位
         </button>
@@ -432,6 +457,7 @@ export default function PortfolioHome() {
           data-testid="portfolio-import-button"
           className="rounded border border-white/15 px-3 py-2 text-[13px] font-semibold text-white/80 hover:bg-white/5"
           onClick={() => fileInputRef.current?.click()}
+          disabled={!portfolioEnabled}
         >
           匯入 CSV
         </button>

@@ -29,6 +29,11 @@ test.describe("FE-4 Settings hub — gate stats / poll toggle / gate failures", 
     const rows = page.getByTestId("settings-gate-failure-row");
     await expect(rows).toHaveCount(2);
     await expect(rows.first()).toContainText("exec_summary 缺 market_regime");
+
+    // Data-health overview shows cross-board data backing status.
+    await expect(page.getByTestId("data-health-panel")).toBeVisible();
+    await expect(page.getByTestId("data-health-panel")).toContainText("Options Flow + GEX");
+    await expect(page.getByTestId("data-health-panel")).toContainText("pending");
   });
 
   test("desktop 1280px lays out the grid in 3 columns", async ({ page }) => {

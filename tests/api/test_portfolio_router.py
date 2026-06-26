@@ -58,6 +58,36 @@ def test_portfolio_csv_import_round_trip(client):
     assert {row["symbol"] for row in holdings} == {"NVDA", "SPY"}
 
 
+def test_portfolio_get_exposes_jsonl_source_metadata(client):
+    response = client.get("/api/portfolio")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["enabled"] is True
+    assert body["source"] == "jsonl"
+    assert body["as_of"]
+    assert body["holdings"] == []
+
+
+def test_portfolio_bigquery_mode_without_table_returns_pending(client, monkeypatch):
+    monkeypatch.setenv("PORTFOLIO_STORE_BACKEND", "bigquery")
+    monkeypatch.delenv("PORTFOLIO_HOLDINGS_TABLE", raising=False)
+
+    response = client.get("/api/portfolio")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["enabled"] is False
+    assert body["source"] == "bigquery"
+    assert body["reason"] == "portfolio_bigquery_table_missing"
+    assert body["holdings"] == []
+
+    create = client.post(
+        "/api/portfolio",
+        json={"symbol": "NVDA", "shares": 1, "cost_basis": 100, "opened_at": "2024-01-01"},
+    )
+    assert create.status_code == 503
+    assert "PORTFOLIO_HOLDINGS_TABLE" in create.json()["detail"]
+
+
 def test_portfolio_csv_import_rejects_wrong_columns(client):
     imported = client.post(
         "/api/portfolio/import",

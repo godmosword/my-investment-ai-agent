@@ -198,9 +198,9 @@ export default function DashboardHome() {
 
       <div
         data-testid="dashboard-workbench-intro"
-        className="card mb-3 border border-cyan-500/15 bg-cyan-950/10 p-3 text-[12px] leading-relaxed text-white/80"
+        className="card workbench-secondary-panel mb-3 border border-cyan-500/15 bg-cyan-950/10 p-3 text-[12px] leading-relaxed text-white/80"
       >
-        <span className="font-semibold text-cyan-100/95">工作台 · 宏觀一問</span>
+        <span data-testid="workbench-primary-question" className="font-semibold text-cyan-100/95">工作台 · 宏觀一問</span>
         ：先看 regime 與催化剂，再回到
         <Link to="/insights" className="mx-1 text-cyan-200 underline-offset-2 hover:text-cyan-100 hover:underline">
           觀點
@@ -210,6 +210,9 @@ export default function DashboardHome() {
           持倉
         </Link>
         對照部位。主戰場仍以觀點／持倉為核心（路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊）。
+        <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-cyan-300/20 px-2 py-0.5 text-[11px] text-cyan-100/75">
+          source: {data?.source || "macro"}
+        </span>
       </div>
 
       {showOfflineStrip ? (
@@ -256,7 +259,11 @@ export default function DashboardHome() {
         {active === "overview" ? (
           <>
             {indicators.length > 0 ? (
-              <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="macro-indicator-grid">
+              <div
+                className="workbench-primary-panel mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                data-testid="macro-indicator-grid"
+                data-workbench-role="primary"
+              >
                 {indicators.map((indicator) => (
                   <MacroCard key={indicator.id} indicator={indicator} />
                 ))}

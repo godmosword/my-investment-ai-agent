@@ -41,6 +41,45 @@
 - Gate：`GATE_FAILURE_BQ_LOG=1` 時檢查 [`docs/SQL/gate_failure_weekly_summary.sql`](SQL/gate_failure_weekly_summary.sql) 同邏輯之查詢是否異常飆升。
 - **日報 `profile` 欄（Phase 4c／4d）**：`llm_run_log` 與 `gate_failure_log` 寫入含 **`profile`**（對齊 `REPORT_PROFILE`／`validate_report`）。若表為舊 schema 且尚未被管線 `update_table` 補欄，請於 BQ 執行 [`docs/SQL/bq_brief_profile_columns.sql`](SQL/bq_brief_profile_columns.sql) 之 `ALTER TABLE … ADD COLUMN profile STRING`（duplicate column 可略過）。
 
+## Options Flow + GEX 上線
+
+Options 是可選資料源。若 Secret Manager 尚未建立 `POLYGON_API_KEY`，deploy workflow 會略過掛載並輸出 warning；Portal 的 `/insights?tab=options` 會顯示 pending 卡，不阻塞主日報部署。
+
+啟用 live 資料時，依序完成：
+
+```bash
+gcloud secrets create POLYGON_API_KEY --replication-policy=automatic
+printf '%s' "$POLYGON_API_KEY" | gcloud secrets versions add POLYGON_API_KEY --data-file=-
+bq query --use_legacy_sql=false < docs/SQL/options_snapshots.sql
+bq query --use_legacy_sql=false < docs/SQL/options_unusual_trades.sql
+bq query --use_legacy_sql=false < docs/SQL/options_gex_history.sql
+bq query --use_legacy_sql=false < docs/SQL/options_gex_by_strike.sql
+```
+
+接著在 Cloud Run Job/GitHub production variables 設：
+
+```bash
+OPTIONS_SNAPSHOTS_TABLE=PROJECT.market_data.options_snapshots
+OPTIONS_UNUSUAL_TRADES_TABLE=PROJECT.market_data.options_unusual_trades
+OPTIONS_GEX_HISTORY_TABLE=PROJECT.market_data.options_gex_history
+OPTIONS_GEX_BY_STRIKE_TABLE=PROJECT.market_data.options_gex_by_strike
+```
+
+最後手動或排程執行 `scripts/options_flow_tick.py`，確認 `/api/options/summary` 從 `enabled:false` 轉為 `enabled:true` 且 `items` 有資料。
+
+## Portfolio / Track Record 資料源
+
+Portfolio 預設使用 JSONL（`PORTFOLIO_HOLDINGS_FILE`），適合本機與 staging。若要改用 BigQuery，先建立 [`docs/SQL/portfolio_holdings.sql`](SQL/portfolio_holdings.sql)，再設：
+
+```bash
+PORTFOLIO_STORE_BACKEND=bigquery
+PORTFOLIO_HOLDINGS_TABLE=PROJECT.market_data.portfolio_holdings
+```
+
+若 backend 設為 `bigquery` 但未設 `PORTFOLIO_HOLDINGS_TABLE`，`/api/portfolio` 會回 pending envelope，寫入 routes 會回 503，不會落回不明資料源。
+
+Track Record 讀取順序為：`RECOMMENDATION_OUTCOMES_TABLE` 有資料時使用 BigQuery；否則回退 `EXECUTION_INTENT_STORE` JSONL。BigQuery schema 見 [`docs/SQL/recommendation_outcomes.sql`](SQL/recommendation_outcomes.sql)。
+
 ## 回滾
 
 - 優先：**revert** 觸發 deploy 的 commit，重新跑 workflow。  

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -84,6 +85,46 @@ def normalize_closed_intent(row: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def normalize_bigquery_outcome(row: dict[str, Any]) -> dict[str, Any] | None:
+    """Convert a recommendation_outcomes row into a Track Record record."""
+    signal_id = str(row.get("signal_id") or "").strip()
+    asset = _upper(row.get("asset")).lstrip("$")
+    direction = _upper(row.get("direction"))
+    entry = _float_or_none(row.get("entry_price"))
+    exit_price = _float_or_none(row.get("exit_price"))
+    mark_price = _float_or_none(row.get("mark_price"))
+    ret = _float_or_none(row.get("return_pct"))
+    if not signal_id or not asset or direction not in {"LONG", "SHORT"} or entry is None:
+        return None
+    if exit_price is None and mark_price is None:
+        return None
+    resolved_exit = exit_price if exit_price is not None else mark_price
+    if ret is None and resolved_exit is not None:
+        ret = _return_pct(direction, entry, resolved_exit)
+    if ret is None:
+        return None
+    category = _upper(row.get("category"))
+    outcome = _upper(row.get("outcome")).lower() or ("win" if ret > 0 else "loss" if ret < 0 else "flat")
+    closed_at = str(row.get("as_of") or row.get("created_at") or "")
+    return {
+        "signal_id": signal_id,
+        "asset": asset,
+        "direction": direction,
+        "category": category,
+        "status": _upper(row.get("status")) or "PAPER_CLOSED",
+        "opened_at": "",
+        "closed_at": closed_at,
+        "entry_price": entry,
+        "exit_price": resolved_exit,
+        "return_pct": ret,
+        "outcome": outcome,
+        "thesis_one_liner": "",
+        "source": "bigquery",
+        "source_id": signal_id,
+        "tags": [tag for tag in (category, asset, direction, outcome.upper()) if tag],
+    }
+
+
 def _sort_closed(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(records, key=lambda row: str(row.get("closed_at") or row.get("opened_at") or ""), reverse=True)
 
@@ -92,6 +133,42 @@ def load_closed_records(limit: int = 500) -> list[dict[str, Any]]:
     rows = latest_execution_intents(limit=limit, dedupe=True, sort_by="updated_desc")
     records = [record for row in rows if (record := normalize_closed_intent(row)) is not None]
     return _sort_closed(records)
+
+
+def load_closed_records_from_bigquery(limit: int = 500) -> list[dict[str, Any]]:
+    table = os.getenv("RECOMMENDATION_OUTCOMES_TABLE", "").strip()
+    if not table:
+        return []
+    try:
+        from google.cloud import bigquery
+
+        project = table.split(".", 1)[0]
+        client = bigquery.Client(project=project)
+        sql = f"""
+            SELECT signal_id, as_of, quote_as_of, asset, direction, category, status,
+                   entry_price, mark_price, exit_price, return_pct, outcome, source, created_at
+            FROM `{table}`
+            WHERE return_pct IS NOT NULL
+            ORDER BY as_of DESC
+            LIMIT @limit
+        """
+        job = client.query(
+            sql,
+            job_config=bigquery.QueryJobConfig(
+                query_parameters=[bigquery.ScalarQueryParameter("limit", "INT64", int(limit))]
+            ),
+        )
+        records = [record for row in job.result() if (record := normalize_bigquery_outcome(dict(row))) is not None]
+        return _sort_closed(records)
+    except Exception:
+        return []
+
+
+def load_track_record_records(limit: int = 500) -> tuple[list[dict[str, Any]], str]:
+    bq_records = load_closed_records_from_bigquery(limit=limit)
+    if bq_records:
+        return bq_records, "bigquery"
+    return load_closed_records(limit=limit), "execution_intents.jsonl"
 
 
 def filter_records_by_tag(records: list[dict[str, Any]], tag: str) -> list[dict[str, Any]]:
@@ -161,7 +238,13 @@ def summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def build_track_record_payload(records: list[dict[str, Any]], *, limit: int | None = None, offset: int = 0) -> dict[str, Any]:
+def build_track_record_payload(
+    records: list[dict[str, Any]],
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+    source: str = "execution_intents.jsonl",
+) -> dict[str, Any]:
     summary = summarize_records(records)
     sliced = records[offset : offset + limit] if limit is not None else records[offset:]
     return {
@@ -170,7 +253,7 @@ def build_track_record_payload(records: list[dict[str, Any]], *, limit: int | No
         "total": len(records),
         "limit": limit,
         "offset": offset,
-        "source": "execution_intents.jsonl",
+        "source": source,
     }
 
 

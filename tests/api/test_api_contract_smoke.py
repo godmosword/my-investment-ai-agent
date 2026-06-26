@@ -191,3 +191,16 @@ def test_run_crew_status_contract(client, monkeypatch):
     assert "age_seconds" in body
     assert "is_stale" in body
     assert body.get("stale_after_seconds") == 1800
+
+
+def test_data_health_contract(client, monkeypatch):
+    monkeypatch.delenv("QSILICON_MASTER_KEY", raising=False)
+    r = client.get("/api/data-health")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["enabled"] is True
+    assert isinstance(body["items"], list)
+    ids = {item["id"] for item in body["items"]}
+    assert {"options", "portfolio", "news", "reports"}.issubset(ids)
+    for item in body["items"]:
+        assert {"id", "label", "status", "source", "hint"}.issubset(item)

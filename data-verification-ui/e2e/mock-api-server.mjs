@@ -295,6 +295,8 @@ const newsItems = [
     source_domain: "semianalysis.com",
     source_url: "https://semianalysis.com/e2e-ai-chip",
     published_at: "2026-05-13T09:30:00Z",
+    freshness: "stale",
+    missing_fields: [],
     date: "2026-05-13",
     tags: ["AI", "半導體"],
     pillar: "半導體",
@@ -317,6 +319,8 @@ const newsItems = [
     source_domain: "cointelegraph.com",
     source_url: "https://cointelegraph.com/e2e-bitcoin-etf",
     published_at: "2026-05-13T09:00:00Z",
+    freshness: "stale",
+    missing_fields: [],
     date: "2026-05-13",
     tags: ["Crypto", "BTC"],
     pillar: "crypto",
@@ -337,6 +341,8 @@ const newsItems = [
     source_domain: "bloomberg.com",
     source_url: "https://bloomberg.com/e2e-macro-dollar",
     published_at: "2026-05-13T08:00:00Z",
+    freshness: "stale",
+    missing_fields: [],
     date: "2026-05-13",
     tags: ["宏觀"],
     pillar: "宏觀",
@@ -843,6 +849,42 @@ const server = http.createServer((req, res) => {
     sendJson(res, 200, metricsBody);
     return;
   }
+  if (url.pathname === "/api/data-health") {
+    sendJson(res, 200, {
+      enabled: true,
+      items: [
+        {
+          id: "reports",
+          label: "Daily Brief / Gate",
+          status: "ready",
+          source: "BigQuery",
+          hint: "",
+        },
+        {
+          id: "options",
+          label: "Options Flow + GEX",
+          status: "pending",
+          source: "BigQuery + Polygon",
+          hint: "Create POLYGON_API_KEY and configure options tables.",
+        },
+        {
+          id: "portfolio",
+          label: "Portfolio Holdings",
+          status: "ready",
+          source: "JSONL",
+          hint: "",
+        },
+        {
+          id: "news",
+          label: "Tech News",
+          status: "ready",
+          source: "Firestore",
+          hint: "",
+        },
+      ],
+    });
+    return;
+  }
   if (url.pathname === "/api/macro/snapshot") {
     sendJson(res, 200, macroSnapshotBody);
     return;
@@ -1254,6 +1296,9 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === "/api/portfolio") {
     sendJson(res, 200, {
+      enabled: true,
+      source: "jsonl",
+      as_of: "2026-06-26T00:00:00Z",
       holdings: [
         {
           id: "1",
@@ -1359,6 +1404,16 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === "/api/options/summary") {
+    if (url.searchParams.get("e2e_options_pending") === "1") {
+      sendJson(res, 200, {
+        enabled: false,
+        reason: "polygon_options_pending",
+        hint: "Subscribe Polygon Options + set POLYGON_API_KEY, run scripts/options_flow_tick.py, and set OPTIONS_GEX_HISTORY_TABLE / OPTIONS_UNUSUAL_TRADES_TABLE.",
+        watchlist: ["MU", "NVDA"],
+        items: [],
+      });
+      return;
+    }
     sendJson(res, 200, {
       enabled: true,
       as_of: "2026-06-19T22:30:00Z",
