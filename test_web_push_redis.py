@@ -17,7 +17,7 @@ def redis_client(monkeypatch):
     web_push_store.clear_subscriptions_for_tests()
     r = fakeredis.FakeStrictRedis(decode_responses=True)
 
-    def _from_url(url, decode_responses=True):  # noqa: ARG001
+    def _from_url(url, **_kwargs):  # noqa: ARG001
         return r
 
     monkeypatch.setattr("redis.from_url", _from_url)

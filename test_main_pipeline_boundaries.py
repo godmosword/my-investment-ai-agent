@@ -17,13 +17,13 @@ _real_thread_pool_executor = concurrent.futures.ThreadPoolExecutor
 class _CryptoFailExecutor:
     """Stub ThreadPoolExecutor: first future.result() raises (crypto leg), second never runs."""
 
-    def __init__(self, max_workers: int = 2) -> None:
+    def __init__(self, _max_workers: int = 2) -> None:
         self._slot = 0
 
     def __enter__(self) -> _CryptoFailExecutor:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(self, _exc_type, _exc, _tb) -> bool:
         return False
 
     def submit(self, fn):  # noqa: ANN001
@@ -31,7 +31,8 @@ class _CryptoFailExecutor:
         self._slot += 1
 
         class _Fut:
-            def result(self_inner, timeout=None):  # noqa: ANN001
+            def result(_self_inner, timeout=None):  # noqa: ANN001
+                del timeout
                 if slot == 0:
                     raise RuntimeError("crypto_crew_failed")
                 return fn()
@@ -42,7 +43,7 @@ class _CryptoFailExecutor:
 class _ThreadPoolExecutorSelective:
     """Only the dual-crew pool (max_workers=2) uses the failure stub; prewarm keeps the real executor."""
 
-    def __new__(cls, max_workers: int = 5):  # noqa: ANN004
+    def __new__(_cls, max_workers: int = 5):  # noqa: ANN004
         if max_workers == 2:
             return _CryptoFailExecutor()
         return _real_thread_pool_executor(max_workers=max_workers)
@@ -56,7 +57,7 @@ class _FakeTool:
     def __init__(self) -> None:
         self.calls = 0
 
-    def run(self, *args, **kwargs):  # noqa: ANN002, ANN003
+    def run(self, *_args, **_kwargs):  # noqa: ANN002, ANN003
         self.calls += 1
         return "ok"
 

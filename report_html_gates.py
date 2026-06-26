@@ -7,6 +7,8 @@ Dependencies: config.py, validation_rules.py, tracker.py, tools (package / tools
 Does NOT import from main.py (to avoid circular imports).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -1740,8 +1742,6 @@ def _risk_off_narrative_violations(text: str) -> list[str]:
 
 def _trade_watch_actionable_conflicts(
     text: str,
-    *,
-    span_cache: dict[str, int] | None = None,
 ) -> list[str]:
     """交易操作段若宣告「觀望模式」，同段不得同時提供可執行三要素（進場/目標/停損）。"""
 
@@ -2022,7 +2022,7 @@ def _lite_exec_summary_pass6_issues(text: str) -> list[str]:
 
 
 def _current_affairs_structured_strict_issues(
-    structured_report: "DailyBriefReport | None",
+    structured_report: DailyBriefReport | None,
 ) -> list[str]:
     """PR-5d：STRICT_CURRENT_AFFAIRS_ROUNDTABLE_GATE + 結構化交叉檢（需傳入 DailyBriefReport）。"""
     out: list[str] = []
@@ -2121,7 +2121,7 @@ def validate_report(
     text: str,
     *,
     profile: str | None = None,
-    structured_report: "DailyBriefReport | None" = None,
+    structured_report: DailyBriefReport | None = None,
 ) -> dict:
     """驗證戰報是否包含足夠新聞與必要區塊（V2.1 四區塊結構）。
 

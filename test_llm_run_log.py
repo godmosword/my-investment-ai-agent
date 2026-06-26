@@ -34,7 +34,7 @@ class TestWriteLlmRunLog(unittest.TestCase):
 
             with patch("bigquery_writer.bigquery") as mock_bq:
                 mock_bq.Client.return_value = mock_client
-                def _make_field(name, typ):
+                def _make_field(name, _typ):
                     f = MagicMock()
                     f.name = name
                     return f
@@ -72,7 +72,7 @@ class TestWriteLlmRunLog(unittest.TestCase):
             with patch("bigquery_writer.bigquery") as mock_bq:
                 mock_bq.Client.return_value = mock_client
 
-                def _make_field(name, typ):
+                def _make_field(name, _typ):
                     f = MagicMock()
                     f.name = name
                     return f
@@ -105,7 +105,7 @@ class TestWriteLlmRunLog(unittest.TestCase):
 
             with patch("bigquery_writer.bigquery") as mock_bq:
                 mock_bq.Client.return_value = mock_client
-                def _make_field(name, typ):
+                def _make_field(name, _typ):
                     f = MagicMock()
                     f.name = name
                     return f

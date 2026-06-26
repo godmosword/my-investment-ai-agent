@@ -4065,7 +4065,6 @@ def correlation_matrix_tool(query: str = "") -> str:
         try:
             if isinstance(raw.columns, pd.MultiIndex):
                 closes = raw["Close"].copy()
-                closes.columns = {v: k for k, v in tickers.items()}[closes.columns] if False else closes.columns
                 # rename back from yahoo symbol to short name
                 rev = {v: k for k, v in tickers.items()}
                 closes = closes.rename(columns=rev)
