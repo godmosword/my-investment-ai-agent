@@ -293,3 +293,37 @@ def test_data_health_portfolio_bigquery_probe_reads_table(client, monkeypatch):
     assert portfolio["row_count"] == 2
     assert portfolio["latest_as_of"] == latest
     assert "COALESCE(updated_at, created_at)" in seen_sql[0]
+
+
+def test_data_health_empty_backends_return_setup_hints(client, monkeypatch):
+    from google.cloud import bigquery
+
+    from api_routers import health as health_router
+
+    class FakeJob:
+        def result(self):
+            return [{"row_count": 0, "latest_as_of": None}]
+
+    class FakeClient:
+        def __init__(self, project):
+            self.project = project
+
+        def query(self, sql):
+            return FakeJob()
+
+    monkeypatch.setattr(bigquery, "Client", FakeClient)
+    monkeypatch.setenv("PORTFOLIO_STORE_BACKEND", "bigquery")
+    monkeypatch.setenv("PORTFOLIO_HOLDINGS_TABLE", "proj.dataset.portfolio_holdings")
+    monkeypatch.setattr(health_router, "OPTIONS_SNAPSHOTS_TABLE", "proj.dataset.options_snapshots")
+    monkeypatch.setattr(health_router, "OPTIONS_UNUSUAL_TRADES_TABLE", "proj.dataset.options_unusual_trades")
+    monkeypatch.setattr(health_router, "OPTIONS_GEX_HISTORY_TABLE", "proj.dataset.options_gex_history")
+    monkeypatch.setattr(health_router, "OPTIONS_GEX_BY_STRIKE_TABLE", "proj.dataset.options_gex_by_strike")
+
+    r = client.get("/api/data-health")
+
+    assert r.status_code == 200
+    items = {item["id"]: item for item in r.json()["items"]}
+    assert items["options"]["status"] == "empty"
+    assert "options_flow_tick.py" in items["options"]["hint"]
+    assert items["portfolio"]["status"] == "empty"
+    assert "first portfolio holding" in items["portfolio"]["hint"]

@@ -196,6 +196,32 @@ def _safe_bq_tables_stats(tables: list[str]) -> tuple[int | None, str | None, bo
     return total, sorted(latest_values)[-1] if latest_values else None, False
 
 
+def _options_hint(status: str) -> str:
+    if status == "pending":
+        return (
+            "Create POLYGON_API_KEY, run options DDL, and set OPTIONS_SNAPSHOTS_TABLE / "
+            "OPTIONS_UNUSUAL_TRADES_TABLE / OPTIONS_GEX_HISTORY_TABLE / "
+            "OPTIONS_GEX_BY_STRIKE_TABLE."
+        )
+    if status == "empty":
+        return "Run scripts/options_flow_tick.py after POLYGON_API_KEY is available so option rows land in BigQuery."
+    if status == "stale":
+        return "Refresh options data with the scheduled/daily options_flow_tick job."
+    if status == "error":
+        return "Check BigQuery table permissions/schema for the configured OPTIONS_*_TABLE values."
+    return ""
+
+
+def _portfolio_hint(status: str) -> str:
+    if status == "pending":
+        return "Set PORTFOLIO_HOLDINGS_TABLE or switch PORTFOLIO_STORE_BACKEND=jsonl."
+    if status == "empty":
+        return "Add or import the first portfolio holding so the Portfolio board has durable rows."
+    if status == "error":
+        return "Check BigQuery table permissions/schema for PORTFOLIO_HOLDINGS_TABLE."
+    return ""
+
+
 @router.get("/api/data-health")
 def data_health() -> dict[str, Any]:
     options_tables = [
@@ -223,6 +249,19 @@ def data_health() -> dict[str, Any]:
     track_count, track_as_of, track_source = _safe_track_record_count()
     options_count, options_as_of, options_error = (
         _safe_bq_tables_stats(options_tables) if options_ok else (None, None, False)
+    )
+    options_status = _status_from_stats(
+        options_ok,
+        options_count,
+        options_as_of,
+        error=options_error,
+        stale_after_days=7,
+    )
+    portfolio_status = _status_from_stats(
+        portfolio_ok,
+        portfolio_count,
+        portfolio_as_of,
+        error=portfolio_error,
     )
     news_count, news_as_of = _safe_jsonl_file_count("TECH_PULSE_JSONL_FILE")
     scenario_enabled = os.getenv("SCENARIO_OPTIMIZER_ENABLED", "").strip().lower() in {
@@ -275,33 +314,18 @@ def data_health() -> dict[str, Any]:
             _item(
                 "options",
                 "Options Flow + GEX",
-                _status_from_stats(
-                    options_ok,
-                    options_count,
-                    options_as_of,
-                    error=options_error,
-                    stale_after_days=7,
-                ),
+                options_status,
                 "BigQuery + Polygon",
-                (
-                    "Create POLYGON_API_KEY, run options DDL, and set OPTIONS_SNAPSHOTS_TABLE / "
-                    "OPTIONS_UNUSUAL_TRADES_TABLE / OPTIONS_GEX_HISTORY_TABLE / "
-                    "OPTIONS_GEX_BY_STRIKE_TABLE."
-                ),
+                _options_hint(options_status),
                 row_count=options_count,
                 latest_as_of=options_as_of,
             ),
             _item(
                 "portfolio",
                 "Portfolio Holdings",
-                _status_from_stats(
-                    portfolio_ok,
-                    portfolio_count,
-                    portfolio_as_of,
-                    error=portfolio_error,
-                ),
+                portfolio_status,
                 portfolio_source,
-                "Set PORTFOLIO_HOLDINGS_TABLE or switch PORTFOLIO_STORE_BACKEND=jsonl.",
+                _portfolio_hint(portfolio_status),
                 row_count=portfolio_count,
                 latest_as_of=portfolio_as_of,
             ),
