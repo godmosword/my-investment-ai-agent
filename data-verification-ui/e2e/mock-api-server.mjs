@@ -708,6 +708,19 @@ const server = http.createServer((req, res) => {
     res.end();
     return;
   }
+  if (url.pathname === "/openapi.json") {
+    sendJson(res, 200, {
+      openapi: "3.1.0",
+      info: { title: "Q-Silicon E2E Mock API", version: "e2e" },
+      paths: {
+        "/api/data-health": {},
+        "/api/options/summary": {},
+        "/api/options/gex/{symbol}": {},
+        "/api/options/flow/{symbol}": {},
+      },
+    });
+    return;
+  }
   // PATCH /api/execution-intents/{signal_id} — return updated row
   const intentPatchMatch = url.pathname.match(/^\/api\/execution-intents\/([^/]+)$/);
   if (intentPatchMatch && req.method === "PATCH") {
@@ -859,6 +872,26 @@ const server = http.createServer((req, res) => {
           status: "ready",
           source: "BigQuery",
           hint: "",
+          row_count: 1,
+          latest_as_of: "2026-06-27T00:00:00Z",
+        },
+        {
+          id: "paper",
+          label: "Paper Lifecycle",
+          status: "ready",
+          source: "execution_intents.jsonl",
+          hint: "",
+          row_count: 3,
+          latest_as_of: "2026-06-27T00:00:00Z",
+        },
+        {
+          id: "track-record",
+          label: "Track Record",
+          status: "ready",
+          source: "execution_intents.jsonl",
+          hint: "",
+          row_count: 3,
+          latest_as_of: "2026-06-27T00:00:00Z",
         },
         {
           id: "options",
@@ -866,6 +899,8 @@ const server = http.createServer((req, res) => {
           status: "pending",
           source: "BigQuery + Polygon",
           hint: "Create POLYGON_API_KEY and configure options tables.",
+          row_count: null,
+          latest_as_of: null,
         },
         {
           id: "portfolio",
@@ -873,6 +908,8 @@ const server = http.createServer((req, res) => {
           status: "ready",
           source: "JSONL",
           hint: "",
+          row_count: 1,
+          latest_as_of: "2026-06-27T00:00:00Z",
         },
         {
           id: "news",
@@ -880,6 +917,17 @@ const server = http.createServer((req, res) => {
           status: "ready",
           source: "Firestore",
           hint: "",
+          row_count: 2,
+          latest_as_of: "2026-06-27T00:00:00Z",
+        },
+        {
+          id: "scenario",
+          label: "Scenario Planner",
+          status: "ready",
+          source: "execution_intents.jsonl + portfolio_holdings",
+          hint: "",
+          row_count: 1,
+          latest_as_of: "2026-06-27T00:00:00Z",
         },
       ],
     });

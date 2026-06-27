@@ -108,14 +108,14 @@ export default function Settings() {
     }
     let cancelled = false;
     const ping = () => {
-      fetch(`${base}/healthz`, { method: "GET", cache: "no-store" })
+      fetch(`${base}/openapi.json`, { method: "GET", cache: "no-store" })
         .then((r) => {
           if (cancelled) return;
           if (r.ok) {
             setHealthOkAt(new Date().toISOString());
             setHealthErr("");
           } else {
-            setHealthErr(`HTTP ${r.status}`);
+            setHealthErr(`GET /openapi.json HTTP ${r.status}`);
           }
         })
         .catch((e) => {
@@ -442,7 +442,7 @@ export default function Settings() {
       </section>
 
       <section className="card mb-4 p-3">
-        <h2 className="mb-2 text-[13px] font-semibold">API 探活（GET /healthz）</h2>
+        <h2 className="mb-2 text-[13px] font-semibold">API 探活（GET /openapi.json）</h2>
         <p className="m-0 text-[12px] text-[var(--muted)]">
           基底：<code className="font-mono text-[11px]">{apiUrl || "—"}</code>
         </p>

@@ -37,4 +37,45 @@ test.describe("Insights Track Record tab", () => {
     await expect(chart).toBeVisible();
     await expect(chart.locator("canvas").first()).toBeVisible();
   });
+
+  test("empty paper outcomes show setup guidance before zero KPIs", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 0,
+          wins: 0,
+          losses: 0,
+          flats: 0,
+          hit_rate_pct: 0,
+          avg_return_pct: 0,
+          sharpe: 0,
+          max_drawdown_pct: 0,
+          cumulative_return_pct: 0,
+          equity_curve: [],
+          source: "execution_intents.jsonl",
+          source_row_count: 0,
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 0, equity_curve: [] },
+          records: [],
+          total: 0,
+          limit: 50,
+          offset: 0,
+          source: "execution_intents.jsonl",
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-empty-guidance")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-empty-guidance")).toContainText("還缺 closed paper signals");
+  });
 });

@@ -12,12 +12,18 @@ import json
 import os
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
 CSV_COLUMNS = ["symbol", "shares", "cost_basis", "opened_at", "notes"]
+
+
+class _QueryParam:
+    def __init__(self, name: str, value: Any):
+        self.name = name
+        self.value = value
 
 
 def _store_path() -> Path:
@@ -27,6 +33,12 @@ def _store_path() -> Path:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _iso_value(value: Any) -> Any:
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return value
 
 
 def _normalize_symbol(value: Any) -> str:
@@ -179,4 +191,145 @@ def import_from_csv(csv_text: str) -> list[dict[str, Any]]:
         )
     if imported:
         save_holdings([*load_holdings(), *imported])
+    return imported
+
+
+def _bq_client_for_table(table: str):
+    from google.cloud import bigquery
+
+    project = table.split(".", 1)[0]
+    return bigquery.Client(project=project)
+
+
+def _bq_params(values: dict[str, Any]) -> list[Any]:
+    from google.cloud import bigquery
+
+    type_map = {
+        "id": "STRING",
+        "symbol": "STRING",
+        "shares": "FLOAT64",
+        "cost_basis": "FLOAT64",
+        "opened_at": "DATE",
+        "notes": "STRING",
+    }
+    params = []
+    for key, value in values.items():
+        try:
+            param = bigquery.ScalarQueryParameter(key, type_map[key], value)
+            getattr(param, "name")
+            getattr(param, "value")
+            params.append(param)
+        except Exception:
+            params.append(_QueryParam(key, value))
+    return params
+
+
+def _bq_job_config(values: dict[str, Any]):
+    from google.cloud import bigquery
+
+    params = _bq_params(values)
+    config = bigquery.QueryJobConfig(query_parameters=params)
+    try:
+        if getattr(config, "query_parameters", None) is not params:
+            config.query_parameters = params
+    except Exception:
+        pass
+    return config
+
+
+def _bq_row_to_holding(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(row.get("id") or ""),
+        "symbol": str(row.get("symbol") or "").upper(),
+        "shares": float(row.get("shares") or 0.0),
+        "cost_basis": float(row.get("cost_basis") or 0.0),
+        "opened_at": _iso_value(row.get("opened_at")) or "",
+        "notes": str(row.get("notes") or ""),
+        "created_at": _iso_value(row.get("created_at")) or "",
+        "updated_at": _iso_value(row.get("updated_at")) or None,
+    }
+
+
+def load_holdings_bigquery(table: str) -> list[dict[str, Any]]:
+    client = _bq_client_for_table(table)
+    sql = f"""
+        SELECT id, symbol, shares, cost_basis, opened_at, notes, created_at, updated_at
+        FROM `{table}`
+        ORDER BY symbol ASC, created_at ASC
+    """
+    return [_bq_row_to_holding(dict(row)) for row in client.query(sql).result()]
+
+
+def get_holding_bigquery(table: str, holding_id: str) -> dict[str, Any] | None:
+    client = _bq_client_for_table(table)
+    sql = f"""
+        SELECT id, symbol, shares, cost_basis, opened_at, notes, created_at, updated_at
+        FROM `{table}`
+        WHERE id = @id
+        LIMIT 1
+    """
+    rows = list(
+        client.query(
+            sql,
+            job_config=_bq_job_config({"id": holding_id}),
+        ).result()
+    )
+    return _bq_row_to_holding(dict(rows[0])) if rows else None
+
+
+def add_holding_bigquery(table: str, data: dict[str, Any]) -> dict[str, Any]:
+    holding = {
+        "id": str(uuid.uuid4()),
+        **_normalize_create_payload(data),
+    }
+    client = _bq_client_for_table(table)
+    sql = f"""
+        INSERT INTO `{table}` (id, symbol, shares, cost_basis, opened_at, notes, created_at, updated_at)
+        VALUES (@id, @symbol, @shares, @cost_basis, @opened_at, @notes, CURRENT_TIMESTAMP(), NULL)
+    """
+    client.query(
+        sql,
+        job_config=_bq_job_config(holding),
+    ).result()
+    return get_holding_bigquery(table, holding["id"]) or {**holding, "created_at": _now_iso(), "updated_at": None}
+
+
+def update_holding_bigquery(table: str, id: str, patch: dict[str, Any]) -> dict[str, Any] | None:
+    holding_id = str(id or "").strip()
+    if not holding_id:
+        return None
+    normalized_patch = _normalize_patch_payload(patch)
+    if not normalized_patch:
+        return get_holding_bigquery(table, holding_id)
+    assignments = [f"{key} = @{key}" for key in normalized_patch]
+    sql = f"""
+        UPDATE `{table}`
+        SET {", ".join(assignments)}, updated_at = CURRENT_TIMESTAMP()
+        WHERE id = @id
+    """
+    params = {"id": holding_id, **normalized_patch}
+    _bq_client_for_table(table).query(
+        sql,
+        job_config=_bq_job_config(params),
+    ).result()
+    return get_holding_bigquery(table, holding_id)
+
+
+def delete_holding_bigquery(table: str, id: str) -> bool:
+    holding_id = str(id or "").strip()
+    if not holding_id or get_holding_bigquery(table, holding_id) is None:
+        return False
+    sql = f"DELETE FROM `{table}` WHERE id = @id"
+    _bq_client_for_table(table).query(
+        sql,
+        job_config=_bq_job_config({"id": holding_id}),
+    ).result()
+    return True
+
+
+def import_from_csv_bigquery(table: str, csv_text: str) -> list[dict[str, Any]]:
+    reader = csv.DictReader(csv_text.splitlines())
+    if reader.fieldnames != CSV_COLUMNS:
+        raise ValueError("CSV columns must be: symbol,shares,cost_basis,opened_at,notes")
+    imported = [add_holding_bigquery(table, dict(row)) for row in reader]
     return imported

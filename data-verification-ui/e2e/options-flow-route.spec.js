@@ -11,6 +11,21 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     await expect(page.getByTestId("options-pending")).toContainText("選擇權數據尚未上線");
   });
 
+  test("separates missing API deployment from options data pending", async ({ page }) => {
+    await page.route("**/api/options/summary*", async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Not Found" }),
+      });
+    });
+
+    await page.goto("/insights?tab=options", { waitUntil: "load" });
+    await expect(page.getByTestId("options-api-missing")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("options-api-missing")).toContainText("API 尚未部署");
+    await expect(page.getByTestId("options-pending")).toHaveCount(0);
+  });
+
   test("watchlist strip shows GEX regime + unusual counts", async ({ page }) => {
     await page.goto("/insights?tab=options", { waitUntil: "load" });
     await expect(page.getByTestId("options-flow-home")).toBeVisible({ timeout: 60_000 });

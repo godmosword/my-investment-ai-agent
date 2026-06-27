@@ -88,6 +88,84 @@ def test_portfolio_bigquery_mode_without_table_returns_pending(client, monkeypat
     assert "PORTFOLIO_HOLDINGS_TABLE" in create.json()["detail"]
 
 
+def test_portfolio_bigquery_backend_crud_round_trip(client, monkeypatch):
+    import portfolio_holdings
+
+    rows = []
+
+    class FakeQueryJob:
+        def __init__(self, result_rows=None):
+            self._result_rows = result_rows or []
+
+        def result(self):
+            return self._result_rows
+
+    class FakeClient:
+        def query(self, sql, job_config=None):
+            normalized = " ".join(sql.split()).upper()
+            params = {
+                param.name: param.value
+                for param in getattr(job_config, "query_parameters", []) or []
+            }
+            if normalized.startswith("SELECT"):
+                if "WHERE ID = @ID" in normalized:
+                    return FakeQueryJob([row for row in rows if row["id"] == params["id"]])
+                return FakeQueryJob(list(rows))
+            if normalized.startswith("INSERT"):
+                rows.append(
+                    {
+                        "id": params["id"],
+                        "symbol": params["symbol"],
+                        "shares": params["shares"],
+                        "cost_basis": params["cost_basis"],
+                        "opened_at": params["opened_at"],
+                        "notes": params["notes"],
+                        "created_at": "2026-06-27T00:00:00Z",
+                        "updated_at": None,
+                    }
+                )
+                return FakeQueryJob()
+            if normalized.startswith("UPDATE") and "SET SHARES" in normalized:
+                for row in rows:
+                    if row["id"] == params["id"]:
+                        for key in ("shares", "cost_basis", "opened_at", "notes"):
+                            if key in params:
+                                row[key] = params[key]
+                        row["updated_at"] = "2026-06-27T01:00:00Z"
+                return FakeQueryJob()
+            if normalized.startswith("DELETE"):
+                rows[:] = [row for row in rows if row["id"] != params["id"]]
+                return FakeQueryJob()
+            raise AssertionError(f"unexpected SQL: {sql}")
+
+    fake_client = FakeClient()
+    monkeypatch.setenv("PORTFOLIO_STORE_BACKEND", "bigquery")
+    monkeypatch.setenv("PORTFOLIO_HOLDINGS_TABLE", "proj.dataset.portfolio_holdings")
+    monkeypatch.setattr(portfolio_holdings, "_bq_client_for_table", lambda _table: fake_client)
+
+    created = client.post(
+        "/api/portfolio",
+        json={"symbol": "NVDA", "shares": 2, "cost_basis": 500, "opened_at": "2024-01-01"},
+    )
+    assert created.status_code == 200
+    holding_id = created.json()["id"]
+
+    listed = client.get("/api/portfolio")
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body["enabled"] is True
+    assert body["source"] == "bigquery"
+    assert body["holdings"][0]["symbol"] == "NVDA"
+
+    patched = client.patch(f"/api/portfolio/{holding_id}", json={"shares": 3})
+    assert patched.status_code == 200
+    assert patched.json()["shares"] == 3
+
+    deleted = client.delete(f"/api/portfolio/{holding_id}")
+    assert deleted.status_code == 200
+    assert client.get("/api/portfolio").json()["holdings"] == []
+
+
 def test_portfolio_csv_import_rejects_wrong_columns(client):
     imported = client.post(
         "/api/portfolio/import",

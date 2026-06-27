@@ -58,6 +58,7 @@ export default function TrackRecordHome() {
   const summary = tag ? payload?.summary : summaryQuery.data;
   const loading = summaryQuery.isLoading || closedQuery.isLoading || (tag && tagQuery.isLoading);
   const error = summaryQuery.error || closedQuery.error || (tag ? tagQuery.error : null);
+  const emptyAll = !tag && !loading && !error && Number(summary?.total_closed ?? 0) === 0;
 
   return (
     <div data-testid="track-record-home" className="px-1">
@@ -97,6 +98,20 @@ export default function TrackRecordHome() {
         </div>
       ) : null}
       {loading ? <div className="loading mb-3">載入 Track Record…</div> : null}
+
+      {emptyAll ? (
+        <div
+          data-testid="track-record-empty-guidance"
+          className="card mb-3 border border-cyan-300/20 bg-cyan-950/[0.08] p-3 text-[13px] leading-relaxed text-white/78"
+        >
+          <div className="font-semibold text-cyan-100">還缺 closed paper signals</div>
+          <p className="mt-1 mb-0 text-white/65">
+            Track Record 需要已關閉的紙上意圖或 <code className="font-mono">recommendation_outcomes</code>{" "}
+            mark-to-market rows。先在「紙上生命週期」建立/推進 paper intent，或排程{" "}
+            <code className="font-mono">scripts/mark_recommendations.py</code> 後再讀績效。
+          </p>
+        </div>
+      ) : null}
 
       <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-6">
         <Kpi

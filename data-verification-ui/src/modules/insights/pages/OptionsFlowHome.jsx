@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useOptionsSummary, useOptionsGex, useOptionsFlow } from "../../../hooks/useApi";
 import UnusualFlowTable from "../../../components/UnusualFlowTable";
 
@@ -39,6 +39,36 @@ function PendingCard({ payload }) {
         Polygon Options 訂閱與每日管線就緒前，此處顯示等待狀態，不會捏造數字。
       </p>
       {payload?.hint ? <p className="mt-2 font-mono text-[11px] text-white/50">{payload.hint}</p> : null}
+    </div>
+  );
+}
+
+function isRouteMissing(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.startsWith("404:");
+}
+
+function ApiMissingCard({ error }) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    <div
+      data-testid="options-api-missing"
+      className="card border border-red-400/25 bg-red-950/[0.08] p-4 text-[13px] leading-relaxed text-white/80"
+    >
+      <div className="font-semibold text-red-100/90">Options API 尚未部署</div>
+      <p className="mt-1 text-white/70">
+        前端已載入選擇權分頁，但後端缺少 <code className="font-mono">/api/options/*</code> 路由。
+        先部署 Cloud Run FastAPI 最新版；部署後若資料庫尚未設定，這裡會改顯示 Polygon/BQ pending。
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Link
+          to="/settings"
+          className="inline-flex min-h-[36px] items-center rounded border border-red-300/30 px-3 py-1.5 text-[12px] font-semibold text-red-100 hover:bg-red-500/10"
+        >
+          查看設定
+        </Link>
+        <span className="font-mono text-[11px] text-white/45">{message.slice(0, 180)}</span>
+      </div>
     </div>
   );
 }
@@ -130,7 +160,7 @@ function FlowList({ symbol }) {
 export default function OptionsFlowHome() {
   const [searchParams, setSearchParams] = useSearchParams();
   const symbolQs = useMemo(() => String(searchParams.get("symbol") || "").trim().toUpperCase(), [searchParams]);
-  const { data, isLoading, isError } = useOptionsSummary();
+  const { data, error, isLoading, isError } = useOptionsSummary();
   const [selected, setSelected] = useState(symbolQs);
 
   const items = data?.items || [];
@@ -150,6 +180,7 @@ export default function OptionsFlowHome() {
   };
 
   if (isLoading) return <div className="loading text-[13px] text-white/60">載入選擇權概覽…</div>;
+  if (isError && isRouteMissing(error)) return <ApiMissingCard error={error} />;
   if (isError) return <div data-testid="options-error" className="card p-3 text-[13px] text-rose-200/80">無法載入選擇權資料。</div>;
   if (data && data.enabled === false) return <PendingCard payload={data} />;
 

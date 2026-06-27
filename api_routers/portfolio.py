@@ -10,10 +10,15 @@ from fastapi import APIRouter, Body, File, HTTPException, UploadFile
 
 from portfolio_holdings import (
     add_holding,
+    add_holding_bigquery,
     delete_holding,
+    delete_holding_bigquery,
     import_from_csv,
+    import_from_csv_bigquery,
     load_holdings,
+    load_holdings_bigquery,
     update_holding,
+    update_holding_bigquery,
 )
 from symbol_snapshot_service import fetch_symbol_quote
 
@@ -60,11 +65,13 @@ def _unprocessable(exc: ValueError) -> HTTPException:
 def get_portfolio() -> dict[str, Any]:
     if _store_backend() == "bigquery" and not _portfolio_table():
         return _pending_payload()
+    source = _store_backend()
+    holdings = load_holdings_bigquery(_portfolio_table()) if source == "bigquery" else load_holdings()
     return {
         "enabled": True,
-        "source": _store_backend(),
+        "source": source,
         "as_of": _now_iso(),
-        "holdings": load_holdings(),
+        "holdings": holdings,
     }
 
 
@@ -72,6 +79,8 @@ def get_portfolio() -> dict[str, Any]:
 def create_holding(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     _ensure_writeable_store()
     try:
+        if _store_backend() == "bigquery":
+            return add_holding_bigquery(_portfolio_table(), body)
         return add_holding(body)
     except ValueError as exc:
         raise _unprocessable(exc) from exc
@@ -81,7 +90,10 @@ def create_holding(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 def patch_holding(holding_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     _ensure_writeable_store()
     try:
-        updated = update_holding(holding_id, body)
+        if _store_backend() == "bigquery":
+            updated = update_holding_bigquery(_portfolio_table(), holding_id, body)
+        else:
+            updated = update_holding(holding_id, body)
     except ValueError as exc:
         raise _unprocessable(exc) from exc
     if updated is None:
@@ -92,7 +104,12 @@ def patch_holding(holding_id: str, body: dict[str, Any] = Body(...)) -> dict[str
 @router.delete("/{holding_id}")
 def remove_holding(holding_id: str) -> dict[str, bool]:
     _ensure_writeable_store()
-    if not delete_holding(holding_id):
+    deleted = (
+        delete_holding_bigquery(_portfolio_table(), holding_id)
+        if _store_backend() == "bigquery"
+        else delete_holding(holding_id)
+    )
+    if not deleted:
         raise HTTPException(status_code=404, detail="holding not found")
     return {"ok": True}
 
@@ -103,12 +120,17 @@ async def import_holdings(file: UploadFile = File(...)) -> dict[str, Any]:
     try:
         raw = await file.read()
         csv_text = raw.decode("utf-8-sig")
-        imported = import_from_csv(csv_text)
+        imported = (
+            import_from_csv_bigquery(_portfolio_table(), csv_text)
+            if _store_backend() == "bigquery"
+            else import_from_csv(csv_text)
+        )
     except UnicodeDecodeError as exc:
         raise HTTPException(status_code=422, detail="CSV must be UTF-8") from exc
     except ValueError as exc:
         raise _unprocessable(exc) from exc
-    return {"imported": len(imported), "holdings": load_holdings()}
+    holdings = load_holdings_bigquery(_portfolio_table()) if _store_backend() == "bigquery" else load_holdings()
+    return {"imported": len(imported), "holdings": holdings}
 
 
 @router.get("/pnl")
@@ -120,7 +142,8 @@ def get_portfolio_pnl() -> dict[str, Any]:
             "total_pnl": 0.0,
             "total_day_pnl": 0.0,
         }
-    holdings = load_holdings()
+    source = _store_backend()
+    holdings = load_holdings_bigquery(_portfolio_table()) if source == "bigquery" else load_holdings()
     enriched: list[dict[str, Any]] = []
     total_value = 0.0
     total_pnl = 0.0
@@ -178,6 +201,9 @@ def get_portfolio_pnl() -> dict[str, Any]:
             row["weight"] = 0.0
 
     return {
+        "enabled": True,
+        "source": source,
+        "as_of": _now_iso(),
         "total_value": total_value,
         "total_pnl": total_pnl,
         "total_day_pnl": total_day_pnl,

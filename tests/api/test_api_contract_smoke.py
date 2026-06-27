@@ -203,4 +203,93 @@ def test_data_health_contract(client, monkeypatch):
     ids = {item["id"] for item in body["items"]}
     assert {"options", "portfolio", "news", "reports"}.issubset(ids)
     for item in body["items"]:
-        assert {"id", "label", "status", "source", "hint"}.issubset(item)
+        assert {"id", "label", "status", "source", "hint", "row_count", "latest_as_of"}.issubset(item)
+        assert item["status"] in {"ready", "pending", "empty", "stale", "error"}
+
+
+def test_data_health_options_probe_reads_all_configured_tables(client, monkeypatch):
+    from datetime import datetime, timezone
+
+    from google.cloud import bigquery
+
+    from api_routers import health as health_router
+
+    latest = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    counts = {
+        "proj.market_data.options_snapshots": 2,
+        "proj.market_data.options_unusual_trades": 3,
+        "proj.market_data.options_gex_history": 1,
+        "proj.market_data.options_gex_by_strike": 4,
+    }
+    queried: list[str] = []
+
+    class FakeJob:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def result(self):
+            return self._rows
+
+    class FakeClient:
+        def __init__(self, project):
+            self.project = project
+
+        def query(self, sql):
+            table = sql.split("FROM `", 1)[1].split("`", 1)[0]
+            queried.append(table)
+            return FakeJob([{"row_count": counts[table], "latest_as_of": latest}])
+
+    monkeypatch.setattr(bigquery, "Client", FakeClient)
+    monkeypatch.setattr(health_router, "OPTIONS_SNAPSHOTS_TABLE", "proj.market_data.options_snapshots")
+    monkeypatch.setattr(health_router, "OPTIONS_UNUSUAL_TRADES_TABLE", "proj.market_data.options_unusual_trades")
+    monkeypatch.setattr(health_router, "OPTIONS_GEX_HISTORY_TABLE", "proj.market_data.options_gex_history")
+    monkeypatch.setattr(health_router, "OPTIONS_GEX_BY_STRIKE_TABLE", "proj.market_data.options_gex_by_strike")
+
+    r = client.get("/api/data-health")
+
+    assert r.status_code == 200
+    options = next(item for item in r.json()["items"] if item["id"] == "options")
+    assert options["status"] == "ready"
+    assert options["row_count"] == 10
+    assert options["latest_as_of"] == latest
+    assert set(queried) == set(counts)
+
+
+def test_data_health_portfolio_bigquery_probe_reads_table(client, monkeypatch):
+    from datetime import datetime, timezone
+
+    from google.cloud import bigquery
+
+    from api_routers import health as health_router
+
+    latest = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    seen_sql: list[str] = []
+
+    class FakeJob:
+        def result(self):
+            return [{"row_count": 2, "latest_as_of": latest}]
+
+    class FakeClient:
+        def __init__(self, project):
+            self.project = project
+
+        def query(self, sql):
+            seen_sql.append(sql)
+            return FakeJob()
+
+    monkeypatch.setattr(bigquery, "Client", FakeClient)
+    monkeypatch.setenv("PORTFOLIO_STORE_BACKEND", "bigquery")
+    monkeypatch.setenv("PORTFOLIO_HOLDINGS_TABLE", "proj.dataset.portfolio_holdings")
+    monkeypatch.setattr(health_router, "OPTIONS_SNAPSHOTS_TABLE", "")
+    monkeypatch.setattr(health_router, "OPTIONS_UNUSUAL_TRADES_TABLE", "")
+    monkeypatch.setattr(health_router, "OPTIONS_GEX_HISTORY_TABLE", "")
+    monkeypatch.setattr(health_router, "OPTIONS_GEX_BY_STRIKE_TABLE", "")
+
+    r = client.get("/api/data-health")
+
+    assert r.status_code == 200
+    portfolio = next(item for item in r.json()["items"] if item["id"] == "portfolio")
+    assert portfolio["status"] == "ready"
+    assert portfolio["row_count"] == 2
+    assert portfolio["latest_as_of"] == latest
+    assert "COALESCE(updated_at, created_at)" in seen_sql[0]

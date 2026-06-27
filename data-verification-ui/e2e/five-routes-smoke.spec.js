@@ -19,4 +19,12 @@ test.describe("5-board Terminal routes", () => {
       await expect(page.getByTestId(route.provenance).first()).toBeVisible({ timeout: 60_000 });
     });
   }
+
+  test("/insights shows cross-tab data health summary", async ({ page }) => {
+    await page.goto("/insights", { waitUntil: "load" });
+    const panel = page.getByTestId("insights-data-health-summary");
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    await expect(panel).toContainText("Options");
+    await expect(panel).toContainText("Track Record");
+  });
 });

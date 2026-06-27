@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PORTAL_PHASE4_CTA, PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
+import { useDataHealth } from "../../../hooks/useApi";
 
 /** Tab／deep-dive 延遲載入：縮小 Insights 首屏 async chunk（對齊 Master Plan §3.6）。 */
 const DailyBriefPage = lazy(() => import("../../daily-brief/pages/DailyBriefPage"));
@@ -25,6 +26,55 @@ const TABS = [
 ];
 
 const TAB_IDS = new Set(TABS.map((t) => t.id));
+
+const HEALTH_ITEMS = [
+  { id: "reports", label: "Daily" },
+  { id: "paper", label: "Paper" },
+  { id: "track-record", label: "Track Record" },
+  { id: "scenario", label: "Scenario" },
+  { id: "options", label: "Options" },
+];
+
+function statusClass(status) {
+  if (status === "ready") return "border-emerald-300/30 bg-emerald-400/[0.08] text-emerald-100";
+  if (status === "empty") return "border-cyan-300/25 bg-cyan-400/[0.06] text-cyan-100";
+  if (status === "stale") return "border-amber-300/30 bg-amber-400/[0.08] text-amber-100";
+  if (status === "error") return "border-red-300/30 bg-red-400/[0.08] text-red-100";
+  return "border-white/15 bg-white/[0.03] text-white/70";
+}
+
+function DataHealthSummary() {
+  const dataHealth = useDataHealth();
+  const byId = useMemo(() => {
+    const map = new Map();
+    for (const item of dataHealth.data?.items || []) map.set(item.id, item);
+    return map;
+  }, [dataHealth.data]);
+
+  return (
+    <div
+      data-testid="insights-data-health-summary"
+      className="mb-3 grid grid-cols-2 gap-2 px-1 sm:grid-cols-3 lg:grid-cols-5"
+    >
+      {HEALTH_ITEMS.map((cfg) => {
+        const item = byId.get(cfg.id);
+        const status = dataHealth.isError ? "error" : item?.status || (dataHealth.isLoading ? "loading" : "pending");
+        const rowCount = item?.row_count;
+        return (
+          <div key={cfg.id} className={`rounded border px-2.5 py-2 text-[12px] ${statusClass(status)}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold">{cfg.label}</span>
+              <span className="font-mono text-[10px] uppercase opacity-80">{status}</span>
+            </div>
+            <div className="mt-1 truncate font-mono text-[11px] opacity-70" title={item?.source || ""}>
+              {rowCount == null ? item?.source || "checking" : `${rowCount} rows`}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function InsightsHome() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -81,7 +131,11 @@ export default function InsightsHome() {
           </Link>
         </div>
       </div>
-      <div className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Insights tabs">
+      <DataHealthSummary />
+      <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200 sm:hidden">
+        目前：{activeLabel}
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2 px-1 pb-1 sm:flex-nowrap sm:overflow-x-auto" role="tablist" aria-label="Insights tabs">
         {TABS.map((tab) => (
           <button
             key={tab.id}

@@ -32,7 +32,11 @@ done
 [[ "$hc" == "200" ]] || { echo "FAIL API liveness: none of /docs, /openapi.json, /healthz returned 200"; exit 1; }
 
 echo "== API quote BTC (may be 401 without key — document your backend) =="
-qc=$(curl -sS -o /dev/null -w "%{http_code}" "${HDR[@]}" "${API_BASE%/}/api/symbols/BTC/quote")
+if [[ ${#HDR[@]} -gt 0 ]]; then
+  qc=$(curl -sS -o /dev/null -w "%{http_code}" "${HDR[@]}" "${API_BASE%/}/api/symbols/BTC/quote")
+else
+  qc=$(curl -sS -o /dev/null -w "%{http_code}" "${API_BASE%/}/api/symbols/BTC/quote")
+fi
 if [[ "$qc" == "200" ]]; then
   echo "OK quote 200"
 elif [[ "$qc" == "401" ]]; then
@@ -40,4 +44,16 @@ elif [[ "$qc" == "401" ]]; then
 else
   echo "FAIL ${API_BASE%/}/api/symbols/BTC/quote -> $qc"; exit 1
 fi
+
+echo "== API frontend contract routes (expect 200; enabled:false is OK, 404 is not) =="
+for path in /api/data-health /api/options/summary /api/options/gex/NVDA /api/options/flow/NVDA; do
+  u="${API_BASE%/}${path}"
+  if [[ ${#HDR[@]} -gt 0 ]]; then
+    c=$(code "${HDR[@]}" "$u")
+  else
+    c=$(code "$u")
+  fi
+  [[ "$c" == "200" ]] || { echo "FAIL $u -> $c"; exit 1; }
+  echo "OK $u"
+done
 echo "smoke-prod: all checks passed"
