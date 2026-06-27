@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS `PROJECT.market_data.options_snapshots` (
   source STRING
 )
 PARTITION BY trade_date
-CLUSTER BY underlying, expiration, strike
+CLUSTER BY underlying, expiration, contract_type
 OPTIONS (
   description = "Q-Silicon Polygon options 每日快照（idempotent insert_id = sha1(snap|trade_date|option_ticker)）"
 );

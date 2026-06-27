@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `PROJECT.market_data.options_gex_by_strike` (
   computed_at TIMESTAMP
 )
 PARTITION BY trade_date
-CLUSTER BY underlying, strike
+CLUSTER BY underlying
 OPTIONS (
   description = "Q-Silicon Polygon per-strike GEX 分布（idempotent insert_id = sha1(gexstrike|trade_date|underlying|strike)）"
 );
