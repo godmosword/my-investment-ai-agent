@@ -145,7 +145,21 @@ jobs:
           WP_ENABLED="${{ vars.WEB_PUSH_ENABLED }}";     [ -z "$WP_ENABLED" ] && WP_ENABLED=0
           WP_MAILTO="${{ vars.WEB_PUSH_VAPID_MAILTO }}"; [ -z "$WP_MAILTO" ]  && WP_MAILTO=mailto:ops@example.com
           WP_PORTAL="${{ vars.WEB_PUSH_PORTAL_URL }}"
-          ENVVARS="USE_LANGGRAPH_ENGINE=${LG_FLAG},SKIP_TELEGRAM=${SKIP_TG},WEB_PUSH_DAILY_BRIEF=${WP_DAILY},WEB_PUSH_ENABLED=${WP_ENABLED},WEB_PUSH_VAPID_MAILTO=${WP_MAILTO},WEB_PUSH_PORTAL_URL=${WP_PORTAL}"
+          ENVVARS="GCP_PROJECT_ID=${GCP_PROJECT_ID}"
+          ENVVARS="$ENVVARS,USE_LANGGRAPH_ENGINE=${LG_FLAG},SKIP_TELEGRAM=${SKIP_TG},WEB_PUSH_DAILY_BRIEF=${WP_DAILY},WEB_PUSH_ENABLED=${WP_ENABLED},WEB_PUSH_VAPID_MAILTO=${WP_MAILTO},WEB_PUSH_PORTAL_URL=${WP_PORTAL}"
+          ENVVARS="$ENVVARS,OPTIONS_SNAPSHOTS_TABLE=${GCP_PROJECT_ID}.market_data.options_snapshots"
+          ENVVARS="$ENVVARS,OPTIONS_UNUSUAL_TRADES_TABLE=${GCP_PROJECT_ID}.market_data.options_unusual_trades"
+          ENVVARS="$ENVVARS,OPTIONS_GEX_HISTORY_TABLE=${GCP_PROJECT_ID}.market_data.options_gex_history"
+          ENVVARS="$ENVVARS,OPTIONS_GEX_BY_STRIKE_TABLE=${GCP_PROJECT_ID}.market_data.options_gex_by_strike"
+          ENVVARS="$ENVVARS,RECOMMENDATION_OUTCOMES_TABLE=${GCP_PROJECT_ID}.market_data.recommendation_outcomes"
+          ENVVARS="$ENVVARS,PAPER_EXECUTION_AUDIT_TABLE=${GCP_PROJECT_ID}.market_data.paper_execution_audit"
+          ENVVARS="$ENVVARS,PRICE_PROBE_LOG_TABLE=${GCP_PROJECT_ID}.market_data.price_alignment_probe_log"
+          ENVVARS="$ENVVARS,PORTFOLIO_HOLDINGS_TABLE=${GCP_PROJECT_ID}.market_data.portfolio_holdings"
+          ENVVARS="$ENVVARS,WEB_PUSH_SUBSCRIPTIONS_TABLE=${GCP_PROJECT_ID}.market_data.web_push_subscriptions"
+          ENVVARS="$ENVVARS,WEB_PUSH_AUDIT_TABLE=${GCP_PROJECT_ID}.market_data.web_push_subscribe_audit"
+          ENVVARS="$ENVVARS,DAILY_BRIEF_JSON_BQ_TABLE=${GCP_PROJECT_ID}.market_data.daily_brief_report_json"
+          ENVVARS="$ENVVARS,NOTEBOOKLM_COST_LOG_TABLE=${GCP_PROJECT_ID}.market_data.notebooklm_cost_log"
+          ENVVARS="$ENVVARS,REVIEWER_LOG_BQ=1"
 
           # Web Push 啟用時才掛 VAPID/Redis secret（避免未建 secret 時讓既有 deploy 失敗）。
           # 先在 Secret Manager 建 WEB_PUSH_VAPID_PRIVATE_KEY 與 WEB_PUSH_REDIS_URL。
