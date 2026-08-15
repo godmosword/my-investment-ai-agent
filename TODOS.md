@@ -729,6 +729,54 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 <!-- OSS_SCOUT_AUTO_BEGIN -->
 
+### 2026-08-15
+
+**本週 OSS 候選（2026-08-15）** — 依適配度排序；**細節只讀研究稿**（**不自動合併**）。
+
+- 研究稿：[`docs/oss_candidates/2026-08-15-revision-plan-draft.md`](docs/oss_candidates/2026-08-15-revision-plan-draft.md)
+- 機讀：[`2026-08-15-digest.json`](docs/oss_candidates/2026-08-15-digest.json)、[`2026-08-15-candidates.json`](docs/oss_candidates/2026-08-15-candidates.json)
+
+| Repo | 適配 | ★ |
+|:-----|:----:|--:|
+| [`Fincept-Corporation/FinceptTerminal`](https://github.com/Fincept-Corporation/FinceptTerminal) | 5/5 · 建議優先評估 | 30239 |
+| [`HKUDS/Vibe-Trading`](https://github.com/HKUDS/Vibe-Trading) | 5/5 · 建議優先評估 | 30871 |
+| [`OpenBB-finance/OpenBB`](https://github.com/OpenBB-finance/OpenBB) | 5/5 · 建議優先評估 | 71867 |
+| [`OpenByteInc/QuantDinger`](https://github.com/OpenByteInc/QuantDinger) | 5/5 · 建議優先評估 | 10684 |
+| [`StockSharp/StockSharp`](https://github.com/StockSharp/StockSharp) | 5/5 · 建議優先評估 | 10566 |
+| [`TA-Lib/ta-lib-python`](https://github.com/TA-Lib/ta-lib-python) | 5/5 · 建議優先評估 | 12185 |
+| [`UFund-Me/Qbot`](https://github.com/UFund-Me/Qbot) | 5/5 · 建議優先評估 | 18331 |
+| [`ZhuLinsen/daily_stock_analysis`](https://github.com/ZhuLinsen/daily_stock_analysis) | 5/5 · 建議優先評估 | 62903 |
+| [`hummingbot/hummingbot`](https://github.com/hummingbot/hummingbot) | 5/5 · 建議優先評估 | 19466 |
+| [`je-suis-tm/quant-trading`](https://github.com/je-suis-tm/quant-trading) | 5/5 · 建議優先評估 | 10547 |
+| [`microsoft/qlib`](https://github.com/microsoft/qlib) | 5/5 · 建議優先評估 | 47418 |
+| [`myhhub/stock`](https://github.com/myhhub/stock) | 5/5 · 建議優先評估 | 13803 |
+| [`stefan-jansen/machine-learning-for-trading`](https://github.com/stefan-jansen/machine-learning-for-trading) | 5/5 · 建議優先評估 | 20447 |
+| [`wilsonfreitas/awesome-quant`](https://github.com/wilsonfreitas/awesome-quant) | 5/5 · 建議優先評估 | 28773 |
+| [`paperswithbacktest/awesome-systematic-trading`](https://github.com/paperswithbacktest/awesome-systematic-trading) | 4/5 · 高適配 | 13319 |
+
+**Spike／PR 勾選**（僅 repo 名；理由見研究稿）：
+
+- [ ] `Fincept-Corporation/FinceptTerminal`
+- [ ] `HKUDS/Vibe-Trading`
+- [ ] `OpenBB-finance/OpenBB`
+- [ ] `OpenByteInc/QuantDinger`
+- [ ] `StockSharp/StockSharp`
+- [ ] `TA-Lib/ta-lib-python`
+- [ ] `UFund-Me/Qbot`
+- [ ] `ZhuLinsen/daily_stock_analysis`
+- [ ] `hummingbot/hummingbot`
+- [ ] `je-suis-tm/quant-trading`
+- [ ] `microsoft/qlib`
+- [ ] `myhhub/stock`
+- [ ] `stefan-jansen/machine-learning-for-trading`
+- [ ] `wilsonfreitas/awesome-quant`
+- [ ] `paperswithbacktest/awesome-systematic-trading`
+
+
+---
+
+---
+
 ### 2026-08-01
 
 **本週 OSS 候選（2026-08-01）** — 依適配度排序；**細節只讀研究稿**（**不自動合併**）。
@@ -777,6 +825,8 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 ---
 
+---
+
 ### 2026-07-15
 
 **本週 OSS 候選（2026-07-15）** — 依適配度排序；**細節只讀研究稿**（**不自動合併**）。
@@ -820,6 +870,8 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 - [ ] `firmai/financial-machine-learning`
 - [ ] `paperswithbacktest/awesome-systematic-trading`
 
+
+---
 
 ---
 
@@ -879,6 +931,8 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 ---
 
+---
+
 ### 2026-06-15
 
 **本週 OSS 候選（2026-06-15）** — 依適配度排序；**細節只讀研究稿**（**不自動合併**）。
@@ -922,6 +976,8 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 - [ ] `firmai/financial-machine-learning`
 - [ ] `paperswithbacktest/awesome-systematic-trading`
 
+
+---
 
 ---
 
@@ -989,6 +1045,8 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 ---
 
+---
+
 ### 2026-05-15
 
 **本週 OSS 候選（2026-05-15）** — 依適配度排序；**細節只讀研究稿**（**不自動合併**）。
@@ -1032,6 +1090,8 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 - [ ] `firmai/financial-machine-learning`
 - [ ] `paperswithbacktest/awesome-systematic-trading`
 
+
+---
 
 ---
 
@@ -1106,49 +1166,6 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 ---
 
 ---
-
-### 2026-04-15
-
-**本週 OSS 候選（2026-04-15）** — 依適配度排序；**細節只讀研究稿**（**不自動合併**）。
-
-- 研究稿：[`docs/oss_candidates/2026-04-15-revision-plan-draft.md`](docs/oss_candidates/2026-04-15-revision-plan-draft.md)
-- 機讀：[`2026-04-15-digest.json`](docs/oss_candidates/2026-04-15-digest.json)、[`2026-04-15-candidates.json`](docs/oss_candidates/2026-04-15-candidates.json)
-
-| Repo | 適配 | ★ |
-|:-----|:----:|--:|
-| [`OpenBB-finance/OpenBB`](https://github.com/OpenBB-finance/OpenBB) | 5/5 · 建議優先評估 | 65896 |
-| [`StockSharp/StockSharp`](https://github.com/StockSharp/StockSharp) | 5/5 · 建議優先評估 | 9699 |
-| [`TA-Lib/ta-lib-python`](https://github.com/TA-Lib/ta-lib-python) | 5/5 · 建議優先評估 | 11865 |
-| [`UFund-Me/Qbot`](https://github.com/UFund-Me/Qbot) | 5/5 · 建議優先評估 | 16949 |
-| [`cantaro86/Financial-Models-Numerical-Methods`](https://github.com/cantaro86/Financial-Models-Numerical-Methods) | 5/5 · 建議優先評估 | 6743 |
-| [`je-suis-tm/quant-trading`](https://github.com/je-suis-tm/quant-trading) | 5/5 · 建議優先評估 | 9666 |
-| [`jesse-ai/jesse`](https://github.com/jesse-ai/jesse) | 5/5 · 建議優先評估 | 7667 |
-| [`lballabio/QuantLib`](https://github.com/lballabio/QuantLib) | 5/5 · 建議優先評估 | 7004 |
-| [`microsoft/qlib`](https://github.com/microsoft/qlib) | 5/5 · 建議優先評估 | 40738 |
-| [`myhhub/stock`](https://github.com/myhhub/stock) | 5/5 · 建議優先評估 | 12255 |
-| [`polakowo/vectorbt`](https://github.com/polakowo/vectorbt) | 5/5 · 建議優先評估 | 7178 |
-| [`ranaroussi/quantstats`](https://github.com/ranaroussi/quantstats) | 5/5 · 建議優先評估 | 6959 |
-| [`wilsonfreitas/awesome-quant`](https://github.com/wilsonfreitas/awesome-quant) | 5/5 · 建議優先評估 | 25536 |
-| [`firmai/financial-machine-learning`](https://github.com/firmai/financial-machine-learning) | 4/5 · 高適配 | 8504 |
-| [`paperswithbacktest/awesome-systematic-trading`](https://github.com/paperswithbacktest/awesome-systematic-trading) | 4/5 · 高適配 | 7926 |
-
-**Spike／PR 勾選**（僅 repo 名；理由見研究稿）：
-
-- [ ] `OpenBB-finance/OpenBB`
-- [ ] `StockSharp/StockSharp`
-- [ ] `TA-Lib/ta-lib-python`
-- [ ] `UFund-Me/Qbot`
-- [ ] `cantaro86/Financial-Models-Numerical-Methods`
-- [ ] `je-suis-tm/quant-trading`
-- [ ] `jesse-ai/jesse`
-- [ ] `lballabio/QuantLib`
-- [ ] `microsoft/qlib`
-- [ ] `myhhub/stock`
-- [ ] `polakowo/vectorbt`
-- [ ] `ranaroussi/quantstats`
-- [ ] `wilsonfreitas/awesome-quant`
-- [ ] `firmai/financial-machine-learning`
-- [ ] `paperswithbacktest/awesome-systematic-trading`
 
 <!-- OSS_SCOUT_AUTO_END -->
 
