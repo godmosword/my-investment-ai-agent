@@ -313,6 +313,7 @@ BQ／排除 context → 雙軌研究 → assemble／render →（可選 editor�
 | Gate 人審 | [`docs/GATE_FAILURE_HINT_WORKFLOW.md`](docs/GATE_FAILURE_HINT_WORKFLOW.md) |
 | 儀表契約 | [`docs/DASHBOARD_CONTRACT.md`](docs/DASHBOARD_CONTRACT.md) |
 | PWA 離線策略（Workbox） | [`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md) |
+| Portal Vercel 部署／env／SSO | [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md) |
 | Bloomberg 對齊（工作流藍圖） | [`docs/BLOOMBERG_ALIGNMENT.md`](docs/BLOOMBERG_ALIGNMENT.md) |
 | 選幣輪動 | [`docs/PICK_ROTATION_SEMANTICS.md`](docs/PICK_ROTATION_SEMANTICS.md) |
 | 邊界測試 | [`docs/BOUNDARY_TEST_MATRIX.md`](docs/BOUNDARY_TEST_MATRIX.md) |
@@ -345,6 +346,14 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 
 - **路由**：底部導覽五板塊為 **`/news`**、**`/dashboard`**、**`/insights`**、**`/columns`**、**`/portfolio`**；`/insights` 承接 Terminal 工作區（watchlist 存 `localStorage`；代號卡呼叫 `GET /api/symbols/{symbol}/snapshot` 與輕量 **`GET /api/symbols/{symbol}/quote`**（最新日線收盤／1D%，僅 yfinance））。
 - **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（適合 PWA 與 API 同網域反代）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。**Production build** 若未設，Portal 會顯示頂部提示條（`VITE_E2E=1` 建置時不顯示以免干擾 Playwright）。
+
+### Vercel 正式站
+
+正式 URL：[https://my-investment-ai-agent.vercel.app](https://my-investment-ai-agent.vercel.app)。靜態 PWA 在 Vercel；API 仍是 Cloud Run Service（`VITE_API_URL`）。
+
+- **Production**：只走 [`.github/workflows/pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) prebuilt（`vercel pull` → `vercel build` → `vercel deploy --prebuilt --prod`）。[`data-verification-ui/vercel.json`](data-verification-ui/vercel.json) 設 `git.deploymentEnabled.main=false`，禁止 Git Integration 對 `main` 遠端 `vite build` 上正式站。
+- **`VITE_API_URL` 真相來源**：GitHub Actions **secret**（無尾斜線）。Vercel Dashboard Production 同值僅作 fallback；PR Preview 必須在 Dashboard **Preview** env 另設（遠端 build 看不到 GitHub secrets）。
+- **驗收／SSO／CORS**：見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「Vercel PWA Deploy」。建議 Production 關 Vercel Authentication（改靠 `QSILICON_MASTER_KEY` + `/api-key`），Preview 保留 SSO。`npm run smoke:prod` 範例亦在該檔。
 
 ### 正式上線 vs CI／E2E 專用旗標
 

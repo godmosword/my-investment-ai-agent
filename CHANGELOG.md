@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-08-15
+
+### Ops（Portal Vercel harden — 停掉 main Git 自動 production）
+
+- **[`data-verification-ui/vercel.json`](data-verification-ui/vercel.json)**：`git.deploymentEnabled.main=false`。Vercel Git Integration **不得**對 `main` 遠端 `vite build` 上正式站（先前 `source=git` 的 production 會蓋掉 CI prebuilt，且 chore／oss-scout commit 也會發佈）。Production **只**走 [`pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) prebuilt。PR Preview 仍由 Git Integration 建置。
+- **Env 契約**：Production `VITE_API_URL` 真相來源＝GitHub Actions secret；Dashboard Production 同值僅 fallback；Preview 必須在 Vercel Preview env 另設。本輪不開 `VITE_WEB_PUSH_*`。
+- **SSO（Dashboard 人工）**：建議 Production 關 Vercel Authentication（改靠 `QSILICON_MASTER_KEY` + `/api-key`），Preview 保留 SSO。無自訂網域；之後加網域須同步 Cloud Run `CORS_ORIGINS`。
+- **文件**：[`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)、[`README.md`](README.md)「Vercel 正式站」、[`ENV_TEMPLATE.txt`](ENV_TEMPLATE.txt)／[`.env.example`](data-verification-ui/.env.example) `VITE_API_URL` 註解、[`CLAUDE.md`](CLAUDE.md) 導覽一句。
+
 ## 2026-06-20
 
 ### Feat（Portal 視覺化升級 VU2 — Portfolio 配置 donut + Track Record 權益曲線）

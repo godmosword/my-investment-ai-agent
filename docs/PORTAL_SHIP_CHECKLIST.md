@@ -75,6 +75,8 @@ Then update `TODOS.md` and `CHANGELOG.md` with the staging dates.
 
 ## Vercel PWA Deploy (CI)
 
+Production URL: [https://my-investment-ai-agent.vercel.app](https://my-investment-ai-agent.vercel.app). Project `my-investment-ai-agent`. Dashboard: **Root Directory** = `data-verification-ui`, **Framework** = Vite, **Output Directory** = `dist`.
+
 When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`, **`VITE_API_URL`** required, optional `VITE_TECH_PULSE_URL`), workflow `.github/workflows/pwa-deploy.yml` runs lint/E2E in `verify`, then in `deploy-vercel`:
 
 1. `npm run build` — local fail-fast (`data-verification-ui/dist/index.html` must exist).
@@ -83,7 +85,32 @@ When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCE
 
 The artifact uploaded to Vercel is **`.vercel/output`** from `vercel build`, not the earlier `dist/` folder copied as-is. Remote builders must **not** re-run `vite build`.
 
-**Env contract (CI)**: GitHub Actions **secrets** (`VITE_API_URL`, `VITE_TECH_PULSE_URL`) are injected into the deploy step environment for `vercel build`. If `vercel pull` also downloads Vercel dashboard env, treat **GitHub secrets as source of truth** for production API URLs unless you intentionally manage them only in Vercel.
+**Production path (single writer)**: [`data-verification-ui/vercel.json`](../data-verification-ui/vercel.json) sets `git.deploymentEnabled.main=false` so Vercel Git Integration **must not** create production deployments from `main`. Production is **only** `pwa-deploy.yml` prebuilt. After a frontend-related `main` push, the latest production deployment `source` must be `cli` / prebuilt — **not** `git`. Chore-only commits (for example oss-scout) must not ship a new production alias.
+
+**Preview**: unspecified branches still deploy via Git Integration (PR previews). Those remote `vite build`s read **Vercel Preview env**, not GitHub Actions secrets.
+
+### Env contract (`VITE_*`)
+
+| Variable | Production | Preview | Notes |
+|----------|------------|---------|-------|
+| `VITE_API_URL` | **Required.** GitHub Actions secret is the source of truth (injected into `vercel build`). | **Required** on Vercel Dashboard → Preview. | Cloud Run **Service** origin, no trailing slash. Empty production value fails the deploy step. |
+| `VITE_TECH_PULSE_URL` | Optional GitHub secret | Optional Preview env | Insights earnings outbound link |
+| `VITE_WEB_PUSH_REGISTER` / `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` | Leave off this slice | Leave off | Queue 18–21 (Redis + VAPID). Do not enable until those cloud gates are signed off. |
+| `VITE_SSE_*` / `VITE_STRUCTURED_REPORT` | Keep current | Keep current | Do not add new flags in this harden slice |
+
+Dashboard **Production** `VITE_*` should match GitHub secrets as a fallback only — not the source of truth. If `vercel pull` also downloads dashboard env, GitHub secrets still win for the CI prebuilt bundle.
+
+Backend `WEB_PUSH_PORTAL_URL` (Cloud Run Job, not Vercel) may be `https://my-investment-ai-agent.vercel.app`. A future custom domain must also be added to Cloud Run `CORS_ORIGINS` (`CORS_ORIGIN_REGEX` only covers `*.vercel.app`).
+
+### Access / PWA (Dashboard — human)
+
+Vercel Authentication (SSO) was observed as **on** for `all_except_custom_domains` (no custom domain). A 2026-08-15 unauthenticated GET of the production alias still returned the PWA HTML (200). Keep Production SSO **off** (or confirm it stays off) so phone PWA install and `npm run smoke:prod` are not blocked later; API auth remains `QSILICON_MASTER_KEY` + `/api-key`.
+
+Recommended (Dashboard only; not a repo toggle):
+
+- **Preview:** keep SSO so PR URLs stay private.
+- **Production:** turn **off** Vercel Authentication; keep API auth as `QSILICON_MASTER_KEY` + Portal `/api-key`.
+- **Custom domain:** out of this slice. If added later, set Cloud Run `CORS_ORIGINS` to that origin.
 
 **Skip vs fail**:
 
@@ -113,6 +140,12 @@ npm run smoke:prod
 ```
 
 Static PWA routes must return 200; API checks require a reachable `API_BASE` (`/docs` or `/openapi.json` for liveness; optional quote with `SMOKE_QSILICON_KEY`). `/healthz` may 404 at the Cloud Run edge — use business endpoints if liveness probes fail.
+
+If static routes return **401** (Vercel Authentication), Production SSO is still on — turn it off per **Access / PWA** above, then re-run smoke.
+
+After this harden lands, confirm the newest production deployment `source` is `cli` (prebuilt), not `git`. Baseline before ship: `dpl_jDcjxjyMgPmXq5j292LZBbUyTQBX` was `source=git` (oss-scout chore).
+
+**2026-08-15 probe** (pre-ship of this harden): five PWA routes returned **200** (real `Q-Silicon War Room` HTML, not a Vercel login page). `smoke:prod` API liveness against Cloud Run Service `https://my-investment-ai-agent-api-yp2y6wuioa-de.a.run.app` was **not** 200 (`/docs` 500, `/openapi.json` 503, `/healthz` 404) — that is the API Service, not the Vercel static config. Re-run full `smoke:prod` after the next `pwa-deploy` prebuilt and after API liveness is 200.
 
 ### Prebuilt deploy troubleshooting
 

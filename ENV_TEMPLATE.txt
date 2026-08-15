@@ -280,7 +280,7 @@ ONCHAIN_FUNDING_LIVE=0
 # （PWA）VITE_TERMINAL_POLL_MS=45000   # Terminal 輪詢間隔（毫秒；見 docs/DASHBOARD_CONTRACT.md）
 # （PWA）VITE_TERMINAL_QUERY_COALESCE=1   # 1=多卡同頁時 snapshot/quote/intents 輪詢時間錯開，減少 burst（設 0 關閉）
 # （PWA）VITE_TECH_PULSE_URL=   # Tech-Pulse 前端 base URL（Insights 財報外連 /earnings/[ticker]）
-# （PWA）VITE_API_URL=   # Cloud Run API base（Vercel 部署必填）
+# （PWA）VITE_API_URL=   # Cloud Run Service origin（Vercel 部署必填、無尾斜線）。Production 真相來源＝GitHub secret（pwa-deploy prebuilt）；Dashboard Production 同值僅 fallback。PR Preview 須在 Vercel Preview env 另設。見 docs/PORTAL_SHIP_CHECKLIST.md
 # （PWA）VITE_STRUCTURED_REPORT=0   # 1=報告頁使用 GET /api/reports/{date}/structured 區塊視圖（見 docs/DASHBOARD_CONTRACT.md；預設 0）
 # （PWA）VITE_QSILICON_KEY=   # 建置時注入或留空；執行時優先讀 localStorage「qsi_master_key」（`/api-key` 頁寫入）。`data-verification-ui/src/lib/siliconApiHeaders.js` + `useApi.js`／`pushClient.js` 對 `/api/*` fetch 送 Header `X-Q-Silicon-Key`；401 時（`VITE_E2E`≠1）導向 `/api-key?return=…` 並 dispatch `qsilicon:api-unauthorized`
 # QSILICON_MASTER_KEY=   # 非空時 FastAPI 對 `/api/*`（`GET /api/stream/war-room` 除外：EventSource 無法帶自訂 header，仍用 `API_STREAM_AUTH_KEY`／query）要求 Header `X-Q-Silicon-Key` 與此值完全一致
