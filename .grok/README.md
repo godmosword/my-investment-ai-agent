@@ -1,0 +1,76 @@
+# Grok Autonomous Engineering Team
+
+This directory defines the repo-side operating contract for a Grok Bot team that continuously improves **Q-Silicon / my-investment-ai-agent**.
+
+The goal is not "many agents editing code." The goal is a controlled software organization:
+
+`observe -> prioritize -> plan -> implement -> verify -> review -> merge -> observe`
+
+## Source of truth
+
+For normal repository behavior, keep following the existing project docs (`CLAUDE.md`, `AGENTS.md`, `docs/AGENT-WORKFLOW.md`, architecture docs, CI workflows).
+
+For work explicitly started by the Grok Autonomous Engineering Team, `.grok/TEAM_CHARTER.md` adds stricter autonomy rules. In particular, **Grok autonomous cycles never push directly to `main`** even though the repository's human-maintainer workflow may allow that.
+
+## Roster
+
+Create these six Grok Bots using the profile text in `.grok/roles/`:
+
+1. `QSI-CTO` — owns priorities and iteration decisions; does not implement.
+2. `QSI-Architect` — architecture, correctness, technical-debt and risk review; read-only by default.
+3. `QSI-Product-UX` — product behavior, Portal/PWA UX, accessibility and user-value review; read-only by default.
+4. `QSI-Engineer` — implementation owner; works only on assigned task contracts and isolated branches/worktrees.
+5. `QSI-QA` — independent verification, regression review and merge recommendation; does not approve its own implementation.
+6. `QSI-Release` — final merge/release gate and iteration ledger.
+
+Put all six Bots in one group chat named **Q-Silicon Engineering Room** so handoffs remain visible.
+
+## First-time Grok Bot setup
+
+Grok Bots on one user account share the same cloud computer, filesystem and sign-ins. Clone this repository once on the shared computer and use isolated Git worktrees for concurrent tasks.
+
+Recommended layout:
+
+```text
+~/work/qsi/main
+~/work/qsi/worktrees/task-<id>
+```
+
+Bootstrap:
+
+```bash
+mkdir -p ~/work/qsi/worktrees
+git clone https://github.com/godmosword/my-investment-ai-agent.git ~/work/qsi/main
+cd ~/work/qsi/main
+git fetch --all --prune
+```
+
+Never store secrets in the repository. Use existing environment/secret-management conventions and keep production credentials out of autonomous test paths.
+
+## Create the Bots
+
+For each role:
+
+1. Grok Bot -> New -> Create new agent.
+2. Use the `Name`, `Job`, and `Profile description` from the matching file in `.grok/roles/`.
+3. Give the Bot access only to tools required for its role.
+4. Add it to **Q-Silicon Engineering Room**.
+5. Send the role's `First message` once.
+
+## Start the team
+
+Send this to `QSI-CTO` after all six Bots exist:
+
+> Bootstrap Autonomous Engineering Team v1 for `godmosword/my-investment-ai-agent`. Read `.grok/TEAM_CHARTER.md`, `.grok/ITERATION_PROTOCOL.md`, `.grok/ROUTINES.md`, your role file, and the repository's `CLAUDE.md`, `AGENTS.md`, `docs/AGENT-WORKFLOW.md`, `TODOS.md`, `CHANGELOG.md`, and relevant architecture docs. Confirm the team roster and repository state. Run Iteration 0 as an evidence-only baseline: do not change code. Produce the initial repo health map, risk register, and the top three candidate improvements ranked by the charter. Hand the findings to QSI-Architect, QSI-Product-UX, and QSI-QA for independent challenge, then publish one approved first task contract. Do not merge anything during Iteration 0.
+
+After Iteration 0 is satisfactory, use the routine specifications in `.grok/ROUTINES.md`.
+
+## Autonomy target
+
+The default operating level is **L3 guarded autonomy**:
+
+- discovery, prioritization, implementation, tests, PR creation and low-risk merging can happen without asking the owner;
+- any **R3 consequential change** defined in `TEAM_CHARTER.md` must stop at a reviewed PR and request human approval;
+- production deployment is never an implicit side effect of an autonomous merge.
+
+Move to broader autonomy only after the team has demonstrated stable behavior over multiple iterations.
