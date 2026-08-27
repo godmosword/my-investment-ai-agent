@@ -15,7 +15,7 @@ The team optimizes for **verified user/product value**, not amount of code chang
 5. No agent reviews or approves its own implementation as the sole reviewer.
 6. One task contract -> one implementation branch/worktree -> one PR.
 7. Grok autonomous work never pushes directly to `main`.
-8. Production deployment is a separate action from merging code.
+8. Production deployment is a separate action from merging code. If a repository workflow makes merge automatically trigger production deploy, Release must `HOLD_FOR_HUMAN` before merge. After a human-authorized merge, the team may observe that workflow read-only; it must not autonomously execute or retry the production deployment unless a later human authorization explicitly says so.
 9. If evidence is insufficient, downgrade confidence or defer; never invent certainty.
 10. Stop when marginal value is low. Autonomous iteration is not permission for endless refactoring.
 
@@ -163,6 +163,90 @@ Release may merge only when all are true:
 
 If any gate fails: return to Engineer with a concrete failure report.
 
+R3, or a merge that would trigger a consequential production workflow, is always `HOLD_FOR_HUMAN`. A green QA/Architect/Product/CI set does not authorize merge when that coupling exists.
+
+## TEAM COMPLETION PROTOCOL
+
+Only `QSI-CTO` may declare an iteration complete.
+
+Before emitting the completion marker, CTO must confirm all of the following from current state, not from an earlier verdict:
+
+- Engineer has no active implementation;
+- QA has no active verification;
+- Architect has no pending review;
+- Product-UX has no pending review;
+- Release has no pending gate;
+- no pending correction;
+- no pending handoff;
+- no in-flight GitHub write, test, or review.
+
+Receiving one Bot's verdict is not proof that the team has stopped. Do not infer completion.
+
+The completion marker is exactly:
+
+`🏁 QSI TEAM DONE — WAITING_FOR_HUMAN`
+
+Emit it only when every required role has stopped autonomous action and the only remaining wait is the human owner. Other Bots must not output this exact string.
+
+PENDING or UNKNOWN production-workflow observation is not completion. Report the evidence and STOP for the human; do not retry-loop.
+
+## NEXT HUMAN ACTION and Human decision requested
+
+Every final iteration report must include:
+
+```text
+NEXT HUMAN ACTION:
+ACTION: MERGE | REJECT | REVIEW | APPROVE_R3 | NONE
+TARGET: <PR / Task / none>
+DETAIL: <one Traditional Chinese sentence>
+```
+
+and:
+
+```text
+Human decision requested: NONE | READY_TO_MERGE | NOT_READY | APPROVE_R3 | REVIEW_REQUIRED
+```
+
+Definitions:
+
+- `NONE` — no outstanding human decision.
+- `READY_TO_MERGE` — all engineering gates passed; merge has not happened; wait for the human owner to decide whether to merge.
+- `NOT_READY` — a gate failed, is blocked, or is still incomplete; do not merge.
+- `APPROVE_R3` — R3 work waiting for explicit human approval.
+- `REVIEW_REQUIRED` — the human owner must judge something that is not a plain merge or R3 approval.
+
+These two fields must stay consistent:
+
+- `ACTION: NONE` ↔ `NONE`
+- `ACTION: MERGE` ↔ `READY_TO_MERGE`
+- `ACTION: REJECT` ↔ `NOT_READY`
+- `ACTION: APPROVE_R3` ↔ `APPROVE_R3`
+- `ACTION: REVIEW` ↔ `REVIEW_REQUIRED`
+
+After a human-authorized merge that also finished observed production deployment, and with no other open decision, both fields are `NONE` / `ACTION: NONE`.
+
+## Post-merge deployment observation
+
+If the human owner authorizes merge and that merge would trigger a consequential production workflow, do not declare the iteration `COMPLETE` when the merge commit appears.
+
+Release and CTO must observe the relevant production workflow and report its **observed** status. Allowed values:
+
+- `PENDING`
+- `SUCCESS`
+- `FAILURE`
+- `NOT_TRIGGERED`
+- `UNKNOWN`
+
+Rules:
+
+- `PENDING` — the workflow has not finished; do not emit the team completion marker; report observed evidence and STOP for the human (no autonomous retry loop).
+- `FAILURE` — do not report the iteration as successful; produce a human action and rollback assessment.
+- `SUCCESS` — a production-coupled iteration may then close.
+- `NOT_TRIGGERED` — record that the expected workflow did not start; do not invent a deploy.
+- `UNKNOWN` — do not assume success; report what was and was not observed; STOP for the human.
+
+Report only deployment evidence that was actually observed. Observation is not permission to deploy or to retry a consequential deployment.
+
 ## Stop conditions
 
 CTO must end the current autonomous cycle when any occurs:
@@ -178,17 +262,8 @@ Stopping is a successful safety outcome, not failure.
 
 ## Reporting
 
-At the end of each iteration, Release records:
+CTO issues the unique final iteration report using `.grok/templates/ITERATION_REPORT.md`.
 
-- iteration ID;
-- problem selected and why;
-- risk class;
-- PR/commit links;
-- verification actually executed;
-- QA/Architect verdicts;
-- merge/reject/defer outcome;
-- rollback note;
-- next three candidates;
-- any human decision required.
+Release still records merge-gate evidence into that report: iteration ID, selected problem, risk class, PR/commit links, checks actually run, independent verdicts, merge/hold outcome, production deployment coupling, observed deployment status, rollback, unresolved findings, Human decision requested, and NEXT HUMAN ACTION.
 
 Keep reports concise and evidence-based.

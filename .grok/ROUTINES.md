@@ -71,6 +71,9 @@ All routines must follow these rules:
 - No routine may weaken `.grok/TEAM_CHARTER.md`.
 - No routine may directly push to `main`.
 - No routine may perform a production deployment autonomously.
+- No routine may retry a consequential production deployment. Observation of a workflow is not authorization to rerun it.
+- No routine may treat `PR merged` as `iteration successfully completed`. If a merge can trigger a consequential production workflow, observe and report the deployment status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`. `PENDING` and `UNKNOWN` are not success and are not a license to keep polling; report evidence and STOP for the human. Only `SUCCESS` may close a production-coupled iteration.
+- No routine may emit `🏁 QSI TEAM DONE — WAITING_FOR_HUMAN`. Only `QSI-CTO` issues that exact marker, and only under TEAM COMPLETION PROTOCOL.
 - No routine may change secrets, permissions, live financial execution, destructive data/schema, or autonomy guardrails without human approval.
 - When a retry occurs, re-read current repo/PR state rather than blindly repeating an old action.
 - Never run an endless retry loop. Follow the retry/stop limits in `.grok/ITERATION_PROTOCOL.md`.

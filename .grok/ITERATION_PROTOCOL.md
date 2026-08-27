@@ -182,23 +182,36 @@ Release re-checks:
 
 Outcome:
 
-- `MERGE` for qualifying R0/R1 or permitted R2;
-- `HOLD_FOR_HUMAN` for R3/uncertain consequential actions;
+- `MERGE` for qualifying R0/R1 or permitted R2 **only when** merge is not coupled to a consequential production workflow and the Task Contract / human authorization allows merge;
+- `HOLD_FOR_HUMAN` for R3, for any merge that would automatically trigger production deploy (for example `pwa-deploy.yml` or `deploy.yml`), and for uncertain consequential actions;
 - `RETURN_TO_ENGINEER` for failed gates;
 - `DEFER` if value/risk changed.
 
-Release must not silently bypass a failed required check.
+A green QA/Architect/Product/CI set does not override `HOLD_FOR_HUMAN` when production coupling exists. Release must not silently bypass a failed required check. Release must not autonomously deploy production, and must not retry a consequential production workflow.
+
+If the human owner later authorizes merge, Release may merge that PR. That authorization is not a license to run or retry production deploy. Release/CTO then **observe** the coupled workflow and report its observed status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`.
 
 ## 8. LEARN — CTO + Release
 
-After outcome, capture only useful learning:
+After the release outcome, capture only useful learning:
 
 - Was the original hypothesis correct?
 - Did the verification strategy catch anything unexpected?
 - Did scope/cost differ materially from estimate?
 - Should a recurring lesson become a repo rule/test? Only promote repeated, evidenced lessons.
 
-Then rescan repository state before starting the next iteration.
+Do not treat `PR merged` as iteration success when a consequential production workflow is in play. Observe that workflow:
+
+- `PENDING` or `UNKNOWN`: report the evidence actually seen, do **not** emit `🏁 QSI TEAM DONE — WAITING_FOR_HUMAN`, do **not** assume success, STOP for the human. No retry loop.
+- `FAILURE`: do not report the iteration as successful; include human action and rollback assessment.
+- `SUCCESS`: a production-coupled iteration may then close under TEAM COMPLETION PROTOCOL.
+- `NOT_TRIGGERED`: record it; do not invent a deploy.
+
+Only `QSI-CTO` may declare the iteration complete, and only after confirming every required role has stopped (see `.grok/TEAM_CHARTER.md` TEAM COMPLETION PROTOCOL). Other Bots must not output the completion marker string.
+
+The unique final report follows `.grok/templates/ITERATION_REPORT.md`. `Human decision requested` must match `NEXT HUMAN ACTION`.
+
+Then rescan repository state before starting the next iteration. Do not start the next iteration without explicit human authorization when the current cycle used HOLD_FOR_HUMAN or is waiting on deployment observation.
 
 ## Iteration concurrency
 
