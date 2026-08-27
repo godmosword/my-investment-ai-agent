@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   columnsContextHref,
@@ -6,7 +6,10 @@ import {
   newsContextHref,
   PORTAL_PHASE4_CTA,
 } from "../../../constants/portalPhase4";
-import { useAnalysisBundle } from "../../../hooks/useApi";
+import { useAnalysisBundle, useExecutionIntents } from "../../../hooks/useApi";
+import { paperIntentMarkers } from "../paperIntentMarkers";
+
+const SymbolCandleChart = lazy(() => import("../../../components/SymbolCandleChart"));
 
 function formatPrice(value) {
   const n = Number(value);
@@ -35,6 +38,11 @@ export default function SymbolDeepDive() {
     }
   }, []);
   const query = useAnalysisBundle(symbol, 30, 12);
+  const intentsQuery = useExecutionIntents(200);
+  const paperMarkers = useMemo(
+    () => paperIntentMarkers(intentsQuery.data, symbol),
+    [intentsQuery.data, symbol],
+  );
   if (!symbol) return null;
 
   const snapshot = query.data?.snapshot || {};
@@ -42,6 +50,7 @@ export default function SymbolDeepDive() {
   const filing = snapshot.filing_summary || snapshot.filing || snapshot.filings;
   const notebook = snapshot.notebooklm || snapshot.notebooklm_notes || snapshot.notebook;
   const agency = snapshot.agency || snapshot.agency_notes || snapshot.agent_notes;
+  const priceSeries = Array.isArray(snapshot.price_series) ? snapshot.price_series : [];
 
   return (
     <section data-testid="symbol-deep-dive" className="mb-3 rounded border border-cyan-300/20 bg-cyan-400/[0.02] p-3">
@@ -72,6 +81,39 @@ export default function SymbolDeepDive() {
           {ctaWithSymbol(PORTAL_PHASE4_CTA.symbolToColumns, symbol)}
         </Link>
       </div>
+
+      <Suspense
+        fallback={
+          <div className="mt-3 text-[13px] text-[var(--muted)]" role="status">
+            載入圖表…
+          </div>
+        }
+      >
+        <div className="mt-3" data-testid="deep-dive-candle-chart">
+          <SymbolCandleChart symbol={symbol} priceSeries={priceSeries} eventMarkers={paperMarkers} />
+        </div>
+      </Suspense>
+      {paperMarkers.length > 0 ? (
+        <ul data-testid="deep-dive-paper-markers" className="mt-2 space-y-1 text-[12px] text-white/70">
+          {paperMarkers.map((m) => (
+            <li key={`${m.time}-${m.signal_id}`} data-testid="deep-dive-paper-marker">
+              <span className="font-mono">{m.time}</span>
+              {" · "}
+              <span>{m.label}</span>
+              {m.signal_id ? (
+                <>
+                  {" · "}
+                  <span className="font-mono">{m.signal_id}</span>
+                </>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div data-testid="deep-dive-paper-markers-empty" className="mt-2 text-[12px] text-[var(--muted)]">
+          暫無紙上訊號標記。
+        </div>
+      )}
 
       {query.isLoading ? <div className="mt-3 text-[13px] text-[var(--muted)]">載入分析資料…</div> : null}
       {query.error ? (
