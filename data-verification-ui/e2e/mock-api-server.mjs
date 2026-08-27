@@ -1086,6 +1086,21 @@ const server = http.createServer((req, res) => {
         quality_reasons: ["base_conviction", "missing_entry", "gate_warning"],
         quality_model: "qsi_signal_quality_v1",
       },
+      {
+        signal_id: "e2e-nvda-paper-1",
+        created_at: "2026-05-14T00:00:00Z",
+        category: "AI",
+        regime: "x",
+        asset: "NVDA",
+        direction: "LONG",
+        star_rating: 4,
+        status: "APPROVED_FOR_PAPER",
+        status_updated_at: "2026-05-14T00:00:00Z",
+        quality_score: 80,
+        quality_grade: "A",
+        quality_reasons: ["base_conviction"],
+        quality_model: "qsi_signal_quality_v1",
+      },
     ]);
     return;
   }
