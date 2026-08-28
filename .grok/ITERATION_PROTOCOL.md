@@ -22,7 +22,7 @@ Produce a candidate table with: evidence, user/system impact, confidence, rough 
 
 Do not code during SCAN.
 
-When control returns to QSI-Director, follow the canonical Director Transition Table in `.grok/roles/Director.md`. Do not duplicate that table here. Team-level routing is `.grok/HANDOFF.md`. QSI-Director is one role; there is no Director Mode / CTO Mode split. Primary `HANDOFF:` is single-owner; `CC:` is non-owning.
+When control returns to QSI-Director, follow the canonical Director Transition Table in `.grok/roles/Director.md`. Do not duplicate that table here. Team-level routing is `.grok/HANDOFF.md`. QSI-Director is one role; there is no Director Mode / CTO Mode split. Primary `HANDOFF:` is single-owner and must equal the `SendToAgent` 1:1 target; `CC:` is non-owning. Room `@mention` is not invocation. Do not fan-out via the room group.
 
 ## 1. CHALLENGE — only the reviewers routing requires
 
@@ -135,7 +135,7 @@ Implementation rules:
 - no scope expansion without Director revision;
 - commit messages should explain the behavioral intent.
 
-After the PR exists, Engineer hands off **directly** to QA. Do not wait for Director to re-dispatch QA.
+After the PR exists, Engineer records one primary `HANDOFF: @QSI-QA` and `SendToAgent` 1:1 to QA. Do not wait for Director to re-dispatch QA. Do not invoke QA via Room `@mention` or the room group.
 
 Engineer then opens/updates a PR containing:
 
@@ -170,7 +170,7 @@ Regression findings: ...
 Required fixes: ...
 ```
 
-QA PASS: one primary `HANDOFF:` to the next required reviewer (or Release). `CC: @QSI-Director` is status-only. Do not emit a second `HANDOFF:`. See `.grok/HANDOFF.md`.
+QA PASS: one primary `HANDOFF:` to the next required reviewer (or Release), and `SendToAgent` 1:1 to that same agent. `CC: @QSI-Director` is status-only. Do not emit a second `HANDOFF:`. Do not `SendToAgent` the room group. See `.grok/HANDOFF.md`.
 
 FAIL: one Engineer correction cycle if budget remains, **and** same-turn `HANDOFF: @QSI-Director`. BLOCKED: same-turn `HANDOFF: @QSI-Director`. A turn that cannot emit a final VERDICT is also a Director handoff. QA must not become a terminal orphan.
 

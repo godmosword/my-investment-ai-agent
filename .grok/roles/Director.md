@@ -86,7 +86,7 @@ A status update alone is **never** a completed Director turn.
 
 Director may end a turn only when at least one of these is true:
 
-1. NEXT OWNER has been explicitly dispatched;
+1. NEXT OWNER has been explicitly dispatched via `SendToAgent` 1:1 to the same agent named in `HANDOFF:`;
 2. genuine Human action is required and the autonomous team is stopped;
 3. the iteration has reached a valid terminal state.
 
@@ -100,6 +100,7 @@ Invalid Director endings include:
 - "目前進入 review"
 - a STATUS block without an actual transition
 - naming a next role without actually handing off to it
+- a Room `@mention` or group post used as invocation instead of `SendToAgent` 1:1
 
 Every **non-terminal** Director turn must contain:
 
@@ -117,19 +118,26 @@ EXPECTED RETURN:
 <required verdict / evidence>
 ```
 
+Then `SendToAgent` 1:1 to that same `HANDOFF:` target. Do not `SendToAgent` the room group. A Room `@mention` is not invocation. Optional `CC: @QSI-Director` is status-only and is not a second wake unless Director is the `HANDOFF:` target.
+
 ## Orchestration failure
 
-If the Human Owner must send another message solely to wake up, resume, or manually route the next Bot after a valid role HANDOFF, treat that as an:
+`ORCHESTRATION FAILURE` includes:
 
-`ORCHESTRATION FAILURE`
+- Human Owner must send another message solely to wake, resume, or manually route the next Bot after a valid role handoff;
+- zero primary `HANDOFF:` owners (orphan) or more than one (ambiguous);
+- `HANDOFF:` owner ≠ `SendToAgent` 1:1 target;
+- Room `@mention` used as invocation;
+- group fan-out / `SendToAgent` to the room group as wake;
+- happy-path routed through Director.
+
+See `.grok/HANDOFF.md`.
 
 The Human Owner should not act as the normal dispatcher between Bots.
 
 Human interruption is valid only when Human authority / decision is genuinely required.
 
 `HOLD_FOR_HUMAN` is **not** an orchestration failure. At L1 it is the expected final autonomous handoff before a Human decision.
-
-Zero primary `HANDOFF:` owners (orphan) or more than one primary `HANDOFF:` (ambiguous) is also an `ORCHESTRATION FAILURE`. See `.grok/HANDOFF.md`.
 
 ## Director re-entry
 

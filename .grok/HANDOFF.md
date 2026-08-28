@@ -9,11 +9,28 @@ Canonical relationship:
 - `.grok/HANDOFF.md` — team-level routing
 - `.grok/roles/Director.md` — what Director must do when control returns to Director
 
+## Execution vs record
+
+- `SendToAgent` **1:1** = execution / wake / IPC. This is the only valid invocation of the next owner.
+- `HANDOFF:` = logical ownership record only. It does not wake anyone.
+- `CC:` = visibility, non-owning. It does not wake anyone and does not transfer ownership.
+
+The primary `HANDOFF:` owner **must** equal the `SendToAgent` 1:1 target.
+
+Do **not**:
+
+- use a Room `@mention` as invocation;
+- `SendToAgent` the Engineering Room group id to wake a next owner;
+- fan-out (multiple 1:1 wakes, or a group post) for the same transition;
+- route a happy-path PASS through Director.
+
+Happy-path does not route through Director.
+
 ## Single-owner HANDOFF
 
 Every role turn may have exactly one primary `HANDOFF:` target.
 
-`HANDOFF:` means this role owns the next state transition.
+`HANDOFF:` records who owns the next state. It is not the wake.
 
 If QSI-Director only needs visibility, use:
 
@@ -51,9 +68,15 @@ A valid role turn must have exactly one of:
 2. HUMAN ACTION REQUIRED
 3. a valid terminal state
 
-Zero primary owners = orphan handoff.
-More than one primary owner = ambiguous handoff.
-Both are `ORCHESTRATION FAILURE`.
+These are `ORCHESTRATION FAILURE`:
+
+- zero primary owners (orphan handoff);
+- more than one primary owner (ambiguous handoff);
+- `HANDOFF:` owner ≠ `SendToAgent` 1:1 target;
+- Room `@mention` used as invocation;
+- group fan-out / `SendToAgent` to the room group as wake;
+- happy-path routed through Director;
+- Human Owner must send another message solely to wake, resume, or manually route the next Bot after a valid handoff.
 
 ## Happy path
 
