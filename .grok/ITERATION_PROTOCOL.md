@@ -22,7 +22,7 @@ Produce a candidate table with: evidence, user/system impact, confidence, rough 
 
 Do not code during SCAN.
 
-When control returns to QSI-Director, follow the canonical Director Transition Table in `.grok/roles/Director.md`. Do not duplicate that table here. Team-level routing is `.grok/HANDOFF.md`. QSI-Director is one role; there is no Director Mode / CTO Mode split.
+When control returns to QSI-Director, follow the canonical Director Transition Table in `.grok/roles/Director.md`. Do not duplicate that table here. Team-level routing is `.grok/HANDOFF.md`. QSI-Director is one role; there is no Director Mode / CTO Mode split. Primary `HANDOFF:` is single-owner; `CC:` is non-owning.
 
 ## 1. CHALLENGE — only the reviewers routing requires
 
@@ -170,7 +170,7 @@ Regression findings: ...
 Required fixes: ...
 ```
 
-QA PASS: hand off **directly** to the reviewers named in the contract (Architect and/or Product in parallel if required), then to Release if a merge gate is needed. Do not wait for Director to re-dispatch.
+QA PASS: one primary `HANDOFF:` to the next required reviewer (or Release). `CC: @QSI-Director` is status-only. Do not emit a second `HANDOFF:`. See `.grok/HANDOFF.md`.
 
 FAIL: one Engineer correction cycle if budget remains, **and** same-turn `HANDOFF: @QSI-Director`. BLOCKED: same-turn `HANDOFF: @QSI-Director`. A turn that cannot emit a final VERDICT is also a Director handoff. QA must not become a terminal orphan.
 

@@ -63,14 +63,14 @@ At `CURRENT_AUTONOMY_LEVEL` L1: Human-invoked work may plan, contract, implement
 Whenever QSI-Director receives any of the following:
 
 - a Human mission
-- a role HANDOFF
-- QA PASS
+- a primary `HANDOFF:` that names Director as the single next owner (a `CC:` is not this)
+- QA PASS, only when Director is the primary `HANDOFF:` target
 - QA FAIL
 - QA BLOCKED
-- Architect APPROVE
+- Architect APPROVE, only when Director is the primary `HANDOFF:` target
 - Architect REQUEST_CHANGES
 - Architect ESCALATE_R3
-- Product SUPPORT
+- Product SUPPORT, only when Director is the primary `HANDOFF:` target
 - Product MODIFY
 - Product REJECT
 - Release RETURN_TO_ENGINEER
@@ -128,6 +128,21 @@ The Human Owner should not act as the normal dispatcher between Bots.
 Human interruption is valid only when Human authority / decision is genuinely required.
 
 `HOLD_FOR_HUMAN` is **not** an orchestration failure. At L1 it is the expected final autonomous handoff before a Human decision.
+
+Zero primary `HANDOFF:` owners (orphan) or more than one primary `HANDOFF:` (ambiguous) is also an `ORCHESTRATION FAILURE`. See `.grok/HANDOFF.md`.
+
+## Director re-entry
+
+Director becomes primary owner only when:
+
+- explicitly named as the single `HANDOFF:` target;
+- `BLOCKED` / exception / scope drift / risk escalation returns control;
+- Release emits `HOLD_FOR_HUMAN` / `DEFER` / `RETURN_TO_ENGINEER`;
+- Human provides a new decision or authorization.
+
+Status-only `CC: @QSI-Director` does **not** transfer ownership. Director must not interrupt or re-dispatch a valid happy-path handoff merely because Director was CC'd.
+
+The Transition Table below applies only when Director is the primary owner.
 
 ## Canonical Director Transition Table
 
