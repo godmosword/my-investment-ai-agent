@@ -12,16 +12,30 @@ const EquityCurveChart = lazy(() => import("../../../components/charts/EquityCur
 const TAGS = ["AI", "CRYPTO", "WIN", "LOSS"];
 
 function fmtPct(value, digits = 1) {
+  if (value == null || value === "") return "UNKNOWN／未提供";
   const n = Number(value);
-  if (!Number.isFinite(n)) return "0.0%";
+  if (!Number.isFinite(n)) return "UNKNOWN／未提供";
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toFixed(digits)}%`;
 }
 
 function fmtNum(value, digits = 2) {
+  if (value == null || value === "") return "UNKNOWN／未提供";
   const n = Number(value);
-  if (!Number.isFinite(n)) return "0.00";
+  if (!Number.isFinite(n)) return "UNKNOWN／未提供";
   return n.toFixed(digits);
+}
+
+function presentCount(value) {
+  if (value == null || value === "") return "UNKNOWN／未提供";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "UNKNOWN／未提供";
+  return n;
+}
+
+function wlLabel(summary) {
+  if (!summary || typeof summary !== "object") return "UNKNOWN／未提供";
+  return `${presentCount(summary.wins)}/${presentCount(summary.losses)}`;
 }
 
 function tone(value) {
@@ -56,9 +70,10 @@ export default function TrackRecordHome() {
   const payload = tag ? tagQuery.data : closedQuery.data;
   const records = payload?.records ?? [];
   const summary = tag ? payload?.summary : summaryQuery.data;
+  const summaryPresent = summary != null && typeof summary === "object";
   const loading = summaryQuery.isLoading || closedQuery.isLoading || (tag && tagQuery.isLoading);
   const error = summaryQuery.error || closedQuery.error || (tag ? tagQuery.error : null);
-  const emptyAll = !tag && !loading && !error && Number(summary?.total_closed ?? 0) === 0;
+  const emptyAll = !tag && !loading && !error && summaryPresent && Number(summary.total_closed) === 0;
 
   return (
     <div data-testid="track-record-home" className="px-1">
@@ -70,7 +85,7 @@ export default function TrackRecordHome() {
       <div className="mb-3 flex flex-wrap gap-2">
         <button
           type="button"
-          className={`rounded-full border px-3 py-1.5 text-[12px] ${
+          className={`min-h-[36px] rounded-full border px-3 py-1.5 text-[12px] ${
             !tag ? "border-emerald-400/70 bg-emerald-400/10 text-emerald-100" : "border-white/15 text-white/65"
           }`}
           onClick={() => setTag("")}
@@ -82,7 +97,7 @@ export default function TrackRecordHome() {
             key={row}
             type="button"
             data-testid={`track-record-tag-${row.toLowerCase()}`}
-            className={`rounded-full border px-3 py-1.5 text-[12px] ${
+            className={`min-h-[36px] rounded-full border px-3 py-1.5 text-[12px] ${
               tag === row ? "border-emerald-400/70 bg-emerald-400/10 text-emerald-100" : "border-white/15 text-white/65"
             }`}
             onClick={() => setTag(row)}
@@ -93,11 +108,24 @@ export default function TrackRecordHome() {
       </div>
 
       {error ? (
-        <div className="card mb-3 p-3 text-[13px] text-red-300" role="alert">
+        <div className="card mb-3 p-3 text-[13px] text-red-300" data-testid="track-record-error" role="alert">
           Track Record 暫時無法載入。
         </div>
       ) : null}
-      {loading ? <div className="loading mb-3">載入 Track Record…</div> : null}
+      {loading && !summaryPresent ? (
+        <div className="loading mb-3" data-testid="track-record-loading" role="status">
+          載入 Track Record…
+        </div>
+      ) : null}
+      {!loading && !error && !summaryPresent ? (
+        <div
+          className="card mb-3 p-3 text-[13px] text-[var(--muted)]"
+          data-testid="track-record-unknown-empty"
+          role="status"
+        >
+          UNKNOWN：尚無 Track Record 摘要
+        </div>
+      ) : null}
 
       {emptyAll ? (
         <div
@@ -113,11 +141,12 @@ export default function TrackRecordHome() {
         </div>
       ) : null}
 
+      {summaryPresent ? (
       <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-6">
         <Kpi
           label="W / L"
-          value={`${summary?.wins ?? 0}/${summary?.losses ?? 0}`}
-          sub={`${summary?.total_closed ?? 0} closed`}
+          value={wlLabel(summary)}
+          sub={`${presentCount(summary?.total_closed)} closed`}
           testId="track-record-wl"
         />
         <Kpi
@@ -130,12 +159,14 @@ export default function TrackRecordHome() {
           label="Avg Return"
           value={fmtPct(summary?.avg_return_pct, 2)}
           valueClass={tone(summary?.avg_return_pct)}
+          testId="track-record-avg-return"
         />
-        <Kpi label="Sharpe" value={fmtNum(summary?.sharpe, 2)} valueClass="text-cyan-200" />
+        <Kpi label="Sharpe" value={fmtNum(summary?.sharpe, 2)} valueClass="text-cyan-200" testId="track-record-sharpe" />
         <Kpi
           label="Max DD"
           value={fmtPct(summary?.max_drawdown_pct, 1)}
           valueClass="text-red-400"
+          testId="track-record-max-dd"
         />
         <Kpi
           label="Total"
@@ -143,6 +174,7 @@ export default function TrackRecordHome() {
           valueClass={tone(summary?.cumulative_return_pct)}
         />
       </div>
+      ) : null}
 
       <div className="card mb-3 p-3">
         <div className="mb-2 flex items-center justify-between gap-3">
@@ -210,20 +242,24 @@ export default function TrackRecordHome() {
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-2">
-                        <Link
-                          to={insightsSymbolHref(row.asset)}
-                          data-testid="track-record-action-deep-dive"
-                          className="rounded border border-emerald-500/30 px-2 py-1 text-[11px] text-emerald-100/90 hover:bg-emerald-950/20"
-                        >
-                          Deep dive
-                        </Link>
-                        <Link
-                          to={`/portfolio?tab=monitor&focus=${encodeURIComponent(String(row.asset || "").toUpperCase())}`}
-                          data-testid="track-record-action-monitor"
-                          className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
-                        >
-                          Monitor
-                        </Link>
+                        {String(row.asset ?? "").trim() ? (
+                          <Link
+                            to={insightsSymbolHref(row.asset)}
+                            data-testid="track-record-action-deep-dive"
+                            className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/30 px-2 py-1 text-[11px] text-emerald-100/90 hover:bg-emerald-950/20"
+                          >
+                            Deep dive
+                          </Link>
+                        ) : null}
+                        {String(row.asset ?? "").trim() ? (
+                          <Link
+                            to={`/portfolio?tab=monitor&focus=${encodeURIComponent(String(row.asset).trim().toUpperCase())}`}
+                            data-testid="track-record-action-monitor"
+                            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
+                          >
+                            Monitor
+                          </Link>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
