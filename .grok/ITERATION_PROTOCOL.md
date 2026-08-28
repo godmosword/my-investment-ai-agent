@@ -22,6 +22,8 @@ Produce a candidate table with: evidence, user/system impact, confidence, rough 
 
 Do not code during SCAN.
 
+When control returns to QSI-Director, follow the canonical Director Transition Table in `.grok/roles/Director.md`. Do not duplicate that table here. Team-level routing is `.grok/HANDOFF.md`. QSI-Director is one role; there is no Director Mode / CTO Mode split.
+
 ## 1. CHALLENGE — only the reviewers routing requires
 
 Do **not** default to Architect + Product/UX + QA on every candidate.

@@ -24,7 +24,7 @@ The team optimizes for **verified user/product value**, not amount of code chang
 
 Six roles. They are not all required on every task.
 
-- `QSI-Director` — sole human-facing interface and orchestration owner (CONTRACT, stop/watch, exception intake, unique Iteration Report / completion marker). The human owner speaks to Director, not to child roles.
+- `QSI-Director` — sole human-facing interface and active orchestration owner (CONTRACT, stop/watch, exception intake, unique Iteration Report / completion marker). The human owner speaks to Director, not to child roles. Canonical contract and Transition Table: `.grok/roles/Director.md`. `QSI-CTO` is a deprecated legacy alias (`.grok/roles/CTO.md`).
 - `QSI-Engineer` — implementation on the Task Contract branch.
 - `QSI-QA` — independent verification for every implementation / PR, including docs-only.
 - `QSI-Architect` — R2 / architecture-sensitive / risk-sensitive work (financial pipelines, schema, API, concurrency/caching, deploy-path, autonomy guardrails).
@@ -34,6 +34,8 @@ Six roles. They are not all required on every task.
 Required on every implementation task: Director, Engineer, QA.
 
 Do **not** default to all-hands. Do **not** default to a three-reviewer CHALLENGE on every candidate.
+
+Team-level routing: `.grok/HANDOFF.md`. Do not copy the Director Transition Table into this charter.
 
 ### Happy-path handoff (R0 / R1)
 
