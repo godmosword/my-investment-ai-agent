@@ -14,4 +14,80 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
     await expect(page.getByTestId("macro-regime-panel")).toContainText("RISK ON");
     await expect(page.getByTestId("today-btc-quote-last")).toContainText(/50,000\.125/);
   });
+
+  test("loaded empty indicator_order shows explicit empty, not a blank grid", async ({ page }) => {
+    await page.route("**/api/macro/snapshot", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-05-13T00:00:00Z",
+          cached: false,
+          indicator_order: [],
+          indicators: {},
+          catalysts: [],
+          regime: { label: "neutral", score: 0, drivers: [] },
+        }),
+      });
+    });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("macro-dashboard-loading")).toHaveCount(0);
+    await expect(page.getByTestId("macro-dashboard-error")).toHaveCount(0);
+    await expect(page.getByTestId("macro-indicator-grid")).toHaveCount(0);
+    const empty = page.getByTestId("macro-indicator-empty");
+    await expect(empty).toBeVisible();
+    await expect(empty).toContainText("尚無宏觀指標");
+  });
+
+  test("indicator value 0 still renders a card, not empty", async ({ page }) => {
+    await page.route("**/api/macro/snapshot", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-05-13T00:00:00Z",
+          cached: false,
+          indicator_order: ["zero_rate"],
+          indicators: {
+            zero_rate: {
+              id: "zero_rate",
+              label: "Zero Rate",
+              value: 0,
+              display: "0.00",
+              unit: "%",
+              change_1d: 0,
+              change_5d: 0,
+              change_unit: "%",
+              spark: [0, 0, 0],
+              source: "e2e",
+            },
+          },
+          catalysts: [],
+          regime: { label: "neutral", score: 0, drivers: [] },
+        }),
+      });
+    });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("macro-indicator-grid")).toBeVisible();
+    await expect(page.getByTestId("macro-indicator-zero_rate")).toBeVisible();
+    await expect(page.getByTestId("macro-indicator-empty")).toHaveCount(0);
+  });
+
+  test("macro error keeps error banner and does not show empty", async ({ page }) => {
+    await page.route("**/api/macro/snapshot", async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "macro snapshot failed" }),
+      });
+    });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("macro-dashboard-error")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("macro-indicator-empty")).toHaveCount(0);
+    await expect(page.getByTestId("macro-indicator-grid")).toHaveCount(0);
+  });
+
 });

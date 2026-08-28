@@ -268,6 +268,14 @@ export default function DashboardHome() {
                   <MacroCard key={indicator.id} indicator={indicator} />
                 ))}
               </div>
+            ) : !macro.isLoading && !macro.error ? (
+              <div
+                className="card mb-3 p-3 text-[13px] text-[var(--muted)]"
+                role="status"
+                data-testid="macro-indicator-empty"
+              >
+                尚無宏觀指標。
+              </div>
             ) : null}
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
               <CatalystCalendar catalysts={data?.catalysts ?? []} />
