@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef, lazy, Suspense } fro
 import TerminalSseStatusBar from "../../../components/TerminalSseStatusBar";
 import SymbolFocusBar from "../../../components/SymbolFocusBar";
 import { useSymbolFocus } from "../../../context/SymbolFocusContext";
+import DailyBriefHonesty from "./DailyBriefHonesty";
 
 const TerminalSymbolCard = lazy(() => import("../../../components/TerminalSymbolCard"));
 const ExecutionIntentsBlotter = lazy(() => import("../../../components/ExecutionIntentsBlotter"));
@@ -313,6 +314,13 @@ export default function DailyBriefPage() {
 
   return (
     <>
+      <DailyBriefHonesty />
+      <div
+        data-testid="daily-brief-workspace-note"
+        className="mb-2 px-1 text-[11px] text-white/45"
+      >
+        以下 Terminal 工作區不是今日建議，未造建議或數字。
+      </div>
       <div className="page-header">
         <div className="page-title">Terminal 工作區</div>
         <div className="page-subtitle">
