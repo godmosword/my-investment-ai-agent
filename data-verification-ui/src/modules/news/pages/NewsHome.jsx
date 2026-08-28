@@ -71,25 +71,59 @@ function aiInterpretation(value) {
   return text || "UNKNOWN／未提供";
 }
 
-function filterItems(items, filterId) {
+function uniqueLower(values) {
+  const out = [];
+  const seen = new Set();
+  for (const value of values) {
+    const token = String(value ?? "").trim().toLowerCase();
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+  }
+  return out;
+}
+
+function itemThemeTokens(item) {
+  return uniqueLower([
+    item?.pillar_key,
+    item?.pillar,
+    ...(Array.isArray(item?.tags) ? item.tags : []),
+  ]);
+}
+
+function keysForFilter(filterId) {
   const filter = FILTERS.find((row) => row.id === filterId) ?? FILTERS[0];
-  if (filter.id === "all") return items;
-  return items.filter((item) => {
-    const text = itemText(item);
-    return filter.terms.some((term) => text.includes(term.toLowerCase()));
+  if (filter.id === "all") return [];
+  return uniqueLower(filter.terms);
+}
+
+function keysForTheme(theme) {
+  if (!theme) return [];
+  const id = String(theme.id ?? "").trim().toLowerCase();
+  const label = String(theme.label ?? "").trim().toLowerCase();
+  const extra = FILTERS.find((row) => {
+    if (row.id === "all") return false;
+    const rowId = row.id.toLowerCase();
+    const rowLabel = row.label.toLowerCase();
+    return rowId === id || rowLabel === id || rowId === label || rowLabel === label;
   });
+  return uniqueLower([theme.id, theme.label, ...(extra?.terms ?? [])]);
+}
+
+function itemMatchesKeys(item, keys) {
+  if (!keys.length) return true;
+  const tokens = itemThemeTokens(item);
+  return keys.some((key) => tokens.some((token) => token === key || token.includes(key)));
+}
+
+function filterItems(items, filterId) {
+  const keys = keysForFilter(filterId);
+  return items.filter((item) => itemMatchesKeys(item, keys));
 }
 
 function itemMatchesTheme(item, theme) {
   if (!theme) return true;
-  const needles = [theme.id, theme.label]
-    .map((value) => String(value ?? "").trim().toLowerCase())
-    .filter(Boolean);
-  if (!needles.length) return true;
-  const hay = [item.pillar_key, item.pillar, ...(Array.isArray(item.tags) ? item.tags : [])]
-    .map((value) => String(value ?? "").trim().toLowerCase())
-    .filter(Boolean);
-  return needles.some((needle) => hay.includes(needle));
+  return itemMatchesKeys(item, keysForTheme(theme));
 }
 
 function NewsItemButton({ item, active, onClick }) {
