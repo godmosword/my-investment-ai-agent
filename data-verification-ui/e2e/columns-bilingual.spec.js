@@ -11,11 +11,16 @@ test.describe("Columns — bilingual commentary (queue 45 · P4)", () => {
     await page.getByTestId("columns-pillar-semiconductor").click();
     const card = page.getByTestId("columns-deep-card").first();
     await expect(card).toBeVisible({ timeout: 15_000 });
-    await expect(card.getByTestId("reader-source-line")).toContainText("stale");
+    await expect(card.getByTestId("reader-source-line")).toContainText("過期");
+    await expect(card.getByTestId("columns-ai-interpretation")).toContainText("AI 解讀");
+    await expect(card.getByTestId("columns-ai-interpretation")).toContainText("雲端 capex");
+    await expect(card.getByTestId("columns-ai-interpretation")).toContainText("HBM");
     await card.click();
 
     const panel = page.getByTestId("columns-deep-panel");
     await expect(panel).toBeVisible();
+    await expect(panel.getByTestId("columns-ai-interpretation")).toContainText("AI 解讀");
+    await expect(panel.getByTestId("columns-ai-interpretation")).toContainText("雲端 capex");
 
     const toggle = page.getByTestId("columns-commentary-toggle");
     await expect(toggle).toBeVisible();
@@ -26,5 +31,39 @@ test.describe("Columns — bilingual commentary (queue 45 · P4)", () => {
     await expect(commentary).toContainText(/Supply chain/i);
     await page.getByTestId("columns-commentary-zh").click();
     await expect(commentary).toContainText("供應鏈");
+  });
+
+  test("missing gemini_take shows UNKNOWN／未提供", async ({ page }) => {
+    await page.route("**/api/news/deep**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          pillar: "ai",
+          items: [
+            {
+              id: "e2e-unknown-take",
+              title: "來源完整但無 AI 解讀",
+              source_domain: "example.com",
+              published_at: "2026-05-13T09:00:00Z",
+              body: "正文來自來源，沒有 gemini_take。",
+              deep_brief: "正文來自來源，沒有 gemini_take。",
+            },
+          ],
+        }),
+      });
+    });
+    await page.goto("/columns", { waitUntil: "load" });
+    await expect(page.getByTestId("columns-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("columns-ai-interpretation")).toContainText("AI 解讀");
+    await expect(page.getByTestId("columns-ai-interpretation")).toContainText("UNKNOWN／未提供");
+    await expect(page.getByText("摘要待補。")).toHaveCount(0);
+  });
+
+  test("RelatedThemes payload symbols link to insights", async ({ page }) => {
+    await page.goto("/columns", { waitUntil: "load" });
+    await expect(page.getByTestId("columns-home")).toBeVisible({ timeout: 60_000 });
+    const nvda = page.getByTestId("columns-theme-symbol-to-insights").filter({ hasText: "NVDA" }).first();
+    await expect(nvda).toHaveAttribute("href", "/insights?symbol=NVDA");
   });
 });

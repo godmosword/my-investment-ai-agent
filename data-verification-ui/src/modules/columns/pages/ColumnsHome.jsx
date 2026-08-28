@@ -27,9 +27,9 @@ function sourceLabel(item) {
 }
 
 function freshnessLabel(value) {
-  if (value === "fresh") return "fresh";
-  if (value === "stale") return "stale";
-  return "freshness unknown";
+  if (value === "fresh") return "新鮮";
+  if (value === "stale") return "過期";
+  return "未知";
 }
 
 function freshnessClass(value) {
@@ -46,12 +46,13 @@ function titleOf(item) {
   return item?.title || item?.headline || "Untitled brief";
 }
 
-function summaryOf(item) {
-  return item?.summary || item?.gemini_take || item?.deep_brief || item?.body || "摘要待補。";
+function aiInterpretation(value) {
+  const text = String(value ?? "").trim();
+  return text || "UNKNOWN／未提供";
 }
 
 function bodyOf(item) {
-  return item?.body || item?.content || item?.deep_brief || item?.summary || item?.gemini_take || "Deep brief 待補。";
+  return String(item?.body || item?.content || item?.deep_brief || "").trim();
 }
 
 function readingMinutes(item) {
@@ -122,9 +123,12 @@ function DeepBriefCard({ item, selected, onClick }) {
         <span>{readingMinutes(item)} min read</span>
       </div>
       <h2 className="mt-2 text-[16px] font-semibold leading-snug text-white">{titleOf(item)}</h2>
-      <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-[var(--muted)]">
-        {summaryOf(item)}
-      </p>
+      <div data-testid="columns-ai-interpretation" className="mt-2">
+        <div className="text-[11px] font-semibold text-white/45">AI 解讀</div>
+        <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-[var(--muted)]">
+          {aiInterpretation(item.gemini_take)}
+        </p>
+      </div>
       {tickers.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {tickers.map((ticker) => (
@@ -237,7 +241,13 @@ function DeepBriefPanel({ item, onClose }) {
             ) : null}
           </div>
         ) : null}
-        <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-white/78">{bodyOf(item)}</p>
+        <div data-testid="columns-ai-interpretation" className="mb-3">
+          <div className="text-[11px] font-semibold text-white/45">AI 解讀</div>
+          <p className="mt-1 text-[13px] leading-relaxed text-white/78">{aiInterpretation(item.gemini_take)}</p>
+        </div>
+        {bodyOf(item) ? (
+          <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-white/78">{bodyOf(item)}</p>
+        ) : null}
         {thesis.length ? (
           <div className="mt-4">
             <div className="metric-label">論點拆解</div>
@@ -297,11 +307,20 @@ function RelatedThemes({ themes, activePillar }) {
                 ) : null}
                 {symbols.length ? (
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {symbols.slice(0, 4).map((symbol) => (
-                      <span key={symbol} className="font-mono text-[11px] text-cyan-200">
-                        {symbol}
-                      </span>
-                    ))}
+                    {symbols.slice(0, 4).map((symbol) => {
+                      const ticker = String(symbol ?? "").trim();
+                      if (!ticker) return null;
+                      return (
+                        <Link
+                          key={ticker}
+                          data-testid="columns-theme-symbol-to-insights"
+                          className="font-mono text-[11px] text-cyan-200 hover:text-cyan-100"
+                          to={insightsSymbolHref(ticker)}
+                        >
+                          {ticker.toUpperCase()}
+                        </Link>
+                      );
+                    })}
                   </div>
                 ) : null}
               </div>
@@ -372,7 +391,9 @@ function columnsMatchFocus(item, focus) {
   const f = focus.toLowerCase();
   const tickers = Array.isArray(item?.tickers) ? item.tickers : [];
   if (tickers.some((t) => String(t).toLowerCase() === f)) return true;
-  const text = [titleOf(item), summaryOf(item), bodyOf(item)].join(" ").toLowerCase();
+  const text = [titleOf(item), item?.summary, item?.gemini_take, item?.body, item?.content, item?.deep_brief]
+    .join(" ")
+    .toLowerCase();
   return text.includes(f);
 }
 
