@@ -192,13 +192,13 @@ The marker is exactly:
 
 Other Bots must not output this exact string.
 
-An R3 or production-coupled PR may reach `HOLD_FOR_HUMAN` before merge. At that point every Bot may stop and CTO may emit the marker. Iteration status must be `WAITING_FOR_HUMAN`, not `COMPLETE`.
+An R3 or production-coupled PR may reach `HOLD_FOR_HUMAN` before merge. At that point every Bot may stop and CTO may emit the marker. Iteration status must be `WAITING_FOR_HUMAN`, not `COMPLETE`. Deployment status must be `NOT_STARTED` (not `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`).
 
 If the human later authorizes merge, **the same iteration resumes**. Do not open a new iteration for that resume. If that merge triggers a consequential production workflow, the iteration remains open until deployment observation reaches a final acceptable state.
 
 ### Iteration successfully complete (status)
 
-Only `QSI-CTO` may set Iteration status `COMPLETE`. Emitting the marker is never sufficient. Close conditions are in Post-merge deployment observation below.
+Only `QSI-CTO` may set Iteration status `COMPLETE`. Emitting the marker is never sufficient. Close conditions are in Deployment status below.
 
 ## NEXT HUMAN ACTION and Human decision requested
 
@@ -241,17 +241,28 @@ Do **not** map `NOT_READY` to `ACTION: REJECT`. Do not tell the human to REJECT 
 
 After a human-authorized merge, required deployment observation (if any) has reached a final acceptable state, and no other decision is open, both fields are `NONE` / `ACTION: NONE`.
 
-## Post-merge deployment observation
+## Deployment status
 
-If the human owner authorizes merge and that merge would trigger a consequential production workflow, do not set Iteration status `COMPLETE` when the merge commit appears. The same iteration resumes for observation.
+Allowed values:
 
-Release and CTO must observe the relevant production workflow and report its **observed** status. Allowed values:
-
+- `NOT_STARTED`
 - `PENDING`
 - `SUCCESS`
 - `FAILURE`
 - `NOT_TRIGGERED`
 - `UNKNOWN`
+
+### Pre-merge
+
+Before merge, including every `HOLD_FOR_HUMAN` pause, Deployment status is `NOT_STARTED`: merge has not happened, so no production workflow has started.
+
+Do **not** label a pre-merge hold as `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`. Those three values are post-merge observations only. Do not use `N/A`.
+
+### Post-merge observation
+
+If the human owner authorizes merge and that merge would trigger a consequential production workflow, do not set Iteration status `COMPLETE` when the merge commit appears. The same iteration resumes for observation.
+
+Release and CTO must observe the relevant production workflow and report its **observed** status from the post-merge values (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`).
 
 Successful close (`COMPLETE`) is allowed only when every required gate is done **and**:
 
@@ -288,7 +299,7 @@ CTO issues the unique iteration report using `.grok/templates/ITERATION_REPORT.m
 
 The report must explicitly include **Release verdict** (`MERGE | HOLD_FOR_HUMAN | RETURN_TO_ENGINEER | DEFER`) and concise Release evidence. Do not infer the Release decision from deployment status or from Human decision requested.
 
-Release still records merge-gate evidence into that report: iteration ID, selected problem, risk class, PR/commit links, checks actually run, independent verdicts, Release verdict, production deployment coupling, observed deployment status, rollback, unresolved findings, Human decision requested, and NEXT HUMAN ACTION.
+Release still records merge-gate evidence into that report: iteration ID, selected problem, risk class, PR/commit links, checks actually run, independent verdicts, Release verdict, production deployment coupling, observed deployment status, Learning, rollback, unresolved findings, Human decision requested, and NEXT HUMAN ACTION.
 
 Iteration status in that report is `COMPLETE | BLOCKED | FAILED | WAITING_FOR_HUMAN`. `WAITING_FOR_HUMAN` is the paused-for-human state. It is not success.
 

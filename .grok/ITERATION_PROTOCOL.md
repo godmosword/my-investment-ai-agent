@@ -191,7 +191,9 @@ A green QA/Architect/Product/CI set does not override `HOLD_FOR_HUMAN` when prod
 
 Release must not silently bypass a failed required check. Release must not autonomously deploy production, and must not retry a consequential production workflow.
 
-If the human owner later authorizes merge, **the same iteration resumes**. Release may merge that PR. That authorization is not a license to run or retry production deploy. Release/CTO then **observe** the coupled workflow and report its observed status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`.
+A pre-merge `HOLD_FOR_HUMAN` report must set Deployment status `NOT_STARTED`. Do not label it `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`.
+
+If the human owner later authorizes merge, **the same iteration resumes**. Release may merge that PR. That authorization is not a license to run or retry production deploy. Release/CTO then **observe** the coupled workflow and report its observed post-merge status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`.
 
 ## 8. LEARN — CTO + Release
 
@@ -204,13 +206,17 @@ After the release outcome, capture only useful learning:
 
 The marker `🏁 QSI TEAM DONE — WAITING_FOR_HUMAN` means the team is stopped and waiting for the human. It is **not** Iteration status `COMPLETE`. Use `WAITING_FOR_HUMAN` while paused.
 
+Record `Learning: <evidence-backed learning | none>` in the iteration report (one line; no recovered long-template noise).
+
+Pre-merge `HOLD_FOR_HUMAN` uses Deployment status `NOT_STARTED`, not `PENDING` / `NOT_TRIGGERED` / `UNKNOWN`.
+
 Do not treat `PR merged` as iteration success when a consequential production workflow is in play. Observe that workflow per `.grok/TEAM_CHARTER.md`:
 
 - `PENDING` or `UNKNOWN`: cannot close; report evidence; STOP for the human; no retry loop. Marker may be emitted; status remains `WAITING_FOR_HUMAN`.
 - `FAILURE`: cannot close successfully; include NEXT HUMAN ACTION and rollback assessment. Do not retry production deploy.
 - `SUCCESS`: a production-coupled iteration may then set `COMPLETE` if every other required gate is done.
 - `NOT_TRIGGERED` when a consequential production workflow **was expected**: cannot close successfully; iteration remains unresolved; report expected workflow, evidence it did not trigger, rollback/investigation implications, and NEXT HUMAN ACTION (`REVIEW_REQUIRED` / `ACTION: REVIEW`). Do not invent or manually trigger production deploy.
-- `NOT_TRIGGERED` when **no** consequential production workflow was expected: record it; this idle observation does not by itself block `COMPLETE` after human-authorized merge.
+- `NOT_TRIGGERED` when **no** consequential production workflow was expected: record it **after merge**; this idle observation does not by itself block `COMPLETE`. It is not a pre-merge label.
 
 Only `QSI-CTO` may set Iteration status `COMPLETE`, and only under those close conditions plus TEAM COMPLETION PROTOCOL (every required role stopped). Other Bots must not output the completion marker string.
 

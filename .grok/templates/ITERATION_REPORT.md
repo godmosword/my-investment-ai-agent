@@ -7,7 +7,7 @@ The marker means the team is stopped and waiting for the human. It is **not** It
 ## Iteration status
 `COMPLETE | BLOCKED | FAILED | WAITING_FOR_HUMAN`
 
-- `WAITING_FOR_HUMAN` — autonomous team paused; waiting for the human owner (including R3 / production-coupled `HOLD_FOR_HUMAN` before merge, and post-merge deploy `PENDING` / `UNKNOWN` / expected-workflow `NOT_TRIGGERED`). Not success.
+- `WAITING_FOR_HUMAN` — autonomous team paused; waiting for the human owner (including R3 / production-coupled `HOLD_FOR_HUMAN` before merge with Deployment status `NOT_STARTED`, and post-merge deploy `PENDING` / `UNKNOWN` / expected-workflow `NOT_TRIGGERED`). Not success.
 - `COMPLETE` — close conditions met. Emitting the marker is never sufficient.
 - `BLOCKED` — cannot proceed without a change the team is not authorized to make.
 - `FAILED` — iteration did not succeed (including observed production-workflow `FAILURE`).
@@ -61,21 +61,27 @@ concise evidence for that verdict
 whether merge would / did trigger a consequential production workflow (name it), or none
 
 ## Deployment status
-`PENDING | SUCCESS | FAILURE | NOT_TRIGGERED | UNKNOWN`
+`NOT_STARTED | PENDING | SUCCESS | FAILURE | NOT_TRIGGERED | UNKNOWN`
 
 Report only observed evidence.
 
-- `PENDING` / `UNKNOWN`: cannot `COMPLETE`.
-- `FAILURE`: cannot `COMPLETE` successfully.
-- expected-workflow `NOT_TRIGGERED`: cannot `COMPLETE` successfully; remains unresolved; human review required.
-- idle `NOT_TRIGGERED` (no consequential workflow expected): does not by itself block `COMPLETE` after human-authorized merge.
-- `SUCCESS`: may `COMPLETE` when every other required gate is done.
+- `NOT_STARTED` — pre-merge, including `HOLD_FOR_HUMAN`. Merge has not happened; no production workflow has started. Required on every pre-merge hold. Do **not** use `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN` before merge.
+- `PENDING` / `UNKNOWN`: post-merge only; cannot `COMPLETE`.
+- `FAILURE`: post-merge; cannot `COMPLETE` successfully.
+- expected-workflow `NOT_TRIGGERED`: post-merge; cannot `COMPLETE` successfully; remains unresolved; human review required.
+- idle `NOT_TRIGGERED` (no consequential workflow expected): post-merge only; does not by itself block `COMPLETE` after human-authorized merge.
+- `SUCCESS`: post-merge; may `COMPLETE` when every other required gate is done.
 
 ## Rollback
 exact rollback path
 
 ## Unresolved findings
 `none` or list (blocking vs non-blocking)
+
+## Learning
+`<evidence-backed learning | none>`
+
+One line. Aligns with ITERATION_PROTOCOL LEARN. Do not restore a long learning template.
 
 ## Human decision requested
 `NONE | READY_TO_MERGE | NOT_READY | APPROVE_R3 | REVIEW_REQUIRED | REJECT`
