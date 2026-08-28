@@ -37,6 +37,21 @@ function formatDate(iso) {
   }
 }
 
+function sessionStatusLabel(status) {
+  const raw = String(status ?? "").trim();
+  const key = raw.toLowerCase();
+  if (!key || key === "unknown") return "未知";
+  return raw;
+}
+
+function isPlaceholderAnswer(answer) {
+  if (answer == null) return true;
+  const text = String(answer).trim();
+  if (!text) return true;
+  const upper = text.toUpperCase();
+  return upper === "TEMPLATE" || upper === "NULL";
+}
+
 function CalendarRow({ item, active, onSelect }) {
   return (
     <button
@@ -58,6 +73,12 @@ function CalendarRow({ item, active, onSelect }) {
       </div>
       <div className="flex items-center gap-3 text-[12px]">
         <span className="text-white/85">{formatDate(item.next_earnings_date)}</span>
+        <span
+          data-testid="earnings-session-status"
+          className="rounded border border-white/10 px-2 py-0.5 text-[11px] text-white/70"
+        >
+          {sessionStatusLabel(item.status)}
+        </span>
         <span className="font-mono text-cyan-200">D-{Math.max(0, item.days_until)}</span>
       </div>
     </button>
@@ -131,6 +152,9 @@ function InsightPanel({ symbol, onClose }) {
       {!query.isLoading && !query.error && query.data?.enabled === false ? (
         <div data-testid="earnings-insight-empty" className="rounded border border-white/10 bg-white/[0.03] p-3 text-[13px] text-[var(--muted)]">
           <div className="text-white/85">尚無 NotebookLM／agency 注入的財報 scaffold。</div>
+          <div data-testid="earnings-insight-unknown" className="mt-1 text-[12px] text-white/70">
+            UNKNOWN：無共識 beat/miss、無 guidance。
+          </div>
           <div className="mt-1 text-[12px]">
             {query.data?.hint || "設定 DEEP_FILING_ANALYSIS_FILE 並 append JSONL 列。"}
           </div>
@@ -140,8 +164,14 @@ function InsightPanel({ symbol, onClose }) {
       {!query.isLoading && !query.error && query.data?.enabled === true ? (
         <div data-testid="earnings-insight-detail" className="space-y-3">
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--muted)]">
+            <span
+              data-testid="earnings-insight-scaffold-badge"
+              className="rounded border border-amber-300/30 bg-amber-400/[0.06] px-2 py-0.5 text-amber-100"
+            >
+              scaffold／非活 10-Q
+            </span>
             <span className="rounded border border-white/10 px-2 py-0.5 font-mono text-cyan-200">
-              {query.data.analysis?.filing_type || "—"}
+              {query.data.analysis?.filing_type || "UNKNOWN"}
             </span>
             <span>as_of {query.data.as_of || "—"}</span>
           </div>
@@ -152,7 +182,7 @@ function InsightPanel({ symbol, onClose }) {
               <div key={qid} className="rounded border border-white/10 bg-white/[0.03] p-3">
                 <div className="text-[12px] font-semibold text-cyan-200">Q{qid}</div>
                 <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-white/80">
-                  {answer}
+                  {isPlaceholderAnswer(answer) ? "UNKNOWN" : answer}
                 </p>
                 {citations.length ? (
                   <div className="mt-2 space-y-1 text-[11px] text-white/55">
@@ -162,7 +192,11 @@ function InsightPanel({ symbol, onClose }) {
                       </div>
                     ))}
                   </div>
-                ) : null}
+                ) : (
+                  <div data-testid="earnings-citation-unknown" className="mt-2 text-[11px] text-white/55">
+                    UNKNOWN：無引用
+                  </div>
+                )}
               </div>
             );
           })}

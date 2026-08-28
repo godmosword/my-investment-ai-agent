@@ -17,6 +17,15 @@ function formatPrice(value) {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function hasFilingPayload(value) {
+  if (value == null || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  const text = String(value).trim();
+  const upper = text.toUpperCase();
+  return text !== "" && upper !== "TEMPLATE" && upper !== "NULL";
+}
+
 function OptionalBlock({ title, value, testId }) {
   if (value == null || value === "" || (Array.isArray(value) && value.length === 0)) return null;
   return (
@@ -135,7 +144,17 @@ export default function SymbolDeepDive() {
               <div className="mt-2 text-[12px] text-amber-200">Snapshot warning: {query.data.snapshot_error}</div>
             ) : null}
           </div>
-          <OptionalBlock title="Filing" value={filing} testId="symbol-filing-block" />
+          {hasFilingPayload(filing) ? (
+            <OptionalBlock title="Filing" value={filing} testId="symbol-filing-block" />
+          ) : (
+            <div
+              data-testid="symbol-filing-empty"
+              className="rounded border border-white/10 bg-white/[0.03] p-3 text-[13px] text-[var(--muted)]"
+              role="status"
+            >
+              尚無本股財報摘要。UNKNOWN
+            </div>
+          )}
           <OptionalBlock title="NotebookLM" value={notebook} testId="symbol-notebook-block" />
           <OptionalBlock title="Agency" value={agency} testId="symbol-agency-block" />
         </div>
