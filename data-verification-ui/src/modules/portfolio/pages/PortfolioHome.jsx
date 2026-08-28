@@ -264,14 +264,14 @@ function HoldingSymbolCell({ symbol, daysUntil, symbolClassName }) {
           <Link
             data-testid="portfolio-holding-to-insights"
             to={insightsSymbolHref(s)}
-            className="text-[11px] text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline"
+            className="inline-flex min-h-[36px] items-center px-2 text-[11px] text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline"
           >
             觀點
           </Link>
           <Link
             data-testid="portfolio-holding-to-news"
             to={newsContextHref(s)}
-            className="text-[11px] text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline"
+            className="inline-flex min-h-[36px] items-center px-2 text-[11px] text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline"
           >
             新聞
           </Link>

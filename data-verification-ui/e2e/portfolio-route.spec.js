@@ -53,6 +53,25 @@ test.describe("Portfolio route (/portfolio)", () => {
     await expect(cash).toContainText("現金");
   });
 
+
+  test("holding insight and news links are at least 36px tall on table and cards", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+    const table = page.getByTestId("portfolio-holdings-table");
+    for (const testId of ["portfolio-holding-to-insights", "portfolio-holding-to-news"]) {
+      const box = await table.getByTestId(testId).boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(36);
+    }
+    await page.setViewportSize({ width: 375, height: 812 });
+    const card = page.getByTestId("portfolio-holding-card-NVDA");
+    await expect(card).toBeVisible();
+    for (const testId of ["portfolio-holding-to-insights", "portfolio-holding-to-news"]) {
+      const box = await card.getByTestId(testId).boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(36);
+    }
+  });
+
   test("matched holding shows D-n from upcoming earnings", async ({ page }) => {
     await page.goto("/portfolio", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
