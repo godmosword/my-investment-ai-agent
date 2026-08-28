@@ -8,7 +8,7 @@ Default loop:
 
 `SCAN -> CHALLENGE -> SELECT -> CONTRACT -> IMPLEMENT -> VERIFY -> REVIEW -> RELEASE -> LEARN`
 
-## 0. SCAN — CTO
+## 0. SCAN — Director
 
 Read current repository state before selecting work:
 
@@ -22,11 +22,21 @@ Produce a candidate table with: evidence, user/system impact, confidence, rough 
 
 Do not code during SCAN.
 
-## 1. CHALLENGE — Architect + Product/UX + QA
+When control returns to QSI-Director, follow the canonical Director Transition Table in `.grok/roles/Director.md`. Do not duplicate that table here. Team-level routing is `.grok/HANDOFF.md`. QSI-Director is one role; there is no Director Mode / CTO Mode split. Primary `HANDOFF:` is single-owner and must equal the `SendToAgent` 1:1 target; `CC:` is non-owning. Room `@mention` is not invocation. Do not fan-out via the room group.
 
-Run independent reviews in parallel.
+## 1. CHALLENGE — only the reviewers routing requires
 
-Architect challenges:
+Do **not** default to Architect + Product/UX + QA on every candidate.
+
+R0 / R1: no mandatory **pre-contract** Architect / Product-UX / QA challenge. Post-implementation QA verification (section 5) remains mandatory.
+
+R1 user-facing Portal / PWA: Product-UX is required (pre-contract and/or implementation review). Otherwise Product is `N/A`: do not ping, do not wait.
+
+R2 architecture / API / schema / pipeline / cache / concurrency: Architect challenge is required **before** the Task Contract.
+
+Director may request additional pre-contract review when evidence warrants it.
+
+When invited, Architect challenges:
 
 - Is this actually a root cause?
 - Does the proposal violate architecture or financial-data contracts?
@@ -47,7 +57,7 @@ QA challenges:
 
 Each reviewer returns `SUPPORT`, `MODIFY`, or `REJECT` with evidence.
 
-## 2. SELECT — CTO
+## 2. SELECT — Director
 
 Choose at most three tasks, normally one implementation task per iteration.
 
@@ -61,7 +71,7 @@ Selection criteria:
 
 Never choose a task solely because it is easy for an LLM.
 
-## 3. CONTRACT — CTO
+## 3. CONTRACT — Director
 
 Create a Task Contract before code changes.
 
@@ -98,10 +108,12 @@ R0 | R1 | R2 | R3
 <how to undo safely>
 
 ## Roles
+Director: QSI-Director
 Engineer: QSI-Engineer
 QA: QSI-QA
-Architect: required/not required
-Release: QSI-Release
+Architect: required | N/A
+Product-UX: required | N/A
+Release: required | N/A
 ```
 
 ## 4. IMPLEMENT — Engineer
@@ -120,8 +132,10 @@ Implementation rules:
 - no adjacent cleanup unless required by the task;
 - tests should reproduce/fence the behavior where practical;
 - no invented market/financial data;
-- no scope expansion without CTO revision;
+- no scope expansion without Director revision;
 - commit messages should explain the behavioral intent.
+
+After the PR exists, Engineer records one primary `HANDOFF: @QSI-QA` and `SendToAgent` 1:1 to QA. Do not wait for Director to re-dispatch QA. Do not invoke QA via Room `@mention` or the room group.
 
 Engineer then opens/updates a PR containing:
 
@@ -156,11 +170,15 @@ Regression findings: ...
 Required fixes: ...
 ```
 
-FAIL returns to Engineer. BLOCKED returns to CTO.
+QA PASS: one primary `HANDOFF:` to the next required reviewer (or Release), and `SendToAgent` 1:1 to that same agent. `CC: @QSI-Director` is status-only. Do not emit a second `HANDOFF:`. Do not `SendToAgent` the room group. See `.grok/HANDOFF.md`.
 
-## 6. REVIEW — Architect when required
+FAIL: one Engineer correction cycle if budget remains, **and** same-turn `HANDOFF: @QSI-Director` plus `SendToAgent` 1:1 to Director. BLOCKED: same-turn `HANDOFF: @QSI-Director` plus `SendToAgent` 1:1 to Director. A turn that cannot emit a final VERDICT is also a Director handoff. QA must not become a terminal orphan. A `SendToAgent` acknowledgement alone is not completion; the receiver must wake and continue.
 
-Architect review is mandatory for R2, core financial pipelines, API/schema contracts, Graph/Reviewer/crew, concurrency/caching, and meaningful architecture changes.
+## 6. REVIEW — Architect / Product when required
+
+Architect review is mandatory for R2, core financial pipelines, API/schema contracts, Graph/Reviewer/crew, concurrency/caching, deploy-path, autonomy-guardrail, and other architecture-sensitive work. Skip Architect when the contract marked Architect `N/A`.
+
+Product-UX review is mandatory only for user-facing Portal / PWA / UX / a11y work. Otherwise Product is `N/A`.
 
 Verdict:
 
@@ -182,7 +200,7 @@ Release re-checks:
 
 Outcome (this **Release gate verdict** must appear explicitly in any STOP / PAUSE / FINAL iteration report; do not infer it from deployment status, Human decision requested, or later merge outcome):
 
-- `MERGE` for qualifying R0/R1 or permitted R2 **only when** merge is not coupled to a consequential production workflow and the Task Contract / human authorization allows merge;
+- `MERGE` is not available to Bots at L1 (Bots must not merge `main`). At a later autonomy level, `MERGE` is only for qualifying R0/R1 or permitted R2 **and** only when merge is not coupled to a consequential production workflow and the Task Contract / human authorization allows merge;
 - `HOLD_FOR_HUMAN` for R3, for any merge that would automatically trigger production deploy (for example `pwa-deploy.yml` or `deploy.yml`), and for uncertain consequential actions;
 - `RETURN_TO_ENGINEER` for failed gates that the Engineer can still correct (one ordinary correction cycle). This is an **internal handoff**, not a NEXT HUMAN ACTION, and not `ACTION: REJECT`. While it is active, do **not** issue the unique Iteration Report or the completion marker; TEAM STATUS stays `RUNNING`;
 - `DEFER` if value/risk changed.
@@ -193,9 +211,9 @@ Release must not silently bypass a failed required check. Release must not auton
 
 A pre-merge `HOLD_FOR_HUMAN` report must set Deployment status `NOT_STARTED`. Do not label it `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`.
 
-If the human owner later authorizes merge, **the same iteration resumes**. Record Human merge authorization `GRANTED` and Merge outcome from observed state. Do **not** rewrite the historical Release gate verdict from `HOLD_FOR_HUMAN` to `MERGE`. Release may merge that PR. That authorization is not a license to run or retry production deploy. Release/CTO then **observe** the coupled workflow and report its observed post-merge status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`.
+If the human owner later authorizes merge, **the same iteration resumes**. Record Human merge authorization `GRANTED` and Merge outcome from observed state. Do **not** rewrite the historical Release gate verdict from `HOLD_FOR_HUMAN` to `MERGE`. Release may merge that PR. That authorization is not a license to run or retry production deploy. Release/Director then **observe** the coupled workflow and report its observed post-merge status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`.
 
-## 8. LEARN — CTO + Release
+## 8. LEARN — Director + Release
 
 After the release outcome, capture only useful learning:
 
@@ -218,7 +236,7 @@ Do not treat `PR merged` as iteration success when a consequential production wo
 - `NOT_TRIGGERED` when a consequential production workflow **was expected**: cannot close successfully; iteration remains unresolved; report expected workflow, evidence it did not trigger, rollback/investigation implications, and NEXT HUMAN ACTION (`REVIEW_REQUIRED` / `ACTION: REVIEW`). Do not invent or manually trigger production deploy.
 - `NOT_TRIGGERED` when **no** consequential production workflow was expected: record it **after merge**; this idle observation does not by itself block `COMPLETE`. It is not a pre-merge label.
 
-Only `QSI-CTO` may set Iteration status `COMPLETE`, and only under those close conditions plus TEAM COMPLETION PROTOCOL (every required role stopped). Other Bots must not output the completion marker string.
+Only `QSI-Director` may set Iteration status `COMPLETE`, and only under those close conditions plus TEAM COMPLETION PROTOCOL (every required role stopped). Other Bots must not output the completion marker string.
 
 The unique report follows `.grok/templates/ITERATION_REPORT.md` and is STOP / PAUSE / FINAL only. It must include Release gate verdict, Human merge authorization, and Merge outcome explicitly. `Human decision requested` must match `NEXT HUMAN ACTION`. `NOT_READY` maps to `ACTION: WAIT`, not `ACTION: REJECT`.
 
@@ -229,7 +247,7 @@ Then rescan repository state before starting the next iteration. A `HOLD_FOR_HUM
 Allowed:
 
 - Architect/Product/QA evidence gathering in parallel;
-- implementation of two independent R0/R1 tasks in separate worktrees if they touch disjoint files and CTO explicitly authorizes both.
+- implementation of two independent R0/R1 tasks in separate worktrees if they touch disjoint files and Director explicitly authorizes both.
 
 Disallowed:
 
@@ -241,5 +259,5 @@ Disallowed:
 ## Failure/retry limits
 
 - One ordinary correction cycle after QA FAIL.
-- A second failure requires CTO reassessment of root cause/scope.
+- A second failure requires Director reassessment of root cause/scope.
 - After two implementation failures, stop that task and report BLOCKED rather than continuing indefinitely.

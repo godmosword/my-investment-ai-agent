@@ -16,7 +16,7 @@ For work explicitly started by the Grok Autonomous Engineering Team, `.grok/TEAM
 
 Create these six Grok Bots using the profile text in `.grok/roles/`:
 
-1. `QSI-CTO` — owns priorities and iteration decisions; does not implement.
+1. `QSI-Director` — sole human-facing lead and active orchestration owner; does not implement. (`QSI-CTO` is a deprecated alias; see `.grok/roles/CTO.md`.)
 2. `QSI-Architect` — architecture, correctness, technical-debt and risk review; read-only by default.
 3. `QSI-Product-UX` — product behavior, Portal/PWA UX, accessibility and user-value review; read-only by default.
 4. `QSI-Engineer` — implementation owner; works only on assigned task contracts and isolated branches/worktrees.
@@ -24,6 +24,8 @@ Create these six Grok Bots using the profile text in `.grok/roles/`:
 6. `QSI-Release` — final merge/release gate and iteration ledger.
 
 Put all six Bots in one group chat named **Q-Silicon Engineering Room** so handoffs remain visible.
+
+Routing: `.grok/HANDOFF.md`. Director contract and Transition Table: `.grok/roles/Director.md`.
 
 ## First-time Grok Bot setup
 
@@ -59,9 +61,9 @@ For each role:
 
 ## Start the team
 
-Send this to `QSI-CTO` after all six Bots exist:
+Send this to `QSI-Director` after all six Bots exist:
 
-> Bootstrap Autonomous Engineering Team v1 for `godmosword/my-investment-ai-agent`. Read `.grok/TEAM_CHARTER.md`, `.grok/ITERATION_PROTOCOL.md`, `.grok/ROUTINES.md`, your role file, and the repository's `CLAUDE.md`, `AGENTS.md`, `docs/AGENT-WORKFLOW.md`, `TODOS.md`, `CHANGELOG.md`, and relevant architecture docs. Confirm the team roster and repository state. Run Iteration 0 as an evidence-only baseline: do not change code. Produce the initial repo health map, risk register, and the top three candidate improvements ranked by the charter. Hand the findings to QSI-Architect, QSI-Product-UX, and QSI-QA for independent challenge, then publish one approved first task contract. Do not merge anything during Iteration 0.
+> Bootstrap Autonomous Engineering Team v1 for `godmosword/my-investment-ai-agent`. Read `.grok/TEAM_CHARTER.md`, `.grok/ITERATION_PROTOCOL.md`, `.grok/HANDOFF.md`, `.grok/roles/Director.md`, `.grok/ROUTINES.md`, and the repository's `CLAUDE.md`, `AGENTS.md`, `docs/AGENT-WORKFLOW.md`, `TODOS.md`, `CHANGELOG.md`, and relevant architecture docs. Confirm the team roster and repository state. Run Iteration 0 as an evidence-only baseline: do not change code. Produce the initial repo health map, risk register, and the top three candidate improvements ranked by the charter. Invite Architect / Product-UX / QA only when routing requires them. Publish one approved first task contract. Do not merge anything during Iteration 0.
 
 After Iteration 0 is satisfactory, use the routine specifications in `.grok/ROUTINES.md`.
 

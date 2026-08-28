@@ -1,6 +1,6 @@
 # Iteration Report: ITER-<N>
 
-CTO issues this unique **STOP / PAUSE / FINAL** report. Other Bots contribute evidence; they do not emit the team completion marker.
+Director issues this unique **STOP / PAUSE / FINAL** report. Other Bots contribute evidence; they do not emit the team completion marker.
 
 Do **not** issue this report while `Release gate verdict = RETURN_TO_ENGINEER` and Engineer still has an authorized correction cycle. That interval stays TEAM STATUS `RUNNING` (no marker, no unique report). Do not add a fifth Iteration status for correction-in-flight.
 
@@ -36,17 +36,26 @@ If the human later authorizes merge, resume **this** iteration. Do not open a ne
 ## Final risk
 `R0 | R1 | R2 | R3`
 
+`CURRENT_AUTONOMY_LEVEL`: L1 (open PR only; Bots do not merge `main`)
+
 ## Checks actually run
 - `<command/check>` -> `PASS | FAIL | BLOCKED` (only checks that actually ran)
 
 ## QA
 `PASS | FAIL | BLOCKED`
 
+## Roles assigned
+Director, Engineer, QA, plus Architect / Product-UX / Release as required or `N/A`. Do not list a reviewer as pending if they were `N/A`.
+
 ## Architect
 `APPROVE | REQUEST_CHANGES | ESCALATE_R3 | N/A`
 
+Record `N/A` when routing did not invite Architect. Do not wait on an N/A reviewer.
+
 ## Product
 `SUPPORT | MODIFY | REJECT | N/A`
+
+Record `N/A` when the work is not user-facing Portal / PWA / UX / a11y. Do not ping Product for that case.
 
 ## CI/checks
 observed CI/check state; do not claim a skipped workflow as PASS
@@ -120,12 +129,12 @@ DETAIL: <one Traditional Chinese sentence>
 
 ## Completion protocol
 
-Only `QSI-CTO` may emit the marker, and only after confirming Engineer, QA, Architect, Product-UX, and Release have no active implementation, verification, review, gate, correction, handoff, or in-flight GitHub write/test/review.
+Only `QSI-Director` may emit the marker, and only after confirming assigned roles have stopped: Engineer, QA, and any Architect / Product-UX / Release that were not `N/A`.
 
 Do not infer team-paused or iteration-complete from a single verdict.
 
-Only `QSI-CTO` may set Iteration status `COMPLETE`, and only when close conditions in `.grok/TEAM_CHARTER.md` are met. The marker is never sufficient for `COMPLETE`.
+Only `QSI-Director` may set Iteration status `COMPLETE`, and only when close conditions in `.grok/TEAM_CHARTER.md` are met. The marker is never sufficient for `COMPLETE`.
 
-When every required role has stopped and the only remaining wait is the human owner, CTO emits exactly this last line (other Bots must not):
+When every required role has stopped and the only remaining wait is the human owner, Director emits exactly this last line (other Bots must not):
 
 🏁 QSI TEAM DONE — WAITING_FOR_HUMAN
