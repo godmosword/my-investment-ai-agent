@@ -172,7 +172,7 @@ Required fixes: ...
 
 QA PASS: one primary `HANDOFF:` to the next required reviewer (or Release), and `SendToAgent` 1:1 to that same agent. `CC: @QSI-Director` is status-only. Do not emit a second `HANDOFF:`. Do not `SendToAgent` the room group. See `.grok/HANDOFF.md`.
 
-FAIL: one Engineer correction cycle if budget remains, **and** same-turn `HANDOFF: @QSI-Director`. BLOCKED: same-turn `HANDOFF: @QSI-Director`. A turn that cannot emit a final VERDICT is also a Director handoff. QA must not become a terminal orphan.
+FAIL: one Engineer correction cycle if budget remains, **and** same-turn `HANDOFF: @QSI-Director` plus `SendToAgent` 1:1 to Director. BLOCKED: same-turn `HANDOFF: @QSI-Director` plus `SendToAgent` 1:1 to Director. A turn that cannot emit a final VERDICT is also a Director handoff. QA must not become a terminal orphan. A `SendToAgent` acknowledgement alone is not completion; the receiver must wake and continue.
 
 ## 6. REVIEW — Architect / Product when required
 

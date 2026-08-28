@@ -118,7 +118,7 @@ EXPECTED RETURN:
 <required verdict / evidence>
 ```
 
-Then `SendToAgent` 1:1 to that same `HANDOFF:` target. Do not `SendToAgent` the room group. A Room `@mention` is not invocation. Optional `CC: @QSI-Director` is status-only and is not a second wake unless Director is the `HANDOFF:` target.
+Then `SendToAgent` 1:1 to that same `HANDOFF:` target. Do not `SendToAgent` the room group. A Room `@mention` is not invocation. Optional `CC: @QSI-Director` is status-only and is not a second wake unless Director is the `HANDOFF:` target. A delivery acknowledgement is not sufficient; the receiving Bot must actually wake and continue.
 
 ## Orchestration failure
 
@@ -126,7 +126,9 @@ Then `SendToAgent` 1:1 to that same `HANDOFF:` target. Do not `SendToAgent` the 
 
 - Human Owner must send another message solely to wake, resume, or manually route the next Bot after a valid role handoff;
 - zero primary `HANDOFF:` owners (orphan) or more than one (ambiguous);
+- `HANDOFF:` exists but no `SendToAgent` 1:1 is executed when peer invocation is available;
 - `HANDOFF:` owner ≠ `SendToAgent` 1:1 target;
+- a `SendToAgent` tool acknowledgement is treated as completed handoff (the receiver must actually wake and continue);
 - Room `@mention` used as invocation;
 - group fan-out / `SendToAgent` to the room group as wake;
 - happy-path routed through Director.

@@ -40,6 +40,8 @@ CC: @QSI-Director — status only, no action required
 
 A CC is **non-owning**. Director must not interrupt or re-dispatch a valid happy-path handoff merely because Director was CC'd.
 
+For a normal transition: emit exactly one `HANDOFF:`, execute exactly one `SendToAgent` 1:1 to that same owner, optional `CC:` to Director. A tool acknowledgement alone is **not** a completed handoff; the receiving Bot must actually wake and continue.
+
 Examples:
 
 QA PASS on R3 governance requiring Architect:
@@ -72,7 +74,9 @@ These are `ORCHESTRATION FAILURE`:
 
 - zero primary owners (orphan handoff);
 - more than one primary owner (ambiguous handoff);
+- `HANDOFF:` exists but no `SendToAgent` 1:1 is executed when peer invocation is available;
 - `HANDOFF:` owner ≠ `SendToAgent` 1:1 target;
+- a `SendToAgent` tool acknowledgement is treated as completed handoff (the receiver must actually wake and continue);
 - Room `@mention` used as invocation;
 - group fan-out / `SendToAgent` to the room group as wake;
 - happy-path routed through Director;
