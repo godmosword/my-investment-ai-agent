@@ -310,6 +310,7 @@ html, body, #root {
 
 .nav-item {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -324,6 +325,7 @@ html, body, #root {
   text-decoration: none;
   padding: 6px 2px;
   min-height: 44px;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -1765,6 +1767,12 @@ html, body, #root {
 
 .nav-item .nav-item__label,
 .nav-item > :not(.nav-icon) {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
   transition: opacity 0.18s ease;
   opacity: 0.85;
 }
