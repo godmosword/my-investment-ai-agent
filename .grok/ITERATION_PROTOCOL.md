@@ -26,11 +26,13 @@ Do not code during SCAN.
 
 Do **not** default to Architect + Product/UX + QA on every candidate.
 
-Invite Architect when the candidate looks R2 / architecture-sensitive / risk-sensitive.
+R0 / R1: no mandatory **pre-contract** Architect / Product-UX / QA challenge. Post-implementation QA verification (section 5) remains mandatory.
 
-Invite Product-UX when the candidate is user-facing Portal / PWA / UX / a11y. Otherwise Product is `N/A`: do not ping, do not wait.
+R1 user-facing Portal / PWA: Product-UX is required (pre-contract and/or implementation review). Otherwise Product is `N/A`: do not ping, do not wait.
 
-QA always challenges implementation candidates (reproducibility, checks, baseline).
+R2 architecture / API / schema / pipeline / cache / concurrency: Architect challenge is required **before** the Task Contract.
+
+Director may request additional pre-contract review when evidence warrants it.
 
 When invited, Architect challenges:
 
@@ -243,7 +245,7 @@ Then rescan repository state before starting the next iteration. A `HOLD_FOR_HUM
 Allowed:
 
 - Architect/Product/QA evidence gathering in parallel;
-- implementation of two independent R0/R1 tasks in separate worktrees if they touch disjoint files and CTO explicitly authorizes both.
+- implementation of two independent R0/R1 tasks in separate worktrees if they touch disjoint files and Director explicitly authorizes both.
 
 Disallowed:
 
@@ -255,5 +257,5 @@ Disallowed:
 ## Failure/retry limits
 
 - One ordinary correction cycle after QA FAIL.
-- A second failure requires CTO reassessment of root cause/scope.
+- A second failure requires Director reassessment of root cause/scope.
 - After two implementation failures, stop that task and report BLOCKED rather than continuing indefinitely.
