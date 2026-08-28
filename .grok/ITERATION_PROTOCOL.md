@@ -180,25 +180,49 @@ Release re-checks:
 - final risk class;
 - whether merge would trigger a production deployment or other consequential side effect.
 
-Outcome:
+Outcome (this **Release gate verdict** must appear explicitly in any STOP / PAUSE / FINAL iteration report; do not infer it from deployment status, Human decision requested, or later merge outcome):
 
-- `MERGE` for qualifying R0/R1 or permitted R2;
-- `HOLD_FOR_HUMAN` for R3/uncertain consequential actions;
-- `RETURN_TO_ENGINEER` for failed gates;
+- `MERGE` for qualifying R0/R1 or permitted R2 **only when** merge is not coupled to a consequential production workflow and the Task Contract / human authorization allows merge;
+- `HOLD_FOR_HUMAN` for R3, for any merge that would automatically trigger production deploy (for example `pwa-deploy.yml` or `deploy.yml`), and for uncertain consequential actions;
+- `RETURN_TO_ENGINEER` for failed gates that the Engineer can still correct (one ordinary correction cycle). This is an **internal handoff**, not a NEXT HUMAN ACTION, and not `ACTION: REJECT`. While it is active, do **not** issue the unique Iteration Report or the completion marker; TEAM STATUS stays `RUNNING`;
 - `DEFER` if value/risk changed.
 
-Release must not silently bypass a failed required check.
+A green QA/Architect/Product/CI set does not override `HOLD_FOR_HUMAN` when production coupling exists. A still-running CI check or a remaining Engineer correction cycle is not a request for the human to REJECT.
+
+Release must not silently bypass a failed required check. Release must not autonomously deploy production, and must not retry a consequential production workflow.
+
+A pre-merge `HOLD_FOR_HUMAN` report must set Deployment status `NOT_STARTED`. Do not label it `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`.
+
+If the human owner later authorizes merge, **the same iteration resumes**. Record Human merge authorization `GRANTED` and Merge outcome from observed state. Do **not** rewrite the historical Release gate verdict from `HOLD_FOR_HUMAN` to `MERGE`. Release may merge that PR. That authorization is not a license to run or retry production deploy. Release/CTO then **observe** the coupled workflow and report its observed post-merge status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`.
 
 ## 8. LEARN — CTO + Release
 
-After outcome, capture only useful learning:
+After the release outcome, capture only useful learning:
 
 - Was the original hypothesis correct?
 - Did the verification strategy catch anything unexpected?
 - Did scope/cost differ materially from estimate?
 - Should a recurring lesson become a repo rule/test? Only promote repeated, evidenced lessons.
 
-Then rescan repository state before starting the next iteration.
+The marker `🏁 QSI TEAM DONE — WAITING_FOR_HUMAN` means the team is stopped and waiting for the human. It is **not** Iteration status `COMPLETE`. Use `WAITING_FOR_HUMAN` while paused.
+
+Record `Learning: <evidence-backed learning | none>` in the iteration report (one line; no recovered long-template noise).
+
+Pre-merge `HOLD_FOR_HUMAN` uses Deployment status `NOT_STARTED`, not `PENDING` / `NOT_TRIGGERED` / `UNKNOWN`.
+
+Do not treat `PR merged` as iteration success when a consequential production workflow is in play. Observe that workflow per `.grok/TEAM_CHARTER.md`:
+
+- `PENDING` or `UNKNOWN`: cannot close; report evidence; STOP for the human; no retry loop. Marker may be emitted; status remains `WAITING_FOR_HUMAN`.
+- `FAILURE`: cannot close successfully; include NEXT HUMAN ACTION and rollback assessment. Do not retry production deploy.
+- `SUCCESS`: a production-coupled iteration may then set `COMPLETE` if every other required gate is done.
+- `NOT_TRIGGERED` when a consequential production workflow **was expected**: cannot close successfully; iteration remains unresolved; report expected workflow, evidence it did not trigger, rollback/investigation implications, and NEXT HUMAN ACTION (`REVIEW_REQUIRED` / `ACTION: REVIEW`). Do not invent or manually trigger production deploy.
+- `NOT_TRIGGERED` when **no** consequential production workflow was expected: record it **after merge**; this idle observation does not by itself block `COMPLETE`. It is not a pre-merge label.
+
+Only `QSI-CTO` may set Iteration status `COMPLETE`, and only under those close conditions plus TEAM COMPLETION PROTOCOL (every required role stopped). Other Bots must not output the completion marker string.
+
+The unique report follows `.grok/templates/ITERATION_REPORT.md` and is STOP / PAUSE / FINAL only. It must include Release gate verdict, Human merge authorization, and Merge outcome explicitly. `Human decision requested` must match `NEXT HUMAN ACTION`. `NOT_READY` maps to `ACTION: WAIT`, not `ACTION: REJECT`.
+
+Then rescan repository state before starting the next iteration. A `HOLD_FOR_HUMAN` pause plus later human-authorized merge is a **resume of the same iteration**, not a new iteration. Do not start Iteration N+1 without explicit human authorization while this iteration is `WAITING_FOR_HUMAN` or still observing deployment.
 
 ## Iteration concurrency
 
