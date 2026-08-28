@@ -1,6 +1,8 @@
 # Iteration Report: ITER-<N>
 
-CTO issues this unique report. Other Bots contribute evidence; they do not emit the team completion marker.
+CTO issues this unique **STOP / PAUSE / FINAL** report. Other Bots contribute evidence; they do not emit the team completion marker.
+
+Do **not** issue this report while `Release gate verdict = RETURN_TO_ENGINEER` and Engineer still has an authorized correction cycle. That interval stays TEAM STATUS `RUNNING` (no marker, no unique report). Do not add a fifth Iteration status for correction-in-flight.
 
 The marker means the team is stopped and waiting for the human. It is **not** Iteration status `COMPLETE`.
 
@@ -49,13 +51,23 @@ If the human later authorizes merge, resume **this** iteration. Do not open a ne
 ## CI/checks
 observed CI/check state; do not claim a skipped workflow as PASS
 
-## Release verdict
+## Release gate verdict
 `MERGE | HOLD_FOR_HUMAN | RETURN_TO_ENGINEER | DEFER`
 
-Required. Do not infer this from deployment status or Human decision requested.
+Required on this STOP / PAUSE / FINAL report. Do not infer it from deployment status, Human decision requested, or later merge outcome. Do not rewrite a historical `HOLD_FOR_HUMAN` to `MERGE` after the human later authorizes merge.
 
 ## Release evidence
-concise evidence for that verdict
+concise evidence for that gate verdict
+
+## Human merge authorization
+`NOT_REQUIRED | NOT_GRANTED | GRANTED | REJECTED`
+
+Independent of Release gate verdict.
+
+## Merge outcome
+`NOT_MERGED | MERGED | CLOSED`
+
+Independent of Release gate verdict. Record observed state only; do not invent a merge.
 
 ## Production deployment coupling
 whether merge would / did trigger a consequential production workflow (name it), or none
@@ -95,7 +107,7 @@ Must match NEXT HUMAN ACTION:
 - `REVIEW_REQUIRED` ↔ `ACTION: REVIEW`
 - `REJECT` ↔ `ACTION: REJECT`
 
-`NOT_READY` is wait/incomplete, **not** a request to reject. `RETURN_TO_ENGINEER` is a Release verdict, not a human action.
+`NOT_READY` is wait/incomplete, **not** a request to reject. `RETURN_TO_ENGINEER` is a Release gate verdict, not a human action, and not a reason to emit this report while correction is still authorized.
 
 ## NEXT HUMAN ACTION
 
