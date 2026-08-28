@@ -1,11 +1,11 @@
 import { NavLink } from "react-router-dom";
 
 const TABS = [
-  { to: "/news",      icon: "📰", label: "新聞" },
-  { to: "/dashboard", icon: "📊", label: "儀表" },
-  { to: "/insights",  icon: "🖥️", label: "觀點" },
-  { to: "/columns",   icon: "🏭", label: "專欄" },
-  { to: "/portfolio", icon: "📌", label: "組合" },
+  { to: "/news",      icon: "📰", label: "科技即時報" },
+  { to: "/dashboard", icon: "📊", label: "數據儀表板" },
+  { to: "/insights",  icon: "🖥️", label: "投資觀點" },
+  { to: "/columns",   icon: "🏭", label: "科技專欄" },
+  { to: "/portfolio", icon: "📌", label: "Portfolio" },
   { to: "/settings", icon: "⚙️", label: "設定" },
 ];
 
