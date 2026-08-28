@@ -8,10 +8,11 @@ import {
   useAddHolding,
   useDeleteHolding,
   useImportCsv,
+  useEarningsUpcoming,
   usePortfolioHoldings,
   usePortfolioPnl,
 } from "../../../hooks/useApi";
-import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
+import { PORTAL_PHASE4_GATE0, insightsSymbolHref, newsContextHref } from "../../../constants/portalPhase4";
 
 const PORTFOLIO_TABS = [
   { id: "overview", label: "總覽", testId: "portfolio-tab-overview" },
@@ -49,6 +50,47 @@ function pct(value, digits = 1) {
   if (!Number.isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toFixed(digits)}%`;
+}
+
+function holdingSymbol(value) {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+function weightPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return `${n.toFixed(1)}%`;
+}
+
+function concentrationFromRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  let best = null;
+  for (const row of rows) {
+    const n = Number(row?.weight);
+    if (!Number.isFinite(n)) continue;
+    if (best == null || n > best.weight) {
+      best = { symbol: holdingSymbol(row?.symbol), weight: n };
+    }
+  }
+  return best;
+}
+
+function finiteDaysUntil(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function earningsDaysBySymbol(items) {
+  const map = new Map();
+  if (!Array.isArray(items)) return map;
+  for (const item of items) {
+    const symbol = holdingSymbol(item?.symbol);
+    const days = finiteDaysUntil(item?.days_until);
+    if (!symbol || days == null || map.has(symbol)) continue;
+    map.set(symbol, days);
+  }
+  return map;
 }
 
 function toneClass(value) {
@@ -210,14 +252,52 @@ function KpiCard({ label, value, sub, valueClass = "text-white", testId }) {
   );
 }
 
-function HoldingCards({ rows, onDelete }) {
+function HoldingSymbolCell({ symbol, daysUntil, symbolClassName }) {
+  const s = holdingSymbol(symbol);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {s ? (
+        <>
+          <span data-testid="portfolio-holding-symbol" className={symbolClassName}>
+            {s}
+          </span>
+          <Link
+            data-testid="portfolio-holding-to-insights"
+            to={insightsSymbolHref(s)}
+            className="text-[11px] text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline"
+          >
+            觀點
+          </Link>
+          <Link
+            data-testid="portfolio-holding-to-news"
+            to={newsContextHref(s)}
+            className="text-[11px] text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline"
+          >
+            新聞
+          </Link>
+        </>
+      ) : null}
+      {daysUntil != null ? (
+        <span data-testid="portfolio-holding-earnings-dn" className="font-mono text-[11px] text-cyan-200">
+          {`D-${Math.max(0, daysUntil)}`}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function HoldingCards({ rows, onDelete, daysUntilBySymbol }) {
   return (
     <div className="space-y-2 md:hidden">
       {rows.map((row) => (
         <div key={row.id} data-testid={`portfolio-holding-card-${row.symbol}`} className="card p-3">
           <div className="mb-2 flex items-start justify-between gap-2">
             <div>
-              <div className="font-mono text-[15px] font-semibold text-white">{row.symbol}</div>
+              <HoldingSymbolCell
+                symbol={row.symbol}
+                daysUntil={daysUntilBySymbol?.get(holdingSymbol(row.symbol)) ?? null}
+                symbolClassName="font-mono text-[15px] font-semibold text-white"
+              />
               <div className="text-[12px] text-[var(--muted)]">{row.opened_at}</div>
             </div>
             <button
@@ -245,6 +325,7 @@ function HoldingCards({ rows, onDelete }) {
 export default function PortfolioHome() {
   const holdingsQuery = usePortfolioHoldings();
   const pnlQuery = usePortfolioPnl();
+  const earningsQuery = useEarningsUpcoming();
   const addHolding = useAddHolding();
   const deleteHolding = useDeleteHolding();
   const importCsv = useImportCsv();
@@ -281,6 +362,14 @@ export default function PortfolioHome() {
   const dayPct = totalValue > 0 ? (totalDayPnl / totalValue) * 100 : 0;
   const isLoading = holdingsQuery.isLoading || pnlQuery.isLoading;
   const error = holdingsQuery.error || pnlQuery.error;
+  const daysUntilBySymbol = useMemo(
+    () => earningsDaysBySymbol(earningsQuery.data?.items),
+    [earningsQuery.data],
+  );
+  const concentration = useMemo(() => concentrationFromRows(rows), [rows]);
+  const concentrationText = concentration
+    ? [concentration.symbol, weightPct(concentration.weight)].filter(Boolean).join(" ")
+    : "UNKNOWN：無法計算集中度";
 
   const holdingsForExport = useMemo(() => rawHoldings, [rawHoldings]);
 
@@ -432,6 +521,21 @@ export default function PortfolioHome() {
               />
             </div>
 
+            {!isLoading && !error ? (
+              <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <KpiCard
+                  label="集中度"
+                  value={concentrationText}
+                  testId="portfolio-concentration"
+                />
+                <KpiCard
+                  label="現金"
+                  value="UNKNOWN：無現金欄，未推算"
+                  testId="portfolio-cash-unknown"
+                />
+              </div>
+            ) : null}
+
             <div className="mb-3 flex flex-wrap gap-2">
         <button
           type="button"
@@ -514,7 +618,13 @@ export default function PortfolioHome() {
                     <tbody>
                       {rows.map((row) => (
                         <tr key={row.id} className="border-t border-[color:var(--border)]">
-                          <td className="px-3 py-2 font-mono font-semibold text-white">{row.symbol}</td>
+                          <td className="px-3 py-2">
+                            <HoldingSymbolCell
+                              symbol={row.symbol}
+                              daysUntil={daysUntilBySymbol.get(holdingSymbol(row.symbol)) ?? null}
+                              symbolClassName="font-mono font-semibold text-white"
+                            />
+                          </td>
                           <td className="px-3 py-2">{number(row.shares)}</td>
                           <td className="px-3 py-2">{money(row.cost_basis, 2)}</td>
                           <td className="px-3 py-2">{row.error ? "N/A" : money(row.last_price, 2)}</td>
@@ -538,7 +648,7 @@ export default function PortfolioHome() {
                   </table>
                 </div>
                 <div className="mb-4">
-                  <HoldingCards rows={rows} onDelete={deleteRow} />
+                  <HoldingCards rows={rows} onDelete={deleteRow} daysUntilBySymbol={daysUntilBySymbol} />
                 </div>
               </>
             ) : null}
