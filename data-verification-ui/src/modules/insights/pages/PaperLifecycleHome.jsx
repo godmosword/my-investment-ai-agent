@@ -19,15 +19,40 @@ const INITIAL_FORM = {
 };
 
 function fmtPct(value) {
+  if (value == null || value === "") return "UNKNOWN／未提供";
   const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "UNKNOWN／未提供";
   return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
 }
 
 function fmtNum(value) {
+  if (value == null || value === "") return "UNKNOWN／未提供";
   const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "UNKNOWN／未提供";
   return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+function presentCount(value) {
+  if (value == null || value === "") return "UNKNOWN／未提供";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "UNKNOWN／未提供";
+  return n;
+}
+
+function presentWinsLosses(summary) {
+  const winsMissing = summary?.wins == null || summary?.wins === "";
+  const lossesMissing = summary?.losses == null || summary?.losses === "";
+  if (winsMissing && lossesMissing) return "UNKNOWN／未提供";
+  const wins = winsMissing ? "UNKNOWN／未提供" : presentCount(summary.wins);
+  const losses = lossesMissing ? "UNKNOWN／未提供" : presentCount(summary.losses);
+  return `${wins} wins / ${losses} losses`;
+}
+
+function sampleLabel(summary) {
+  if (summary?.publishable) return "sample ready";
+  const closed = presentCount(summary?.closed_count);
+  const min = presentCount(summary?.min_publishable_sample);
+  return `sample ${closed}/${min}`;
 }
 
 function colorFor(value) {
@@ -40,11 +65,12 @@ function qualityTone(grade) {
   if (grade === "A") return "border-emerald-300/40 bg-emerald-400/10 text-emerald-200";
   if (grade === "B") return "border-cyan-300/40 bg-cyan-400/10 text-cyan-200";
   if (grade === "C") return "border-amber-300/40 bg-amber-400/10 text-amber-200";
-  return "border-red-300/40 bg-red-400/10 text-red-200";
+  if (grade === "D") return "border-red-300/40 bg-red-400/10 text-red-200";
+  return "border-white/10 bg-white/[0.03] text-white/55";
 }
 
 function QualityBadge({ row }) {
-  const grade = row?.quality_grade || "D";
+  const grade = String(row?.quality_grade ?? "").trim();
   const score = Number(row?.quality_score);
   return (
     <span
@@ -52,8 +78,8 @@ function QualityBadge({ row }) {
       className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold ${qualityTone(grade)}`}
       title={(row?.quality_reasons || []).join(", ")}
     >
-      {grade}
-      <span className="text-white/55">{Number.isFinite(score) ? score : "—"}</span>
+      {grade || "UNKNOWN／未提供"}
+      <span className="text-white/55">{Number.isFinite(score) ? score : "UNKNOWN／未提供"}</span>
     </span>
   );
 }
@@ -271,7 +297,7 @@ function TransparencyLetterCard({ letter }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-[12px] font-semibold uppercase text-cyan-200">Monthly Transparency Letter</div>
-          <div className="mt-1 text-[18px] font-semibold text-white">{letter.data?.month || "current month"}</div>
+          <div data-testid="paper-letter-month" className="mt-1 text-[18px] font-semibold text-white">{letter.data?.month || "UNKNOWN"}</div>
           <div className="mt-1 text-[12px] text-[var(--muted)]">
             Internal-only paper letter · publishable only after minimum sample and human review.
           </div>
@@ -284,7 +310,7 @@ function TransparencyLetterCard({ letter }) {
           }`}
           data-testid="paper-letter-publishable"
         >
-          {summary.publishable ? "sample ready" : `sample ${summary.closed_count ?? 0}/${summary.min_publishable_sample ?? 5}`}
+          {sampleLabel(summary)}
         </span>
       </div>
 
@@ -295,7 +321,7 @@ function TransparencyLetterCard({ letter }) {
       ) : (
         <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1.3fr]">
           <div className="grid grid-cols-2 gap-2 text-[12px]">
-            <Kpi label="Closed" value={summary.closed_count ?? 0} sub={`${summary.wins ?? 0} wins / ${summary.losses ?? 0} losses`} />
+            <Kpi label="Closed" value={presentCount(summary.closed_count)} sub={presentWinsLosses(summary)} />
             <Kpi label="Avg Return" value={fmtPct(summary.avg_return_pct)} tone={colorFor(summary.avg_return_pct)} />
             <Kpi label="Win Rate" value={fmtPct(summary.win_rate_pct)} />
             <Kpi label="Avg Quality" value={fmtNum(summary.avg_quality_score)} />
@@ -327,8 +353,11 @@ export default function PaperLifecycleHome() {
   const lifecycle = usePaperLifecycle();
   const pnl = usePaperPnl();
   const letter = usePaperTransparencyLetter();
-  const summary = pnl.data?.summary || lifecycle.data?.summary || {};
+  const summarySource = pnl.data?.summary || lifecycle.data?.summary || null;
+  const summary = summarySource && typeof summarySource === "object" ? summarySource : {};
   const rows = useMemo(() => pnl.data?.rows || lifecycle.data?.rows || [], [pnl.data, lifecycle.data]);
+  const summaryLoading = (lifecycle.isLoading || pnl.isLoading) && !summarySource;
+  const summaryError = Boolean(lifecycle.error || pnl.error) && !summarySource;
 
   return (
     <div data-testid="paper-lifecycle-home" className="space-y-3">
@@ -338,17 +367,44 @@ export default function PaperLifecycleHome() {
       </div>
 
       {(lifecycle.error || pnl.error) ? (
-        <div className="rounded border border-red-400/30 bg-red-500/10 p-3 text-[13px] text-red-200" role="alert">
+        <div
+          className="rounded border border-red-400/30 bg-red-500/10 p-3 text-[13px] text-red-200"
+          data-testid="paper-lifecycle-error"
+          role="alert"
+        >
           紙上資料暫時無法載入：{pnl.error?.message || lifecycle.error?.message}
         </div>
       ) : null}
 
+      {summaryLoading ? (
+        <div
+          className="rounded border border-white/10 p-3 text-[13px] text-[var(--muted)]"
+          data-testid="paper-lifecycle-loading"
+          role="status"
+        >
+          載入紙上生命週期…
+        </div>
+      ) : summaryError ? null : !summarySource ? (
+        <div
+          className="rounded border border-white/10 p-3 text-[13px] text-[var(--muted)]"
+          data-testid="paper-lifecycle-empty"
+          role="status"
+        >
+          UNKNOWN：尚無紙上生命週期摘要
+        </div>
+      ) : (
       <div className="grid gap-2 md:grid-cols-4">
-        <Kpi label="Active" value={summary.active_count ?? 0} sub="approved/submitted/filled" testId="paper-kpi-active" />
-        <Kpi label="Closed" value={summary.closed_count ?? 0} sub={`${summary.wins ?? 0} wins / ${summary.losses ?? 0} losses`} testId="paper-kpi-closed" />
+        <Kpi label="Active" value={presentCount(summary.active_count)} sub="approved/submitted/filled" testId="paper-kpi-active" />
+        <Kpi label="Closed" value={presentCount(summary.closed_count)} sub={presentWinsLosses(summary)} testId="paper-kpi-closed" />
         <Kpi label="Realized" value={fmtPct(summary.avg_realized_return_pct)} tone={colorFor(summary.avg_realized_return_pct)} testId="paper-kpi-realized" />
-        <Kpi label="Quality" value={fmtNum(summary.avg_quality_score)} sub={`A ${summary.quality_counts?.A ?? 0} · B ${summary.quality_counts?.B ?? 0}`} testId="paper-kpi-quality" />
+        <Kpi
+          label="Quality"
+          value={fmtNum(summary.avg_quality_score)}
+          sub={summary.quality_counts ? `A ${presentCount(summary.quality_counts.A)} · B ${presentCount(summary.quality_counts.B)}` : "UNKNOWN／未提供"}
+          testId="paper-kpi-quality"
+        />
       </div>
+      )}
 
       {summary.avg_return_by_quality && Object.keys(summary.avg_return_by_quality).length ? (
         <div className="rounded border border-white/10 bg-white/[0.03] p-3" data-testid="paper-quality-vs-pnl">
