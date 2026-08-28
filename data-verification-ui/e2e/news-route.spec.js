@@ -38,6 +38,25 @@ test.describe("News route (/news)", () => {
     await expect(macroCard.getByTestId("news-ticker-to-insights")).toHaveCount(0);
   });
 
+  test("top chip 半導體 and ThemeRail 半導體 show the same digest items", async ({ page }) => {
+    await page.goto("/news", { waitUntil: "load" });
+    await expect(page.getByTestId("news-home")).toBeVisible({ timeout: 60_000 });
+
+    await page.getByTestId("news-filter-semis").click();
+    const chipItems = await page.getByTestId("news-digest-item").allTextContents();
+    expect(chipItems.length).toBeGreaterThan(0);
+
+    await page.getByTestId("news-filter-all").click();
+    const themeChip = page.getByTestId("news-theme-chip").filter({ hasText: "半導體" });
+    if ((await themeChip.getAttribute("aria-pressed")) === "true") {
+      await themeChip.click();
+    }
+
+    await themeChip.click();
+    const themeItems = await page.getByTestId("news-digest-item").allTextContents();
+    expect(themeItems).toEqual(chipItems);
+  });
+
   test("ThemeRail click filters the list and empty uses existing copy", async ({ page }) => {
     await page.goto("/news", { waitUntil: "load" });
     await expect(page.getByTestId("news-home")).toBeVisible({ timeout: 60_000 });
