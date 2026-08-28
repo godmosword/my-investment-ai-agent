@@ -46,9 +46,9 @@ function sourceLabel(item) {
 }
 
 function freshnessLabel(value) {
-  if (value === "fresh") return "fresh";
-  if (value === "stale") return "stale";
-  return "freshness unknown";
+  if (value === "fresh") return "新鮮";
+  if (value === "stale") return "過期";
+  return "未知";
 }
 
 function freshnessClass(value) {
@@ -61,6 +61,16 @@ function hasMissingQualityFields(item) {
   return Array.isArray(item?.missing_fields) && item.missing_fields.length > 0;
 }
 
+function payloadTickers(item) {
+  if (!Array.isArray(item?.tickers)) return [];
+  return item.tickers.map((ticker) => String(ticker ?? "").trim()).filter(Boolean);
+}
+
+function aiInterpretation(value) {
+  const text = String(value ?? "").trim();
+  return text || "UNKNOWN／未提供";
+}
+
 function filterItems(items, filterId) {
   const filter = FILTERS.find((row) => row.id === filterId) ?? FILTERS[0];
   if (filter.id === "all") return items;
@@ -70,43 +80,71 @@ function filterItems(items, filterId) {
   });
 }
 
+function itemMatchesTheme(item, theme) {
+  if (!theme) return true;
+  const needles = [theme.id, theme.label]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  if (!needles.length) return true;
+  const hay = [item.pillar_key, item.pillar, ...(Array.isArray(item.tags) ? item.tags : [])]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  return needles.some((needle) => hay.includes(needle));
+}
+
 function NewsItemButton({ item, active, onClick }) {
   const tags = Array.isArray(item.tags) ? item.tags.slice(0, 3) : [];
+  const tickers = payloadTickers(item);
   return (
-    <button
-      type="button"
-      data-testid="news-digest-item"
-      className={`card w-full p-3 text-left transition hover:border-cyan-300/50 ${
-        active ? "border-cyan-300/70 bg-cyan-950/[0.08]" : ""
-      }`}
-      onClick={onClick}
-    >
-      <div data-testid="reader-source-line" className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
-        <span className="rounded border border-white/10 px-2 py-0.5 font-mono text-cyan-200">
-          {sourceLabel(item)}
-        </span>
-        <span>{formatTime(item.published_at)}</span>
-        <span className={`rounded border px-2 py-0.5 ${freshnessClass(item.freshness)}`}>
-          {freshnessLabel(item.freshness)}
-        </span>
-        {hasMissingQualityFields(item) ? (
-          <span className="rounded border border-white/10 px-2 py-0.5 text-white/45">資料待補</span>
-        ) : null}
-        {tags.map((tag) => (
-          <span key={tag} className="rounded bg-white/5 px-2 py-0.5 text-white/60">
-            {tag}
+    <div className={`card w-full p-3 ${active ? "border-cyan-300/70 bg-cyan-950/[0.08]" : ""}`}>
+      <button
+        type="button"
+        data-testid="news-digest-item"
+        className="w-full bg-transparent p-0 text-left transition"
+        onClick={onClick}
+      >
+        <div data-testid="reader-source-line" className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
+          <span className="rounded border border-white/10 px-2 py-0.5 font-mono text-cyan-200">
+            {sourceLabel(item)}
           </span>
-        ))}
-      </div>
-      <div className="mt-2 text-[15px] font-semibold leading-snug text-white">{item.headline}</div>
-      <p className="mt-2 text-[13px] leading-snug text-[var(--muted)]">
-        {item.gemini_take || "Gemini take 待補。"}
-      </p>
-    </button>
+          <span>{formatTime(item.published_at)}</span>
+          <span className={`rounded border px-2 py-0.5 ${freshnessClass(item.freshness)}`}>
+            {freshnessLabel(item.freshness)}
+          </span>
+          {hasMissingQualityFields(item) ? (
+            <span className="rounded border border-white/10 px-2 py-0.5 text-white/45">資料待補</span>
+          ) : null}
+          {tags.map((tag) => (
+            <span key={tag} className="rounded bg-white/5 px-2 py-0.5 text-white/60">
+              {tag}
+            </span>
+          ))}
+        </div>
+        <div className="mt-2 text-[15px] font-semibold leading-snug text-white">{item.headline}</div>
+        <div data-testid="news-ai-interpretation" className="mt-2">
+          <div className="text-[11px] font-semibold text-white/45">AI 解讀</div>
+          <p className="mt-1 text-[13px] leading-snug text-[var(--muted)]">{aiInterpretation(item.gemini_take)}</p>
+        </div>
+      </button>
+      {tickers.length ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {tickers.map((ticker) => (
+            <Link
+              key={ticker}
+              data-testid="news-ticker-to-insights"
+              className="inline-flex min-h-[36px] items-center rounded bg-amber-400/10 px-2 py-1 font-mono text-[12px] text-amber-200 hover:bg-amber-400/20"
+              to={insightsSymbolHref(ticker)}
+            >
+              {ticker.toUpperCase()}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-function ThemeRail({ themes }) {
+function ThemeRail({ themes, selectedId, onSelect }) {
   if (!themes.length) {
     return (
       <div className="card p-3">
@@ -119,14 +157,29 @@ function ThemeRail({ themes }) {
     <div className="card p-3">
       <div className="card-title">今日主軸</div>
       <div className="mt-3 space-y-2">
-        {themes.slice(0, 8).map((theme) => (
-          <div key={theme.id || theme.label} className="flex items-center justify-between gap-3 text-[13px]">
-            <span className="text-white/80">{theme.label}</span>
-            <span className="rounded bg-white/5 px-2 py-0.5 font-mono text-[11px] text-cyan-200">
-              {theme.count}
-            </span>
-          </div>
-        ))}
+        {themes.slice(0, 8).map((theme) => {
+          const id = theme.id || theme.label;
+          const active = selectedId === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              data-testid="news-theme-chip"
+              aria-pressed={active}
+              className={`flex w-full items-center justify-between gap-3 rounded border px-2 py-1.5 text-left text-[13px] ${
+                active
+                  ? "border-cyan-300/70 bg-cyan-400/[0.05] text-cyan-100"
+                  : "border-white/10 text-white/80 hover:bg-white/[0.04]"
+              }`}
+              onClick={() => onSelect(active ? null : theme)}
+            >
+              <span>{theme.label}</span>
+              <span className="rounded bg-white/5 px-2 py-0.5 font-mono text-[11px] text-cyan-200">
+                {theme.count}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -136,7 +189,8 @@ function DeepPanel({ item, detail, loading, onClose }) {
   const current = detail || item;
   if (!current) return null;
   const thesis = Array.isArray(current.thesis_breakdown) ? current.thesis_breakdown : [];
-  const tickers = Array.isArray(current.tickers) ? current.tickers : [];
+  const tickers = payloadTickers(current);
+  const deepTake = String(current.deep_brief ?? "").trim() || String(current.gemini_take ?? "").trim();
   return (
     <aside
       data-testid="news-deep-panel"
@@ -174,17 +228,24 @@ function DeepPanel({ item, detail, loading, onClose }) {
           <span>信心 {pct(current.confidence)}</span>
         </div>
         {loading ? <div className="text-[13px] text-[var(--muted)]">載入 deep brief…</div> : null}
-        <p className="text-[13px] leading-relaxed text-white/78">
-          {current.deep_brief || current.gemini_take || "深度摘要待補。"}
-        </p>
+        <div data-testid="news-ai-interpretation">
+          <div className="text-[11px] font-semibold text-white/45">AI 解讀</div>
+          <p className="mt-1 text-[13px] leading-relaxed text-white/78">{aiInterpretation(deepTake)}</p>
+        </div>
         <div className="mt-4">
           <div className="metric-label">論點拆解</div>
           <div className="mt-2 space-y-2">
-            {(thesis.length ? thesis : [current.gemini_take || "尚無拆解"]).map((line) => (
-              <div key={line} className="rounded border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-white/75">
-                {line}
+            {thesis.length ? (
+              thesis.map((line) => (
+                <div key={line} className="rounded border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-white/75">
+                  {line}
+                </div>
+              ))
+            ) : (
+              <div className="rounded border border-white/10 bg-white/[0.03] px-3 py-2 text-[13px] text-white/75">
+                UNKNOWN／未提供
               </div>
-            ))}
+            )}
           </div>
         </div>
         {tickers.length ? (
@@ -212,7 +273,7 @@ function DeepPanel({ item, detail, loading, onClose }) {
 function matchesFocus(item, focus) {
   if (!focus) return true;
   const f = focus.toLowerCase();
-  const tickers = Array.isArray(item?.tickers) ? item.tickers : [];
+  const tickers = payloadTickers(item);
   if (tickers.some((t) => String(t).toLowerCase() === f)) return true;
   return itemText(item).includes(f);
 }
@@ -221,6 +282,7 @@ export default function NewsHome() {
   const [searchParams, setSearchParams] = useSearchParams();
   const focus = String(searchParams.get("focus") || "").trim().toUpperCase();
   const [filter, setFilter] = useState("all");
+  const [themeFilter, setThemeFilter] = useState(null);
   const [selected, setSelected] = useState(null);
   const digestQuery = useNewsDigest({ limit: 25 });
   const themesQuery = useNewsThemes(80);
@@ -234,9 +296,13 @@ export default function NewsHome() {
     [digestQuery.data],
   );
   const filtered = useMemo(() => filterItems(items, filter), [items, filter]);
+  const themed = useMemo(
+    () => (themeFilter ? filtered.filter((item) => itemMatchesTheme(item, themeFilter)) : filtered),
+    [filtered, themeFilter],
+  );
   const visibleItems = useMemo(
-    () => (focus ? filtered.filter((item) => matchesFocus(item, focus)) : filtered),
-    [filtered, focus],
+    () => (focus ? themed.filter((item) => matchesFocus(item, focus)) : themed),
+    [themed, focus],
   );
 
   const clearFocus = () => {
@@ -248,6 +314,11 @@ export default function NewsHome() {
 
   const chooseFilter = (id) => {
     setFilter(id);
+    setSelected(null);
+  };
+
+  const chooseTheme = (theme) => {
+    setThemeFilter(theme);
     setSelected(null);
   };
 
@@ -348,7 +419,11 @@ export default function NewsHome() {
         </section>
 
         <div className="space-y-3">
-          <ThemeRail themes={themes} />
+          <ThemeRail
+            themes={themes}
+            selectedId={themeFilter?.id || themeFilter?.label || null}
+            onSelect={chooseTheme}
+          />
           {selected ? (
             <DeepPanel
               item={selected}
