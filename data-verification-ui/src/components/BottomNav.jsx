@@ -1,27 +1,28 @@
 import { NavLink } from "react-router-dom";
 
 const TABS = [
-  { to: "/news",      icon: "📰", label: "新聞" },
-  { to: "/dashboard", icon: "📊", label: "儀表" },
-  { to: "/insights",  icon: "🖥️", label: "觀點" },
-  { to: "/columns",   icon: "🏭", label: "專欄" },
-  { to: "/portfolio", icon: "📌", label: "組合" },
-  { to: "/settings", icon: "⚙️", label: "設定" },
+  { to: "/news",      icon: "📰", label: "科技即時報", short: "新聞" },
+  { to: "/dashboard", icon: "📊", label: "數據儀表板", short: "儀表" },
+  { to: "/insights",  icon: "🖥️", label: "投資觀點", short: "觀點" },
+  { to: "/columns",   icon: "🏭", label: "科技專欄", short: "專欄" },
+  { to: "/portfolio", icon: "📌", label: "Portfolio", short: "組合" },
+  { to: "/settings", icon: "⚙️", label: "設定", short: "設定" },
 ];
 
 export default function BottomNav() {
   return (
     <nav className="bottom-nav" aria-label="主導航（底部）">
-      {TABS.map(({ to, icon, label }) => (
+      {TABS.map(({ to, icon, label, short }) => (
         <NavLink
           key={to}
           to={to}
           end
           className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
           aria-label={label}
+          title={label}
         >
           <span className="nav-icon" aria-hidden="true">{icon}</span>
-          {label}
+          <span className="nav-item__label">{short}</span>
         </NavLink>
       ))}
     </nav>
