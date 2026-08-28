@@ -4,13 +4,13 @@ These routines are operating specifications. Configure them in Grok Bot only aft
 
 ## Routine A — Daily Engineering Scan
 
-Owner: `QSI-CTO`
+Owner: `QSI-Director`
 
 Recommended cadence: once per day on weekdays.
 
 Instruction:
 
-> Rescan `godmosword/my-investment-ai-agent` for evidence-backed correctness, reliability, UX, performance, accessibility, test/CI, and maintainability issues. Read current `main`, open PRs/issues, relevant CI state, `TODOS.md`, `CHANGELOG.md`, and architecture status docs. Ask QSI-Architect, QSI-Product-UX, and QSI-QA to independently challenge the top candidates. Rank candidates using `.grok/TEAM_CHARTER.md`. If no candidate clears the value/risk threshold, report NO_ACTION and stop. Otherwise create at most one bounded Task Contract and hand it to QSI-Engineer. Never code yourself and never authorize R3 merge.
+> Rescan `godmosword/my-investment-ai-agent` for evidence-backed correctness, reliability, UX, performance, accessibility, test/CI, and maintainability issues. Read current `main`, open PRs/issues, relevant CI state, `TODOS.md`, `CHANGELOG.md`, and architecture status docs. Invite Architect / Product-UX only when routing in `.grok/TEAM_CHARTER.md` requires them; do not default to a three-reviewer CHALLENGE. Rank candidates using `.grok/TEAM_CHARTER.md`. If no candidate clears the value/risk threshold, report NO_ACTION and stop. At L1: do **not** dispatch Engineer to implement, do **not** start an iteration, do **not** merge. Never code yourself and never authorize R3 merge.
 
 Expected output: candidate table + selected Task Contract or `NO_ACTION`.
 
@@ -32,7 +32,7 @@ Recommended trigger: after QA PASS and required architecture review.
 
 Instruction:
 
-> Evaluate each Grok-owned PR that has QA PASS. Verify final scope, PR head SHA, CI/checks, unresolved material review comments, Architect verdict when required, final risk class, rollback, and whether merge causes a consequential deployment side effect. Merge only qualifying R0/R1 or explicitly permitted R2 work under `.grok/TEAM_CHARTER.md`. For R3 or consequential uncertainty, post `HOLD_FOR_HUMAN` and stop. Never deploy production as an implicit follow-up.
+> Evaluate each Grok-owned PR that has QA PASS. Verify final scope, PR head SHA, CI/checks, unresolved material review comments, Architect verdict when required, final risk class, rollback, and whether merge causes a consequential deployment side effect. At L1 post `HOLD_FOR_HUMAN` and stop — Bots must not merge `main`. For R3 or consequential uncertainty, the same. Never deploy production as an implicit follow-up. Never dispatch Engineer.
 
 ## Routine D — Weekly Architecture / Debt Review
 
@@ -42,7 +42,7 @@ Recommended cadence: weekly.
 
 Instruction:
 
-> Inspect the current repository for repeated architectural pain backed by evidence: recurring regressions, duplicated high-risk logic, fragile contracts, dependency or concurrency hazards, stale architecture assumptions, and testing blind spots. Do not recommend cleanup for aesthetics. Return at most five findings with evidence, recurring cost, smaller alternatives, risk class, and whether the finding should enter CTO candidate scoring. Do not implement.
+> Inspect the current repository for repeated architectural pain backed by evidence: recurring regressions, duplicated high-risk logic, fragile contracts, dependency or concurrency hazards, stale architecture assumptions, and testing blind spots. Do not recommend cleanup for aesthetics. Return at most five findings with evidence, recurring cost, smaller alternatives, risk class, and whether the finding should enter Director candidate scoring. Do not implement.
 
 ## Routine E — Weekly Product / UX Review
 
@@ -56,7 +56,7 @@ Instruction:
 
 ## Routine F — Weekly Executive Digest
 
-Owner: `QSI-CTO`
+Owner: `QSI-Director`
 
 Recommended cadence: weekly, after architecture/product reviews.
 
@@ -73,9 +73,11 @@ All routines must follow these rules:
 - No routine may perform a production deployment autonomously.
 - No routine may retry a consequential production deployment. Observation of a workflow is not authorization to rerun it.
 - No routine may treat `PR merged` as `iteration successfully completed`. Pre-merge `HOLD_FOR_HUMAN` must report Deployment status `NOT_STARTED`; never `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`. After merge, if a consequential production workflow can trigger, observe and report (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`. `PENDING`, `UNKNOWN`, `FAILURE`, and expected-workflow `NOT_TRIGGERED` cannot close successfully; report evidence and STOP for the human instead of looping. Only observed `SUCCESS` (plus every other required gate) may close a production-coupled iteration. Idle `NOT_TRIGGERED` when no consequential workflow was expected is a post-merge label only and does not by itself block close after human-authorized merge.
-- No routine may emit `🏁 QSI TEAM DONE — WAITING_FOR_HUMAN`. Only `QSI-CTO` issues that exact marker, and only under TEAM COMPLETION PROTOCOL. The marker means the team is stopped and waiting; it does not mean Iteration status `COMPLETE`.
+- No routine may emit `🏁 QSI TEAM DONE — WAITING_FOR_HUMAN`. Only `QSI-Director` issues that exact marker, and only under TEAM COMPLETION PROTOCOL. The marker means the team is stopped and waiting; it does not mean Iteration status `COMPLETE`.
 - No routine may issue the unique Iteration Report while `RETURN_TO_ENGINEER` is active and Engineer still has an authorized correction cycle. That interval is TEAM STATUS `RUNNING` only.
 - No routine may rewrite a historical `HOLD_FOR_HUMAN` Release gate verdict to `MERGE` after a later human-authorized merge. Record Human merge authorization and Merge outcome as separate fields.
 - No routine may change secrets, permissions, live financial execution, destructive data/schema, or autonomy guardrails without human approval.
 - When a retry occurs, re-read current repo/PR state rather than blindly repeating an old action.
 - Never run an endless retry loop. Follow the retry/stop limits in `.grok/ITERATION_PROTOCOL.md`.
+- No routine may dispatch Engineer to implement. No routine may start an iteration.
+- Recording `SERVER_SIDE_MAIN_PROTECTION VERIFIED` does not raise autonomy.

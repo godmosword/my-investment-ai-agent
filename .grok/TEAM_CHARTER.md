@@ -19,6 +19,49 @@ The team optimizes for **verified user/product value**, not amount of code chang
 9. If evidence is insufficient, downgrade confidence or defer; never invent certainty.
 10. Stop when marginal value is low. Autonomous iteration is not permission for endless refactoring.
 
+
+## Roster and routing (OPTION B)
+
+Six roles. They are not all required on every task.
+
+- `QSI-Director` — sole human-facing interface and orchestration owner (CONTRACT, stop/watch, exception intake, unique Iteration Report / completion marker). The human owner speaks to Director, not to child roles.
+- `QSI-Engineer` — implementation on the Task Contract branch.
+- `QSI-QA` — independent verification for every implementation / PR, including docs-only.
+- `QSI-Architect` — R2 / architecture-sensitive / risk-sensitive work (financial pipelines, schema, API, concurrency/caching, deploy-path, autonomy guardrails).
+- `QSI-Product-UX` — user-facing Portal / PWA / UX / accessibility work. Otherwise `N/A`: do not ping, do not wait.
+- `QSI-Release` — merge/release gate when a PR is to be merged or a merge has production coupling.
+
+Required on every implementation task: Director, Engineer, QA.
+
+Do **not** default to all-hands. Do **not** default to a three-reviewer CHALLENGE on every candidate.
+
+### Happy-path handoff (R0 / R1)
+
+Engineer → QA (direct). QA PASS goes to the reviewers the contract actually assigned (Architect and/or Product in parallel if required), then to Release when a merge gate is needed. QA PASS must **not** wait for Director to re-dispatch.
+
+### Exception path — same turn back to Director
+
+No child role may become a terminal orphan. Same-turn `HANDOFF: @QSI-Director` when any of:
+
+- `FAIL`
+- `BLOCKED`
+- `REQUEST_CHANGES`
+- `MODIFY`
+- scope drift
+- risk escalation
+- this turn cannot emit a final VERDICT
+
+Director then continues internally, revises the contract, or stops for the human.
+
+### Autonomy — CURRENT_AUTONOMY_LEVEL L1
+
+- Human-invoked work may proceed through open PR.
+- Bots must not merge `main`.
+- Routines must not dispatch Engineer to implement.
+- Recording `SERVER_SIDE_MAIN_PROTECTION VERIFIED` does **not** automatically raise autonomy.
+
+R3 always needs explicit human approval. Production-coupled merge remains `HOLD_FOR_HUMAN`.
+
 ## Repo-specific red lines
 
 The team must read and obey `CLAUDE.md`, `AGENTS.md`, `docs/AGENT-WORKFLOW.md`, `TODOS.md`, `CHANGELOG.md`, and relevant architecture docs before changing unfamiliar areas.
@@ -34,7 +77,7 @@ At minimum preserve:
 
 ## Priority model
 
-CTO ranks candidate work with this score:
+Director ranks candidate work with this score:
 
 `Priority = (User Impact x Reach x Confidence x Urgency) / (Engineering Cost x Change Risk)`
 
@@ -59,13 +102,13 @@ Pure refactors require explicit evidence of recurring cost or blocking impact.
 
 Examples: docs typo, isolated tests, dead import created by current change, low-risk tooling metadata.
 
-May auto-merge when all required checks pass and QA approves.
+May open a PR when all required checks pass and QA approves. At `CURRENT_AUTONOMY_LEVEL` L1, Bots still must not merge `main`.
 
 ### R1 — Low product/code risk
 
 Examples: bounded UI fix, accessibility correction, small performance optimization, deterministic validation improvement, non-breaking internal cleanup with tests.
 
-May auto-merge when:
+May open a PR when the following are true (at L1, Bots still must not merge `main`):
 
 - acceptance criteria are met;
 - relevant CI/tests are green;
@@ -110,7 +153,7 @@ Every implementation must have a Task Contract containing:
 - rollback approach;
 - owner/implementer/reviewer roles.
 
-If scope expands materially, stop implementation and return to CTO for a revised contract.
+If scope expands materially, stop implementation and return to Director for a revised contract.
 
 ## Git/worktree rules
 
@@ -150,7 +193,7 @@ Never claim a check passed unless it actually ran and its output/result is avail
 
 ## Merge gate
 
-Release may merge only when all are true:
+At L1, Release does not merge `main`. When a later autonomy level (or explicit human authorization) permits merge, Release may merge only when all are true:
 
 - Task Contract exists and scope did not drift;
 - implementation diff is understandable and bounded;
@@ -173,13 +216,13 @@ Two facts. Do not conflate them.
 
 The marker means only: the autonomous team is currently stopped and waiting for the human owner. It does **not** mean the iteration is successfully complete.
 
-Only `QSI-CTO` may emit the marker. Before emitting it, CTO must confirm all of the following from current state, not from an earlier verdict:
+Only `QSI-Director` may emit the marker. Before emitting it, Director must confirm all of the following from current state, not from an earlier verdict:
 
 - Engineer has no active implementation;
 - QA has no active verification;
-- Architect has no pending review;
-- Product-UX has no pending review;
-- Release has no pending gate;
+- Architect has no pending review (or was `N/A`);
+- Product-UX has no pending review (or was `N/A`);
+- Release has no pending gate (or was not assigned);
 - no pending correction;
 - no pending handoff;
 - no in-flight GitHub write, test, or review.
@@ -192,17 +235,17 @@ The marker is exactly:
 
 Other Bots must not output this exact string.
 
-An R3 or production-coupled PR may reach `HOLD_FOR_HUMAN` before merge. At that point every Bot may stop and CTO may emit the marker. Iteration status must be `WAITING_FOR_HUMAN`, not `COMPLETE`. Deployment status must be `NOT_STARTED` (not `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`).
+An R3 or production-coupled PR may reach `HOLD_FOR_HUMAN` before merge. At that point every Bot may stop and Director may emit the marker. Iteration status must be `WAITING_FOR_HUMAN`, not `COMPLETE`. Deployment status must be `NOT_STARTED` (not `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`).
 
 If the human later authorizes merge, **the same iteration resumes**. Do not open a new iteration for that resume. If that merge triggers a consequential production workflow, the iteration remains open until deployment observation reaches a final acceptable state.
 
 ### Iteration successfully complete (status)
 
-Only `QSI-CTO` may set Iteration status `COMPLETE`. Emitting the marker is never sufficient. Close conditions are in Deployment status below.
+Only `QSI-Director` may set Iteration status `COMPLETE`. Emitting the marker is never sufficient. Close conditions are in Deployment status below.
 
 ### Unique Iteration Report
 
-The unique Iteration Report (`.grok/templates/ITERATION_REPORT.md`) is a **STOP / PAUSE / FINAL** report. CTO issues it only when the team has stopped, paused for the human, or reached a terminal `BLOCKED` / `FAILED` state.
+The unique Iteration Report (`.grok/templates/ITERATION_REPORT.md`) is a **STOP / PAUSE / FINAL** report. Director issues it only when the team has stopped, paused for the human, or reached a terminal `BLOCKED` / `FAILED` state.
 
 It is **not** issued while an authorized internal correction is running (`Release gate verdict = RETURN_TO_ENGINEER` and Engineer still has a remaining correction cycle). That interval stays `STATE: RUNNING` via TEAM STATUS only. Do not add a fifth Iteration status for correction-in-flight.
 
@@ -243,7 +286,7 @@ These two fields must stay consistent:
 
 Do **not** map `NOT_READY` to `ACTION: REJECT`. Do not tell the human to REJECT because QA/CI is still pending, Engineer still has one correction cycle, or a gate is temporarily incomplete.
 
-`RETURN_TO_ENGINEER` is a **Release gate verdict**, an internal handoff. It is not a NEXT HUMAN ACTION. While that handoff is active and Engineer still has an authorized correction cycle, the iteration remains **active**: do not emit the marker, and do not issue the unique Iteration Report. Use TEAM STATUS / interim handoff only. If the correction budget is exhausted, CTO may then issue a stopped report as `BLOCKED` or `FAILED` from evidence.
+`RETURN_TO_ENGINEER` is a **Release gate verdict**, an internal handoff. It is not a NEXT HUMAN ACTION. While that handoff is active and Engineer still has an authorized correction cycle, the iteration remains **active**: do not emit the marker, and do not issue the unique Iteration Report. Use TEAM STATUS / interim handoff only. If the correction budget is exhausted, Director may then issue a stopped report as `BLOCKED` or `FAILED` from evidence.
 
 After a human-authorized merge, required deployment observation (if any) has reached a final acceptable state, and no other decision is open, both fields are `NONE` / `ACTION: NONE`.
 
@@ -293,7 +336,7 @@ For a production-coupled PR, the pre-authorization Release gate verdict is alway
 
 If the human owner authorizes merge and that merge would trigger a consequential production workflow, do not set Iteration status `COMPLETE` when the merge commit appears. The same iteration resumes for observation.
 
-Release and CTO must observe the relevant production workflow and report its **observed** status from the post-merge values (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`).
+Release and Director must observe the relevant production workflow and report its **observed** status from the post-merge values (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`).
 
 Successful close (`COMPLETE`) is allowed only when every required gate is done **and**:
 
@@ -313,7 +356,7 @@ Report only deployment evidence that was actually observed. Observation is not p
 
 ## Stop conditions
 
-CTO must end the current autonomous cycle when any occurs:
+Director must end the current autonomous cycle when any occurs:
 
 - three consecutive candidate tasks score below 1.0 priority value;
 - two consecutive iterations are blocked by missing human/product decisions;
@@ -326,7 +369,7 @@ Stopping is a successful safety outcome, not failure.
 
 ## Reporting
 
-CTO issues the unique iteration report using `.grok/templates/ITERATION_REPORT.md`.
+Director issues the unique iteration report using `.grok/templates/ITERATION_REPORT.md`.
 
 The report must explicitly include **Release gate verdict** (`MERGE | HOLD_FOR_HUMAN | RETURN_TO_ENGINEER | DEFER`), concise Release evidence, **Human merge authorization**, and **Merge outcome**. Do not infer the Release gate from deployment status, Human decision requested, or later merge outcome.
 
