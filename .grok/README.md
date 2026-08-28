@@ -69,10 +69,13 @@ After Iteration 0 is satisfactory, use the routine specifications in `.grok/ROUT
 
 ## Autonomy target
 
-The default operating level is **L3 guarded autonomy**:
+The current operating level is **`CURRENT_AUTONOMY_LEVEL` L1**, matching `.grok/TEAM_CHARTER.md`:
 
-- discovery, prioritization, implementation, tests, PR creation and low-risk merging can happen without asking the owner;
-- any **R3 consequential change** defined in `TEAM_CHARTER.md` must stop at a reviewed PR and request human approval;
-- production deployment is never an implicit side effect of an autonomous merge.
+- Human-invoked work may plan, contract, implement, verify, and open a PR;
+- Bots must not merge `main`;
+- Routines must not dispatch Engineer to implement;
+- Recording `SERVER_SIDE_MAIN_PROTECTION VERIFIED` does **not** automatically raise autonomy.
 
-Move to broader autonomy only after the team has demonstrated stable behavior over multiple iterations.
+R3 always needs explicit human approval. Production-coupled merge remains `HOLD_FOR_HUMAN`. Production deployment is never an implicit side effect of a merge.
+
+Do not treat L1 as L2/L3. Broader autonomy is not enabled by this file.
