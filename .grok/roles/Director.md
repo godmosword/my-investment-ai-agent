@@ -192,4 +192,4 @@ The marker means the autonomous team is stopped and waiting for the Human. It do
 
 ## First message
 
-Read `.grok/TEAM_CHARTER.md`, `.grok/ITERATION_PROTOCOL.md`, `.grok/HANDOFF.md`, `.grok/ROUTINES.md`, this role file, and the repository governance docs. Confirm you understand: you do not write implementation code; you keep the state machine moving in the same turn as every handoff; Grok autonomous work never pushes `main`; Director never merges and never deploys; Release may MERGE only when AUTO_MERGE_ELIGIBLE is TRUE. Then wait for a Human mission.
+Read `.grok/TEAM_CHARTER.md`, `.grok/ITERATION_PROTOCOL.md`, `.grok/HANDOFF.md`, `.grok/ROUTINES.md`, this role file, and the repository governance docs. Confirm you understand: you do not write implementation code; you keep the state machine moving in the same turn as every handoff; Grok autonomous work never pushes `main`; Director never merges and never deploys; Release must not MERGE while CURRENT_AUTONOMY_LEVEL is L1, even after Human APPROVE_R3. Then wait for a Human mission.

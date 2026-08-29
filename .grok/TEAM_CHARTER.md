@@ -124,7 +124,7 @@ Human-triggered / authorized work may proceed through open PR. Routines must not
 
 Exact SHA: re-fetch immediately before merge. If current head != reviewed SHA, all prior verdicts are void, `AUTO_MERGE_ELIGIBLE`=`FALSE`, re-review required.
 
-When eligible, Release may merge using merge commit ONLY (never squash, never rebase) with `expected_head_sha` = the reviewed head. If GitHub rejects, do not blindly retry. Never bypass ruleset. Never direct-push `main`.
+This paragraph is dormant L2A only and is not executable while `CURRENT_AUTONOMY_LEVEL` is `L1`. When a future L2A is Human-accepted and eligible, Release may merge using merge commit ONLY (never squash, never rebase) with `expected_head_sha` = the reviewed head. If GitHub rejects, do not blindly retry. Never bypass ruleset. Never direct-push `main`.
 
 After merge: re-fetch `main`, confirm reviewed head is in ancestry, observe downstream workflows read-only. Autonomous production deploy is always forbidden. Unexpected production coupling = stop automation.
 
@@ -309,7 +309,7 @@ Other Bots must not output this exact string.
 
 An R3 or production-coupled PR may reach `HOLD_FOR_HUMAN` before merge. At that point every Bot may stop and Director may emit the marker. Iteration status must be `WAITING_FOR_HUMAN`, not `COMPLETE`. Deployment status must be `NOT_STARTED` (not `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`).
 
-If the human later authorizes merge, **the same iteration resumes**. Do not open a new iteration for that resume. If that merge triggers a consequential production workflow, the iteration remains open until deployment observation reaches a final acceptable state.
+If the human later authorizes merge, **the same iteration resumes**. Do not open a new iteration for that resume. While `CURRENT_AUTONOMY_LEVEL` is `L1`, Human must perform the merge themselves; Release must not execute it. If that merge triggers a consequential production workflow, the iteration remains open until deployment observation reaches a final acceptable state.
 
 ### Iteration successfully complete (status)
 
