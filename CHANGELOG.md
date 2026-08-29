@@ -3,6 +3,13 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-08-29
+
+### Ops（已在 main 的紀錄）
+
+- **#155**（merge `9fa62ad50c74c24cf38663f811d71ca09ff946e2`）：`QSI Merge Gate` 與 PWA production Environment gate 已在 main。
+- **#159**（merge `11d853a74c049791f5d408c11e69b150a6b9d529`）：L2A 契約合進 main。
+
 ## 2026-08-15
 
 ### Ops（Portal Vercel harden — 停掉 main Git 自動 production）
