@@ -428,26 +428,6 @@ export default function ColumnsHome() {
         <div className="page-subtitle">深度敘事與支柱主題（讀者層）</div>
       </div>
 
-      <div
-        data-testid="columns-reader-layer-intro"
-        className="card mb-3 border border-white/10 bg-white/[0.03] p-3"
-      >
-        <div className="text-[12px] font-semibold text-white/90">讀者層 · 長文與主軸</div>
-        <p className="mt-1 text-[12px] leading-relaxed text-[var(--muted)]">
-          先選支柱、讀卡片摘要；若要查報價／部位／紙上流程，請到觀點工作台（目標路徑 ≤{" "}
-          {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊）。
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Link
-            to="/insights"
-            data-testid="portal-cta-columns-to-insights"
-            className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/30 bg-emerald-950/[0.12] px-3 py-1.5 text-[12px] font-semibold text-emerald-100/90 hover:bg-emerald-900/[0.18]"
-          >
-            去觀點工作台
-          </Link>
-        </div>
-      </div>
-
       {focus ? (
         <div
           data-testid="columns-focus-badge"
@@ -475,8 +455,14 @@ export default function ColumnsHome() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="space-y-2">
+      <div
+        className={
+          selected
+            ? "md:grid md:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)] md:items-start md:gap-4"
+            : undefined
+        }
+      >
+        <section data-testid="columns-digest-stream" className="space-y-2">
           {deepQuery.isLoading ? (
             <div className="card p-3 text-[13px] text-[var(--muted)]">載入 Deep Brief…</div>
           ) : null}
@@ -495,12 +481,44 @@ export default function ColumnsHome() {
           ))}
         </section>
 
+        {selected ? (
+          <div className="mt-3 md:sticky md:top-4 md:mt-0">
+            <DeepBriefPanel item={selected} onClose={() => setSelected(null)} />
+          </div>
+        ) : null}
+      </div>
+
+      <details
+        data-testid="columns-reader-layer-intro"
+        className="card mt-4 border border-white/10 bg-white/[0.03] p-3"
+      >
+        <summary className="flex min-h-[36px] cursor-pointer list-none items-center text-[12px] font-semibold text-white/90">
+          讀者層 · 長文與主軸
+        </summary>
+        <p className="mt-2 text-[12px] leading-relaxed text-[var(--muted)]">
+          先選支柱、讀卡片摘要；若要查報價／部位／紙上流程，請到觀點工作台（目標路徑 ≤{" "}
+          {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊）。
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/insights"
+            data-testid="portal-cta-columns-to-insights"
+            className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/30 bg-emerald-950/[0.12] px-3 py-1.5 text-[12px] font-semibold text-emerald-100/90 hover:bg-emerald-900/[0.18]"
+          >
+            去觀點工作台
+          </Link>
+        </div>
+      </details>
+
+      <details className="mt-3">
+        <summary className="card mb-2 flex min-h-[36px] cursor-pointer list-none items-center px-3 py-2 text-[13px] font-semibold text-white/85">
+          板塊輪動與相關主題
+        </summary>
         <div className="space-y-3">
           <SectorRotation rotation={themesQuery.data?.rotation ?? []} source={themesQuery.data?.source} />
           <RelatedThemes themes={themesQuery.data?.themes ?? []} activePillar={activePillar} />
-          {selected ? <DeepBriefPanel item={selected} onClose={() => setSelected(null)} /> : null}
         </div>
-      </div>
+      </details>
     </div>
   );
 }
