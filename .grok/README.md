@@ -69,13 +69,16 @@ After Iteration 0 is satisfactory, use the routine specifications in `.grok/ROUT
 
 ## Autonomy target
 
-The current operating level is **`CURRENT_AUTONOMY_LEVEL` L1**, matching `.grok/TEAM_CHARTER.md`:
+The current operating level, once this file is on `main`, is **`CURRENT_AUTONOMY_LEVEL` L2A**, matching `.grok/TEAM_CHARTER.md`:
 
-- Human-invoked work may plan, contract, implement, verify, and open a PR;
-- Bots must not merge `main`;
-- Routines must not dispatch Engineer to implement;
-- Recording `SERVER_SIDE_MAIN_PROTECTION VERIFIED` does **not** automatically raise autonomy.
+- `MISSION_AUTONOMY` = `HUMAN_TRIGGERED`
+- `IMPLEMENTATION_AUTONOMY` = `ENABLED_WITHIN_AUTHORIZED_MISSION`
+- `MERGE_AUTONOMY` = `GUARDED_R0_R1_NON_PRODUCTION`
+- `PRODUCTION_DEPLOY_AUTONOMY` = `DISABLED`
+- `ROUTINE_IMPLEMENTATION_AUTONOMY` = `DISABLED`
+
+Release may merge only when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch. See `.grok/TEAM_CHARTER.md` for the full eligibility list, always-FALSE cases, SHA re-fetch rule, kill switch, and post-activation canary.
 
 R3 always needs explicit human approval. Production-coupled merge remains `HOLD_FOR_HUMAN`. Production deployment is never an implicit side effect of a merge.
 
-Do not treat L1 as L2/L3. Broader autonomy is not enabled by this file.
+Do not treat L2A as L3. Broader autonomy is not enabled by this file.
