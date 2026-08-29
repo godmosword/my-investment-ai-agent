@@ -143,4 +143,4 @@ Not every Bot is required on every task.
 
 ## L2A
 
-Human Owner is still the only merger when `AUTO_MERGE_ELIGIBLE` is `FALSE`. Release may `MERGE` when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch (see `.grok/TEAM_CHARTER.md`). `HOLD_FOR_HUMAN` remains required for R3, production coupling, and any Human HOLD. It is not an orchestration failure.
+Current operating level is L1. `L2A_ACTIVATION_STATUS` = `BLOCKED_BY_RUNTIME_AUTO_REVIEW`. `MERGE_AUTONOMY` = `DISABLED_AT_CURRENT_RUNTIME`. While L1, `AUTO_MERGE_ELIGIBLE` is always `FALSE` and Human is the merger. Dormant L2A design stays in `.grok/TEAM_CHARTER.md` and must not self-restore. `HOLD_FOR_HUMAN` remains required for R3, production coupling, and any Human HOLD. It is not an orchestration failure.

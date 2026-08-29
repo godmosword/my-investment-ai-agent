@@ -36,10 +36,11 @@ If the human later authorizes merge, resume **this** iteration. Do not open a ne
 ## Final risk
 `R0 | R1 | R2 | R3`
 
-`CURRENT_AUTONOMY_LEVEL`: L1 | L2A  (record the actual operating level now in force; do not hardcode L1)
+`CURRENT_AUTONOMY_LEVEL`: L1 | L2A  (record the actual operating level now in force)
+`L2A_ACTIVATION_STATUS`: BLOCKED_BY_RUNTIME_AUTO_REVIEW | (only after a new Human L2A acceptance mission)
 
-When L1: Bots do not merge `main`.
-When L2A: Bots merge `main` only if `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch. Do not copy a stale L1-only merge ban as if it were the current level.
+When L1 (current): Bots do not merge `main`. `AUTO_MERGE_ELIGIBLE` is always `FALSE`. `MERGE_AUTONOMY` = `DISABLED_AT_CURRENT_RUNTIME`.
+When L2A (dormant until Human re-acceptance): Bots merge `main` only if `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch. L2A must not self-restore.
 
 ## Checks actually run
 - `<command/check>` -> `PASS | FAIL | BLOCKED` (only checks that actually ran)
