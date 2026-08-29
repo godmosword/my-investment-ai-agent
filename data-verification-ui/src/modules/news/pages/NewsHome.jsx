@@ -406,7 +406,14 @@ export default function NewsHome() {
         </div>
       ) : null}
 
-      <section data-testid="news-digest-stream" className="space-y-2">
+      <div
+        className={
+          selected
+            ? "md:grid md:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)] md:items-start md:gap-4"
+            : undefined
+        }
+      >
+        <section data-testid="news-digest-stream" className="space-y-2">
           {digestQuery.isLoading ? (
             <div className="card p-3 text-[13px] text-[var(--muted)]">載入科技即時報…</div>
           ) : null}
@@ -423,18 +430,19 @@ export default function NewsHome() {
               onClick={() => setSelected(item)}
             />
           ))}
-      </section>
+        </section>
 
-      {selected ? (
-        <div className="mt-3">
-          <DeepPanel
-            item={selected}
-            detail={deepQuery.data}
-            loading={deepQuery.isLoading}
-            onClose={() => setSelected(null)}
-          />
-        </div>
-      ) : null}
+        {selected ? (
+          <div className="mt-3 md:sticky md:top-4 md:mt-0">
+            <DeepPanel
+              item={selected}
+              detail={deepQuery.data}
+              loading={deepQuery.isLoading}
+              onClose={() => setSelected(null)}
+            />
+          </div>
+        ) : null}
+      </div>
 
       <details
         data-testid="news-reader-layer-intro"
