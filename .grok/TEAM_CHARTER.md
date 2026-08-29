@@ -55,17 +55,35 @@ No child role may become a terminal orphan. Same-turn `HANDOFF: @QSI-Director` w
 
 Director then continues internally, revises the contract, or stops for the human.
 
-### Autonomy — CURRENT_AUTONOMY_LEVEL L2A
+### Autonomy — CURRENT_AUTONOMY_LEVEL L1
 
-This section is the L2A contract. It is in effect only after this text is on `main`. Until then, operating level remains L1 and `AUTO_MERGE_ELIGIBLE` is `FALSE`.
+Operating level now in force: `CURRENT_AUTONOMY_LEVEL` = `L1`.
+`L2A_ACTIVATION_STATUS` = `BLOCKED_BY_RUNTIME_AUTO_REVIEW`.
+`MERGE_AUTONOMY` = `DISABLED_AT_CURRENT_RUNTIME`.
+
+While `CURRENT_AUTONOMY_LEVEL` is `L1`, `AUTO_MERGE_ELIGIBLE` is always `FALSE`, even if every other R0/R1 eligibility condition holds. Bots must not merge `main`. Human is the merger.
+
+L2A is a dormant / future target. Do not delete the eligibility list, exact-SHA rule, production-deploy separation, or completed safety work below. L2A must not self-restore. Restoration requires both: (1) the runtime explicitly supports Release autonomous merge via `gh pr merge --merge --match-head-commit`; and (2) Human opens a new L2A acceptance mission. A runtime change alone must not re-run canary.
+
+#### Fail-close evidence (ITER-GOV-L2A-CANARY-001)
+
+- canary PR #161
+- head `8334c42bb18a46a6dc0266570d442d00910fe0e0`
+- QSI Merge Gate SUCCESS
+- GitHub MERGEABLE
+- Release command: `gh pr merge 161 --repo godmosword/my-investment-ai-agent --merge --match-head-commit 8334c42bb18a46a6dc0266570d442d00910fe0e0`
+- Auto-review blocked the merge before GitHub accepted it
+- #161 closed unmerged
+
+#### Dormant L2A design (future target)
 
 Canonical owner: `QSI-Director` (not `QSI-CTO`).
 
-Target model:
+Target model (dormant until a new Human L2A acceptance mission succeeds):
 
 - `MISSION_AUTONOMY` = `HUMAN_TRIGGERED`
 - `IMPLEMENTATION_AUTONOMY` = `ENABLED_WITHIN_AUTHORIZED_MISSION`
-- `MERGE_AUTONOMY` = `GUARDED_R0_R1_NON_PRODUCTION`
+- `MERGE_AUTONOMY` (target) = `GUARDED_R0_R1_NON_PRODUCTION`
 - `PRODUCTION_DEPLOY_AUTONOMY` = `DISABLED`
 - `ROUTINE_IMPLEMENTATION_AUTONOMY` = `DISABLED`
 
@@ -106,13 +124,13 @@ Human-triggered / authorized work may proceed through open PR. Routines must not
 
 Exact SHA: re-fetch immediately before merge. If current head != reviewed SHA, all prior verdicts are void, `AUTO_MERGE_ELIGIBLE`=`FALSE`, re-review required.
 
-When eligible, Release may merge using merge commit ONLY (never squash, never rebase) with `expected_head_sha` = the reviewed head. If GitHub rejects, do not blindly retry. Never bypass ruleset. Never direct-push `main`.
+This paragraph is dormant L2A only and is not executable while `CURRENT_AUTONOMY_LEVEL` is `L1`. When a future L2A is Human-accepted and eligible, Release may merge using merge commit ONLY (never squash, never rebase) with `expected_head_sha` = the reviewed head. If GitHub rejects, do not blindly retry. Never bypass ruleset. Never direct-push `main`.
 
 After merge: re-fetch `main`, confirm reviewed head is in ancestry, observe downstream workflows read-only. Autonomous production deploy is always forbidden. Unexpected production coupling = stop automation.
 
 KILL SWITCH: if Human says `CURRENT_AUTONOMY_LEVEL` = L1, stop autonomous merge immediately. Do not wake other roles to confirm. R3 / guardrail changes always Human.
 
-CANARY (write into the contract; do not execute as part of this activation change): After Human merges this activation PR, do not resume the product backlog. Run exactly one Human-triggered, non-production, R0/R1 canary that does not touch `.github/**` or `.grok/**`. Release autonomously merges that canary at the exact reviewed head if `AUTO_MERGE_ELIGIBLE`. If the canary fails, immediately revert operating level to L1.
+CANARY: The Human-triggered L2A canary (#161, head `8334c42bb18a46a6dc0266570d442d00910fe0e0`) failed. Auto-review blocked Release `gh pr merge` before GitHub. Operating level is L1. Do not re-run canary automatically if runtime later changes. A new canary requires a new Human L2A acceptance mission.
 
 R3 always needs explicit human approval. Production-coupled merge remains `HOLD_FOR_HUMAN`.
 
@@ -291,7 +309,7 @@ Other Bots must not output this exact string.
 
 An R3 or production-coupled PR may reach `HOLD_FOR_HUMAN` before merge. At that point every Bot may stop and Director may emit the marker. Iteration status must be `WAITING_FOR_HUMAN`, not `COMPLETE`. Deployment status must be `NOT_STARTED` (not `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`).
 
-If the human later authorizes merge, **the same iteration resumes**. Do not open a new iteration for that resume. If that merge triggers a consequential production workflow, the iteration remains open until deployment observation reaches a final acceptable state.
+If the human later authorizes merge, **the same iteration resumes**. Do not open a new iteration for that resume. While `CURRENT_AUTONOMY_LEVEL` is `L1`, Human must perform the merge themselves; Release must not execute it. If that merge triggers a consequential production workflow, the iteration remains open until deployment observation reaches a final acceptable state.
 
 ### Iteration successfully complete (status)
 

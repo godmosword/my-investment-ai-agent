@@ -200,7 +200,7 @@ Release re-checks:
 
 Outcome (this **Release gate verdict** must appear explicitly in any STOP / PAUSE / FINAL iteration report; do not infer it from deployment status, Human decision requested, or later merge outcome):
 
-- `MERGE` is available to Release at L2A only when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch of GitHub state (see `.grok/TEAM_CHARTER.md`). When `AUTO_MERGE_ELIGIBLE` is `FALSE`, Bots must not merge `main`. `HOLD_FOR_HUMAN` remains required for R3 and for any production-coupled merge;
+- `MERGE` is not available at current `CURRENT_AUTONOMY_LEVEL` L1 (`MERGE_AUTONOMY` = `DISABLED_AT_CURRENT_RUNTIME`; `AUTO_MERGE_ELIGIBLE` is always `FALSE`). Human is the merger. Dormant L2A merge rules stay in `.grok/TEAM_CHARTER.md` and must not self-restore. `HOLD_FOR_HUMAN` remains required for R3 and for any production-coupled merge;
 - `HOLD_FOR_HUMAN` for R3, for any merge that would automatically trigger production deploy (for example `pwa-deploy.yml` or `deploy.yml`), and for uncertain consequential actions;
 - `RETURN_TO_ENGINEER` for failed gates that the Engineer can still correct (one ordinary correction cycle). This is an **internal handoff**, not a NEXT HUMAN ACTION, and not `ACTION: REJECT`. While it is active, do **not** issue the unique Iteration Report or the completion marker; TEAM STATUS stays `RUNNING`;
 - `DEFER` if value/risk changed.
@@ -211,7 +211,7 @@ Release must not silently bypass a failed required check. Release must not auton
 
 A pre-merge `HOLD_FOR_HUMAN` report must set Deployment status `NOT_STARTED`. Do not label it `PENDING`, `NOT_TRIGGERED`, or `UNKNOWN`.
 
-If the human owner later authorizes merge, **the same iteration resumes**. Record Human merge authorization `GRANTED` and Merge outcome from observed state. Do **not** rewrite the historical Release gate verdict from `HOLD_FOR_HUMAN` to `MERGE`. Release may merge that PR. That authorization is not a license to run or retry production deploy. Release/Director then **observe** the coupled workflow and report its observed post-merge status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`.
+If the human owner later authorizes merge (`APPROVE_R3` or equivalent), **the same iteration resumes**. Record Human merge authorization `GRANTED` and Merge outcome from observed state. Do **not** rewrite the historical Release gate verdict from `HOLD_FOR_HUMAN` to `MERGE`. While `CURRENT_AUTONOMY_LEVEL` is `L1`, Human must perform the merge themselves. Release must not execute merge, even after that authorization, and even if runtime Auto-review later disappears. `AUTO_MERGE_ELIGIBLE` remains `FALSE` at L1. Dormant L2A merge rules are not executable. That authorization is not a license to run or retry production deploy. Release/Director then **observe** the coupled workflow and report its observed post-merge status (`PENDING` / `SUCCESS` / `FAILURE` / `NOT_TRIGGERED` / `UNKNOWN`) per `.grok/TEAM_CHARTER.md`.
 
 ## 8. LEARN — Director + Release
 

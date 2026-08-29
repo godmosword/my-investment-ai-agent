@@ -69,16 +69,15 @@ After Iteration 0 is satisfactory, use the routine specifications in `.grok/ROUT
 
 ## Autonomy target
 
-The current operating level, once this file is on `main`, is **`CURRENT_AUTONOMY_LEVEL` L2A**, matching `.grok/TEAM_CHARTER.md`:
+The current operating level is **`CURRENT_AUTONOMY_LEVEL` L1**.
+`L2A_ACTIVATION_STATUS` = `BLOCKED_BY_RUNTIME_AUTO_REVIEW`.
+`MERGE_AUTONOMY` = `DISABLED_AT_CURRENT_RUNTIME`.
+While L1, `AUTO_MERGE_ELIGIBLE` is always `FALSE`. Human is the merger.
 
-- `MISSION_AUTONOMY` = `HUMAN_TRIGGERED`
-- `IMPLEMENTATION_AUTONOMY` = `ENABLED_WITHIN_AUTHORIZED_MISSION`
-- `MERGE_AUTONOMY` = `GUARDED_R0_R1_NON_PRODUCTION`
-- `PRODUCTION_DEPLOY_AUTONOMY` = `DISABLED`
-- `ROUTINE_IMPLEMENTATION_AUTONOMY` = `DISABLED`
+L2A remains a dormant / future target in `.grok/TEAM_CHARTER.md` (eligibility list, exact-SHA rule, production-deploy separation kept). L2A must not self-restore. Restoration requires both runtime support for `gh pr merge --merge --match-head-commit` and a new Human L2A acceptance mission. A runtime change alone must not re-run canary.
 
-Release may merge only when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch. See `.grok/TEAM_CHARTER.md` for the full eligibility list, always-FALSE cases, SHA re-fetch rule, kill switch, and post-activation canary.
+Fail-close evidence: canary #161 head `8334c42bb18a46a6dc0266570d442d00910fe0e0` was MERGEABLE with Gate SUCCESS; Auto-review blocked `gh pr merge 161 --repo godmosword/my-investment-ai-agent --merge --match-head-commit 8334c42bb18a46a6dc0266570d442d00910fe0e0` before GitHub; #161 closed unmerged.
 
 R3 always needs explicit human approval. Production-coupled merge remains `HOLD_FOR_HUMAN`. Production deployment is never an implicit side effect of a merge.
 
-Do not treat L2A as L3. Broader autonomy is not enabled by this file.
+Do not treat dormant L2A as L3. Broader autonomy is not enabled by this file.
