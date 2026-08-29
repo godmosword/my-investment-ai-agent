@@ -60,4 +60,4 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## Collaboration model
 
-- **Ship / landing**: Prefer **no GitHub PR**. After scoped tests pass, **commit and `git push origin main`**. If `main` is protected and direct push fails, report the error and let the maintainer merge or adjust branch rules.
+- **Ship / landing**: Open a GitHub PR targeting `main`. Do **not** `git push origin main`. Merge follows `.grok/TEAM_CHARTER.md` (at L2A, Bots merge only when `AUTO_MERGE_ELIGIBLE` is `TRUE`).
