@@ -134,7 +134,7 @@ function NewsItemButton({ item, active, onClick }) {
       <button
         type="button"
         data-testid="news-digest-item"
-        className="w-full bg-transparent p-0 text-left transition"
+        className="min-h-[36px] w-full bg-transparent p-0 text-left transition"
         onClick={onClick}
       >
         <div data-testid="reader-source-line" className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
@@ -200,7 +200,7 @@ function ThemeRail({ themes, selectedId, onSelect }) {
               type="button"
               data-testid="news-theme-chip"
               aria-pressed={active}
-              className={`flex w-full items-center justify-between gap-3 rounded border px-2 py-1.5 text-left text-[13px] ${
+              className={`flex min-h-[36px] w-full items-center justify-between gap-3 rounded border px-2 py-1.5 text-left text-[13px] ${
                 active
                   ? "border-cyan-300/70 bg-cyan-400/[0.05] text-cyan-100"
                   : "border-white/10 text-white/80 hover:bg-white/[0.04]"
@@ -238,7 +238,7 @@ function DeepPanel({ item, detail, loading, onClose }) {
           </div>
           <button
             type="button"
-            className="rounded border border-white/15 px-2 py-1 text-[12px] text-white/70 hover:text-white"
+            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-2 py-1 text-[12px] text-white/70 hover:text-white"
             onClick={onClose}
           >
             關閉
@@ -363,12 +363,90 @@ export default function NewsHome() {
         <div className="page-subtitle">科技市場脈動與主題線索</div>
       </div>
 
-      <div
+      {focus ? (
+        <div
+          data-testid="news-focus-badge"
+          className="card mb-3 flex flex-wrap items-center justify-between gap-2 border border-amber-300/25 bg-amber-400/[0.03] p-2 text-[12px] text-amber-100/90"
+        >
+          <span>
+            聚焦標的：<span className="font-mono">{focus}</span>（由觀點工作台帶入）
+          </span>
+          <button
+            type="button"
+            data-testid="news-focus-clear"
+            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
+            onClick={clearFocus}
+          >
+            清除聚焦
+          </button>
+        </div>
+      ) : null}
+
+      <div className="mb-3 flex flex-wrap gap-2">
+        {FILTERS.map((row) => (
+          <button
+            key={row.id}
+            type="button"
+            data-testid={`news-filter-${row.id}`}
+            className={`min-h-[36px] rounded-full border px-3 py-1.5 text-[13px] ${
+              filter === row.id
+                ? "border-cyan-300/70 bg-cyan-400/[0.05] text-cyan-100"
+                : "border-white/15 text-white/65 hover:text-white"
+            }`}
+            onClick={() => chooseFilter(row.id)}
+          >
+            {row.label}
+          </button>
+        ))}
+      </div>
+
+      {digestQuery.error ? (
+        <div className="card mb-3 p-3 text-[13px] text-red-300" role="alert">
+          科技即時報暫時無法載入。
+        </div>
+      ) : null}
+
+      <section data-testid="news-digest-stream" className="space-y-2">
+          {digestQuery.isLoading ? (
+            <div className="card p-3 text-[13px] text-[var(--muted)]">載入科技即時報…</div>
+          ) : null}
+          {!digestQuery.isLoading && visibleItems.length === 0 ? (
+            <div className="card p-3 text-[13px] text-[var(--muted)]" role="status">
+              尚無符合條件且具來源的新聞。
+            </div>
+          ) : null}
+          {visibleItems.map((item) => (
+            <NewsItemButton
+              key={item.id}
+              item={item}
+              active={selected?.id === item.id}
+              onClick={() => setSelected(item)}
+            />
+          ))}
+      </section>
+
+      {selected ? (
+        <div className="mt-3">
+          <DeepPanel
+            item={selected}
+            detail={deepQuery.data}
+            loading={deepQuery.isLoading}
+            onClose={() => setSelected(null)}
+          />
+        </div>
+      ) : null}
+
+      <details
         data-testid="news-reader-layer-intro"
-        className="card mb-3 border border-white/10 bg-white/[0.03] p-3"
+        className="card mt-4 border border-white/10 bg-white/[0.03] p-3"
       >
-        <div className="text-[12px] font-semibold text-white/90">讀者層 · 今天先看什麼？</div>
-        <p className="mt-1 text-[12px] leading-relaxed text-[var(--muted)]">
+        <summary
+          data-testid="news-intro-toggle"
+          className="flex min-h-[36px] cursor-pointer list-none items-center text-[12px] font-semibold text-white/90"
+        >
+          讀者層 · 今天先看什麼？
+        </summary>
+        <p className="mt-2 text-[12px] leading-relaxed text-[var(--muted)]">
           先以主題篩選與時間軸掃讀；需要標的深挖、紙上紀錄或訊號，再切到觀點工作台。
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
@@ -387,87 +465,21 @@ export default function NewsHome() {
             看深度專欄
           </Link>
         </div>
-      </div>
+      </details>
 
-      {focus ? (
-        <div
-          data-testid="news-focus-badge"
-          className="card mb-3 flex flex-wrap items-center justify-between gap-2 border border-amber-300/25 bg-amber-400/[0.03] p-2 text-[12px] text-amber-100/90"
+      <details data-testid="news-theme-rail" className="mt-3">
+        <summary
+          data-testid="news-theme-rail-toggle"
+          className="card mb-2 flex min-h-[36px] cursor-pointer list-none items-center px-3 py-2 text-[13px] font-semibold text-white/85"
         >
-          <span>
-            聚焦標的：<span className="font-mono">{focus}</span>（由觀點工作台帶入）
-          </span>
-          <button
-            type="button"
-            data-testid="news-focus-clear"
-            className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
-            onClick={clearFocus}
-          >
-            清除聚焦
-          </button>
-        </div>
-      ) : null}
-
-      <div className="mb-3 flex flex-wrap gap-2">
-        {FILTERS.map((row) => (
-          <button
-            key={row.id}
-            type="button"
-            data-testid={`news-filter-${row.id}`}
-            className={`rounded-full border px-3 py-1.5 text-[13px] ${
-              filter === row.id
-                ? "border-cyan-300/70 bg-cyan-400/[0.05] text-cyan-100"
-                : "border-white/15 text-white/65 hover:text-white"
-            }`}
-            onClick={() => chooseFilter(row.id)}
-          >
-            {row.label}
-          </button>
-        ))}
-      </div>
-
-      {digestQuery.error ? (
-        <div className="card mb-3 p-3 text-[13px] text-red-300" role="alert">
-          科技即時報暫時無法載入。
-        </div>
-      ) : null}
-
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="space-y-2">
-          {digestQuery.isLoading ? (
-            <div className="card p-3 text-[13px] text-[var(--muted)]">載入科技即時報…</div>
-          ) : null}
-          {!digestQuery.isLoading && visibleItems.length === 0 ? (
-            <div className="card p-3 text-[13px] text-[var(--muted)]" role="status">
-              尚無符合條件且具來源的新聞。
-            </div>
-          ) : null}
-          {visibleItems.map((item) => (
-            <NewsItemButton
-              key={item.id}
-              item={item}
-              active={selected?.id === item.id}
-              onClick={() => setSelected(item)}
-            />
-          ))}
-        </section>
-
-        <div className="space-y-3">
-          <ThemeRail
-            themes={themes}
-            selectedId={themeFilter?.id || themeFilter?.label || null}
-            onSelect={chooseTheme}
-          />
-          {selected ? (
-            <DeepPanel
-              item={selected}
-              detail={deepQuery.data}
-              loading={deepQuery.isLoading}
-              onClose={() => setSelected(null)}
-            />
-          ) : null}
-        </div>
-      </div>
+          今日主軸
+        </summary>
+        <ThemeRail
+          themes={themes}
+          selectedId={themeFilter?.id || themeFilter?.label || null}
+          onSelect={chooseTheme}
+        />
+      </details>
     </div>
   );
 }
