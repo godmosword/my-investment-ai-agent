@@ -1,0 +1,44 @@
+# Always-on PR→main merge gate. No paths-ignore: every PR targeting main must run.
+# Job/check name is stable so it can later become a required status check.
+# Do not enable required checks until this workflow is proven on real PRs.
+name: QSI Merge Gate
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  qsi-merge-gate:
+    name: QSI Merge Gate
+    timeout-minutes: 10
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Print head SHA
+        run: |
+          echo "github_sha=${GITHUB_SHA}"
+          echo "pr_head=${{ github.event.pull_request.head.sha }}"
+          echo "base_ref=${{ github.event.pull_request.base.ref }}"
+          echo "base_sha=${{ github.event.pull_request.base.sha }}"
+
+      - name: Confirm base is main
+        run: |
+          test "${{ github.event.pull_request.base.ref }}" = "main"
+
+      - name: Require non-empty diff vs base
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          if git diff --quiet "$BASE" "$HEAD"; then
+            echo "::error::empty diff vs base — merge gate refuses a no-op PR"
+            exit 1
+          fi
+          git diff --stat "$BASE" "$HEAD"

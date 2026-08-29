@@ -66,6 +66,7 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-22.04
     if: github.ref == 'refs/heads/main'
+    environment: production
     defaults:
       run:
         working-directory: data-verification-ui
