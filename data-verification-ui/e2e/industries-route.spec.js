@@ -10,6 +10,7 @@ test.describe("Columns route /columns", () => {
     await expect(page.getByTestId("columns-deep-card").first()).toContainText("AI 半導體供應鏈拉高資本支出");
     await expect(page.getByText("semianalysis.com")).toBeVisible();
     await expect(page.getByText("4 min read")).toBeVisible();
+    await page.locator("summary").filter({ hasText: "板塊輪動與相關主題" }).click();
     await expect(page.getByTestId("columns-sector-rotation")).toBeVisible();
     await expect(page.getByTestId("columns-rotation-row").first()).toContainText("AI 半導體");
     await expect(page.getByTestId("columns-theme-card").first()).toBeVisible();
