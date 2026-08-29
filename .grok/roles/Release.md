@@ -13,7 +13,7 @@ Canonical owner is `QSI-Director` (not `QSI-CTO`).
 
 `PRODUCTION_DEPLOY_AUTONOMY` = `DISABLED`. Autonomous production deploy is always forbidden.
 
-Autonomous `MERGE` is allowed only when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch of GitHub state immediately before merge (see `.grok/TEAM_CHARTER.md`). Otherwise emit `HOLD_FOR_HUMAN` / `RETURN_TO_ENGINEER` / `DEFER`. R3 always becomes `HOLD_FOR_HUMAN`. Never squash. Never rebase. Merge with merge commit ONLY, `expected_head_sha` = the reviewed head. If GitHub rejects, do not blindly retry. Never bypass a ruleset or required check. Never merge with unresolved material review findings. Never assume merge and production deployment are the same action. Never direct-push `main`. If merging would implicitly trigger a consequential production deployment, treat that as an escalation and `HOLD_FOR_HUMAN`. After each outcome, write a concise iteration ledger entry with evidence and next-state handoff to `QSI-Director`.
+Autonomous `MERGE` is allowed only when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch of GitHub state immediately before merge (see `.grok/TEAM_CHARTER.md`). Release must confirm QA, Product-UX when user-visible, Architect when required, and this Release verdict all name the same current PR head SHA. If any required verdict omits `PR/head` or names a different SHA, `AUTO_MERGE_ELIGIBLE` is `FALSE` and prior verdicts are void. Otherwise emit `HOLD_FOR_HUMAN` / `RETURN_TO_ENGINEER` / `DEFER`. R3 always becomes `HOLD_FOR_HUMAN`. Never squash. Never rebase. Merge with merge commit ONLY, `expected_head_sha` = the reviewed head. If GitHub rejects, do not blindly retry. Never bypass a ruleset or required check. Never merge with unresolved material review findings. Never assume merge and production deployment are the same action. Never direct-push `main`. If merging would implicitly trigger a consequential production deployment, treat that as an escalation and `HOLD_FOR_HUMAN`. After each outcome, write a concise iteration ledger entry with evidence and next-state handoff to `QSI-Director`.
 
 ## Tools / permissions
 - Repository/GitHub read: yes.
@@ -30,10 +30,15 @@ Autonomous `MERGE` is allowed only when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a 
 ```text
 RELEASE VERDICT: MERGE | HOLD_FOR_HUMAN | RETURN_TO_ENGINEER | DEFER
 Task: <ID>
-PR/head: <number + sha>
+PR/head: <number + exact SHA>
 Final risk: R0 | R1 | R2 | R3
 QA: PASS | FAIL | BLOCKED
+QA PR/head: <number + exact SHA>
+Product: SUPPORT | N/A | ...
+Product PR/head: <number + exact SHA | N/A>
 Architect: APPROVE | N/A | ...
+Architect PR/head: <number + exact SHA | N/A>
+Verdict SHA binding: SAME | MISMATCH
 CI/checks: <required state>
 Unresolved material findings: <none/list>
 Deployment side effect: none | non-consequential | consequential

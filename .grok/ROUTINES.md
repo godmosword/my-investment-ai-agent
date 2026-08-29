@@ -10,7 +10,7 @@ Recommended cadence: once per day on weekdays.
 
 Instruction:
 
-> Rescan `godmosword/my-investment-ai-agent` for evidence-backed correctness, reliability, UX, performance, accessibility, test/CI, and maintainability issues. Read current `main`, open PRs/issues, relevant CI state, `TODOS.md`, `CHANGELOG.md`, and architecture status docs. Invite Architect / Product-UX only when routing in `.grok/TEAM_CHARTER.md` requires them; do not default to a three-reviewer CHALLENGE. Rank candidates using `.grok/TEAM_CHARTER.md`. If no candidate clears the value/risk threshold, report NO_ACTION and stop. At L1: do **not** dispatch Engineer to implement, do **not** start an iteration, do **not** merge. Never code yourself and never authorize R3 merge.
+> Rescan `godmosword/my-investment-ai-agent` for evidence-backed correctness, reliability, UX, performance, accessibility, test/CI, and maintainability issues. Read current `main`, open PRs/issues, relevant CI state, `TODOS.md`, `CHANGELOG.md`, and architecture status docs. Invite Architect / Product-UX only when routing in `.grok/TEAM_CHARTER.md` requires them; do not default to a three-reviewer CHALLENGE. Rank candidates using `.grok/TEAM_CHARTER.md`. If no candidate clears the value/risk threshold, report NO_ACTION and stop. At L1 and at L2A: `ROUTINE_IMPLEMENTATION_AUTONOMY` remains `DISABLED`. Do **not** dispatch Engineer to implement, do **not** start an iteration, do **not** merge. `CURRENT_AUTONOMY_LEVEL` = L2A does **not** authorize routine-selected implementation, Engineer dispatch, or merge. Implementation requires a Human-triggered / already-authorized mission. Never code yourself and never authorize R3 merge.
 
 Expected output: candidate table + selected Task Contract or `NO_ACTION`.
 
@@ -32,7 +32,7 @@ Recommended trigger: after QA PASS and required architecture review.
 
 Instruction:
 
-> Evaluate each Grok-owned PR that has QA PASS. Verify final scope, PR head SHA, CI/checks, unresolved material review comments, Architect verdict when required, final risk class, rollback, and whether merge causes a consequential deployment side effect. At L1 post `HOLD_FOR_HUMAN` and stop — Bots must not merge `main`. For R3 or consequential uncertainty, the same. Never deploy production as an implicit follow-up. Never dispatch Engineer.
+> Evaluate each Grok-owned PR that has QA PASS. Verify final scope, PR head SHA, CI/checks, unresolved material review comments, Architect verdict when required, final risk class, rollback, and whether merge causes a consequential deployment side effect. A scheduled routine must not merge. Post `HOLD_FOR_HUMAN` unless a Human-triggered / already-authorized mission is in progress **and** `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch. L2A does not let Routine C start or merge work on its own. For R3 or consequential uncertainty, `HOLD_FOR_HUMAN`. Never deploy production as an implicit follow-up. Never dispatch Engineer.
 
 ## Routine D — Weekly Architecture / Debt Review
 
@@ -79,5 +79,5 @@ All routines must follow these rules:
 - No routine may change secrets, permissions, live financial execution, destructive data/schema, or autonomy guardrails without human approval.
 - When a retry occurs, re-read current repo/PR state rather than blindly repeating an old action.
 - Never run an endless retry loop. Follow the retry/stop limits in `.grok/ITERATION_PROTOCOL.md`.
-- No routine may dispatch Engineer to implement. No routine may start an iteration.
+- No routine may dispatch Engineer to implement. No routine may start an iteration. These limits stay in force at L2A: `ROUTINE_IMPLEMENTATION_AUTONOMY` remains `DISABLED`. A routine must not select or start implementation merely because `CURRENT_AUTONOMY_LEVEL` is L2A.
 - Recording `SERVER_SIDE_MAIN_PROTECTION VERIFIED` does not raise autonomy.
