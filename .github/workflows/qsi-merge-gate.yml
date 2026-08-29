@@ -32,13 +32,16 @@ jobs:
         run: |
           test "${{ github.event.pull_request.base.ref }}" = "main"
 
-      - name: Require non-empty diff vs base
+      - name: Require non-empty PR diff vs merge-base
         run: |
           set -euo pipefail
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.event.pull_request.head.sha }}"
-          if git diff --quiet "$BASE" "$HEAD"; then
-            echo "::error::empty diff vs base — merge gate refuses a no-op PR"
+          MB="$(git merge-base "$BASE" "$HEAD")"
+          echo "merge_base=${MB}"
+          echo "three_dot=${BASE}...${HEAD}"
+          if git diff --quiet "$BASE...$HEAD"; then
+            echo "::error::empty three-dot diff vs merge-base — merge gate refuses a PR with no introduced changes"
             exit 1
           fi
-          git diff --stat "$BASE" "$HEAD"
+          git diff --stat "$BASE...$HEAD"
