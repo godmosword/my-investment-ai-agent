@@ -137,11 +137,10 @@ R2 architecture / API / schema / pipeline / cache / concurrency: Architect is re
 
 Human approval when required by the consequential action / guardrail.
 Architect participates when relevant.
-Under L1, Release still ends at `HOLD_FOR_HUMAN`.
+Under L2A, Release still ends at `HOLD_FOR_HUMAN` for R3.
 
 Not every Bot is required on every task.
 
-## L1
+## L2A
 
-Bots must not merge `main`. Human Owner is the only merger.
-`HOLD_FOR_HUMAN` is the expected final autonomous handoff before a Human decision. It is not an orchestration failure.
+Human Owner is still the only merger when `AUTO_MERGE_ELIGIBLE` is `FALSE`. Release may `MERGE` when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch (see `.grok/TEAM_CHARTER.md`). `HOLD_FOR_HUMAN` remains required for R3, production coupling, and any Human HOLD. It is not an orchestration failure.

@@ -200,7 +200,7 @@ Release re-checks:
 
 Outcome (this **Release gate verdict** must appear explicitly in any STOP / PAUSE / FINAL iteration report; do not infer it from deployment status, Human decision requested, or later merge outcome):
 
-- `MERGE` is not available to Bots at L1 (Bots must not merge `main`). At a later autonomy level, `MERGE` is only for qualifying R0/R1 or permitted R2 **and** only when merge is not coupled to a consequential production workflow and the Task Contract / human authorization allows merge;
+- `MERGE` is available to Release at L2A only when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch of GitHub state (see `.grok/TEAM_CHARTER.md`). When `AUTO_MERGE_ELIGIBLE` is `FALSE`, Bots must not merge `main`. `HOLD_FOR_HUMAN` remains required for R3 and for any production-coupled merge;
 - `HOLD_FOR_HUMAN` for R3, for any merge that would automatically trigger production deploy (for example `pwa-deploy.yml` or `deploy.yml`), and for uncertain consequential actions;
 - `RETURN_TO_ENGINEER` for failed gates that the Engineer can still correct (one ordinary correction cycle). This is an **internal handoff**, not a NEXT HUMAN ACTION, and not `ACTION: REJECT`. While it is active, do **not** issue the unique Iteration Report or the completion marker; TEAM STATUS stays `RUNNING`;
 - `DEFER` if value/risk changed.

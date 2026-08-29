@@ -55,12 +55,64 @@ No child role may become a terminal orphan. Same-turn `HANDOFF: @QSI-Director` w
 
 Director then continues internally, revises the contract, or stops for the human.
 
-### Autonomy — CURRENT_AUTONOMY_LEVEL L1
+### Autonomy — CURRENT_AUTONOMY_LEVEL L2A
 
-- Human-invoked work may proceed through open PR.
-- Bots must not merge `main`.
-- Routines must not dispatch Engineer to implement.
-- Recording `SERVER_SIDE_MAIN_PROTECTION VERIFIED` does **not** automatically raise autonomy.
+This section is the L2A contract. It is in effect only after this text is on `main`. Until then, operating level remains L1 and `AUTO_MERGE_ELIGIBLE` is `FALSE`.
+
+Canonical owner: `QSI-Director` (not `QSI-CTO`).
+
+Target model:
+
+- `MISSION_AUTONOMY` = `HUMAN_TRIGGERED`
+- `IMPLEMENTATION_AUTONOMY` = `ENABLED_WITHIN_AUTHORIZED_MISSION`
+- `MERGE_AUTONOMY` = `GUARDED_R0_R1_NON_PRODUCTION`
+- `PRODUCTION_DEPLOY_AUTONOMY` = `DISABLED`
+- `ROUTINE_IMPLEMENTATION_AUTONOMY` = `DISABLED`
+
+Human-triggered / authorized work may proceed through open PR. Routines must not dispatch Engineer to implement. Recording `SERVER_SIDE_MAIN_PROTECTION VERIFIED` does **not** automatically raise autonomy.
+
+`AUTO_MERGE_ELIGIBLE` = `TRUE` only when ALL of these hold. Release MUST re-fetch live GitHub state immediately before merge:
+
+1. L2A is in effect (this charter is on `main` / `CURRENT_AUTONOMY_LEVEL` is L2A)
+2. mission is Human-triggered / authorized
+3. final risk R0 or R1
+4. base = `main`
+5. PR is open and not draft
+6. current head re-fetched immediately before merge
+7. QA verdict, Product verdict (if user-visible), Architect verdict (if the contract requires Architect) all bind to that exact current head
+8. QSI Merge Gate SUCCESS on that exact head
+9. PR is up to date with protected `main`
+10. no unresolved material review thread
+11. no Human HOLD
+12. no scope drift
+13. deployment coupling = NONE
+14. not R3
+15. the PR did not change autonomy / security / release / deploy guardrails
+
+`AUTO_MERGE_ELIGIBLE` is always `FALSE` for any of:
+
+- R2
+- R3
+- changes under `.github/workflows/**`
+- `.grok/**` governance / autonomy files
+- auth / secrets / permissions
+- production infra / deploy path
+- destructive data
+- live trading / risk limits
+- external breaking API
+- privacy / security policy
+- merge would trigger a production deploy
+- any Human HOLD
+
+Exact SHA: re-fetch immediately before merge. If current head != reviewed SHA, all prior verdicts are void, `AUTO_MERGE_ELIGIBLE`=`FALSE`, re-review required.
+
+When eligible, Release may merge using merge commit ONLY (never squash, never rebase) with `expected_head_sha` = the reviewed head. If GitHub rejects, do not blindly retry. Never bypass ruleset. Never direct-push `main`.
+
+After merge: re-fetch `main`, confirm reviewed head is in ancestry, observe downstream workflows read-only. Autonomous production deploy is always forbidden. Unexpected production coupling = stop automation.
+
+KILL SWITCH: if Human says `CURRENT_AUTONOMY_LEVEL` = L1, stop autonomous merge immediately. Do not wake other roles to confirm. R3 / guardrail changes always Human.
+
+CANARY (write into the contract; do not execute as part of this activation change): After Human merges this activation PR, do not resume the product backlog. Run exactly one Human-triggered, non-production, R0/R1 canary that does not touch `.github/**` or `.grok/**`. Release autonomously merges that canary at the exact reviewed head if `AUTO_MERGE_ELIGIBLE`. If the canary fails, immediately revert operating level to L1.
 
 R3 always needs explicit human approval. Production-coupled merge remains `HOLD_FOR_HUMAN`.
 
@@ -104,13 +156,13 @@ Pure refactors require explicit evidence of recurring cost or blocking impact.
 
 Examples: docs typo, isolated tests, dead import created by current change, low-risk tooling metadata.
 
-May open a PR when all required checks pass and QA approves. At `CURRENT_AUTONOMY_LEVEL` L1, Bots still must not merge `main`.
+May open a PR when all required checks pass and QA approves. At `CURRENT_AUTONOMY_LEVEL` L2A, Bots still must not merge unless `AUTO_MERGE_ELIGIBLE` is `TRUE`; R2 remains non-eligible; R3 always Human.
 
 ### R1 — Low product/code risk
 
 Examples: bounded UI fix, accessibility correction, small performance optimization, deterministic validation improvement, non-breaking internal cleanup with tests.
 
-May open a PR when the following are true (at L1, Bots still must not merge `main`):
+May open a PR when the following are true (at L2A, Bots still must not merge unless `AUTO_MERGE_ELIGIBLE` is `TRUE`; R2 remains non-eligible; R3 always Human):
 
 - acceptance criteria are met;
 - relevant CI/tests are green;
@@ -121,7 +173,7 @@ May open a PR when the following are true (at L1, Bots still must not merge `mai
 
 Examples: multi-module feature, meaningful API behavior change, core pipeline refactor, dependency minor/major bump with material behavior risk, caching/concurrency change, CI/deploy workflow behavior changes.
 
-Default: PR may be created autonomously, but **do not merge unless the task contract explicitly contains evidence that the existing project workflow permits the change and QA + Architect both approve**. When uncertain, escalate to human approval.
+Default: PR may be created autonomously, but **do not merge unless the task contract explicitly contains evidence that the existing project workflow permits the change and QA + Architect both approve**. When uncertain, escalate to human approval. At L2A, R2 remains non-eligible: `AUTO_MERGE_ELIGIBLE` is always `FALSE`.
 
 ### R3 — Consequential / human approval required
 
@@ -195,7 +247,7 @@ Never claim a check passed unless it actually ran and its output/result is avail
 
 ## Merge gate
 
-At L1, Release does not merge `main`. When a later autonomy level (or explicit human authorization) permits merge, Release may merge only when all are true:
+At L2A, Release may merge only when `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch of GitHub state (see Autonomy). When `AUTO_MERGE_ELIGIBLE` is `FALSE`, Release must not merge `main`. In addition, Release may merge only when all are true:
 
 - Task Contract exists and scope did not drift;
 - implementation diff is understandable and bounded;

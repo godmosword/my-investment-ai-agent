@@ -36,7 +36,10 @@ If the human later authorizes merge, resume **this** iteration. Do not open a ne
 ## Final risk
 `R0 | R1 | R2 | R3`
 
-`CURRENT_AUTONOMY_LEVEL`: L1 (open PR only; Bots do not merge `main`)
+`CURRENT_AUTONOMY_LEVEL`: L1 | L2A  (record the actual operating level now in force; do not hardcode L1)
+
+When L1: Bots do not merge `main`.
+When L2A: Bots merge `main` only if `AUTO_MERGE_ELIGIBLE` is `TRUE` after a live re-fetch. Do not copy a stale L1-only merge ban as if it were the current level.
 
 ## Checks actually run
 - `<command/check>` -> `PASS | FAIL | BLOCKED` (only checks that actually ran)
