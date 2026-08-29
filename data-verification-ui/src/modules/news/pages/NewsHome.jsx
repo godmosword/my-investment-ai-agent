@@ -134,7 +134,7 @@ function NewsItemButton({ item, active, onClick }) {
       <button
         type="button"
         data-testid="news-digest-item"
-        className="w-full bg-transparent p-0 text-left transition"
+        className="min-h-[36px] w-full bg-transparent p-0 text-left transition"
         onClick={onClick}
       >
         <div data-testid="reader-source-line" className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
@@ -200,7 +200,7 @@ function ThemeRail({ themes, selectedId, onSelect }) {
               type="button"
               data-testid="news-theme-chip"
               aria-pressed={active}
-              className={`flex w-full items-center justify-between gap-3 rounded border px-2 py-1.5 text-left text-[13px] ${
+              className={`flex min-h-[36px] w-full items-center justify-between gap-3 rounded border px-2 py-1.5 text-left text-[13px] ${
                 active
                   ? "border-cyan-300/70 bg-cyan-400/[0.05] text-cyan-100"
                   : "border-white/10 text-white/80 hover:bg-white/[0.04]"
@@ -238,7 +238,7 @@ function DeepPanel({ item, detail, loading, onClose }) {
           </div>
           <button
             type="button"
-            className="rounded border border-white/15 px-2 py-1 text-[12px] text-white/70 hover:text-white"
+            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-2 py-1 text-[12px] text-white/70 hover:text-white"
             onClick={onClose}
           >
             關閉
@@ -363,32 +363,6 @@ export default function NewsHome() {
         <div className="page-subtitle">科技市場脈動與主題線索</div>
       </div>
 
-      <div
-        data-testid="news-reader-layer-intro"
-        className="card mb-3 border border-white/10 bg-white/[0.03] p-3"
-      >
-        <div className="text-[12px] font-semibold text-white/90">讀者層 · 今天先看什麼？</div>
-        <p className="mt-1 text-[12px] leading-relaxed text-[var(--muted)]">
-          先以主題篩選與時間軸掃讀；需要標的深挖、紙上紀錄或訊號，再切到觀點工作台。
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Link
-            to="/insights"
-            data-testid="portal-cta-news-to-insights"
-            className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/30 bg-emerald-950/[0.12] px-3 py-1.5 text-[12px] font-semibold text-emerald-100/90 hover:bg-emerald-900/[0.18]"
-          >
-            去觀點工作台
-          </Link>
-          <Link
-            to="/columns"
-            data-testid="portal-cta-news-to-columns"
-            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
-          >
-            看深度專欄
-          </Link>
-        </div>
-      </div>
-
       {focus ? (
         <div
           data-testid="news-focus-badge"
@@ -400,7 +374,7 @@ export default function NewsHome() {
           <button
             type="button"
             data-testid="news-focus-clear"
-            className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
+            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
             onClick={clearFocus}
           >
             清除聚焦
@@ -414,7 +388,7 @@ export default function NewsHome() {
             key={row.id}
             type="button"
             data-testid={`news-filter-${row.id}`}
-            className={`rounded-full border px-3 py-1.5 text-[13px] ${
+            className={`min-h-[36px] rounded-full border px-3 py-1.5 text-[13px] ${
               filter === row.id
                 ? "border-cyan-300/70 bg-cyan-400/[0.05] text-cyan-100"
                 : "border-white/15 text-white/65 hover:text-white"
@@ -432,8 +406,14 @@ export default function NewsHome() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="space-y-2">
+      <div
+        className={
+          selected
+            ? "md:grid md:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)] md:items-start md:gap-4"
+            : undefined
+        }
+      >
+        <section data-testid="news-digest-stream" className="space-y-2">
           {digestQuery.isLoading ? (
             <div className="card p-3 text-[13px] text-[var(--muted)]">載入科技即時報…</div>
           ) : null}
@@ -452,22 +432,62 @@ export default function NewsHome() {
           ))}
         </section>
 
-        <div className="space-y-3">
-          <ThemeRail
-            themes={themes}
-            selectedId={themeFilter?.id || themeFilter?.label || null}
-            onSelect={chooseTheme}
-          />
-          {selected ? (
+        {selected ? (
+          <div className="mt-3 md:sticky md:top-4 md:mt-0">
             <DeepPanel
               item={selected}
               detail={deepQuery.data}
               loading={deepQuery.isLoading}
               onClose={() => setSelected(null)}
             />
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
+
+      <details
+        data-testid="news-reader-layer-intro"
+        className="card mt-4 border border-white/10 bg-white/[0.03] p-3"
+      >
+        <summary
+          data-testid="news-intro-toggle"
+          className="flex min-h-[36px] cursor-pointer list-none items-center text-[12px] font-semibold text-white/90"
+        >
+          讀者層 · 今天先看什麼？
+        </summary>
+        <p className="mt-2 text-[12px] leading-relaxed text-[var(--muted)]">
+          先以主題篩選與時間軸掃讀；需要標的深挖、紙上紀錄或訊號，再切到觀點工作台。
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/insights"
+            data-testid="portal-cta-news-to-insights"
+            className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/30 bg-emerald-950/[0.12] px-3 py-1.5 text-[12px] font-semibold text-emerald-100/90 hover:bg-emerald-900/[0.18]"
+          >
+            去觀點工作台
+          </Link>
+          <Link
+            to="/columns"
+            data-testid="portal-cta-news-to-columns"
+            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
+          >
+            看深度專欄
+          </Link>
+        </div>
+      </details>
+
+      <details data-testid="news-theme-rail" className="mt-3">
+        <summary
+          data-testid="news-theme-rail-toggle"
+          className="card mb-2 flex min-h-[36px] cursor-pointer list-none items-center px-3 py-2 text-[13px] font-semibold text-white/85"
+        >
+          今日主軸
+        </summary>
+        <ThemeRail
+          themes={themes}
+          selectedId={themeFilter?.id || themeFilter?.label || null}
+          onSelect={chooseTheme}
+        />
+      </details>
     </div>
   );
 }

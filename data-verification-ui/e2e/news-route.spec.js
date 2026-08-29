@@ -6,6 +6,8 @@ test.describe("News route (/news)", () => {
     await page.goto("/news", { waitUntil: "load" });
 
     await expect(page.getByTestId("news-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("news-digest-stream")).toBeVisible();
+    await page.getByTestId("news-intro-toggle").click();
     await expect(page.getByTestId("news-reader-layer-intro")).toBeVisible();
     await expect(page.getByTestId("portal-cta-news-to-insights")).toHaveAttribute("href", "/insights");
 
@@ -24,6 +26,53 @@ test.describe("News route (/news)", () => {
     await expect(page.getByText("HBM 需求偏強")).toBeVisible();
     await expect(page.getByText("信心 82%")).toBeVisible();
     await expect(page.getByTestId("news-deep-panel").getByTestId("news-ai-interpretation")).toContainText("AI 解讀");
+  });
+
+  test("first screen is digest cards, not intro or theme rail", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 720 });
+    await page.goto("/news", { waitUntil: "load" });
+    await expect(page.getByTestId("news-home")).toBeVisible({ timeout: 60_000 });
+    const digest = page.getByTestId("news-digest-item").first();
+    await expect(digest).toBeVisible();
+    const digestBox = await digest.boundingBox();
+    expect(digestBox).toBeTruthy();
+    expect(digestBox.y).toBeGreaterThanOrEqual(0);
+    expect(digestBox.y).toBeLessThan(720);
+
+    const cta = page.getByTestId("portal-cta-news-to-insights");
+    await expect(cta).toBeHidden();
+    const themeChip = page.getByTestId("news-theme-chip").first();
+    await expect(themeChip).toBeHidden();
+    await expect(page.getByRole("table")).toHaveCount(0);
+  });
+
+  test("desktop deep panel stays in viewport next to an early digest card", async ({ page }) => {
+    const viewport = { width: 1280, height: 800 };
+    await page.setViewportSize(viewport);
+    await page.route("**/api/news/digest**", async (route) => {
+      const items = Array.from({ length: 12 }, (_, index) => ({
+        id: `e2e-desktop-adj-${index}`,
+        headline: index === 0 ? "第一則 digest 卡片" : `digest 卡片 ${index + 1}`,
+        source_domain: "example.com",
+        published_at: "2026-05-13T09:00:00Z",
+        gemini_take: "UNKNOWN／未提供",
+        tags: ["AI"],
+      }));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items, themes: [] }),
+      });
+    });
+    await page.goto("/news", { waitUntil: "load" });
+    await expect(page.getByTestId("news-home")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("news-digest-item").first().click();
+    const panel = page.getByTestId("news-deep-panel");
+    await expect(panel).toBeVisible();
+    const box = await panel.boundingBox();
+    expect(box).toBeTruthy();
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeLessThan(viewport.height);
   });
 
   test("digest tickers only render from payload and skip cards without tickers", async ({ page }) => {
@@ -47,6 +96,7 @@ test.describe("News route (/news)", () => {
     expect(chipItems.length).toBeGreaterThan(0);
 
     await page.getByTestId("news-filter-all").click();
+    await page.getByTestId("news-theme-rail-toggle").click();
     const themeChip = page.getByTestId("news-theme-chip").filter({ hasText: "半導體" });
     if ((await themeChip.getAttribute("aria-pressed")) === "true") {
       await themeChip.click();
@@ -61,6 +111,7 @@ test.describe("News route (/news)", () => {
     await page.goto("/news", { waitUntil: "load" });
     await expect(page.getByTestId("news-home")).toBeVisible({ timeout: 60_000 });
 
+    await page.getByTestId("news-theme-rail-toggle").click();
     await page.getByTestId("news-theme-chip").filter({ hasText: "半導體" }).click();
     await expect(page.getByText("AI 半導體供應鏈拉高資本支出")).toBeVisible();
     await expect(page.getByText("Bitcoin ETF 資金流回溫")).toBeHidden();

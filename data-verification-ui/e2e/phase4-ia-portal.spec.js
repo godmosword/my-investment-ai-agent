@@ -15,7 +15,10 @@ test.describe("Portal Phase 4 IA — reader layer × workbench cues (queue 44)",
 
   test("news CTA navigates to insights", async ({ page }) => {
     await page.goto("/news", { waitUntil: "load" });
-    await expect(page.getByTestId("news-reader-layer-intro")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("news-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("news-digest-item").first()).toBeVisible();
+    await page.getByTestId("news-intro-toggle").click();
+    await expect(page.getByTestId("news-reader-layer-intro")).toBeVisible();
     await page.getByTestId("portal-cta-news-to-insights").click();
     await expect(page).toHaveURL(/\/insights/);
   });
