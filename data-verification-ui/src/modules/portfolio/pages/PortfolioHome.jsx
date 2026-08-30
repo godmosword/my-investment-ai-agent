@@ -22,8 +22,9 @@ const PORTFOLIO_TABS = [
 const PORTFOLIO_TAB_IDS = new Set(PORTFOLIO_TABS.map((t) => t.id));
 
 function money(value, digits = 0) {
+  if (value == null || value === "") return "UNKNOWN";
   const n = Number(value);
-  if (!Number.isFinite(n)) return "$0";
+  if (!Number.isFinite(n)) return "UNKNOWN";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -39,8 +40,9 @@ function number(value, digits = 2) {
 }
 
 function signedMoney(value, digits = 0) {
+  if (value == null || value === "") return "UNKNOWN";
   const n = Number(value);
-  if (!Number.isFinite(n)) return "$0";
+  if (!Number.isFinite(n)) return "UNKNOWN";
   const sign = n > 0 ? "+" : "";
   return `${sign}${money(n, digits)}`;
 }
@@ -60,6 +62,15 @@ function weightPct(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
   return `${n.toFixed(1)}%`;
+}
+
+function holdingQuoteUnknown(row) {
+  if (row?.error) return true;
+  return !Number.isFinite(Number(row?.last_price));
+}
+
+function pnlAggregatesUnknown(holdings) {
+  return Array.isArray(holdings) && holdings.some(holdingQuoteUnknown);
 }
 
 function concentrationFromRows(rows) {
@@ -353,10 +364,12 @@ export default function PortfolioHome() {
   const portfolioEnabled = holdingsQuery.data?.enabled !== false;
   const portfolioSource = holdingsQuery.data?.source ?? "jsonl";
   const portfolioHint = holdingsQuery.data?.hint ?? "";
-  const rows = pnlQuery.data?.holdings ?? rawHoldings;
-  const totalValue = pnlQuery.data?.total_value ?? 0;
-  const totalPnl = pnlQuery.data?.total_pnl ?? 0;
-  const totalDayPnl = pnlQuery.data?.total_day_pnl ?? 0;
+  const pnlHoldings = pnlQuery.data?.holdings;
+  const rows = pnlHoldings ?? rawHoldings;
+  const aggregatesUnknown = pnlAggregatesUnknown(pnlHoldings);
+  const totalValue = aggregatesUnknown ? null : pnlQuery.data?.total_value;
+  const totalPnl = aggregatesUnknown ? null : pnlQuery.data?.total_pnl;
+  const totalDayPnl = aggregatesUnknown ? null : pnlQuery.data?.total_day_pnl;
   const totalCost = totalValue - totalPnl;
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
   const dayPct = totalValue > 0 ? (totalDayPnl / totalValue) * 100 : 0;
@@ -512,12 +525,14 @@ export default function PortfolioHome() {
                 value={signedMoney(totalDayPnl)}
                 sub={pct(dayPct)}
                 valueClass={toneClass(totalDayPnl)}
+                testId="portfolio-day-pnl"
               />
               <KpiCard
                 label="總損益"
                 value={signedMoney(totalPnl)}
                 sub={pct(totalPnlPct)}
                 valueClass={toneClass(totalPnl)}
+                testId="portfolio-total-pnl"
               />
             </div>
 
