@@ -103,6 +103,47 @@ test.describe("Portfolio route (/portfolio)", () => {
     }
   });
 
+  test("production pnl zeros with quote_unavailable holding show UNKNOWN, not $0", async ({ page }) => {
+    await page.route("**/api/portfolio/pnl**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          source: "jsonl",
+          as_of: "2026-06-26T00:00:00Z",
+          total_value: 0,
+          total_pnl: 0,
+          total_day_pnl: 0,
+          holdings: [
+            {
+              id: "1",
+              symbol: "NVDA",
+              shares: 10,
+              cost_basis: 500,
+              opened_at: "2024-01-01",
+              notes: "",
+              error: "quote_unavailable",
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+
+    for (const [testId, label] of [
+      ["portfolio-total-value", "總市值"],
+      ["portfolio-day-pnl", "今日損益"],
+      ["portfolio-total-pnl", "總損益"],
+    ]) {
+      const card = page.getByTestId(testId);
+      await expect(card).toContainText(label);
+      await expect(card).toContainText("UNKNOWN");
+      await expect(card).not.toContainText("$0");
+    }
+  });
 
   test("holding insight and news links are at least 36px tall on table and cards", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });

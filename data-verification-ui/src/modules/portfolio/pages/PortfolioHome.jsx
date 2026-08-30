@@ -64,6 +64,15 @@ function weightPct(value) {
   return `${n.toFixed(1)}%`;
 }
 
+function holdingQuoteUnknown(row) {
+  if (row?.error) return true;
+  return !Number.isFinite(Number(row?.last_price));
+}
+
+function pnlAggregatesUnknown(holdings) {
+  return Array.isArray(holdings) && holdings.some(holdingQuoteUnknown);
+}
+
 function concentrationFromRows(rows) {
   if (!Array.isArray(rows) || rows.length === 0) return null;
   let best = null;
@@ -355,10 +364,12 @@ export default function PortfolioHome() {
   const portfolioEnabled = holdingsQuery.data?.enabled !== false;
   const portfolioSource = holdingsQuery.data?.source ?? "jsonl";
   const portfolioHint = holdingsQuery.data?.hint ?? "";
-  const rows = pnlQuery.data?.holdings ?? rawHoldings;
-  const totalValue = pnlQuery.data?.total_value;
-  const totalPnl = pnlQuery.data?.total_pnl;
-  const totalDayPnl = pnlQuery.data?.total_day_pnl;
+  const pnlHoldings = pnlQuery.data?.holdings;
+  const rows = pnlHoldings ?? rawHoldings;
+  const aggregatesUnknown = pnlAggregatesUnknown(pnlHoldings);
+  const totalValue = aggregatesUnknown ? null : pnlQuery.data?.total_value;
+  const totalPnl = aggregatesUnknown ? null : pnlQuery.data?.total_pnl;
+  const totalDayPnl = aggregatesUnknown ? null : pnlQuery.data?.total_day_pnl;
   const totalCost = totalValue - totalPnl;
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
   const dayPct = totalValue > 0 ? (totalDayPnl / totalValue) * 100 : 0;
