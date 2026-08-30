@@ -24,6 +24,32 @@ test.describe("Columns route /columns", () => {
     );
   });
 
+  test("missing regime_score shows UNKNOWN, not invented 0", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/industries/themes" || url.pathname.startsWith("/api/industries/themes"),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            themes: [],
+            rotation: [{ id: "missing-score", label: "缺分數板塊", symbols: ["TEST"] }],
+            source: "e2e",
+          }),
+        });
+      },
+    );
+
+    await page.goto("/columns", { waitUntil: "load" });
+    await expect(page.getByTestId("columns-home")).toBeVisible({ timeout: 60_000 });
+    await page.locator("summary").filter({ hasText: "板塊輪動與相關主題" }).click();
+    const row = page.getByTestId("columns-rotation-row").first();
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("缺分數板塊");
+    await expect(row).toContainText("UNKNOWN");
+    await expect(row).not.toContainText("+0");
+  });
+
   test("switches to crypto pillar", async ({ page }) => {
     await page.goto("/columns", { waitUntil: "load" });
     await page.getByTestId("columns-pillar-crypto").click();
