@@ -6,11 +6,42 @@ test.describe("Portal Phase 4 IA — reader layer × workbench cues (queue 44)",
     await page.goto("/columns", { waitUntil: "load" });
     await expect(page.getByTestId("columns-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("columns-reader-layer-intro")).toBeVisible();
-    await expect(page.getByTestId("portal-cta-columns-to-insights")).toHaveAttribute("href", "/insights");
+    const columnsIntro = page.getByTestId("columns-reader-layer-intro");
+    const columnsCta = page.getByTestId("portal-cta-columns-to-insights");
+    if (!(await columnsCta.isVisible())) {
+      await columnsIntro.locator("summary").click();
+    }
+    await expect(columnsCta).toBeVisible();
+    await expect(columnsCta).toHaveAttribute("href", "/insights");
 
     await page.goto("/insights", { waitUntil: "load" });
     await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("insights-workbench-intro")).toBeVisible();
+  });
+
+  test("columns first screen is Deep Brief cards, not intro or sector rotation", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 720 });
+    await page.goto("/columns", { waitUntil: "load" });
+    await expect(page.getByTestId("columns-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("columns-digest-stream")).toBeVisible();
+
+    const card = page.getByTestId("columns-deep-card").first();
+    await expect(card).toBeVisible();
+    const cardBox = await card.boundingBox();
+    expect(cardBox).toBeTruthy();
+    expect(cardBox.y).toBeGreaterThanOrEqual(0);
+    expect(cardBox.y).toBeLessThan(720);
+
+    const rotation = page.getByTestId("columns-sector-rotation");
+    const inCollapsedDetails = await rotation.evaluate((el) => {
+      const details = el.closest("details");
+      return Boolean(details && !details.open);
+    });
+    if (!inCollapsedDetails) {
+      const rotationBox = await rotation.boundingBox();
+      expect(rotationBox).toBeTruthy();
+      expect(rotationBox.y).toBeGreaterThanOrEqual(720);
+    }
   });
 
   test("news CTA navigates to insights", async ({ page }) => {

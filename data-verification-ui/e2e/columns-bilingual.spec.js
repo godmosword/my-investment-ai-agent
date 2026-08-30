@@ -66,4 +66,35 @@ test.describe("Columns — bilingual commentary (queue 45 · P4)", () => {
     const nvda = page.getByTestId("columns-theme-symbol-to-insights").filter({ hasText: "NVDA" }).first();
     await expect(nvda).toHaveAttribute("href", "/insights?symbol=NVDA");
   });
+
+  test("desktop deep panel stays in viewport next to an early digest card", async ({ page }) => {
+    const viewport = { width: 1280, height: 800 };
+    await page.setViewportSize(viewport);
+    await page.route("**/api/news/deep**", async (route) => {
+      const items = Array.from({ length: 12 }, (_, index) => ({
+        id: `e2e-desktop-adj-${index}`,
+        title: index === 0 ? "第一則 Deep Brief 卡片" : `Deep Brief 卡片 ${index + 1}`,
+        headline: index === 0 ? "第一則 Deep Brief 卡片" : `Deep Brief 卡片 ${index + 1}`,
+        source_domain: "example.com",
+        published_at: "2026-05-13T09:00:00Z",
+        gemini_take: "UNKNOWN／未提供",
+        deep_brief: "正文來自來源。",
+        body: "正文來自來源。",
+      }));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ pillar: "ai", items }),
+      });
+    });
+    await page.goto("/columns", { waitUntil: "load" });
+    await expect(page.getByTestId("columns-home")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("columns-deep-card").first().click();
+    const panel = page.getByTestId("columns-deep-panel");
+    await expect(panel).toBeVisible();
+    const box = await panel.boundingBox();
+    expect(box).toBeTruthy();
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeLessThan(viewport.height);
+  });
 });
