@@ -7,7 +7,11 @@ test.describe("Portfolio route (/portfolio)", () => {
 
     await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("portfolio-source-badge")).toContainText("jsonl");
-    await expect(page.getByTestId("portfolio-total-value")).toContainText("$8,000");
+    const totalValue = page.getByTestId("portfolio-total-value");
+    await expect(totalValue).toContainText("$8,000");
+    await expect(totalValue).not.toContainText("UNKNOWN");
+    await expect(page.getByTestId("portfolio-day-pnl")).toContainText("+$120");
+    await expect(page.getByTestId("portfolio-total-pnl")).toContainText("+$3,000");
     await expect(page.getByTestId("portfolio-holdings-table").getByTestId("portfolio-holding-symbol")).toHaveText("NVDA");
     await expect(page.getByTestId("portfolio-add-button")).toBeVisible();
     await expect(page.getByTestId("portfolio-import-button")).toBeVisible();
@@ -51,6 +55,52 @@ test.describe("Portfolio route (/portfolio)", () => {
     const cash = page.getByTestId("portfolio-cash-unknown");
     await expect(cash).toContainText("UNKNOWN");
     await expect(cash).toContainText("現金");
+  });
+
+  test("non-finite KPI totals show UNKNOWN, not invented $0", async ({ page }) => {
+    await page.route("**/api/portfolio/pnl**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_value: "N/A",
+          total_pnl: "missing",
+          total_day_pnl: null,
+          holdings: [
+            {
+              id: "1",
+              symbol: "NVDA",
+              shares: 10,
+              cost_basis: 500,
+              opened_at: "2024-01-01",
+              notes: "",
+              last_price: 800,
+              day_change_pct: 1.5,
+              market_value: 8000,
+              cost: 5000,
+              pnl: 3000,
+              pnl_pct: 60,
+              day_pnl: 120,
+              weight: 100,
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+
+    for (const [testId, label] of [
+      ["portfolio-total-value", "總市值"],
+      ["portfolio-day-pnl", "今日損益"],
+      ["portfolio-total-pnl", "總損益"],
+    ]) {
+      const card = page.getByTestId(testId);
+      await expect(card).toContainText(label);
+      await expect(card).toContainText("UNKNOWN");
+      await expect(card).not.toContainText("$0");
+    }
   });
 
 
