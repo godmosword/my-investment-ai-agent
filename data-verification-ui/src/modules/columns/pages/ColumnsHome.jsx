@@ -101,41 +101,45 @@ function PillarTabs({ active, onChange }) {
 function DeepBriefCard({ item, selected, onClick }) {
   const tickers = Array.isArray(item.tickers) ? item.tickers.slice(0, 4) : [];
   return (
-    <button
-      type="button"
-      data-testid="columns-deep-card"
-      className={`card w-full p-4 text-left transition hover:border-cyan-300/50 ${
+    <div
+      className={`card w-full p-4 ${
         selected ? "border-cyan-300/70 bg-cyan-950/[0.08]" : ""
       }`}
-      onClick={onClick}
     >
-      <div data-testid="reader-source-line" className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
-        <span className="rounded border border-white/10 px-2 py-0.5 font-mono text-cyan-200">
-          {sourceLabel(item)}
-        </span>
-        <span>{formatTime(item.published_at)}</span>
-        <span className={`rounded border px-2 py-0.5 ${freshnessClass(item.freshness)}`}>
-          {freshnessLabel(item.freshness)}
-        </span>
-        {hasMissingQualityFields(item) ? (
-          <span className="rounded border border-white/10 px-2 py-0.5 text-white/45">資料待補</span>
-        ) : null}
-        <span>{readingMinutes(item)} min read</span>
-      </div>
-      <h2 className="mt-2 text-[16px] font-semibold leading-snug text-white">{titleOf(item)}</h2>
-      <div data-testid="columns-ai-interpretation" className="mt-2">
-        <div className="text-[11px] font-semibold text-white/45">AI 解讀</div>
-        <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-[var(--muted)]">
-          {aiInterpretation(item.gemini_take)}
-        </p>
-      </div>
+      <button
+        type="button"
+        data-testid="columns-deep-card"
+        className="min-h-[36px] w-full bg-transparent p-0 text-left transition"
+        onClick={onClick}
+      >
+        <div data-testid="reader-source-line" className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted)]">
+          <span className="rounded border border-white/10 px-2 py-0.5 font-mono text-cyan-200">
+            {sourceLabel(item)}
+          </span>
+          <span>{formatTime(item.published_at)}</span>
+          <span className={`rounded border px-2 py-0.5 ${freshnessClass(item.freshness)}`}>
+            {freshnessLabel(item.freshness)}
+          </span>
+          {hasMissingQualityFields(item) ? (
+            <span className="rounded border border-white/10 px-2 py-0.5 text-white/45">資料待補</span>
+          ) : null}
+          <span>{readingMinutes(item)} min read</span>
+        </div>
+        <h2 className="mt-2 text-[16px] font-semibold leading-snug text-white">{titleOf(item)}</h2>
+        <div data-testid="columns-ai-interpretation" className="mt-2">
+          <div className="text-[11px] font-semibold text-white/45">AI 解讀</div>
+          <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-[var(--muted)]">
+            {aiInterpretation(item.gemini_take)}
+          </p>
+        </div>
+      </button>
       {tickers.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {tickers.map((ticker) => (
             <Link
               key={ticker}
               data-testid="columns-card-ticker-to-insights"
-              className="min-h-[36px] rounded bg-amber-400/10 px-2 py-1 font-mono text-[12px] text-amber-200 hover:bg-amber-400/20"
+              className="inline-flex min-h-[36px] items-center rounded bg-amber-400/10 px-2 py-1 font-mono text-[12px] text-amber-200 hover:bg-amber-400/20"
               to={insightsSymbolHref(ticker)}
             >
               {String(ticker).toUpperCase()}
@@ -143,7 +147,7 @@ function DeepBriefCard({ item, selected, onClick }) {
           ))}
         </div>
       ) : null}
-    </button>
+    </div>
   );
 }
 
@@ -162,7 +166,7 @@ function DeepBriefPanel({ item, onClose }) {
   return (
     <aside
       data-testid="columns-deep-panel"
-      className="fixed inset-0 z-50 overflow-auto bg-[var(--bg,#05070a)] p-4 md:static md:z-auto md:overflow-visible md:bg-transparent md:p-0"
+      className="fixed inset-0 z-[110] overflow-auto bg-[var(--bg,#05070a)] p-4 md:static md:z-auto md:overflow-visible md:bg-transparent md:p-0"
     >
       <div className="card p-4">
         <div className="mb-3 flex items-start justify-between gap-3">
