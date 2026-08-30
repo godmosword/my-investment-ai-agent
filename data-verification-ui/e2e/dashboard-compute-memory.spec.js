@@ -2,7 +2,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Dashboard — 算力／記憶體 mock panel (queue 45 · P2-mock)", () => {
-  test("renders three blocks with mock badge and disclaimer", async ({ page }) => {
+  test("not-live mock shows badge and UNKNOWN, not fake HBM dollars", async ({ page }) => {
     // 44b: compute-memory now lives under the 市場深度 tab.
     await page.goto("/dashboard?tab=depth", { waitUntil: "load" });
     const panel = page.getByTestId("compute-memory-panel");
@@ -14,15 +14,18 @@ test.describe("Dashboard — 算力／記憶體 mock panel (queue 45 · P2-mock)
 
     const hbm = page.getByTestId("compute-memory-hbm-dram");
     await expect(hbm).toBeVisible();
-    await expect(hbm.getByText("HBM3", { exact: true })).toBeVisible();
-    await expect(hbm.getByText("HBM3e", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("compute-memory-hbm-dram-empty")).toContainText("UNKNOWN：尚無真實資料");
+    await expect(hbm).not.toContainText("HBM3e");
+    await expect(hbm).not.toContainText("$9.20");
 
     const capex = page.getByTestId("compute-memory-capex");
-    await expect(capex.getByText("MSFT", { exact: true })).toBeVisible();
-    await expect(capex.getByText("META", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("compute-memory-capex-empty")).toContainText("UNKNOWN：尚無真實資料");
+    await expect(capex).not.toContainText("MSFT");
+    await expect(capex).not.toContainText("$22.4");
 
     const gpu = page.getByTestId("compute-memory-gpu-spot");
-    await expect(gpu.getByText("H100 SXM", { exact: true })).toBeVisible();
-    await expect(gpu.getByText("H200 SXM", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("compute-memory-gpu-spot-empty")).toContainText("UNKNOWN：尚無真實資料");
+    await expect(gpu).not.toContainText("H100 SXM");
+    await expect(gpu).not.toContainText("$2.49");
   });
 });

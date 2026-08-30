@@ -1,5 +1,22 @@
 import { useComputeMemoryDashboard } from "../hooks/useApi";
 
+const HONEST_EMPTY = "UNKNOWN：尚無真實資料";
+
+function isLivePayload(live) {
+  return live === true;
+}
+
+function isMockSource(source) {
+  const s = String(source || "").toLowerCase();
+  return s === "mock" || s === "fixture" || s === "placeholder";
+}
+
+function honestItems(block, live) {
+  if (!isLivePayload(live)) return [];
+  if (isMockSource(block?.source)) return [];
+  return Array.isArray(block?.items) ? block.items : [];
+}
+
 function fmtUsd(value, digits = 2) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
@@ -43,8 +60,8 @@ function SourceBadge({ live, source }) {
   );
 }
 
-function HbmDramBlock({ block }) {
-  const items = Array.isArray(block?.items) ? block.items : [];
+function HbmDramBlock({ block, live }) {
+  const items = honestItems(block, live);
   return (
     <section data-testid="compute-memory-hbm-dram" className="rounded border border-white/10 bg-white/[0.02] p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -68,8 +85,13 @@ function HbmDramBlock({ block }) {
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan="4" className="py-2 text-[11px] text-[var(--muted)]">
-                fixture 為空。
+              <td
+                colSpan="4"
+                className="py-2 text-[11px] text-[var(--muted)]"
+                data-testid="compute-memory-hbm-dram-empty"
+                role="status"
+              >
+                {HONEST_EMPTY}
               </td>
             </tr>
           ) : (
@@ -90,8 +112,8 @@ function HbmDramBlock({ block }) {
   );
 }
 
-function CapexBlock({ block }) {
-  const items = Array.isArray(block?.items) ? block.items : [];
+function CapexBlock({ block, live }) {
+  const items = honestItems(block, live);
   return (
     <section data-testid="compute-memory-capex" className="rounded border border-white/10 bg-white/[0.02] p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -115,8 +137,13 @@ function CapexBlock({ block }) {
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan="4" className="py-2 text-[11px] text-[var(--muted)]">
-                fixture 為空。
+              <td
+                colSpan="4"
+                className="py-2 text-[11px] text-[var(--muted)]"
+                data-testid="compute-memory-capex-empty"
+                role="status"
+              >
+                {HONEST_EMPTY}
               </td>
             </tr>
           ) : (
@@ -137,8 +164,8 @@ function CapexBlock({ block }) {
   );
 }
 
-function GpuSpotBlock({ block }) {
-  const items = Array.isArray(block?.items) ? block.items : [];
+function GpuSpotBlock({ block, live }) {
+  const items = honestItems(block, live);
   return (
     <section data-testid="compute-memory-gpu-spot" className="rounded border border-white/10 bg-white/[0.02] p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -162,8 +189,13 @@ function GpuSpotBlock({ block }) {
         <tbody>
           {items.length === 0 ? (
             <tr>
-              <td colSpan="4" className="py-2 text-[11px] text-[var(--muted)]">
-                fixture 為空。
+              <td
+                colSpan="4"
+                className="py-2 text-[11px] text-[var(--muted)]"
+                data-testid="compute-memory-gpu-spot-empty"
+                role="status"
+              >
+                {HONEST_EMPTY}
               </td>
             </tr>
           ) : (
@@ -191,7 +223,9 @@ export default function ComputeMemoryPanel() {
   if (query.isLoading) {
     return (
       <section data-testid="compute-memory-panel" className="card mb-3 p-3 text-[12px] text-[var(--muted)]">
-        載入算力／記憶體 dashboard…
+        <div data-testid="compute-memory-loading" role="status">
+          載入算力／記憶體 dashboard…
+        </div>
       </section>
     );
   }
@@ -202,7 +236,7 @@ export default function ComputeMemoryPanel() {
         className="card mb-3 border border-red-400/30 p-3 text-[12px] text-red-300"
         role="alert"
       >
-        無法載入算力／記憶體 dashboard：{query.error.message}
+        <div data-testid="compute-memory-error">無法載入算力／記憶體 dashboard：{query.error.message}</div>
       </section>
     );
   }
@@ -212,10 +246,8 @@ export default function ComputeMemoryPanel() {
         data-testid="compute-memory-panel"
         className="card mb-3 border border-amber-300/25 p-3 text-[12px] text-amber-100/85"
       >
-        <div className="font-semibold">算力／記憶體 dashboard 尚未上線</div>
-        <div className="mt-1 text-[11px] text-[var(--muted)]">
-          原因：<code>{data?.reason || "unknown"}</code>。複製 <code>data/compute_memory_mock.json</code>{" "}
-          或設定 <code>COMPUTE_MEMORY_FIXTURE_FILE</code>。
+        <div data-testid="compute-memory-empty" role="status">
+          {HONEST_EMPTY}
         </div>
       </section>
     );
@@ -241,9 +273,9 @@ export default function ComputeMemoryPanel() {
         </div>
       ) : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <HbmDramBlock block={data?.hbm_dram_spot} />
-        <CapexBlock block={data?.hyperscaler_capex} />
-        <GpuSpotBlock block={data?.gpu_spot} />
+        <HbmDramBlock block={data?.hbm_dram_spot} live={data?.live === true} />
+        <CapexBlock block={data?.hyperscaler_capex} live={data?.live === true} />
+        <GpuSpotBlock block={data?.gpu_spot} live={data?.live === true} />
       </div>
     </section>
   );

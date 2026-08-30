@@ -1,5 +1,22 @@
 import { useOnchainMetrics } from "../hooks/useApi";
 
+const HONEST_EMPTY = "UNKNOWN：尚無真實資料";
+
+function isLivePayload(live) {
+  return live === true;
+}
+
+function isMockSource(source) {
+  const s = String(source || "").toLowerCase();
+  return s === "mock" || s === "fixture" || s === "placeholder";
+}
+
+function honestItems(block, live) {
+  if (!isLivePayload(live)) return [];
+  if (isMockSource(block?.source)) return [];
+  return Array.isArray(block?.items) ? block.items : [];
+}
+
 function fmtNum(value, digits = 2) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
@@ -58,8 +75,8 @@ function SourceBadge({ live, source }) {
   );
 }
 
-function BtcValuationBlock({ block }) {
-  const items = Array.isArray(block?.items) ? block.items : [];
+function BtcValuationBlock({ block, live }) {
+  const items = honestItems(block, live);
   return (
     <section data-testid="onchain-btc-valuation" className="rounded border border-white/10 bg-white/[0.02] p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -79,7 +96,16 @@ function BtcValuationBlock({ block }) {
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <tr><td colSpan="3" className="py-2 text-[11px] text-[var(--muted)]">fixture 為空。</td></tr>
+            <tr>
+              <td
+                colSpan="3"
+                className="py-2 text-[11px] text-[var(--muted)]"
+                data-testid="onchain-btc-valuation-empty"
+                role="status"
+              >
+                {HONEST_EMPTY}
+              </td>
+            </tr>
           ) : (
             items.map((row) => (
               <tr key={row.metric} className="border-t border-white/[0.04]">
@@ -97,7 +123,7 @@ function BtcValuationBlock({ block }) {
   );
 }
 
-function ExchangeFlowBlock({ block }) {
+function ExchangeFlowBlock({ block, live }) {
   if (block?.enabled === false) {
     return (
       <section data-testid="onchain-exchange-flow" className="rounded border border-amber-300/25 bg-amber-400/[0.03] p-3">
@@ -115,7 +141,7 @@ function ExchangeFlowBlock({ block }) {
       </section>
     );
   }
-  const items = Array.isArray(block?.items) ? block.items : [];
+  const items = honestItems(block, live);
   return (
     <section data-testid="onchain-exchange-flow" className="rounded border border-white/10 bg-white/[0.02] p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -135,7 +161,16 @@ function ExchangeFlowBlock({ block }) {
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <tr><td colSpan="3" className="py-2 text-[11px] text-[var(--muted)]">fixture 為空。</td></tr>
+            <tr>
+              <td
+                colSpan="3"
+                className="py-2 text-[11px] text-[var(--muted)]"
+                data-testid="onchain-exchange-flow-empty"
+                role="status"
+              >
+                {HONEST_EMPTY}
+              </td>
+            </tr>
           ) : (
             items.map((row) => (
               <tr key={row.venue} className="border-t border-white/[0.04]">
@@ -153,8 +188,8 @@ function ExchangeFlowBlock({ block }) {
   );
 }
 
-function FundingRateBlock({ block }) {
-  const items = Array.isArray(block?.items) ? block.items : [];
+function FundingRateBlock({ block, live }) {
+  const items = honestItems(block, live);
   return (
     <section data-testid="onchain-funding-rate" className="rounded border border-white/10 bg-white/[0.02] p-3">
       <header className="mb-2 flex items-center justify-between gap-2">
@@ -174,7 +209,16 @@ function FundingRateBlock({ block }) {
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <tr><td colSpan="3" className="py-2 text-[11px] text-[var(--muted)]">fixture 為空。</td></tr>
+            <tr>
+              <td
+                colSpan="3"
+                className="py-2 text-[11px] text-[var(--muted)]"
+                data-testid="onchain-funding-rate-empty"
+                role="status"
+              >
+                {HONEST_EMPTY}
+              </td>
+            </tr>
           ) : (
             items.map((row) => (
               <tr key={`${row.asset}-${row.venue}`} className="border-t border-white/[0.04]">
@@ -199,24 +243,24 @@ export default function OnchainMetricsPanel() {
   if (query.isLoading) {
     return (
       <section data-testid="onchain-panel" className="card mb-3 p-3 text-[12px] text-[var(--muted)]">
-        載入 on-chain dashboard…
+        <div data-testid="onchain-loading" role="status">
+          載入 on-chain dashboard…
+        </div>
       </section>
     );
   }
   if (query.error) {
     return (
       <section data-testid="onchain-panel" className="card mb-3 border border-red-400/30 p-3 text-[12px] text-red-300" role="alert">
-        無法載入 on-chain dashboard：{query.error.message}
+        <div data-testid="onchain-error">無法載入 on-chain dashboard：{query.error.message}</div>
       </section>
     );
   }
   if (data?.enabled === false) {
     return (
       <section data-testid="onchain-panel" className="card mb-3 border border-amber-300/25 p-3 text-[12px] text-amber-100/85">
-        <div className="font-semibold">Crypto on-chain dashboard 尚未上線</div>
-        <div className="mt-1 text-[11px] text-[var(--muted)]">
-          原因：<code>{data?.reason || "unknown"}</code>。複製 <code>data/onchain_metrics_mock.json</code>{" "}
-          或設定 <code>ONCHAIN_FIXTURE_FILE</code>。
+        <div data-testid="onchain-empty" role="status">
+          {HONEST_EMPTY}
         </div>
       </section>
     );
@@ -240,9 +284,9 @@ export default function OnchainMetricsPanel() {
         </div>
       ) : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <BtcValuationBlock block={data?.btc_valuation} />
-        <ExchangeFlowBlock block={data?.exchange_flow} />
-        <FundingRateBlock block={data?.funding_rate} />
+        <BtcValuationBlock block={data?.btc_valuation} live={data?.live === true} />
+        <ExchangeFlowBlock block={data?.exchange_flow} live={data?.live === true} />
+        <FundingRateBlock block={data?.funding_rate} live={data?.live === true} />
       </div>
     </section>
   );
