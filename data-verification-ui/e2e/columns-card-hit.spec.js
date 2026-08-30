@@ -31,7 +31,7 @@ test.describe("Columns — Deep Brief card hit (ITER-P4-44A)", () => {
 
     const title = panel.getByRole("heading", { name: "AI 半導體供應鏈拉高資本支出" });
     const source = panel.getByTestId("reader-source-line");
-    const body = panel.getByText("供應鏈瓶頸仍集中在 HBM");
+    const body = panel.getByText("對 NVDA/TSM 的訂單能見度形成支撐");
     await expect(title).toBeVisible();
     await expect(source).toContainText("semianalysis.com");
     await expect(body).toBeVisible();
