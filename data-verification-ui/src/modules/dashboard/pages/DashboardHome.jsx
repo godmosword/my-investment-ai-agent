@@ -196,25 +196,6 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      <div
-        data-testid="dashboard-workbench-intro"
-        className="card workbench-secondary-panel mb-3 border border-cyan-500/15 bg-cyan-950/10 p-3 text-[12px] leading-relaxed text-white/80"
-      >
-        <span data-testid="workbench-primary-question" className="font-semibold text-cyan-100/95">工作台 · 宏觀一問</span>
-        ：先看 regime 與催化剂，再回到
-        <Link to="/insights" className="mx-1 text-cyan-200 underline-offset-2 hover:text-cyan-100 hover:underline">
-          觀點
-        </Link>
-        或
-        <Link to="/portfolio" className="mx-1 text-cyan-200 underline-offset-2 hover:text-cyan-100 hover:underline">
-          持倉
-        </Link>
-        對照部位。主戰場仍以觀點／持倉為核心（路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊）。
-        <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-cyan-300/20 px-2 py-0.5 text-[11px] text-cyan-100/75">
-          source: {data?.source || "macro"}
-        </span>
-      </div>
-
       {showOfflineStrip ? (
         <div className="error-msg mb-3" role="status" data-testid="dashboard-offline-asof-hint">
           離線中：macro 最近一次成功載入為{" "}
@@ -231,8 +212,11 @@ export default function DashboardHome() {
         </div>
       ) : null}
 
+      <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-200 sm:hidden">
+        目前：{activeLabel}
+      </div>
       <div
-        className="mb-3 flex flex-wrap items-center gap-2 px-1"
+        className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-1"
         role="tablist"
         aria-label="Dashboard tabs"
       >
@@ -243,7 +227,7 @@ export default function DashboardHome() {
             role="tab"
             aria-selected={active === tab.id}
             data-testid={tab.testId}
-            className={`min-h-[36px] rounded border px-3 py-1.5 text-[12px] font-semibold ${
+            className={`min-h-[36px] shrink-0 rounded border px-3 py-1.5 text-[12px] font-semibold ${
               active === tab.id
                 ? "border-cyan-500/40 bg-cyan-500/[0.08] text-cyan-100/90"
                 : "border-white/15 text-white/70 hover:bg-white/[0.04]"
@@ -290,6 +274,41 @@ export default function DashboardHome() {
           </>
         ) : null}
       </div>
+
+      <details
+        data-testid="dashboard-workbench-intro"
+        className="card workbench-secondary-panel mb-3 mt-4 border border-cyan-500/15 bg-cyan-950/10 p-3 text-[12px] leading-relaxed text-white/80"
+      >
+        <summary
+          data-testid="dashboard-intro-toggle"
+          className="flex min-h-[36px] cursor-pointer list-none items-center text-[12px] font-semibold text-cyan-100/95"
+        >
+          工作台說明與資料健康
+        </summary>
+        <p className="mt-2">
+          <span data-testid="workbench-primary-question" className="font-semibold text-cyan-100/95">工作台 · 宏觀一問</span>
+          ：先看 regime 與催化剂，再回到
+          <Link
+            to="/insights"
+            data-testid="portal-cta-dashboard-to-insights"
+            className="mx-1 text-cyan-200 underline-offset-2 hover:text-cyan-100 hover:underline"
+          >
+            觀點
+          </Link>
+          或
+          <Link
+            to="/portfolio"
+            data-testid="portal-cta-dashboard-to-portfolio"
+            className="mx-1 text-cyan-200 underline-offset-2 hover:text-cyan-100 hover:underline"
+          >
+            持倉
+          </Link>
+          對照部位。主戰場仍以觀點／持倉為核心（路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊）。
+          <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-cyan-300/20 px-2 py-0.5 text-[11px] text-cyan-100/75">
+            source: {data?.source || "macro"}
+          </span>
+        </p>
+      </details>
     </div>
   );
 }

@@ -16,8 +16,13 @@ test.describe("5-board Terminal routes", () => {
       await expect(page.getByTestId(route.testId)).toBeVisible({ timeout: 60_000 });
       await expect(page.getByTestId("terminal-command-bar")).toBeVisible({ timeout: 60_000 });
       await expect(page.getByRole("link", { name: route.nav }).first()).toBeVisible();
-      if (route.path === "/insights") {
-        await page.getByTestId("insights-workbench-intro").evaluate((el) => {
+      const workbenchIntroId = {
+        "/insights": "insights-workbench-intro",
+        "/portfolio": "portfolio-workbench-intro",
+        "/dashboard": "dashboard-workbench-intro",
+      }[route.path];
+      if (workbenchIntroId) {
+        await page.getByTestId(workbenchIntroId).evaluate((el) => {
           if (el instanceof HTMLDetailsElement) el.open = true;
         });
       }

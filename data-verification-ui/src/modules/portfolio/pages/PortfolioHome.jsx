@@ -470,24 +470,11 @@ export default function PortfolioHome() {
         </div>
       ) : null}
 
-      <div
-        data-testid="portfolio-workbench-intro"
-        className="card workbench-secondary-panel mb-3 border border-emerald-500/20 bg-emerald-950/15 p-3 text-[12px] leading-relaxed text-white/80"
-      >
-        <span data-testid="workbench-primary-question" className="font-semibold text-emerald-100/95">工作台 · 持倉主問</span>
-        ：先確認總市值與今日損益，再用
-        <Link to="/insights" className="mx-1 text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline">
-          觀點
-        </Link>
-        對照訊號與標的深挖；需要宏觀背景可到「數據儀表板」。路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks}{" "}
-        次點擊。
-        <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-emerald-300/20 px-2 py-0.5 text-[11px] text-emerald-100/75">
-          source: {portfolioSource}
-        </span>
+      <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-200 sm:hidden">
+        目前：{activeTabLabel}
       </div>
-
       <div
-        className="mb-3 flex flex-wrap items-center gap-2 px-1"
+        className="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-1"
         role="tablist"
         aria-label="Portfolio tabs"
       >
@@ -498,7 +485,7 @@ export default function PortfolioHome() {
             role="tab"
             aria-selected={activeTab === tab.id}
             data-testid={tab.testId}
-            className={`min-h-[36px] rounded border px-3 py-1.5 text-[12px] font-semibold ${
+            className={`min-h-[36px] shrink-0 rounded border px-3 py-1.5 text-[12px] font-semibold ${
               activeTab === tab.id
                 ? "border-emerald-500/40 bg-emerald-500/[0.08] text-emerald-100/90"
                 : "border-white/15 text-white/70 hover:bg-white/[0.04]"
@@ -674,6 +661,34 @@ export default function PortfolioHome() {
 
         {activeTab === "risk" ? <PortfolioRiskPanel /> : null}
       </div>
+
+      <details
+        data-testid="portfolio-workbench-intro"
+        className="card workbench-secondary-panel mb-3 mt-4 border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80"
+      >
+        <summary
+          data-testid="portfolio-intro-toggle"
+          className="flex min-h-[36px] cursor-pointer list-none items-center text-[12px] font-semibold text-emerald-100/95"
+        >
+          工作台說明與資料健康
+        </summary>
+        <p className="mt-2">
+          <span data-testid="workbench-primary-question" className="font-semibold text-emerald-100/95">工作台 · 持倉主問</span>
+          ：先確認總市值與今日損益，再用
+          <Link
+            to="/insights"
+            data-testid="portal-cta-portfolio-to-insights"
+            className="mx-1 text-emerald-200 underline-offset-2 hover:text-emerald-100 hover:underline"
+          >
+            觀點
+          </Link>
+          對照訊號與標的深挖；需要宏觀背景可到「數據儀表板」。路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks}{" "}
+          次點擊。
+          <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-emerald-300/20 px-2 py-0.5 text-[11px] text-emerald-100/75">
+            source: {portfolioSource}
+          </span>
+        </p>
+      </details>
 
     </div>
   );
