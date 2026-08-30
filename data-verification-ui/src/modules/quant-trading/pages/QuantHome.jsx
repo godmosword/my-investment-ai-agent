@@ -92,6 +92,17 @@ function isActiveIntent(r) {
 
 const BACKTEST_SYMBOLS = ["BTC", "SPY", "NVDA", "MSFT", "AAPL"];
 
+function isRealQuantSignal(signal) {
+  if (!signal || typeof signal !== "object") return false;
+  if (String(signal.id || "") === "placeholder-neutral") return false;
+  return Boolean(String(signal.symbol || signal.asset || "").trim());
+}
+
+function realQuantSignals(payload) {
+  if (!payload || payload.source === "placeholder") return [];
+  return (payload.signals ?? []).filter(isRealQuantSignal);
+}
+
 function formatQuote(value) {
   if (!finiteNumber(value)) return "—";
   return Number(value).toLocaleString(undefined, {
@@ -238,6 +249,7 @@ export default function QuantHome() {
   });
 
   const { data: quantPayload, isLoading: qSigLoading, error: qSigError } = useQuantSignals();
+  const realSignals = realQuantSignals(quantPayload);
 
   const { data: reports } = useReports(3);
   const dates = reports?.map((r) => r.report_date) ?? [];
@@ -265,7 +277,7 @@ export default function QuantHome() {
       <BacktestPanel />
 
       <IntradayMonitor
-        signals={quantPayload?.signals ?? []}
+        signals={realSignals}
         isLoading={qSigLoading}
         error={qSigError}
       />
@@ -276,15 +288,19 @@ export default function QuantHome() {
         <div className="page-subtitle" style={{ marginBottom: 8, opacity: 0.85 }}>
           <code>/api/quant/signals</code> — 教育／紙上敘事用，不承諾收益、不自動下單。
         </div>
-        {qSigLoading && <div className="loading" style={{ padding: "6px 0", fontSize: 12 }}>載入訊號…</div>}
+        {qSigLoading && (
+          <div className="loading" style={{ padding: "6px 0", fontSize: 12 }} data-testid="quant-m7-loading">
+            載入訊號…
+          </div>
+        )}
         {qSigError && !qSigLoading && (
-          <div className="error-msg" style={{ fontSize: 12 }}>
+          <div className="error-msg" style={{ fontSize: 12 }} data-testid="quant-m7-error">
             無法載入訊號：<code>{qSigError.message}</code>
           </div>
         )}
-        {!qSigLoading && !qSigError && quantPayload && (
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--muted)" }}>
-            {(quantPayload.signals ?? []).slice(0, 8).map((s) => (
+        {!qSigLoading && !qSigError && realSignals.length > 0 ? (
+          <ul data-testid="quant-m7-list" style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--muted)" }}>
+            {realSignals.slice(0, 8).map((s) => (
               <li key={s.id ?? JSON.stringify(s)} style={{ marginBottom: 4 }}>
                 <span style={{ color: "var(--text)", fontWeight: 600 }}>{s.label ?? s.id}</span>
                 {s.direction != null ? (
@@ -293,7 +309,17 @@ export default function QuantHome() {
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
+        {!qSigLoading && !qSigError && realSignals.length === 0 ? (
+          <div
+            className="page-subtitle"
+            style={{ opacity: 0.85 }}
+            data-testid="quant-m7-empty"
+            role="status"
+          >
+            UNKNOWN：尚無真實訊號
+          </div>
+        ) : null}
       </div>
 
       <div className="card" style={{ marginBottom: 12 }} data-testid="quant-qsrec-gate-panel">

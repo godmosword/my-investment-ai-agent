@@ -352,18 +352,22 @@ function SectorRotation({ rotation, source }) {
       </div>
       <div className="mt-3 space-y-2">
         {rows.length ? rows.map((row) => {
-          const score = Number(row.regime_score || 0);
-          const width = `${Math.min(100, Math.max(8, Math.abs(score) * 22))}%`;
+          const raw = row.regime_score;
+          const hasScore = raw != null && raw !== "" && Number.isFinite(Number(raw));
+          const score = hasScore ? Number(raw) : null;
+          const width = hasScore ? `${Math.min(100, Math.max(8, Math.abs(score) * 22))}%` : "0%";
           return (
             <div key={row.id} data-testid="columns-rotation-row" className="rounded border border-white/10 bg-white/[0.03] p-2">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-[13px] font-semibold text-white/85">{row.label}</span>
-                <span className={`rounded px-2 py-0.5 text-[11px] font-mono ${scoreColor(score)}`}>
-                  {score >= 0 ? "+" : ""}{score}
+                <span className={`rounded px-2 py-0.5 text-[11px] font-mono ${hasScore ? scoreColor(score) : "bg-white/10 text-white/60"}`}>
+                  {hasScore ? `${score >= 0 ? "+" : ""}${score}` : "UNKNOWN"}
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded bg-white/10">
-                <div className={score >= 0 ? "h-full bg-emerald-300/80" : "h-full bg-red-300/80"} style={{ width }} />
+                {hasScore ? (
+                  <div className={score >= 0 ? "h-full bg-emerald-300/80" : "h-full bg-red-300/80"} style={{ width }} />
+                ) : null}
               </div>
               <div className="mt-1 flex flex-wrap gap-1">
                 {(row.symbols || []).slice(0, 4).map((symbol) => (
