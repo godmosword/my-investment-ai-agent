@@ -17,6 +17,11 @@ test.describe("Portal Phase 4 IA — reader layer × workbench cues (queue 44)",
     await page.goto("/insights", { waitUntil: "load" });
     await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("insights-workbench-intro")).toBeVisible();
+    const insightsCta = page.getByTestId("portal-cta-insights-to-news");
+    if (!(await insightsCta.isVisible())) {
+      await page.getByTestId("insights-intro-toggle").click();
+    }
+    await expect(insightsCta).toBeVisible();
   });
 
   test("columns first screen is Deep Brief cards, not intro or sector rotation", async ({ page }) => {
@@ -59,6 +64,9 @@ test.describe("Portal Phase 4 IA — reader layer × workbench cues (queue 44)",
     await expect(page.getByTestId("insights-workbench-intro")).toBeVisible({ timeout: 60_000 });
     const newsCta = page.getByTestId("portal-cta-insights-to-news");
     const colCta = page.getByTestId("portal-cta-insights-to-columns");
+    if (!(await newsCta.isVisible())) {
+      await page.getByTestId("insights-intro-toggle").click();
+    }
     await expect(newsCta).toHaveAttribute("href", "/news");
     await expect(colCta).toHaveAttribute("href", "/columns");
     await newsCta.click();

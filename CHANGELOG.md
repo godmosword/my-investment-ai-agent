@@ -3,6 +3,14 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-08-30
+
+### PWA（隊列 44 · ITER-P4-44A — /insights 首屏為今日建議）
+
+- [`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx)：預設 `/insights` 第一屏是 `DailyBriefHonesty`（`daily-brief-panel`／UNKNOWN empty／loading／error）。工作台說明、portal CTA、`DataHealthSummary` 移入摺疊 `<details data-testid="insights-workbench-intro">`（`insights-intro-toggle`），對齊 `/news`／`/columns`。Tab 列改 nowrap 橫滑，不擋第一屏。`?tab=`／`?symbol=` 與既有 honesty 不變。未改 API／mock。
+- **刻意未動**：`DailyBriefPage`「Terminal 工作區」本來就在今日建議下方；390×720 下不另摺疊。
+- E2E：[`insights-first-screen.spec.js`](data-verification-ui/e2e/insights-first-screen.spec.js)；既有 [`insights-daily.spec.js`](data-verification-ui/e2e/insights-daily.spec.js)；[`phase4-ia-portal.spec.js`](data-verification-ui/e2e/phase4-ia-portal.spec.js)／[`five-routes-smoke.spec.js`](data-verification-ui/e2e/five-routes-smoke.spec.js) 改為展開後再點 CTA／健康摘要。
+
 ## 2026-08-15
 
 ### Ops（Portal Vercel harden — 停掉 main Git 自動 production）

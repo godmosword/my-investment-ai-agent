@@ -16,12 +16,22 @@ test.describe("5-board Terminal routes", () => {
       await expect(page.getByTestId(route.testId)).toBeVisible({ timeout: 60_000 });
       await expect(page.getByTestId("terminal-command-bar")).toBeVisible({ timeout: 60_000 });
       await expect(page.getByRole("link", { name: route.nav }).first()).toBeVisible();
+      if (route.path === "/insights") {
+        const introToggle = page.getByTestId("insights-intro-toggle");
+        if ((await introToggle.count()) > 0) {
+          await introToggle.click();
+        }
+      }
       await expect(page.getByTestId(route.provenance).first()).toBeVisible({ timeout: 60_000 });
     });
   }
 
   test("/insights shows cross-tab data health summary", async ({ page }) => {
     await page.goto("/insights", { waitUntil: "load" });
+    const introToggle = page.getByTestId("insights-intro-toggle");
+    if ((await introToggle.count()) > 0) {
+      await introToggle.click();
+    }
     const panel = page.getByTestId("insights-data-health-summary");
     await expect(panel).toBeVisible({ timeout: 60_000 });
     await expect(panel).toContainText("Options");
