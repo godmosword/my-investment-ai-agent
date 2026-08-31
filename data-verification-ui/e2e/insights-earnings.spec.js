@@ -52,6 +52,50 @@ test.describe("Insights — Earnings calendar tab (P3)", () => {
     await expect(page.getByTestId("earnings-insight-detail")).toBeHidden();
   });
 
+  test("missing days_until shows UNKNOWN, not D-0", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/earnings/upcoming" || url.pathname === "/api/earnings/upcoming/",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            as_of: "2026-05-16",
+            days: 14,
+            watchlist_size: 2,
+            items: [
+              {
+                symbol: "AMD",
+                pillar: "semiconductor",
+                next_earnings_date: "2026-06-01",
+                status: "unknown",
+              },
+              {
+                symbol: "NVDA",
+                pillar: "ai_silicon",
+                next_earnings_date: "2026-05-20",
+                days_until: 4,
+                status: "unknown",
+              },
+            ],
+          }),
+        });
+      },
+    );
+
+    await page.goto("/insights?tab=earnings", { waitUntil: "load" });
+    await expect(page.getByTestId("earnings-insight-home")).toBeVisible({ timeout: 60_000 });
+
+    const amdRow = page.locator('[data-testid="earnings-calendar-row"][data-symbol="AMD"]');
+    await expect(amdRow).toBeVisible();
+    await expect(amdRow.getByTestId("earnings-days-until")).toHaveText("UNKNOWN");
+    await expect(amdRow).not.toContainText("D-0");
+    await expect(amdRow).not.toContainText("D-NaN");
+
+    const nvdaRow = page.locator('[data-testid="earnings-calendar-row"][data-symbol="NVDA"]');
+    await expect(nvdaRow.getByTestId("earnings-days-until")).toHaveText("D-4");
+  });
+
   test("calendar session status is 未知 and does not invent 盤前／盤後", async ({ page }) => {
     await page.goto("/insights?tab=earnings", { waitUntil: "load" });
     await expect(page.getByTestId("earnings-insight-home")).toBeVisible({ timeout: 60_000 });

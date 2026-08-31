@@ -79,7 +79,9 @@ function CalendarRow({ item, active, onSelect }) {
         >
           {sessionStatusLabel(item.status)}
         </span>
-        <span className="font-mono text-cyan-200">D-{Math.max(0, item.days_until)}</span>
+        <span className="font-mono text-cyan-200" data-testid="earnings-days-until">
+          {Number.isFinite(item.days_until) ? `D-${Math.max(0, item.days_until)}` : "UNKNOWN"}
+        </span>
       </div>
     </button>
   );
