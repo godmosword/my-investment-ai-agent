@@ -9,6 +9,11 @@ test.describe("Bloomberg §6 — BTC price across Dashboard vs Insights", () => 
     expect(todayText.replace(/\s/g, "")).toMatch(/50,000\.125/);
 
     await page.goto("/insights?e2e_btc=1", { waitUntil: "load" });
+    const workspace = page.getByTestId("daily-brief-workspace");
+    await workspace.waitFor({ state: "attached", timeout: 60_000 });
+    await workspace.evaluate((el) => {
+      if (el instanceof HTMLDetailsElement) el.open = true;
+    });
     const loading = page.getByText("載入終端…");
     if ((await loading.count()) > 0) {
       await loading.waitFor({ state: "hidden", timeout: 90_000 });

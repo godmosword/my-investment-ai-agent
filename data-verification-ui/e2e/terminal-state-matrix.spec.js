@@ -2,6 +2,11 @@
 import { test, expect } from "@playwright/test";
 
 async function waitTerminalReady(page, activeSymbolsPattern) {
+  const workspace = page.getByTestId("daily-brief-workspace");
+  await workspace.waitFor({ state: "attached", timeout: 60_000 });
+  await workspace.evaluate((el) => {
+    if (el instanceof HTMLDetailsElement) el.open = true;
+  });
   const loading = page.getByText("載入終端…");
   if ((await loading.count()) > 0) {
     await loading.waitFor({ state: "hidden", timeout: 90_000 });
