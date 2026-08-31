@@ -105,7 +105,7 @@ function migrateV1ToV2(rawV1) {
   }
 }
 
-export default function DailyBriefPage() {
+export default function DailyBriefPage({ children = null }) {
   const { symbol: globalSymbol } = useSymbolFocus();
   const [workspace, setWorkspace] = useState(() =>
     import.meta.env.VITE_E2E === "1" ? e2eSeedWorkspaceFromWindow() : defaultWorkspace(),
@@ -315,6 +315,7 @@ export default function DailyBriefPage() {
   return (
     <>
       <DailyBriefHonesty />
+      {children}
       <div
         data-testid="daily-brief-workspace-note"
         className="mb-2 px-1 text-[11px] text-white/45"
