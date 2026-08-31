@@ -189,6 +189,15 @@ function IntradayMonitor({ signals = [], isLoading, error }) {
           UNKNOWN：尚無真實訊號
         </div>
       ) : null}
+      {!isLoading && !error && signals.length > 0 && filtered.length === 0 ? (
+        <div
+          className="text-[12px] text-[var(--muted)]"
+          data-testid="quant-intraday-filter-empty"
+          role="status"
+        >
+          目前篩選沒有符合的紙上訊號。
+        </div>
+      ) : null}
       <div className="grid gap-2">
         {filtered.map((signal) => (
           <IntradaySignalRow key={signal.id || signal.symbol || signal.asset} signal={signal} />

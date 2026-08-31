@@ -51,6 +51,7 @@ test.describe("Insights — 訊號 honesty (ITER-V2-012)", () => {
     const intradayEmpty = page.getByTestId("quant-intraday-empty");
     await expect(intradayEmpty).toBeVisible();
     await expect(intradayEmpty).toContainText("UNKNOWN：尚無真實訊號");
+    await expect(page.getByTestId("quant-intraday-filter-empty")).toHaveCount(0);
     await expect(intraday).not.toContainText("盤中監控");
     await expect(intraday).not.toContainText("可監控");
   });
@@ -91,6 +92,7 @@ test.describe("Insights — 訊號 honesty (ITER-V2-012)", () => {
     await expect(page.getByTestId("quant-m7-signals")).not.toContainText("RSI14");
     await expect(page.getByTestId("quant-intraday-error")).toBeVisible();
     await expect(page.getByTestId("quant-intraday-empty")).toHaveCount(0);
+    await expect(page.getByTestId("quant-intraday-filter-empty")).toHaveCount(0);
     await expect(page.getByTestId("quant-intraday-monitor")).not.toContainText("盤中監控");
   });
 });
