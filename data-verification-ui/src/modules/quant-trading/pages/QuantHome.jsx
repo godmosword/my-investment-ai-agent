@@ -170,10 +170,24 @@ function IntradayMonitor({ signals = [], isLoading, error }) {
           data-testid="quant-intraday-filter"
         />
       </div>
-      {isLoading ? <div className="text-[12px] text-[var(--muted)]">載入盤中監控…</div> : null}
-      {error ? <div className="text-[12px] text-amber-300">無法載入：{error.message}</div> : null}
-      {!isLoading && !error && filtered.length === 0 ? (
-        <div className="text-[12px] text-[var(--muted)]">目前沒有可監控的 paper signal。</div>
+      {isLoading ? (
+        <div className="text-[12px] text-[var(--muted)]" data-testid="quant-intraday-loading">
+          載入訊號…
+        </div>
+      ) : null}
+      {error ? (
+        <div className="text-[12px] text-amber-300" data-testid="quant-intraday-error">
+          無法載入：{error.message}
+        </div>
+      ) : null}
+      {!isLoading && !error && signals.length === 0 ? (
+        <div
+          className="text-[12px] text-[var(--muted)]"
+          data-testid="quant-intraday-empty"
+          role="status"
+        >
+          UNKNOWN：尚無真實訊號
+        </div>
       ) : null}
       <div className="grid gap-2">
         {filtered.map((signal) => (

@@ -46,7 +46,13 @@ test.describe("Insights — 訊號 honesty (ITER-V2-012)", () => {
     await expect(card).not.toContainText("RSI");
     await expect(page.getByTestId("quant-m7-error")).toHaveCount(0);
     await expect(page.getByTestId("quant-m7-list")).toHaveCount(0);
-    await expect(page.getByTestId("quant-intraday-monitor")).not.toContainText("RSI14");
+    const intraday = page.getByTestId("quant-intraday-monitor");
+    await expect(intraday).not.toContainText("RSI14");
+    const intradayEmpty = page.getByTestId("quant-intraday-empty");
+    await expect(intradayEmpty).toBeVisible();
+    await expect(intradayEmpty).toContainText("UNKNOWN：尚無真實訊號");
+    await expect(intraday).not.toContainText("盤中監控");
+    await expect(intraday).not.toContainText("可監控");
   });
 
   test("default mock paper signals still render labels", async ({ page }) => {
@@ -83,5 +89,8 @@ test.describe("Insights — 訊號 honesty (ITER-V2-012)", () => {
     await expect(page.getByTestId("quant-m7-empty")).toHaveCount(0);
     await expect(page.getByTestId("quant-m7-list")).toHaveCount(0);
     await expect(page.getByTestId("quant-m7-signals")).not.toContainText("RSI14");
+    await expect(page.getByTestId("quant-intraday-error")).toBeVisible();
+    await expect(page.getByTestId("quant-intraday-empty")).toHaveCount(0);
+    await expect(page.getByTestId("quant-intraday-monitor")).not.toContainText("盤中監控");
   });
 });
