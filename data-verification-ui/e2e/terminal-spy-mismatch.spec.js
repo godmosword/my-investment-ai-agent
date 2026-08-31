@@ -4,6 +4,11 @@ import { test, expect } from "@playwright/test";
 test.describe("Insights — SPY price_alignment mismatch + gate hint", () => {
   test("shows mismatch banner for SPY and gate-related hint on intent row", async ({ page }) => {
     await page.goto("/insights?e2e_symbols=BTC,SPY", { waitUntil: "load" });
+    const workspace = page.getByTestId("daily-brief-workspace");
+    await workspace.waitFor({ state: "attached", timeout: 60_000 });
+    await workspace.evaluate((el) => {
+      if (el instanceof HTMLDetailsElement) el.open = true;
+    });
     const loading = page.getByText("載入終端…");
     if ((await loading.count()) > 0) {
       await loading.waitFor({ state: "hidden", timeout: 90_000 });
@@ -26,6 +31,11 @@ test.describe("Insights — SPY price_alignment mismatch + gate hint", () => {
 
   test("internal report link navigates to Report route", async ({ page }) => {
     await page.goto("/insights?e2e_symbols=SPY", { waitUntil: "load" });
+    const workspace = page.getByTestId("daily-brief-workspace");
+    await workspace.waitFor({ state: "attached", timeout: 60_000 });
+    await workspace.evaluate((el) => {
+      if (el instanceof HTMLDetailsElement) el.open = true;
+    });
     const loading = page.getByText("載入終端…");
     if ((await loading.count()) > 0) {
       await loading.waitFor({ state: "hidden", timeout: 90_000 });

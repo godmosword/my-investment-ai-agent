@@ -105,7 +105,7 @@ function migrateV1ToV2(rawV1) {
   }
 }
 
-export default function DailyBriefPage() {
+export default function DailyBriefPage({ children = null }) {
   const { symbol: globalSymbol } = useSymbolFocus();
   const [workspace, setWorkspace] = useState(() =>
     import.meta.env.VITE_E2E === "1" ? e2eSeedWorkspaceFromWindow() : defaultWorkspace(),
@@ -315,14 +315,21 @@ export default function DailyBriefPage() {
   return (
     <>
       <DailyBriefHonesty />
+      {children}
       <div
         data-testid="daily-brief-workspace-note"
         className="mb-2 px-1 text-[11px] text-white/45"
       >
         以下 Terminal 工作區不是今日建議，未造建議或數字。
       </div>
+      <details data-testid="daily-brief-workspace" className="mb-3">
+        <summary
+          data-testid="daily-brief-workspace-toggle"
+          className="card mb-2 flex min-h-[36px] cursor-pointer list-none items-center px-3 py-2 text-[13px] font-semibold text-white/85"
+        >
+          Terminal 工作區
+        </summary>
       <div className="page-header">
-        <div className="page-title">Terminal 工作區</div>
         <div className="page-subtitle">
           v2：多分組、一鍵模板、拖曳重排；與「關注代號」條同步（localStorage）
           {import.meta.env.VITE_E2E === "1" ? null : (
@@ -497,6 +504,7 @@ export default function DailyBriefPage() {
           </Suspense>
         )}
       </div>
+      </details>
     </>
   );
 }

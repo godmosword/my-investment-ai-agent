@@ -133,7 +133,46 @@ export default function InsightsHome() {
 
       <div role="tabpanel" aria-label={activeLabel}>
         <Suspense fallback={tabFallback}>
-          {active === "daily" ? <DailyBriefPage /> : null}
+          {active === "daily" ? (
+            <DailyBriefPage>
+              <details
+                data-testid="insights-workbench-intro"
+                className="card workbench-secondary-panel mb-3 mt-4 border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80"
+              >
+                <summary
+                  data-testid="insights-intro-toggle"
+                  className="flex min-h-[36px] cursor-pointer list-none items-center text-[12px] font-semibold text-emerald-100/95"
+                >
+                  工作台說明與資料健康
+                </summary>
+                <p className="mt-2">
+                  <span data-testid="workbench-primary-question" className="font-semibold text-emerald-100/95">工作台</span>
+                  ：標的深挖、紙上部位、情境與訊號在此切換；題材脈動去「科技即時報／專欄」，宏觀狀態到「數據儀表板」。
+                  路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊。
+                  <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-emerald-300/20 px-2 py-0.5 text-[11px] text-emerald-100/75">
+                    source: API
+                  </span>
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Link
+                    to="/news"
+                    data-testid="portal-cta-insights-to-news"
+                    className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
+                  >
+                    {PORTAL_PHASE4_CTA.workbenchToNews}
+                  </Link>
+                  <Link
+                    to="/columns"
+                    data-testid="portal-cta-insights-to-columns"
+                    className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
+                  >
+                    {PORTAL_PHASE4_CTA.workbenchToColumns}
+                  </Link>
+                </div>
+                <DataHealthSummary />
+              </details>
+            </DailyBriefPage>
+          ) : null}
           {active === "earnings" ? <EarningsInsightHome /> : null}
           {active === "paper" ? <PaperLifecycleHome /> : null}
           {active === "track-record" ? <TrackRecordHome /> : null}
@@ -142,43 +181,6 @@ export default function InsightsHome() {
           {active === "options" ? <OptionsFlowHome /> : null}
         </Suspense>
       </div>
-
-      <details
-        data-testid="insights-workbench-intro"
-        className="card workbench-secondary-panel mb-3 mt-4 border border-emerald-500/20 bg-emerald-950/[0.08] p-3 text-[12px] leading-relaxed text-white/80"
-      >
-        <summary
-          data-testid="insights-intro-toggle"
-          className="flex min-h-[36px] cursor-pointer list-none items-center text-[12px] font-semibold text-emerald-100/95"
-        >
-          工作台說明與資料健康
-        </summary>
-        <p className="mt-2">
-          <span data-testid="workbench-primary-question" className="font-semibold text-emerald-100/95">工作台</span>
-          ：標的深挖、紙上部位、情境與訊號在此切換；題材脈動去「科技即時報／專欄」，宏觀狀態到「數據儀表板」。
-          路徑目標 ≤ {PORTAL_PHASE4_GATE0.maxWorkbenchPathClicks} 次點擊。
-          <span data-testid="workbench-data-health-chip" className="ml-2 rounded border border-emerald-300/20 px-2 py-0.5 text-[11px] text-emerald-100/75">
-            source: API
-          </span>
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Link
-            to="/news"
-            data-testid="portal-cta-insights-to-news"
-            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
-          >
-            {PORTAL_PHASE4_CTA.workbenchToNews}
-          </Link>
-          <Link
-            to="/columns"
-            data-testid="portal-cta-insights-to-columns"
-            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/75 hover:bg-white/5"
-          >
-            {PORTAL_PHASE4_CTA.workbenchToColumns}
-          </Link>
-        </div>
-        <DataHealthSummary />
-      </details>
     </div>
   );
 }
