@@ -287,12 +287,14 @@ export default function DashboardHome() {
                 尚無宏觀指標。
               </div>
             ) : null}
-            <TodayBtcSnapshotStrip />
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-              <CatalystCalendar catalysts={data?.catalysts ?? []} />
-              <RegimePanel regime={data?.regime} />
-            </div>
           </>
+        ) : null}
+        <TodayBtcSnapshotStrip />
+        {active === "overview" ? (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+            <CatalystCalendar catalysts={data?.catalysts ?? []} />
+            <RegimePanel regime={data?.regime} />
+          </div>
         ) : null}
         {active === "depth" ? (
           <>

@@ -51,6 +51,7 @@ test.describe("Dashboard — first screen is 宏觀總覽 (ITER-P4-44A)", () => 
     await page.goto("/dashboard?tab=depth", { waitUntil: "load" });
     await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("dashboard-tab-depth")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("today-btc-snapshot-strip")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("compute-memory-panel")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("onchain-panel")).toBeVisible({ timeout: 60_000 });
   });
