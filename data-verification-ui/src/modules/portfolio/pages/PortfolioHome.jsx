@@ -47,6 +47,11 @@ function signedMoney(value, digits = 0) {
   return `${sign}${money(n, digits)}`;
 }
 
+function isUnknownMoney(value) {
+  if (value == null || value === "") return true;
+  return !Number.isFinite(Number(value));
+}
+
 function pct(value, digits = 1) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
@@ -258,7 +263,11 @@ function KpiCard({ label, value, sub, valueClass = "text-white", testId }) {
     <div className="card p-3" data-testid={testId}>
       <div className="metric-label">{label}</div>
       <div className={`mt-1 text-2xl font-semibold ${valueClass}`}>{value}</div>
-      {sub ? <div className="mt-1 text-[12px] text-[var(--muted)]">{sub}</div> : null}
+      {sub ? (
+        <div className="mt-1 text-[12px] text-[var(--muted)]" data-testid={testId ? `${testId}-sub` : undefined}>
+          {sub}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -510,14 +519,14 @@ export default function PortfolioHome() {
               <KpiCard
                 label="今日損益"
                 value={signedMoney(totalDayPnl)}
-                sub={pct(dayPct)}
+                sub={isUnknownMoney(totalDayPnl) ? "UNKNOWN" : pct(dayPct)}
                 valueClass={toneClass(totalDayPnl)}
                 testId="portfolio-day-pnl"
               />
               <KpiCard
                 label="總損益"
                 value={signedMoney(totalPnl)}
-                sub={pct(totalPnlPct)}
+                sub={isUnknownMoney(totalPnl) ? "UNKNOWN" : pct(totalPnlPct)}
                 valueClass={toneClass(totalPnl)}
                 testId="portfolio-total-pnl"
               />
