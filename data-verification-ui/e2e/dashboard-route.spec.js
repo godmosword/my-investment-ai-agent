@@ -178,4 +178,42 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
     await expect(panel).toContainText("VIX");
   });
 
+  test("catalyst missing importance shows UNKNOWN, not high", async ({ page }) => {
+    await page.route("**/api/macro/snapshot", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-05-13T00:00:00Z",
+          cached: false,
+          indicator_order: ["zero_rate"],
+          indicators: {
+            zero_rate: {
+              id: "zero_rate",
+              label: "Zero Rate",
+              value: 0,
+              display: "0.00",
+              unit: "%",
+              change_1d: 0,
+              change_5d: 0,
+              change_unit: "%",
+              spark: [0, 0, 0],
+              source: "e2e",
+            },
+          },
+          catalysts: [{ date: "2026-05-15", name: "US CPI" }],
+          regime: { label: "neutral", score: 0, drivers: [] },
+        }),
+      });
+    });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
+    const calendar = page.getByTestId("catalyst-calendar");
+    await expect(calendar).toBeVisible();
+    await expect(calendar).toContainText("US CPI");
+    const importance = calendar.getByTestId("catalyst-importance");
+    await expect(importance).toHaveText("UNKNOWN");
+    await expect(importance).not.toHaveText(/high/i);
+  });
+
 });
