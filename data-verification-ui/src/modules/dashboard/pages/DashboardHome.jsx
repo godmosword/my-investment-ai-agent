@@ -105,10 +105,11 @@ function DriverScoreBar({ score }) {
 }
 
 function RegimePanel({ regime }) {
-  const drivers = regime?.drivers ?? [];
+  const drivers = Array.isArray(regime?.drivers) ? regime.drivers : [];
   const labelRaw = typeof regime?.label === "string" ? regime.label.trim() : "";
   const score = finiteNumber(regime?.score);
-  const hasRegime = Boolean(regime) && (Boolean(labelRaw) || score != null);
+  const hasEvidence = drivers.length > 0;
+  const hasRegime = hasEvidence && (Boolean(labelRaw) || score != null);
   const label = hasRegime && labelRaw ? labelRaw : null;
   const badgeText = !hasRegime
     ? "UNKNOWN"
