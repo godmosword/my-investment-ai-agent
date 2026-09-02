@@ -70,6 +70,12 @@ function MacroCard({ indicator }) {
   );
 }
 
+function finiteNumber(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function regimeTone(label) {
   if (label === "risk_on") return "regime-on";
   if (label === "risk_off") return "regime-off";
@@ -93,11 +99,19 @@ function DriverScoreBar({ score }) {
 
 function RegimePanel({ regime }) {
   const drivers = regime?.drivers ?? [];
-  const label = regime?.label ?? "neutral";
+  const labelRaw = typeof regime?.label === "string" ? regime.label.trim() : "";
+  const score = finiteNumber(regime?.score);
+  const hasRegime = Boolean(regime) && (Boolean(labelRaw) || score != null);
+  const label = hasRegime && labelRaw ? labelRaw : null;
+  const badgeText = !hasRegime
+    ? "UNKNOWN"
+    : `${(label || "UNKNOWN").replace("_", " ").toUpperCase()} · ${score == null ? "UNKNOWN" : score}`;
   return (
     <section className="card h-full" data-testid="macro-regime-panel">
       <div className="card-title">Regime Breakdown</div>
-      <div className={`regime-badge ${regimeTone(label)}`}>{label.replace("_", " ").toUpperCase()} · {regime?.score ?? 0}</div>
+      <div className={`regime-badge ${regimeTone(label)}`} data-testid="macro-regime-badge">
+        {badgeText}
+      </div>
       <div className="space-y-2">
         {drivers.map((driver) => (
           <div key={driver.name} className="flex items-center justify-between gap-3 text-[13px]">
