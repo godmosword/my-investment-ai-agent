@@ -82,9 +82,16 @@ function regimeTone(label) {
   return "regime-neutral";
 }
 
-/** 三態 driver 分數 mini-bar：-1 左紅 / 0 中性 / +1 右綠（對齊 regime 調色板）。 */
+/** 三態 driver 分數 mini-bar：-1 左紅 / 0 中性 / +1 右綠（對齊 regime 調色板）。缺分數不畫成 0。 */
 function DriverScoreBar({ score }) {
-  const s = Number(score) || 0;
+  const s = finiteNumber(score);
+  if (s == null) {
+    return (
+      <span data-testid="regime-driver-unknown" className="text-[11px] text-[var(--muted)]">
+        UNKNOWN
+      </span>
+    );
+  }
   return (
     <span data-testid="regime-driver-bar" className="inline-flex h-1.5 w-10 overflow-hidden rounded bg-white/10" aria-hidden="true">
       <span className="h-full w-1/2 border-r border-white/15">
@@ -113,26 +120,32 @@ function RegimePanel({ regime }) {
         {badgeText}
       </div>
       <div className="space-y-2">
-        {drivers.map((driver) => (
-          <div key={driver.name} className="flex items-center justify-between gap-3 text-[13px]">
-            <span className="text-[var(--muted)]">{driver.name}</span>
-            <div className="flex items-center gap-2">
-              <DriverScoreBar score={driver.score} />
-              <span
-                className={
-                  driver.score > 0
-                    ? "text-emerald-300/90"
-                    : driver.score < 0
-                      ? "text-rose-300/90"
-                      : "text-[var(--muted)]"
-                }
-              >
-                {driver.note} · {driver.score > 0 ? "+" : ""}
-                {driver.score}
-              </span>
+        {drivers.map((driver) => {
+          const driverScore = finiteNumber(driver.score);
+          return (
+            <div key={driver.name} className="flex items-center justify-between gap-3 text-[13px]">
+              <span className="text-[var(--muted)]">{driver.name}</span>
+              <div className="flex items-center gap-2">
+                <DriverScoreBar score={driver.score} />
+                <span
+                  className={
+                    driverScore == null
+                      ? "text-[var(--muted)]"
+                      : driverScore > 0
+                        ? "text-emerald-300/90"
+                        : driverScore < 0
+                          ? "text-rose-300/90"
+                          : "text-[var(--muted)]"
+                  }
+                >
+                  {driverScore == null
+                    ? `${driver.note ? `${driver.note} · ` : ""}UNKNOWN`
+                    : `${driver.note} · ${driverScore > 0 ? "+" : ""}${driverScore}`}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

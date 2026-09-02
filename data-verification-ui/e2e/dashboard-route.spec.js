@@ -135,4 +135,47 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
     await expect(page.getByTestId("macro-dashboard-loading")).toHaveCount(0);
   });
 
+  test("driver missing score shows UNKNOWN, not a 0-neutral bar", async ({ page }) => {
+    await page.route("**/api/macro/snapshot", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-05-13T00:00:00Z",
+          cached: false,
+          indicator_order: ["zero_rate"],
+          indicators: {
+            zero_rate: {
+              id: "zero_rate",
+              label: "Zero Rate",
+              value: 0,
+              display: "0.00",
+              unit: "%",
+              change_1d: 0,
+              change_5d: 0,
+              change_unit: "%",
+              spark: [0, 0, 0],
+              source: "e2e",
+            },
+          },
+          catalysts: [],
+          regime: {
+            label: "risk_on",
+            score: 1,
+            drivers: [{ name: "VIX", note: "n/a" }],
+          },
+        }),
+      });
+    });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
+    const panel = page.getByTestId("macro-regime-panel");
+    await expect(panel).toBeVisible();
+    await expect(page.getByTestId("regime-driver-unknown")).toBeVisible();
+    await expect(page.getByTestId("regime-driver-unknown")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("regime-driver-bar")).toHaveCount(0);
+    await expect(page.getByTestId("macro-regime-badge")).toContainText("RISK ON");
+    await expect(panel).toContainText("VIX");
+  });
+
 });
