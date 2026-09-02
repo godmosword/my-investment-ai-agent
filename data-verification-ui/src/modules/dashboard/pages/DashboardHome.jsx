@@ -230,8 +230,6 @@ export default function DashboardHome() {
         </div>
       ) : null}
 
-      <TodayBtcSnapshotStrip />
-
       {macro.isLoading ? <div className="loading" data-testid="macro-dashboard-loading">載入 macro snapshot…</div> : null}
       {macro.error ? (
         <div className="error-msg mb-3" data-testid="macro-dashboard-error">
@@ -288,6 +286,7 @@ export default function DashboardHome() {
                 尚無宏觀指標。
               </div>
             ) : null}
+            <TodayBtcSnapshotStrip />
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
               <CatalystCalendar catalysts={data?.catalysts ?? []} />
               <RegimePanel regime={data?.regime} />
