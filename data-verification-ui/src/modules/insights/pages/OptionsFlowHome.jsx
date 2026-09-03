@@ -14,8 +14,8 @@ const GammaBarChart = lazy(() => import("../../../components/charts/GammaBarChar
  */
 
 function formatGex(value) {
-  if (value == null || Number.isNaN(Number(value))) return "—";
-  const n = Number(value);
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   const abs = Math.abs(n);
   if (abs >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
   if (abs >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
@@ -93,7 +93,8 @@ function WatchlistStrip({ items, selected, onSelect }) {
           >
             <span className="font-mono font-semibold text-white">{it.underlying}</span>
             <span className="ml-2 text-white/70">
-              GEX {it.gex ? formatGex(it.gex.total_gex) : "—"} · 異常{" "}
+              GEX <span data-testid="options-watchlist-gex">{it.gex ? formatGex(it.gex.total_gex) : "UNKNOWN"}</span>
+              {" · "}異常{" "}
               <span data-testid="options-watchlist-unusual">{unusual == null ? "UNKNOWN" : unusual}</span>
             </span>
           </button>
@@ -130,15 +131,15 @@ function GexReadout({ symbol }) {
       <div className="grid grid-cols-3 gap-2 text-[12px]">
         <div>
           <div className="text-white/50">Total GEX</div>
-          <div className="font-mono text-white">{formatGex(gex.total_gex)}</div>
+          <div data-testid="options-gex-total" className="font-mono text-white">{formatGex(gex.total_gex)}</div>
         </div>
         <div>
           <div className="text-white/50">Call GEX</div>
-          <div className="font-mono text-emerald-200/90">{formatGex(gex.call_gex)}</div>
+          <div data-testid="options-gex-call" className="font-mono text-emerald-200/90">{formatGex(gex.call_gex)}</div>
         </div>
         <div>
           <div className="text-white/50">Put GEX</div>
-          <div className="font-mono text-rose-200/90">{formatGex(gex.put_gex)}</div>
+          <div data-testid="options-gex-put" className="font-mono text-rose-200/90">{formatGex(gex.put_gex)}</div>
         </div>
       </div>
       {Array.isArray(data?.history) && data.history.length > 0 ? (

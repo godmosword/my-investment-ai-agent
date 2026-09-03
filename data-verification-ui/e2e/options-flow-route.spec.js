@@ -36,6 +36,9 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     await expect(strip.getByText("MU", { exact: false })).toBeVisible();
     await expect(strip.locator('[data-symbol="AMD"]').getByTestId("options-watchlist-unusual")).toHaveText("0");
     await expect(strip.locator('[data-symbol="MU"]').getByTestId("options-watchlist-unusual")).toHaveText("2");
+    await expect(strip.locator('[data-symbol="AMD"]').getByTestId("options-watchlist-gex")).toHaveText("UNKNOWN");
+    await expect(strip.locator('[data-symbol="MU"]').getByTestId("options-watchlist-gex")).toHaveText("300.0K");
+    await expect(strip.locator('[data-symbol="AMD"]')).not.toContainText("—");
   });
 
   test("watchlist unusual_count null/omitted is UNKNOWN; real 0 stays 0", async ({ page }) => {
@@ -245,5 +248,61 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     await expect(page.getByTestId("options-gex-panel")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("options-gex-regime")).toHaveText("負 gamma（放大波動）");
     await expect(page.getByTestId("options-gex-regime")).not.toHaveText("UNKNOWN");
+  });
+
+  test("formatGex and no-gex chip show UNKNOWN, not em dash", async ({ page }) => {
+    await page.route("**/api/options/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          as_of: "2026-06-19T22:30:00Z",
+          watchlist: ["MU", "AMD", "INTC"],
+          items: [
+            { underlying: "MU", gex: { total_gex: 0, regime: "positive" }, unusual_count: 0 },
+            { underlying: "AMD", gex: null, unusual_count: 0 },
+            { underlying: "INTC", gex: { total_gex: null, call_gex: "n/a", regime: "positive" }, unusual_count: 1 },
+          ],
+        }),
+      });
+    });
+    await page.route("**/api/options/gex/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          underlying: "INTC",
+          as_of: "2026-06-19T22:30:00Z",
+          gex: {
+            underlying: "INTC",
+            total_gex: null,
+            call_gex: "n/a",
+            put_gex: null,
+            spot_price: 40,
+            regime: "positive",
+            trade_date: "2026-06-19",
+          },
+          history: [],
+          per_strike: [],
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=options&symbol=INTC", { waitUntil: "load" });
+    await expect(page.getByTestId("options-flow-home")).toBeVisible({ timeout: 60_000 });
+
+    const chip = (sym) => page.locator(`[data-testid="options-watchlist-chip"][data-symbol="${sym}"]`);
+    await expect(chip("MU").getByTestId("options-watchlist-gex")).toHaveText("0");
+    await expect(chip("AMD").getByTestId("options-watchlist-gex")).toHaveText("UNKNOWN");
+    await expect(chip("INTC").getByTestId("options-watchlist-gex")).toHaveText("UNKNOWN");
+    await expect(chip("AMD")).not.toContainText("—");
+    await expect(chip("INTC")).not.toContainText("—");
+
+    await expect(page.getByTestId("options-gex-total")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("options-gex-call")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("options-gex-put")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("options-gex-panel")).not.toContainText("—");
   });
 });
