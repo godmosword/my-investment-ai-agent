@@ -52,7 +52,7 @@ test.describe("Insights — Earnings calendar tab (P3)", () => {
     await expect(page.getByTestId("earnings-insight-detail")).toBeHidden();
   });
 
-  test("missing days_until shows UNKNOWN, not D-0", async ({ page }) => {
+  test("missing or expired days_until shows UNKNOWN, not clamped D-0", async ({ page }) => {
     await page.route(
       (url) => url.pathname === "/api/earnings/upcoming" || url.pathname === "/api/earnings/upcoming/",
       async (route) => {
