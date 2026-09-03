@@ -129,6 +129,7 @@ function RegimePanel({ regime }) {
               <div className="flex items-center gap-2">
                 <DriverScoreBar score={driver.score} />
                 <span
+                  data-testid="regime-driver-caption"
                   className={
                     driverScore == null
                       ? "text-[var(--muted)]"
@@ -140,7 +141,7 @@ function RegimePanel({ regime }) {
                   }
                 >
                   {driverScore == null
-                    ? `${driver.note ? `${driver.note} · ` : ""}UNKNOWN`
+                    ? driver.note || ""
                     : `${driver.note} · ${driverScore > 0 ? "+" : ""}${driverScore}`}
                 </span>
               </div>
