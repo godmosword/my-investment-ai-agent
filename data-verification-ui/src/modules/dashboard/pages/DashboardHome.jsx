@@ -15,10 +15,11 @@ const DASHBOARD_TABS = [
 ];
 const DASHBOARD_TAB_IDS = new Set(DASHBOARD_TABS.map((t) => t.id));
 
-/** Missing-data display sentinels from macro snapshot (`N/A`, dashes). */
+/** Missing-data display sentinels: N/A, NA, dashes, empty, whitespace-only. Absent display is not a sentinel. */
 function isMissingDisplay(display) {
   if (display == null) return false;
   const s = String(display).trim();
+  if (s === "") return true;
   const folded = s.toLowerCase();
   return folded === "n/a" || folded === "na" || s === "—" || s === "-" || s === "–";
 }
