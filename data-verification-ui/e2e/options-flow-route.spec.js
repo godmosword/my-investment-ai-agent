@@ -34,6 +34,38 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     await expect(strip.locator('[data-symbol="MU"]')).toBeVisible();
     await expect(strip.locator('[data-symbol="NVDA"]')).toBeVisible();
     await expect(strip.getByText("MU", { exact: false })).toBeVisible();
+    await expect(strip.locator('[data-symbol="AMD"]').getByTestId("options-watchlist-unusual")).toHaveText("0");
+    await expect(strip.locator('[data-symbol="MU"]').getByTestId("options-watchlist-unusual")).toHaveText("2");
+  });
+
+  test("watchlist unusual_count null/omitted is UNKNOWN; real 0 stays 0", async ({ page }) => {
+    await page.route("**/api/options/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          as_of: "2026-06-19T22:30:00Z",
+          watchlist: ["MU", "AMD", "INTC", "TSM"],
+          items: [
+            { underlying: "MU", gex: { total_gex: 300000, regime: "positive" }, unusual_count: 2 },
+            { underlying: "AMD", gex: null, unusual_count: 0 },
+            { underlying: "INTC", gex: { total_gex: 1000, regime: "positive" }, unusual_count: null },
+            { underlying: "TSM", gex: { total_gex: 1000, regime: "positive" } },
+          ],
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=options", { waitUntil: "load" });
+    await expect(page.getByTestId("options-flow-home")).toBeVisible({ timeout: 60_000 });
+
+    const chip = (sym) => page.locator(`[data-testid="options-watchlist-chip"][data-symbol="${sym}"]`);
+    await expect(chip("MU").getByTestId("options-watchlist-unusual")).toHaveText("2");
+    await expect(chip("AMD").getByTestId("options-watchlist-unusual")).toHaveText("0");
+    await expect(chip("INTC").getByTestId("options-watchlist-unusual")).toHaveText("UNKNOWN");
+    await expect(chip("TSM").getByTestId("options-watchlist-unusual")).toHaveText("UNKNOWN");
+    await expect(chip("AMD").getByTestId("options-watchlist-unusual")).not.toHaveText("UNKNOWN");
   });
 
   test("selecting a symbol shows GEX panel + unusual flow rows", async ({ page }) => {

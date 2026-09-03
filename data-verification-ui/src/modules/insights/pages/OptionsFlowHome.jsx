@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useOptionsSummary, useOptionsGex, useOptionsFlow } from "../../../hooks/useApi";
 import UnusualFlowTable from "../../../components/UnusualFlowTable";
+import { finiteNumber } from "../../../utils/finiteNumber";
 
 const GexHistoryChart = lazy(() => import("../../../components/GexHistoryChart"));
 const GammaBarChart = lazy(() => import("../../../components/charts/GammaBarChart"));
@@ -76,24 +77,28 @@ function ApiMissingCard({ error }) {
 function WatchlistStrip({ items, selected, onSelect }) {
   return (
     <div data-testid="options-watchlist" className="mb-3 flex flex-wrap gap-2">
-      {items.map((it) => (
-        <button
-          key={it.underlying}
-          type="button"
-          data-testid="options-watchlist-chip"
-          data-symbol={it.underlying}
-          aria-pressed={selected === it.underlying}
-          onClick={() => onSelect(it.underlying)}
-          className={`min-h-[44px] rounded border px-3 py-1.5 text-left text-[12px] ${
-            selected === it.underlying ? "border-emerald-400/50 bg-emerald-500/[0.08]" : regimeChipClass(it.gex?.regime)
-          }`}
-        >
-          <span className="font-mono font-semibold text-white">{it.underlying}</span>
-          <span className="ml-2 text-white/70">
-            GEX {it.gex ? formatGex(it.gex.total_gex) : "—"} · 異常 {it.unusual_count ?? 0}
-          </span>
-        </button>
-      ))}
+      {items.map((it) => {
+        const unusual = finiteNumber(it.unusual_count);
+        return (
+          <button
+            key={it.underlying}
+            type="button"
+            data-testid="options-watchlist-chip"
+            data-symbol={it.underlying}
+            aria-pressed={selected === it.underlying}
+            onClick={() => onSelect(it.underlying)}
+            className={`min-h-[44px] rounded border px-3 py-1.5 text-left text-[12px] ${
+              selected === it.underlying ? "border-emerald-400/50 bg-emerald-500/[0.08]" : regimeChipClass(it.gex?.regime)
+            }`}
+          >
+            <span className="font-mono font-semibold text-white">{it.underlying}</span>
+            <span className="ml-2 text-white/70">
+              GEX {it.gex ? formatGex(it.gex.total_gex) : "—"} · 異常{" "}
+              <span data-testid="options-watchlist-unusual">{unusual == null ? "UNKNOWN" : unusual}</span>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
