@@ -25,8 +25,8 @@ function formatValue(indicator) {
 }
 
 function formatChange(value, unit = "%") {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toFixed(unit === "bp" ? 1 : 2)}${unit}`;
 }
@@ -56,7 +56,7 @@ function MacroCard({ indicator }) {
           <div className="metric-label">{indicator.label}</div>
           <div className="metric-value" data-testid="macro-indicator-value">{formatValue(indicator)}</div>
         </div>
-        <span className={`metric-delta ${deltaClass(indicator)}`}>
+        <span className={`metric-delta ${deltaClass(indicator)}`} data-testid="macro-indicator-change-5d">
           5D {formatChange(indicator.change_5d, indicator.change_unit || "%")}
         </span>
       </div>
@@ -64,7 +64,7 @@ function MacroCard({ indicator }) {
         <Sparkline values={indicator.spark || []} tone={tone} label={`${indicator.label} sparkline`} />
       </div>
       <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)]">
-        <span>1D {formatChange(indicator.change_1d, indicator.change_unit || "%")}</span>
+        <span data-testid="macro-indicator-change-1d">1D {formatChange(indicator.change_1d, indicator.change_unit || "%")}</span>
         <span className="truncate">{indicator.source}</span>
       </div>
     </article>

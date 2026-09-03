@@ -394,4 +394,52 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
     await expect(page.getByTestId("macro-indicator-grid")).not.toContainText("N/A");
   });
 
+  test("missing change shows UNKNOWN, not em dash; real 0 stays 0.00%", async ({ page }) => {
+    await page.route("**/api/macro/snapshot", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-05-13T00:00:00Z",
+          cached: false,
+          indicator_order: ["missing_chg", "zero_chg"],
+          indicators: {
+            missing_chg: {
+              id: "missing_chg",
+              label: "Missing Chg",
+              value: 10,
+              display: "10.00",
+              source: "e2e",
+            },
+            zero_chg: {
+              id: "zero_chg",
+              label: "Zero Chg",
+              value: 0,
+              display: "0.00",
+              change_1d: 0,
+              change_5d: 0,
+              change_unit: "%",
+              source: "e2e",
+            },
+          },
+          catalysts: [],
+          regime: { label: "neutral", score: 0, drivers: [] },
+        }),
+      });
+    });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
+
+    const missing = page.getByTestId("macro-indicator-missing_chg");
+    await expect(missing.getByTestId("macro-indicator-change-5d")).toHaveText("5D UNKNOWN");
+    await expect(missing.getByTestId("macro-indicator-change-1d")).toHaveText("1D UNKNOWN");
+    await expect(missing).not.toContainText("—");
+
+    const zero = page.getByTestId("macro-indicator-zero_chg");
+    await expect(zero.getByTestId("macro-indicator-change-5d")).toHaveText("5D 0.00%");
+    await expect(zero.getByTestId("macro-indicator-change-1d")).toHaveText("1D 0.00%");
+    await expect(zero).not.toContainText("UNKNOWN");
+    await expect(page.getByTestId("macro-indicator-grid")).not.toContainText("—");
+  });
+
 });
