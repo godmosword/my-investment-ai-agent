@@ -123,6 +123,26 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await expect(page.getByTestId("track-record-home")).not.toContainText("累積曲線");
   });
 
+  test("without summary does not render 閉倉紀錄 card", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({ status: 200, contentType: "application/json", body: "null" });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ records: [], total: 0, limit: 50, offset: 0 }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-unknown-empty")).toBeVisible();
+    await expect(page.getByTestId("track-record-unknown-empty")).toContainText("UNKNOWN");
+    await expect(page.getByTestId("track-record-closed-card")).toHaveCount(0);
+    await expect(page.getByTestId("track-record-closed-table")).toHaveCount(0);
+    await expect(page.getByTestId("track-record-home")).not.toContainText("閉倉紀錄");
+  });
+
   test("summary error is distinct from empty and does not fake 0 KPIs", async ({ page }) => {
     await page.route("**/api/track-record/summary*", async (route) => {
       await route.fulfill({ status: 500, contentType: "application/json", body: "{\"detail\":\"fail\"}" });
