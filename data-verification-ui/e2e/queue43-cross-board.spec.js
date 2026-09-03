@@ -26,7 +26,7 @@ test.describe("Queue 43 cross-board polish", () => {
 
     await expect(page.getByTestId("global-watchlist-panel")).toBeVisible();
     await page.getByTestId("global-watchlist").getByPlaceholder("新增代號").fill("NVDA");
-    await page.getByTestId("global-watchlist").getByRole("button", { name: "Add" }).click();
+    await page.getByTestId("global-watchlist").getByTestId("watchlist-add").click();
     await expect(page.getByTestId("global-watchlist")).toContainText("NVDA");
 
     const panel = page.getByTestId("price-alerts-panel");
