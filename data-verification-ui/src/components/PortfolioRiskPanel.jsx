@@ -13,7 +13,10 @@ function loadBudget() {
     if (!raw) return { account_equity: "", risk_pct: DEFAULT_RISK_PCT };
     const parsed = JSON.parse(raw);
     return {
-      account_equity: typeof parsed.account_equity === "number" ? String(parsed.account_equity) : "",
+      account_equity:
+        typeof parsed.account_equity === "number" && parsed.account_equity > 0
+          ? String(parsed.account_equity)
+          : "",
       risk_pct:
         typeof parsed.risk_pct === "number" && parsed.risk_pct > 0
           ? parsed.risk_pct

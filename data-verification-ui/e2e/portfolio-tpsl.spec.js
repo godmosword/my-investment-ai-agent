@@ -99,6 +99,31 @@ test.describe("Portfolio TP/SL calculator (queue 45 · P1)", () => {
     await expect(page.getByTestId("risk-budget-value")).not.toHaveText("$0");
   });
 
+  test("legacy stored equity 0 loads as empty; budget is UNKNOWN not $0", async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        window.localStorage.setItem(
+          "qsi_risk_budget_v1",
+          JSON.stringify({ account_equity: 0, risk_pct: 1 }),
+        );
+      } catch {
+        /* ignore */
+      }
+    });
+
+    await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
+
+    await expect(page.getByTestId("risk-equity-input")).toHaveValue("");
+    const budget = page.getByTestId("risk-budget-value");
+    await expect(budget).toHaveText("UNKNOWN");
+    await expect(budget).not.toHaveText("$0");
+    await expect(budget).not.toHaveText("$0.00");
+
+    await page.getByTestId("risk-equity-input").fill("50000");
+    await expect(budget).toHaveText("$500");
+  });
+
   test("submits manual PENDING_REVIEW intent on click", async ({ page }) => {
     await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
