@@ -44,4 +44,29 @@ test.describe("ITER-P4-44F global dock chrome", () => {
     await expect(direction.locator('option[value="below"]')).toHaveText("低於");
     await expect(direction).toHaveValue("above");
   });
+
+  test("price alerts row delete is 移除, ≥44px, and still deletes", async ({ page }) => {
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+
+    const panel = page.getByTestId("price-alerts-panel");
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    await panel.getByPlaceholder("NVDA").fill("AAPL");
+    await panel.getByPlaceholder("900").fill("180");
+    await panel.getByTestId("price-alerts-add").click();
+
+    const row = panel.getByTestId("price-alerts-row");
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("AAPL");
+
+    const remove = row.getByTestId("price-alerts-remove");
+    await expect(remove).toHaveText("移除");
+    const box = await remove.boundingBox();
+    expect(box, "Remove button has a bounding box").not.toBeNull();
+    expect(box.height).toBeGreaterThanOrEqual(44);
+
+    await remove.click();
+    await expect(panel.getByTestId("price-alerts-row")).toHaveCount(0);
+    await expect(panel).not.toContainText("AAPL");
+  });
 });

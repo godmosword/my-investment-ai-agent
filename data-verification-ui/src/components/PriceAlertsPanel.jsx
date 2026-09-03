@@ -131,6 +131,7 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
         {alerts.map((alert) => (
           <div
             key={alert.id}
+            data-testid="price-alerts-row"
             className="flex flex-wrap items-center justify-between gap-2 rounded border border-white/10 bg-white/[0.03] px-2 py-2 text-[12px]"
           >
             <div>
@@ -143,10 +144,11 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
             </div>
             <button
               type="button"
-              className="min-h-[32px] rounded border border-white/15 px-2 text-white/60 hover:text-red-300"
+              data-testid="price-alerts-remove"
+              className="min-h-[44px] rounded border border-white/15 px-2 text-white/60 hover:text-red-300"
               onClick={() => deleteAlert.mutate(alert.id)}
             >
-              Remove
+              移除
             </button>
           </div>
         ))}
