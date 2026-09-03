@@ -41,10 +41,10 @@
 
 **斷點與殼層**：
 
-- **`<768px`**：[`Shell`](data-verification-ui/src/app/layout/Shell.jsx) 不顯示側欄；顯示 **[`ModuleNav`](data-verification-ui/src/app/layout/ModuleNav.jsx)**（Portal 模組快捷，補 [`BottomNav`](data-verification-ui/src/components/BottomNav.jsx) 未含之四模組）+ **BottomNav**（主功能五項＋設定）；主內容於 [`<main className="page-content">`](data-verification-ui/src/App.jsx)。
-- **`≥768px`**：顯示 **[`SideNav`](data-verification-ui/src/app/layout/SideNav.jsx)**（主功能＋分析模組＋設定）；**ModuleNav 隱藏**（避免與 SideNav「分析模組」區塊重複）；BottomNav 隱藏。
+- **`<768px`**：[`Shell`](data-verification-ui/src/app/layout/Shell.jsx) 不顯示側欄；僅 **[`BottomNav`](data-verification-ui/src/components/BottomNav.jsx)**（主功能五項＋設定）為主模組導覽；主內容於 [`<main className="page-content">`](data-verification-ui/src/App.jsx)。
+- **`≥768px`**：顯示 **[`SideNav`](data-verification-ui/src/app/layout/SideNav.jsx)**（主功能＋設定，含 SSE 狀態燈）；BottomNav 隱藏。
 
-**SideNav vs ModuleNav**：SideNav = 完整 IA（含 SSE 狀態燈）；ModuleNav = 僅小螢幕用的 Portal 模組橫列。**不重複出現在桌面**。
+**SideNav vs BottomNav**：SideNav = 桌面完整 IA；BottomNav = 小螢幕唯一主模組導覽。兩者不同時出現。
 
 **桌面主內容可讀寬**：`≥768px` 時 `.page-content` **max-width 1120px**、水平置中（超寬螢幕可讀性）。若某頁未來需全寬圖表，另加例外 class（例如 `page-content--full-bleed`）並於此文件註記。
 
@@ -94,7 +94,7 @@ ASCII 僅供 QA／人測對齊視線（**非** pixel 佈局契約）。
 
 **非** Playwright 替代品；E2E 仍以 `phase4-ia-portal.spec.js` 等為準。供 44a 人測簽名或 demo 勾選。
 
-1. **0–15s**：`<768px` 開 `/news` — 見 reader intro、首屏無多區報價矩陣；BottomNav + ModuleNav 可切主要模組。
+1. **0–15s**：`<768px` 開 `/news` — 見 reader intro、首屏無多區報價矩陣；BottomNav 可切主要模組。
 2. **15–45s**：點單一主 CTA（`accent`）往 **`/insights`** — 見 workbench intro、首屏區塊數合理（與 44b tab／dock 等一致）。
 3. **45–75s**：從工作台 **`回到新聞脈動`**（`PORTAL_PHASE4_CTA.workbenchToNews`）— 讀者密度不變；Command Bar placeholder 為讀者向字串。
 4. **75–90s**：`/news?focus=NVDA`（或測試環境已知 symbol）— 符合上表 Loading／Empty／No match／Error 之一，**無**幻覺報價。
@@ -154,5 +154,5 @@ ASCII 僅供 QA／人測對齊視線（**非** pixel 佈局契約）。
 
 - **平板 `768px–1279px`**：維持側欄 + 單欄主內容；與 `1280px+` 差異主要為側欄寬度（見 [`index.css`](data-verification-ui/src/index.css)）。細修可在後續迭代獨立 media query。
 - **`:focus-visible`**：所有可聚焦連結／按鈕須有鍵盤可見焦環（對比比率足夠，優先沿用 `--accent`）。
-- **觸控目標**：主要導覽連結（ModuleNav、BottomNav）**最小約 44×44 CSS px**。
-- **地標**：`<main id="main-content" className="page-content" tabIndex={-1}>`；`nav` 使用 **`aria-label`**（「主導航」「Portal 模組」「主導航（底部）」）。**Skip link** 見 **Portal Phase 4** 末節「Skip link 與鍵盤順序（P2 — 已落地）」。
+- **觸控目標**：主要導覽連結（SideNav、BottomNav）**最小約 44×44 CSS px**。
+- **地標**：`<main id="main-content" className="page-content" tabIndex={-1}>`；`nav` 使用 **`aria-label`**（「主導航」「主導航（底部）」）。**Skip link** 見 **Portal Phase 4** 末節「Skip link 與鍵盤順序（P2 — 已落地）」。
