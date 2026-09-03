@@ -19,7 +19,9 @@ export default function CatalystCalendar({ catalysts = [] }) {
               className="rounded-lg border border-[color:var(--border)] bg-white/[0.03] px-3 py-2"
             >
               <div className="flex items-center justify-between gap-3">
-                <span className="font-mono text-[12px] text-[var(--muted)]">{event.date || "TBD"}</span>
+                <span data-testid="catalyst-date" className="font-mono text-[12px] text-[var(--muted)]">
+                  {String(event.date ?? "").trim() || "UNKNOWN"}
+                </span>
                 <span
                   className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-200"
                   data-testid="catalyst-importance"
