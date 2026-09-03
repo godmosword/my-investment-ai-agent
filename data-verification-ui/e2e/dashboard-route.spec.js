@@ -245,10 +245,14 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
     const panel = page.getByTestId("macro-regime-panel");
     await expect(panel).toBeVisible();
     await expect(page.getByTestId("regime-driver-unknown")).toBeVisible();
+    await expect(page.getByTestId("regime-driver-unknown")).toHaveCount(1);
     await expect(page.getByTestId("regime-driver-unknown")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("regime-driver-caption")).not.toContainText("UNKNOWN");
     await expect(page.getByTestId("regime-driver-bar")).toHaveCount(0);
     await expect(page.getByTestId("macro-regime-badge")).toContainText("RISK ON");
     await expect(panel).toContainText("VIX");
+    const unknownMatches = (await panel.innerText()).match(/UNKNOWN/g) || [];
+    expect(unknownMatches).toHaveLength(1);
   });
 
   test("catalyst missing importance shows UNKNOWN, not high", async ({ page }) => {
