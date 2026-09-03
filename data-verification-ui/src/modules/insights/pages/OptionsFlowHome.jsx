@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useOptionsSummary, useOptionsGex, useOptionsFlow } from "../../../hooks/useApi";
 import UnusualFlowTable from "../../../components/UnusualFlowTable";
+import { finiteNumber } from "../../../utils/finiteNumber";
 
 const GexHistoryChart = lazy(() => import("../../../components/GexHistoryChart"));
 const GammaBarChart = lazy(() => import("../../../components/charts/GammaBarChart"));
@@ -13,8 +14,8 @@ const GammaBarChart = lazy(() => import("../../../components/charts/GammaBarChar
  */
 
 function formatGex(value) {
-  if (value == null || Number.isNaN(Number(value))) return "—";
-  const n = Number(value);
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   const abs = Math.abs(n);
   if (abs >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
   if (abs >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
@@ -76,24 +77,29 @@ function ApiMissingCard({ error }) {
 function WatchlistStrip({ items, selected, onSelect }) {
   return (
     <div data-testid="options-watchlist" className="mb-3 flex flex-wrap gap-2">
-      {items.map((it) => (
-        <button
-          key={it.underlying}
-          type="button"
-          data-testid="options-watchlist-chip"
-          data-symbol={it.underlying}
-          aria-pressed={selected === it.underlying}
-          onClick={() => onSelect(it.underlying)}
-          className={`min-h-[44px] rounded border px-3 py-1.5 text-left text-[12px] ${
-            selected === it.underlying ? "border-emerald-400/50 bg-emerald-500/[0.08]" : regimeChipClass(it.gex?.regime)
-          }`}
-        >
-          <span className="font-mono font-semibold text-white">{it.underlying}</span>
-          <span className="ml-2 text-white/70">
-            GEX {it.gex ? formatGex(it.gex.total_gex) : "—"} · 異常 {it.unusual_count ?? 0}
-          </span>
-        </button>
-      ))}
+      {items.map((it) => {
+        const unusual = finiteNumber(it.unusual_count);
+        return (
+          <button
+            key={it.underlying}
+            type="button"
+            data-testid="options-watchlist-chip"
+            data-symbol={it.underlying}
+            aria-pressed={selected === it.underlying}
+            onClick={() => onSelect(it.underlying)}
+            className={`min-h-[44px] rounded border px-3 py-1.5 text-left text-[12px] ${
+              selected === it.underlying ? "border-emerald-400/50 bg-emerald-500/[0.08]" : regimeChipClass(it.gex?.regime)
+            }`}
+          >
+            <span className="font-mono font-semibold text-white">{it.underlying}</span>
+            <span className="ml-2 text-white/70">
+              GEX <span data-testid="options-watchlist-gex">{it.gex ? formatGex(it.gex.total_gex) : "UNKNOWN"}</span>
+              {" · "}異常{" "}
+              <span data-testid="options-watchlist-unusual">{unusual == null ? "UNKNOWN" : unusual}</span>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -110,27 +116,30 @@ function GexReadout({ symbol }) {
       </div>
     );
   }
-  const regime = gex.regime || (Number(gex.total_gex) >= 0 ? "positive" : "negative");
+  const regime = gex.regime === "positive" || gex.regime === "negative" ? gex.regime : null;
   return (
     <div data-testid="options-gex-panel" className="card p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-mono text-[14px] font-semibold text-white">{symbol}</span>
-        <span className={`rounded border px-2 py-0.5 text-[11px] ${regimeChipClass(regime)}`}>
-          {regime === "positive" ? "正 gamma（抑制波動）" : "負 gamma（放大波動）"}
+        <span
+          data-testid="options-gex-regime"
+          className={`rounded border px-2 py-0.5 text-[11px] ${regimeChipClass(regime)}`}
+        >
+          {regime === "positive" ? "正 gamma（抑制波動）" : regime === "negative" ? "負 gamma（放大波動）" : "UNKNOWN"}
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2 text-[12px]">
         <div>
           <div className="text-white/50">Total GEX</div>
-          <div className="font-mono text-white">{formatGex(gex.total_gex)}</div>
+          <div data-testid="options-gex-total" className="font-mono text-white">{formatGex(gex.total_gex)}</div>
         </div>
         <div>
           <div className="text-white/50">Call GEX</div>
-          <div className="font-mono text-emerald-200/90">{formatGex(gex.call_gex)}</div>
+          <div data-testid="options-gex-call" className="font-mono text-emerald-200/90">{formatGex(gex.call_gex)}</div>
         </div>
         <div>
           <div className="text-white/50">Put GEX</div>
-          <div className="font-mono text-rose-200/90">{formatGex(gex.put_gex)}</div>
+          <div data-testid="options-gex-put" className="font-mono text-rose-200/90">{formatGex(gex.put_gex)}</div>
         </div>
       </div>
       {Array.isArray(data?.history) && data.history.length > 0 ? (
