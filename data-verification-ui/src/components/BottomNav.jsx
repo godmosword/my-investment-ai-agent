@@ -11,7 +11,7 @@ const TABS = [
 
 export default function BottomNav() {
   return (
-    <nav className="bottom-nav" aria-label="主導航（底部）">
+    <nav data-testid="bottom-nav" className="bottom-nav" aria-label="主導航（底部）">
       {TABS.map(({ to, icon, label, short }) => (
         <NavLink
           key={to}

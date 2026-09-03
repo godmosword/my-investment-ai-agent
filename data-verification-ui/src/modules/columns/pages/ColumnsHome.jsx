@@ -447,7 +447,7 @@ export default function ColumnsHome() {
           <button
             type="button"
             data-testid="columns-focus-clear"
-            className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
+            className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
             onClick={clearFocus}
           >
             清除聚焦

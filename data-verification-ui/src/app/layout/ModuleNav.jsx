@@ -11,7 +11,8 @@ const MODULES = [
 export default function ModuleNav() {
   return (
     <nav
-      className="module-nav flex flex-nowrap gap-1 overflow-x-auto border-b border-white/10 bg-black/20 px-2 py-2 md:hidden"
+      data-testid="module-nav"
+      className="module-nav hidden"
       aria-label="Portal 模組"
     >
       {MODULES.map(({ to, label }) => (

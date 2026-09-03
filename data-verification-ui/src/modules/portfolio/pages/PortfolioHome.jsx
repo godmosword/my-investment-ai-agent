@@ -187,7 +187,13 @@ function AddHoldingModal({ onClose, onSubmit, pending }) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-white">新增倉位</h2>
-          <button type="button" className="text-[var(--muted)] hover:text-white" onClick={onClose}>
+          <button
+            type="button"
+            data-testid="portfolio-add-modal-close"
+            aria-label="關閉"
+            className="inline-flex min-h-[36px] items-center px-2 text-[var(--muted)] hover:text-white"
+            onClick={onClose}
+          >
             x
           </button>
         </div>
@@ -322,7 +328,8 @@ function HoldingCards({ rows, onDelete, daysUntilBySymbol }) {
             </div>
             <button
               type="button"
-              className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
+              data-testid="portfolio-holding-delete"
+              className="min-h-[36px] rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
               onClick={() => onDelete(row.id)}
             >
               刪除
@@ -647,7 +654,8 @@ export default function PortfolioHome() {
                           <td className="px-3 py-2 text-right">
                             <button
                               type="button"
-                              className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
+                              data-testid="portfolio-holding-delete"
+                              className="min-h-[36px] rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
                               onClick={() => deleteRow(row.id)}
                             >
                               刪除

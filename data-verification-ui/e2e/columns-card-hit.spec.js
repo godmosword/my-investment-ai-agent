@@ -91,3 +91,15 @@ test.describe("Columns — Deep Brief card hit (ITER-P4-44A)", () => {
     await expect(page.getByText("AI 半導體供應鏈拉高資本支出")).toHaveCount(0);
   });
 });
+
+test.describe("Columns — focus clear touch (ITER-P4-44C)", () => {
+  test("columns-focus-clear is at least 36px tall", async ({ page }) => {
+    await page.setViewportSize(VIEWPORT);
+    await page.goto("/columns?focus=NVDA", { waitUntil: "load" });
+    await expect(page.getByTestId("columns-home")).toBeVisible({ timeout: 60_000 });
+    const clear = page.getByTestId("columns-focus-clear");
+    await expect(clear).toBeVisible();
+    const box = await clear.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(36);
+  });
+});
