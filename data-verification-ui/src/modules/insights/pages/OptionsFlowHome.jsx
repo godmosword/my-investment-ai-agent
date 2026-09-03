@@ -115,13 +115,16 @@ function GexReadout({ symbol }) {
       </div>
     );
   }
-  const regime = gex.regime || (Number(gex.total_gex) >= 0 ? "positive" : "negative");
+  const regime = gex.regime === "positive" || gex.regime === "negative" ? gex.regime : null;
   return (
     <div data-testid="options-gex-panel" className="card p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-mono text-[14px] font-semibold text-white">{symbol}</span>
-        <span className={`rounded border px-2 py-0.5 text-[11px] ${regimeChipClass(regime)}`}>
-          {regime === "positive" ? "正 gamma（抑制波動）" : "負 gamma（放大波動）"}
+        <span
+          data-testid="options-gex-regime"
+          className={`rounded border px-2 py-0.5 text-[11px] ${regimeChipClass(regime)}`}
+        >
+          {regime === "positive" ? "正 gamma（抑制波動）" : regime === "negative" ? "負 gamma（放大波動）" : "UNKNOWN"}
         </span>
       </div>
       <div className="grid grid-cols-3 gap-2 text-[12px]">

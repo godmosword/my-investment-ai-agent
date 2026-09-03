@@ -75,6 +75,7 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     await page.locator('[data-testid="options-watchlist-chip"][data-symbol="MU"]').click();
     await expect(page.getByTestId("options-gex-panel")).toBeVisible();
     await expect(page.getByTestId("options-gex-panel").getByText("MU", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("options-gex-regime")).toHaveText("正 gamma（抑制波動）");
 
     const flow = page.getByTestId("options-flow-table");
     await expect(flow).toBeVisible();
@@ -184,5 +185,65 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
 
     await expect(rows.nth(2).getByTestId("options-score-unknown")).toHaveText("UNKNOWN");
     await expect(rows.nth(2).getByTestId("options-score-bar")).toHaveCount(0);
+  });
+
+  test("GexReadout missing regime is UNKNOWN and does not infer from total_gex sign", async ({ page }) => {
+    await page.route("**/api/options/gex/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          underlying: "MU",
+          as_of: "2026-06-19T22:30:00Z",
+          gex: {
+            underlying: "MU",
+            total_gex: -450000,
+            call_gex: 250000,
+            put_gex: -700000,
+            spot_price: 100,
+            trade_date: "2026-06-19",
+          },
+          history: [],
+          per_strike: [],
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=options&symbol=MU", { waitUntil: "load" });
+    await expect(page.getByTestId("options-gex-panel")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("options-gex-regime")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("options-gex-panel")).not.toContainText("正 gamma");
+    await expect(page.getByTestId("options-gex-panel")).not.toContainText("負 gamma");
+  });
+
+  test("GexReadout shows 負 gamma only when regime is exactly negative", async ({ page }) => {
+    await page.route("**/api/options/gex/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          underlying: "NVDA",
+          as_of: "2026-06-19T22:30:00Z",
+          gex: {
+            underlying: "NVDA",
+            total_gex: 300000,
+            call_gex: 500000,
+            put_gex: -200000,
+            spot_price: 130,
+            regime: "negative",
+            trade_date: "2026-06-19",
+          },
+          history: [],
+          per_strike: [],
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=options&symbol=NVDA", { waitUntil: "load" });
+    await expect(page.getByTestId("options-gex-panel")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("options-gex-regime")).toHaveText("負 gamma（放大波動）");
+    await expect(page.getByTestId("options-gex-regime")).not.toHaveText("UNKNOWN");
   });
 });
