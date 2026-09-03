@@ -322,7 +322,8 @@ function HoldingCards({ rows, onDelete, daysUntilBySymbol }) {
             </div>
             <button
               type="button"
-              className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
+              data-testid="portfolio-holding-delete"
+              className="min-h-[36px] rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
               onClick={() => onDelete(row.id)}
             >
               刪除
@@ -647,7 +648,8 @@ export default function PortfolioHome() {
                           <td className="px-3 py-2 text-right">
                             <button
                               type="button"
-                              className="rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
+                              data-testid="portfolio-holding-delete"
+                              className="min-h-[36px] rounded border border-white/15 px-2 py-1 text-[11px] text-white/60 hover:text-red-300"
                               onClick={() => deleteRow(row.id)}
                             >
                               刪除

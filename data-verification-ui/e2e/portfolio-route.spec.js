@@ -175,6 +175,20 @@ test.describe("Portfolio route (/portfolio)", () => {
     }
   });
 
+  test("holding delete buttons are at least 36px tall on table and cards", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+    const tableDelete = page.getByTestId("portfolio-holdings-table").getByTestId("portfolio-holding-delete");
+    await expect(tableDelete).toBeVisible();
+    expect((await tableDelete.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(36);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const cardDelete = page.getByTestId("portfolio-holding-card-NVDA").getByTestId("portfolio-holding-delete");
+    await expect(cardDelete).toBeVisible();
+    expect((await cardDelete.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(36);
+  });
+
   test("matched holding shows D-n from upcoming earnings", async ({ page }) => {
     await page.goto("/portfolio", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
