@@ -11,10 +11,10 @@ test.describe("FE-1 Responsive App Shell", () => {
 
     const sideNav = page.locator("nav.side-nav");
     await expect(sideNav).toBeHidden();
-    await expect(page.getByTestId("module-nav")).toBeHidden();
+    await expect(page.getByTestId("module-nav")).toHaveCount(0);
   });
 
-  test("mobile 390px hides ModuleNav; BottomNav is the only primary module nav", async ({ page }) => {
+  test("mobile 390px does not mount ModuleNav; BottomNav is the only primary module nav", async ({ page }) => {
     const routes = ["/news", "/dashboard", "/insights", "/columns", "/portfolio"];
     await page.setViewportSize({ width: 390, height: 844 });
 
@@ -22,8 +22,8 @@ test.describe("FE-1 Responsive App Shell", () => {
       await page.goto(path, { waitUntil: "load" });
       await expect(page.getByTestId("bottom-nav")).toBeVisible({ timeout: 60_000 });
       await expect(page.locator("nav.side-nav")).toBeHidden();
-      await expect(page.getByTestId("module-nav")).toBeHidden();
-      await expect(page.locator("nav.module-nav")).toBeHidden();
+      await expect(page.getByTestId("module-nav")).toHaveCount(0);
+      await expect(page.locator("nav.module-nav")).toHaveCount(0);
     }
   });
 
@@ -36,7 +36,7 @@ test.describe("FE-1 Responsive App Shell", () => {
 
     const bottomNav = page.getByTestId("bottom-nav");
     await expect(bottomNav).toBeHidden();
-    await expect(page.getByTestId("module-nav")).toBeHidden();
+    await expect(page.getByTestId("module-nav")).toHaveCount(0);
   });
 
   test("CSS variables --bottom-tab-height and --sidebar-width are defined", async ({ page }) => {

@@ -1,4 +1,3 @@
-import ModuleNav from "./ModuleNav";
 import SideNav from "./SideNav";
 import TerminalCommandBar from "../../components/TerminalCommandBar";
 import GlobalGateBadge from "../../components/GlobalGateBadge";
@@ -14,7 +13,6 @@ export default function Shell({ children, hideModuleNav = false }) {
         <a href="#main-content" className="skip-to-main">
           略過導覽至主內容
         </a>
-        {!hideModuleNav ? <ModuleNav /> : null}
         {!hideModuleNav ? (
           <TerminalCommandBar trailing={<GlobalGateBadge />} />
         ) : null}
