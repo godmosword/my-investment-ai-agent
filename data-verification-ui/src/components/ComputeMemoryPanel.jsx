@@ -44,13 +44,19 @@ function pctTone(value) {
   return "text-white/60";
 }
 
-function SourceBadge({ live, source }) {
-  const label = live ? "live" : source || "mock";
+function sourceBadgeLabel(live, source) {
+  if (isLivePayload(live)) return "live";
+  const text = source == null ? "" : String(source).trim();
+  return text || "UNKNOWN";
+}
+
+function SourceBadge({ live, source, testId = "compute-memory-source-badge" }) {
+  const label = sourceBadgeLabel(live, source);
   return (
     <span
-      data-testid="compute-memory-source-badge"
+      data-testid={testId}
       className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-        live
+        isLivePayload(live)
           ? "border-emerald-400/40 text-emerald-200/90"
           : "border-amber-300/30 text-amber-200/85"
       }`}
@@ -71,7 +77,7 @@ function HbmDramBlock({ block, live }) {
             as_of {block?.as_of || "—"} · {block?.note || "spot"}
           </div>
         </div>
-        <SourceBadge source={block?.source} />
+        <SourceBadge source={block?.source} testId="compute-memory-block-source-badge" />
       </header>
       <table className="w-full text-[12px]">
         <thead className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
@@ -123,7 +129,7 @@ function CapexBlock({ block, live }) {
             as_of {block?.as_of || "—"} · {block?.note || "quarterly"}
           </div>
         </div>
-        <SourceBadge source={block?.source} />
+        <SourceBadge source={block?.source} testId="compute-memory-block-source-badge" />
       </header>
       <table className="w-full text-[12px]">
         <thead className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
@@ -175,7 +181,7 @@ function GpuSpotBlock({ block, live }) {
             as_of {block?.as_of || "—"} · {block?.note || "on-demand"}
           </div>
         </div>
-        <SourceBadge source={block?.source} />
+        <SourceBadge source={block?.source} testId="compute-memory-block-source-badge" />
       </header>
       <table className="w-full text-[12px]">
         <thead className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
@@ -262,7 +268,7 @@ export default function ComputeMemoryPanel() {
             as_of {data?.as_of || "—"}
           </div>
         </div>
-        <SourceBadge live={data?.live} source={data?.live ? "live" : "mock"} />
+        <SourceBadge live={data?.live} source={data?.source} />
       </header>
       {data?.disclaimer ? (
         <div
