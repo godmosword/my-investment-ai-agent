@@ -342,10 +342,10 @@ function HoldingCards({ rows, onDelete, daysUntilBySymbol }) {
           <div className="grid grid-cols-2 gap-2 text-[12px]">
             <div><span className="text-[var(--muted)]">Shares</span><br />{number(row.shares)}</div>
             <div><span className="text-[var(--muted)]">Avg Cost</span><br />{money(row.cost_basis, 2)}</div>
-            <div><span className="text-[var(--muted)]">Last</span><br />{row.error ? "N/A" : money(row.last_price, 2)}</div>
-            <div><span className="text-[var(--muted)]">Weight</span><br />{row.error ? "—" : pct(row.weight)}</div>
-            <div className={toneClass(row.day_change_pct)}><span className="text-[var(--muted)]">Day Δ</span><br />{row.error ? "—" : pct(row.day_change_pct)}</div>
-            <div className={toneClass(row.pnl)}><span className="text-[var(--muted)]">P&L</span><br />{row.error ? "quote unavailable" : `${signedMoney(row.pnl)} (${pct(row.pnl_pct)})`}</div>
+            <div><span className="text-[var(--muted)]">Last</span><br /><span data-testid="portfolio-holding-last">{row.error ? "UNKNOWN" : money(row.last_price, 2)}</span></div>
+            <div><span className="text-[var(--muted)]">Weight</span><br /><span data-testid="portfolio-holding-weight">{row.error ? "UNKNOWN" : pct(row.weight)}</span></div>
+            <div className={toneClass(row.day_change_pct)}><span className="text-[var(--muted)]">Day Δ</span><br /><span data-testid="portfolio-holding-day-delta">{row.error ? "UNKNOWN" : pct(row.day_change_pct)}</span></div>
+            <div className={toneClass(row.pnl)}><span className="text-[var(--muted)]">P&L</span><br /><span data-testid="portfolio-holding-pnl">{row.error ? "UNKNOWN" : `${signedMoney(row.pnl)} (${pct(row.pnl_pct)})`}</span></div>
           </div>
         </div>
       ))}
@@ -649,12 +649,12 @@ export default function PortfolioHome() {
                           </td>
                           <td className="px-3 py-2">{number(row.shares)}</td>
                           <td className="px-3 py-2">{money(row.cost_basis, 2)}</td>
-                          <td className="px-3 py-2">{row.error ? "N/A" : money(row.last_price, 2)}</td>
-                          <td className={`px-3 py-2 ${toneClass(row.day_change_pct)}`}>{row.error ? "—" : pct(row.day_change_pct)}</td>
-                          <td className={`px-3 py-2 ${toneClass(row.pnl)}`}>
-                            {row.error ? "quote unavailable" : `${signedMoney(row.pnl)} (${pct(row.pnl_pct)})`}
+                          <td className="px-3 py-2" data-testid="portfolio-holding-last">{row.error ? "UNKNOWN" : money(row.last_price, 2)}</td>
+                          <td className={`px-3 py-2 ${toneClass(row.day_change_pct)}`} data-testid="portfolio-holding-day-delta">{row.error ? "UNKNOWN" : pct(row.day_change_pct)}</td>
+                          <td className={`px-3 py-2 ${toneClass(row.pnl)}`} data-testid="portfolio-holding-pnl">
+                            {row.error ? "UNKNOWN" : `${signedMoney(row.pnl)} (${pct(row.pnl_pct)})`}
                           </td>
-                          <td className="px-3 py-2">{row.error ? "—" : pct(row.weight)}</td>
+                          <td className="px-3 py-2" data-testid="portfolio-holding-weight">{row.error ? "UNKNOWN" : pct(row.weight)}</td>
                           <td className="px-3 py-2 text-right">
                             <button
                               type="button"
