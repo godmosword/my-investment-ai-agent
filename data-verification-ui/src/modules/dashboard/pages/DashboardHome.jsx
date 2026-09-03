@@ -70,15 +70,28 @@ function MacroCard({ indicator }) {
   );
 }
 
+function finiteNumber(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function regimeTone(label) {
   if (label === "risk_on") return "regime-on";
   if (label === "risk_off") return "regime-off";
   return "regime-neutral";
 }
 
-/** 三態 driver 分數 mini-bar：-1 左紅 / 0 中性 / +1 右綠（對齊 regime 調色板）。 */
+/** 三態 driver 分數 mini-bar：-1 左紅 / 0 中性 / +1 右綠（對齊 regime 調色板）。缺分數不畫成 0。 */
 function DriverScoreBar({ score }) {
-  const s = Number(score) || 0;
+  const s = finiteNumber(score);
+  if (s == null) {
+    return (
+      <span data-testid="regime-driver-unknown" className="text-[11px] text-[var(--muted)]">
+        UNKNOWN
+      </span>
+    );
+  }
   return (
     <span data-testid="regime-driver-bar" className="inline-flex h-1.5 w-10 overflow-hidden rounded bg-white/10" aria-hidden="true">
       <span className="h-full w-1/2 border-r border-white/15">
@@ -92,33 +105,48 @@ function DriverScoreBar({ score }) {
 }
 
 function RegimePanel({ regime }) {
-  const drivers = regime?.drivers ?? [];
-  const label = regime?.label ?? "neutral";
+  const drivers = Array.isArray(regime?.drivers) ? regime.drivers : [];
+  const labelRaw = typeof regime?.label === "string" ? regime.label.trim() : "";
+  const score = finiteNumber(regime?.score);
+  const hasEvidence = drivers.length > 0;
+  const hasRegime = hasEvidence && (Boolean(labelRaw) || score != null);
+  const label = hasRegime && labelRaw ? labelRaw : null;
+  const badgeText = !hasRegime
+    ? "UNKNOWN"
+    : `${(label || "UNKNOWN").replace("_", " ").toUpperCase()} · ${score == null ? "UNKNOWN" : score}`;
   return (
     <section className="card h-full" data-testid="macro-regime-panel">
       <div className="card-title">Regime Breakdown</div>
-      <div className={`regime-badge ${regimeTone(label)}`}>{label.replace("_", " ").toUpperCase()} · {regime?.score ?? 0}</div>
+      <div className={`regime-badge ${regimeTone(label)}`} data-testid="macro-regime-badge">
+        {badgeText}
+      </div>
       <div className="space-y-2">
-        {drivers.map((driver) => (
-          <div key={driver.name} className="flex items-center justify-between gap-3 text-[13px]">
-            <span className="text-[var(--muted)]">{driver.name}</span>
-            <div className="flex items-center gap-2">
-              <DriverScoreBar score={driver.score} />
-              <span
-                className={
-                  driver.score > 0
-                    ? "text-emerald-300/90"
-                    : driver.score < 0
-                      ? "text-rose-300/90"
-                      : "text-[var(--muted)]"
-                }
-              >
-                {driver.note} · {driver.score > 0 ? "+" : ""}
-                {driver.score}
-              </span>
+        {drivers.map((driver) => {
+          const driverScore = finiteNumber(driver.score);
+          return (
+            <div key={driver.name} className="flex items-center justify-between gap-3 text-[13px]">
+              <span className="text-[var(--muted)]">{driver.name}</span>
+              <div className="flex items-center gap-2">
+                <DriverScoreBar score={driver.score} />
+                <span
+                  className={
+                    driverScore == null
+                      ? "text-[var(--muted)]"
+                      : driverScore > 0
+                        ? "text-emerald-300/90"
+                        : driverScore < 0
+                          ? "text-rose-300/90"
+                          : "text-[var(--muted)]"
+                  }
+                >
+                  {driverScore == null
+                    ? `${driver.note ? `${driver.note} · ` : ""}UNKNOWN`
+                    : `${driver.note} · ${driverScore > 0 ? "+" : ""}${driverScore}`}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -203,8 +231,6 @@ export default function DashboardHome() {
         </div>
       ) : null}
 
-      <TodayBtcSnapshotStrip />
-
       {macro.isLoading ? <div className="loading" data-testid="macro-dashboard-loading">載入 macro snapshot…</div> : null}
       {macro.error ? (
         <div className="error-msg mb-3" data-testid="macro-dashboard-error">
@@ -261,11 +287,14 @@ export default function DashboardHome() {
                 尚無宏觀指標。
               </div>
             ) : null}
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-              <CatalystCalendar catalysts={data?.catalysts ?? []} />
-              <RegimePanel regime={data?.regime} />
-            </div>
           </>
+        ) : null}
+        <TodayBtcSnapshotStrip />
+        {active === "overview" ? (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+            <CatalystCalendar catalysts={data?.catalysts ?? []} />
+            <RegimePanel regime={data?.regime} />
+          </div>
         ) : null}
         {active === "depth" ? (
           <>

@@ -18,6 +18,17 @@ test.describe("Dashboard — first screen is 宏觀總覽 (ITER-P4-44A)", () => 
     expect(overviewBox.y).toBeGreaterThanOrEqual(0);
     expect(overviewBox.y).toBeLessThan(720);
 
+    const grid = page.getByTestId("macro-indicator-grid");
+    if ((await grid.count()) > 0) {
+      const gridBox = await grid.boundingBox();
+      const strip = page.getByTestId("today-btc-snapshot-strip");
+      await expect(strip).toBeAttached();
+      const stripBox = await strip.boundingBox();
+      expect(stripBox).toBeTruthy();
+      expect(stripBox.y).toBeGreaterThanOrEqual(gridBox.y + gridBox.height);
+      expect(stripBox.y).toBeGreaterThanOrEqual(720);
+    }
+
     await expect(page.getByTestId("workbench-primary-question")).toBeHidden();
     await expect(page.getByTestId("dashboard-workbench-intro").getByRole("link", { name: "觀點" })).toBeHidden();
     await expect(page.getByTestId("dashboard-workbench-intro").getByRole("link", { name: "持倉" })).toBeHidden();
@@ -40,6 +51,7 @@ test.describe("Dashboard — first screen is 宏觀總覽 (ITER-P4-44A)", () => 
     await page.goto("/dashboard?tab=depth", { waitUntil: "load" });
     await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("dashboard-tab-depth")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("today-btc-snapshot-strip")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("compute-memory-panel")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("onchain-panel")).toBeVisible({ timeout: 60_000 });
   });

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from api_routers import macro
@@ -75,3 +77,27 @@ def test_macro_snapshot_cache_avoids_repeated_downloads(client, monkeypatch):
     assert second.json()["cached"] is True
     assert calls
     assert len(calls) < 20
+
+
+def test_fetch_catalysts_does_not_default_missing_impact_to_high(monkeypatch):
+    monkeypatch.setenv("FMP_API_KEY", "e2e-test-key")
+
+    class FakeResp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return [
+                {"country": "US", "event": "US CPI", "date": "2026-05-15T12:00:00", "impact": ""},
+                {"country": "US", "event": "FOMC Statement", "date": "2026-05-16"},
+                {"country": "US", "event": "NFP Payrolls", "date": "2026-05-17", "impact": "High"},
+                {"country": "US", "event": "PPI", "date": "2026-05-18", "impact": None},
+            ]
+
+    monkeypatch.setattr(macro.requests, "get", lambda *_args, **_kwargs: FakeResp())
+    out = macro._fetch_catalysts(datetime(2026, 5, 13, tzinfo=timezone.utc))
+    by_name = {row["name"]: row for row in out}
+    assert by_name["US CPI"]["importance"] is None
+    assert by_name["FOMC Statement"]["importance"] is None
+    assert by_name["PPI"]["importance"] is None
+    assert by_name["NFP Payrolls"]["importance"] == "high"

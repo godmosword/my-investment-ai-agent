@@ -101,6 +101,12 @@ test.describe("Portfolio route (/portfolio)", () => {
       await expect(card).toContainText("UNKNOWN");
       await expect(card).not.toContainText("$0");
     }
+    await expect(page.getByTestId("portfolio-day-pnl-sub")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("portfolio-total-pnl-sub")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("portfolio-day-pnl-sub")).not.toContainText("+0.0%");
+    await expect(page.getByTestId("portfolio-total-pnl-sub")).not.toContainText("+0.0%");
+    await expect(page.getByTestId("portfolio-day-pnl-sub")).not.toContainText("0.0%");
+    await expect(page.getByTestId("portfolio-total-pnl-sub")).not.toContainText("0.0%");
   });
 
   test("production pnl zeros with quote_unavailable holding show UNKNOWN, not $0", async ({ page }) => {
@@ -143,6 +149,12 @@ test.describe("Portfolio route (/portfolio)", () => {
       await expect(card).toContainText("UNKNOWN");
       await expect(card).not.toContainText("$0");
     }
+    await expect(page.getByTestId("portfolio-day-pnl-sub")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("portfolio-total-pnl-sub")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("portfolio-day-pnl-sub")).not.toContainText("+0.0%");
+    await expect(page.getByTestId("portfolio-total-pnl-sub")).not.toContainText("+0.0%");
+    await expect(page.getByTestId("portfolio-day-pnl-sub")).not.toContainText("0.0%");
+    await expect(page.getByTestId("portfolio-total-pnl-sub")).not.toContainText("0.0%");
   });
 
   test("holding insight and news links are at least 36px tall on table and cards", async ({ page }) => {

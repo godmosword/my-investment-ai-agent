@@ -18,6 +18,21 @@ test.describe("Bloomberg §6 — Dashboard BTC price_alignment banner", () => {
     expect(quoteText.replace(/\s/g, "")).toMatch(/50,150\.25/);
   });
 
+  test("depth tab still shows mismatch banner (not overview-only)", async ({ page }) => {
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem("e2e_btc_misaligned", "1");
+      } catch {
+        /* ignore */
+      }
+    });
+    await page.goto("/dashboard?tab=depth", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-tab-depth")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("today-btc-snapshot-strip")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("today-btc-price-mismatch-banner")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("today-btc-price-aligned")).toContainText(/對齊警告/);
+  });
+
   test("shows N/A state when backend cannot confirm price_alignment", async ({ page }) => {
     await page.addInitScript(() => {
       try {

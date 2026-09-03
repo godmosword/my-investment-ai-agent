@@ -254,11 +254,17 @@ def _fetch_catalysts(now: datetime) -> list[dict[str, Any]]:
         event = str(item.get("event") or item.get("title") or "").strip()
         if not event or not any(k in event.upper() for k in keywords):
             continue
+        raw_impact = item.get("impact")
+        if isinstance(raw_impact, str):
+            raw_impact = raw_impact.strip()
+        elif raw_impact is not None:
+            raw_impact = str(raw_impact).strip()
+        importance = raw_impact.lower() if raw_impact else None
         out.append(
             {
                 "date": str(item.get("date") or "")[:10],
                 "name": event,
-                "importance": str(item.get("impact") or "high").lower(),
+                "importance": importance,
                 "estimate": item.get("estimate"),
                 "previous": item.get("previous"),
                 "source": "financialmodelingprep",
