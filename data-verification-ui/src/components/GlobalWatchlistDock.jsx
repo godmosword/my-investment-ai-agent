@@ -14,13 +14,16 @@ export default function GlobalWatchlistDock() {
           className="mb-2 max-h-[75vh] w-[min(360px,calc(100vw-24px))] overflow-auto rounded-lg border border-white/15 bg-[var(--bg,#05070a)] p-2 shadow-2xl"
         >
           <div className="mb-2 flex items-center justify-between gap-2 px-1">
-            <div className="text-[12px] font-semibold uppercase text-cyan-200">Shared Monitor</div>
+            <div data-testid="global-watchlist-title" className="text-[12px] font-semibold text-cyan-200">
+              共享監控
+            </div>
             <button
               type="button"
+              data-testid="global-watchlist-close"
               className="min-h-[44px] rounded border border-white/15 px-3 text-[12px] text-white/70 hover:text-white"
               onClick={() => setOpen(false)}
             >
-              Close
+              關閉
             </button>
           </div>
           <div className="space-y-2">
@@ -38,11 +41,11 @@ export default function GlobalWatchlistDock() {
       <button
         type="button"
         data-testid="global-watchlist-toggle"
-        aria-label="Open shared monitor"
+        aria-label={open ? "關閉共享監控" : "開啟共享監控"}
         className="min-h-[44px] rounded-full border border-cyan-300/40 bg-cyan-500/15 px-3 py-2 text-[12px] font-semibold text-cyan-100 shadow-xl backdrop-blur hover:bg-cyan-500/25 md:px-4 md:text-[13px]"
         onClick={() => setOpen((value) => !value)}
       >
-        Watchlist
+        監控清單
       </button>
     </div>
   );

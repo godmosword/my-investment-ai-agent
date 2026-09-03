@@ -69,16 +69,17 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
     <section className="card p-3" data-testid="price-alerts-panel">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="card-title">Price Alerts</div>
-          <div className="text-[12px] text-[var(--muted)]">Web Push trigger queue · paper-only</div>
+          <div className="card-title">價格警示</div>
+          <div className="text-[12px] text-[var(--muted)]">Web Push 觸發佇列 · 僅模擬</div>
         </div>
         <button
           type="button"
-          className="min-h-[40px] rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/80 hover:bg-white/5"
+          data-testid="price-alerts-check"
+          className="min-h-[44px] rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/80 hover:bg-white/5"
           onClick={checkNow}
           disabled={checkAlerts.isPending}
         >
-          {checkAlerts.isPending ? "Checking…" : "Check"}
+          {checkAlerts.isPending ? "檢查中…" : "檢查"}
         </button>
       </div>
 
@@ -91,12 +92,13 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
           maxLength={16}
         />
         <select
+          data-testid="price-alerts-direction"
           value={form.direction}
           onChange={(e) => setField("direction", e.target.value)}
           className="min-h-[44px] rounded border border-white/15 bg-black/25 px-2 text-[13px] text-white"
         >
-          <option value="above">above</option>
-          <option value="below">below</option>
+          <option value="above">高於</option>
+          <option value="below">低於</option>
         </select>
         <input
           value={form.target_price}
@@ -107,10 +109,11 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
         />
         <button
           type="submit"
+          data-testid="price-alerts-add"
           className="min-h-[44px] rounded bg-cyan-700 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-cyan-600"
           disabled={createAlert.isPending}
         >
-          Add
+          新增
         </button>
       </form>
 

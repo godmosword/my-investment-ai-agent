@@ -329,15 +329,6 @@ html, body, #root {
   box-sizing: border-box;
 }
 
-.module-nav a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  min-width: 44px;
-  box-sizing: border-box;
-}
-
 .nav-item.active,
 .nav-item:hover { color: var(--accent); }
 

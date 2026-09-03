@@ -87,10 +87,11 @@ export default function Watchlist({
           />
           <button
             type="button"
+            data-testid="watchlist-add"
             className="min-h-[44px] rounded bg-emerald-700 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-emerald-600"
             onClick={add}
           >
-            Add
+            新增
           </button>
         </div>
       </div>
@@ -107,7 +108,8 @@ export default function Watchlist({
               {symbol}
               <button
                 type="button"
-                className="min-h-[28px] min-w-[28px] text-white/50 hover:text-red-300"
+                data-testid="watchlist-remove"
+                className="min-h-[44px] min-w-[44px] text-white/50 hover:text-red-300"
                 onClick={() => remove(symbol)}
                 aria-label={`移除 ${symbol}`}
               >
