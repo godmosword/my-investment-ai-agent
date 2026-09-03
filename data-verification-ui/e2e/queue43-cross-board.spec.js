@@ -33,7 +33,7 @@ test.describe("Queue 43 cross-board polish", () => {
     await expect(panel).toBeVisible();
     await panel.getByPlaceholder("NVDA").fill("NVDA");
     await panel.getByPlaceholder("900").fill("900");
-    await panel.getByRole("button", { name: "Add" }).click();
+    await panel.getByTestId("price-alerts-add").click();
     await expect(panel).toContainText("NVDA");
 
     const workspace = page.getByTestId("workspace-panel");

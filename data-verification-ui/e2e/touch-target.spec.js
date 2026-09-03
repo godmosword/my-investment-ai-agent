@@ -43,6 +43,7 @@ test.describe("NEXT-1 touch target smoke", () => {
 
     const watchlist = page.getByTestId("global-watchlist");
     await expect(watchlist).toBeVisible({ timeout: 60_000 });
+    await expect(watchlist.getByTestId("watchlist-add")).toHaveText("新增");
     await expect(watchlist).toContainText("NVDA");
 
     const remove = watchlist.getByTestId("watchlist-remove");
@@ -50,5 +51,14 @@ test.describe("NEXT-1 touch target smoke", () => {
     await remove.click();
     await expect(watchlist.getByTestId("watchlist-remove")).toHaveCount(0);
     await expect(watchlist).not.toContainText("NVDA");
+  });
+
+  test("price alerts Check control meets 44px minimum height", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+    const check = page.getByTestId("price-alerts-check");
+    await expectTargetAtLeast(check);
+    await expect(check).toHaveText("檢查");
   });
 });
