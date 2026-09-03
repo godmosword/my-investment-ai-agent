@@ -344,7 +344,7 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
         body: JSON.stringify({
           as_of: "2026-05-13T00:00:00Z",
           cached: false,
-          indicator_order: ["missing_val", "bad_val", "display_ok", "usd_ok"],
+          indicator_order: ["missing_val", "bad_val", "na_prod", "display_ok", "usd_ok"],
           indicators: {
             missing_val: {
               id: "missing_val",
@@ -357,10 +357,24 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
               value: "n/a",
               source: "e2e",
             },
+            na_prod: {
+              id: "na_prod",
+              label: "Next Fed / CPI",
+              value: null,
+              display: "N/A",
+              unit: "days",
+              change_1d: null,
+              change_5d: null,
+              change_unit: "days",
+              spark: [],
+              source: "financialmodelingprep_optional",
+              as_of: "2026-05-13T00:00:00Z",
+              error: "calendar_unavailable",
+            },
             display_ok: {
               id: "display_ok",
               label: "Display Ok",
-              value: null,
+              value: 12.5,
               display: "12.5x",
               source: "e2e",
             },
@@ -383,6 +397,9 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
       "UNKNOWN",
     );
     await expect(page.getByTestId("macro-indicator-bad_val").getByTestId("macro-indicator-value")).toHaveText(
+      "UNKNOWN",
+    );
+    await expect(page.getByTestId("macro-indicator-na_prod").getByTestId("macro-indicator-value")).toHaveText(
       "UNKNOWN",
     );
     await expect(page.getByTestId("macro-indicator-display_ok").getByTestId("macro-indicator-value")).toHaveText(

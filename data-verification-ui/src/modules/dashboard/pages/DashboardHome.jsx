@@ -15,11 +15,19 @@ const DASHBOARD_TABS = [
 ];
 const DASHBOARD_TAB_IDS = new Set(DASHBOARD_TABS.map((t) => t.id));
 
+/** Missing-data display sentinels from macro snapshot (`N/A`, dashes). */
+function isMissingDisplay(display) {
+  if (display == null) return false;
+  const s = String(display).trim();
+  const folded = s.toLowerCase();
+  return folded === "n/a" || folded === "na" || s === "—" || s === "-" || s === "–";
+}
+
 function formatValue(indicator) {
   if (!indicator) return "UNKNOWN";
-  if (indicator.display) return indicator.display;
   const n = finiteNumber(indicator.value);
-  if (n == null) return "UNKNOWN";
+  if (n == null || isMissingDisplay(indicator.display)) return "UNKNOWN";
+  if (typeof indicator.display === "string" && indicator.display.trim()) return indicator.display;
   if (indicator.unit === "USD") return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
   return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
