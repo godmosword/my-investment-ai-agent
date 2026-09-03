@@ -336,4 +336,62 @@ test.describe("Dashboard route /dashboard (Queue 39)", () => {
     await expect(calendar).not.toContainText("TBD");
   });
 
+  test("missing or non-finite indicator value shows UNKNOWN, not N/A", async ({ page }) => {
+    await page.route("**/api/macro/snapshot", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-05-13T00:00:00Z",
+          cached: false,
+          indicator_order: ["missing_val", "bad_val", "display_ok", "usd_ok"],
+          indicators: {
+            missing_val: {
+              id: "missing_val",
+              label: "Missing Val",
+              source: "e2e",
+            },
+            bad_val: {
+              id: "bad_val",
+              label: "Bad Val",
+              value: "n/a",
+              source: "e2e",
+            },
+            display_ok: {
+              id: "display_ok",
+              label: "Display Ok",
+              value: null,
+              display: "12.5x",
+              source: "e2e",
+            },
+            usd_ok: {
+              id: "usd_ok",
+              label: "USD Ok",
+              value: 1234,
+              unit: "USD",
+              source: "e2e",
+            },
+          },
+          catalysts: [],
+          regime: { label: "neutral", score: 0, drivers: [] },
+        }),
+      });
+    });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await expect(page.getByTestId("dashboard-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("macro-indicator-missing_val").getByTestId("macro-indicator-value")).toHaveText(
+      "UNKNOWN",
+    );
+    await expect(page.getByTestId("macro-indicator-bad_val").getByTestId("macro-indicator-value")).toHaveText(
+      "UNKNOWN",
+    );
+    await expect(page.getByTestId("macro-indicator-display_ok").getByTestId("macro-indicator-value")).toHaveText(
+      "12.5x",
+    );
+    await expect(page.getByTestId("macro-indicator-usd_ok").getByTestId("macro-indicator-value")).toHaveText(
+      "$1,234",
+    );
+    await expect(page.getByTestId("macro-indicator-grid")).not.toContainText("N/A");
+  });
+
 });

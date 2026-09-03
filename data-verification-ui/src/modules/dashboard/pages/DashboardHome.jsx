@@ -7,6 +7,7 @@ import Sparkline from "../../../components/Sparkline";
 import TodayBtcSnapshotStrip from "../../../components/TodayBtcSnapshotStrip";
 import { useMacroSnapshot } from "../../../hooks/useApi";
 import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
+import { finiteNumber } from "../../../utils/finiteNumber";
 
 const DASHBOARD_TABS = [
   { id: "overview", label: "宏觀總覽", testId: "dashboard-tab-overview" },
@@ -15,10 +16,10 @@ const DASHBOARD_TABS = [
 const DASHBOARD_TAB_IDS = new Set(DASHBOARD_TABS.map((t) => t.id));
 
 function formatValue(indicator) {
-  if (!indicator) return "N/A";
+  if (!indicator) return "UNKNOWN";
   if (indicator.display) return indicator.display;
-  const n = Number(indicator.value);
-  if (!Number.isFinite(n)) return "N/A";
+  const n = finiteNumber(indicator.value);
+  if (n == null) return "UNKNOWN";
   if (indicator.unit === "USD") return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
   return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
@@ -53,7 +54,7 @@ function MacroCard({ indicator }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="metric-label">{indicator.label}</div>
-          <div className="metric-value">{formatValue(indicator)}</div>
+          <div className="metric-value" data-testid="macro-indicator-value">{formatValue(indicator)}</div>
         </div>
         <span className={`metric-delta ${deltaClass(indicator)}`}>
           5D {formatChange(indicator.change_5d, indicator.change_unit || "%")}
@@ -68,12 +69,6 @@ function MacroCard({ indicator }) {
       </div>
     </article>
   );
-}
-
-function finiteNumber(value) {
-  if (value == null || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
 }
 
 function regimeTone(label) {
