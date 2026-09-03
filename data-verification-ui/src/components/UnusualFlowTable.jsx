@@ -20,7 +20,8 @@ const SIGNAL_LABELS = {
 };
 
 function signalLabel(type) {
-  return SIGNAL_LABELS[String(type || "")] || String(type || "—");
+  if (type == null || String(type).trim() === "") return "UNKNOWN";
+  return SIGNAL_LABELS[String(type)] || String(type);
 }
 
 function signalChipClass(type) {
@@ -30,13 +31,14 @@ function signalChipClass(type) {
 }
 
 function num(value) {
-  if (value == null || Number.isNaN(Number(value))) return "—";
-  return Number(value).toLocaleString("en-US");
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
+  return n.toLocaleString("en-US");
 }
 
 function money(value) {
-  if (value == null || Number.isNaN(Number(value))) return "—";
-  const n = Number(value);
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   const abs = Math.abs(n);
   if (abs >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
   if (abs >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
@@ -64,10 +66,13 @@ function parseOcc(ticker) {
 
 function ContractLabel({ ticker }) {
   const occ = parseOcc(ticker);
-  if (!occ) return <span className="font-mono text-[12px] text-white/85">{ticker || "—"}</span>;
+  if (!occ) {
+    const shown = ticker == null || String(ticker).trim() === "" ? "UNKNOWN" : String(ticker);
+    return <span data-testid="options-flow-ticker" className="font-mono text-[12px] text-white/85">{shown}</span>;
+  }
   const tone = occ.type === "Call" ? "text-emerald-200/90" : "text-rose-200/90";
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span data-testid="options-flow-ticker" className="inline-flex items-center gap-1.5">
       <span className={`text-[12px] font-semibold ${tone}`}>{occ.type} ${occ.strike}</span>
       <span className="text-[11px] text-white/50">{occ.expiry}</span>
     </span>
@@ -125,13 +130,13 @@ export default function UnusualFlowTable({ signals = [] }) {
             {signals.map((s, i) => (
               <tr key={`${s.option_ticker}-${i}`} data-testid="options-flow-row" className="border-t border-[color:var(--border)]">
                 <td className="px-3 py-2">
-                  <span className={`rounded border px-2 py-0.5 text-[11px] ${signalChipClass(s.signal_type)}`}>{signalLabel(s.signal_type)}</span>
+                  <span data-testid="options-flow-signal" className={`rounded border px-2 py-0.5 text-[11px] ${signalChipClass(s.signal_type)}`}>{signalLabel(s.signal_type)}</span>
                 </td>
                 <td className="px-3 py-2"><ContractLabel ticker={s.option_ticker} /></td>
                 <td className="px-3 py-2"><ScoreBar score={s.score} /></td>
-                <td className="px-3 py-2 font-mono text-white/85">{money(s.premium)}</td>
-                <td className="px-3 py-2 font-mono text-white/85">{num(s.volume)}</td>
-                <td className="px-3 py-2 font-mono text-white/85">{num(s.open_interest)}</td>
+                <td data-testid="options-flow-premium" className="px-3 py-2 font-mono text-white/85">{money(s.premium)}</td>
+                <td data-testid="options-flow-volume" className="px-3 py-2 font-mono text-white/85">{num(s.volume)}</td>
+                <td data-testid="options-flow-oi" className="px-3 py-2 font-mono text-white/85">{num(s.open_interest)}</td>
                 <td className="px-3 py-2 text-white/60">{s.rationale}</td>
               </tr>
             ))}
@@ -144,14 +149,14 @@ export default function UnusualFlowTable({ signals = [] }) {
         {signals.map((s, i) => (
           <li key={`${s.option_ticker}-${i}-m`} data-testid="options-flow-card" className="rounded border border-[color:var(--border)] p-2.5">
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className={`rounded border px-2 py-0.5 text-[11px] ${signalChipClass(s.signal_type)}`}>{signalLabel(s.signal_type)}</span>
+              <span data-testid="options-flow-signal" className={`rounded border px-2 py-0.5 text-[11px] ${signalChipClass(s.signal_type)}`}>{signalLabel(s.signal_type)}</span>
               <ScoreBar score={s.score} />
             </div>
             <div className="mb-1"><ContractLabel ticker={s.option_ticker} /></div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-white/70">
-              <span>Premium {money(s.premium)}</span>
-              <span>Vol {num(s.volume)}</span>
-              <span>OI {num(s.open_interest)}</span>
+              <span data-testid="options-flow-premium">Premium {money(s.premium)}</span>
+              <span data-testid="options-flow-volume">Vol {num(s.volume)}</span>
+              <span data-testid="options-flow-oi">OI {num(s.open_interest)}</span>
             </div>
             {s.rationale ? <div className="mt-1 text-[11px] text-white/55">{s.rationale}</div> : null}
           </li>

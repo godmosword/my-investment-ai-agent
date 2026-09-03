@@ -88,6 +88,9 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     await expect(flow.getByText("Call $100", { exact: false }).first()).toBeVisible();
     await expect(flow.getByTestId("options-flow-row").first().getByTestId("options-score-bar")).toBeVisible();
     await expect(flow.getByTestId("options-flow-row").first().getByTestId("options-score-value")).toHaveText("0.50");
+    await expect(flow.getByTestId("options-flow-row").first().getByTestId("options-flow-premium")).toHaveText("UNKNOWN");
+    await expect(flow.getByTestId("options-flow-row").first().getByTestId("options-flow-volume")).toHaveText("5,000");
+    await expect(flow.getByTestId("options-flow-row").first().getByTestId("options-flow-oi")).toHaveText("1,000");
   });
 
   test("flow table renders mobile cards on small viewport (F3)", async ({ page }) => {
@@ -98,6 +101,8 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     const card = page.getByTestId("options-flow-card").first();
     await expect(card).toBeVisible();
     await expect(card.getByText("Call $100", { exact: false })).toBeVisible();
+    await expect(card.getByTestId("options-flow-premium")).toContainText("UNKNOWN");
+    await expect(card.getByTestId("options-flow-volume")).toContainText("5,000");
   });
 
   test("switching symbol updates the flow table contracts (F3)", async ({ page }) => {
@@ -304,5 +309,82 @@ test.describe("Insights — Options Flow + GEX tab (F1)", () => {
     await expect(page.getByTestId("options-gex-call")).toHaveText("UNKNOWN");
     await expect(page.getByTestId("options-gex-put")).toHaveText("UNKNOWN");
     await expect(page.getByTestId("options-gex-panel")).not.toContainText("—");
+  });
+
+  test("UnusualFlowTable missing premium/volume/OI/signal_type/ticker show UNKNOWN, not em dash", async ({ page }) => {
+    await page.route("**/api/options/flow/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          underlying: "MU",
+          as_of: "2026-06-19T22:30:00Z",
+          signals: [
+            {
+              trade_date: "2026-06-19",
+              option_ticker: null,
+              signal_type: null,
+              score: 0.5,
+              premium: null,
+              volume: null,
+              open_interest: null,
+              rationale: "e2e missing fields",
+            },
+            {
+              trade_date: "2026-06-19",
+              option_ticker: "O:MU260116C00100000",
+              signal_type: "sweep",
+              score: 0.4,
+              premium: 0,
+              volume: 0,
+              open_interest: 0,
+              rationale: "e2e finite zeros",
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=options&symbol=MU", { waitUntil: "load" });
+    await expect(page.getByTestId("options-flow-table")).toBeVisible({ timeout: 60_000 });
+    const rows = page.getByTestId("options-flow-row");
+    await expect(rows).toHaveCount(2);
+
+    const missing = rows.nth(0);
+    await expect(missing.getByTestId("options-flow-signal")).toHaveText("UNKNOWN");
+    await expect(missing.getByTestId("options-flow-ticker")).toHaveText("UNKNOWN");
+    await expect(missing.getByTestId("options-flow-premium")).toHaveText("UNKNOWN");
+    await expect(missing.getByTestId("options-flow-volume")).toHaveText("UNKNOWN");
+    await expect(missing.getByTestId("options-flow-oi")).toHaveText("UNKNOWN");
+    await expect(missing).not.toContainText("—");
+
+    const zeros = rows.nth(1);
+    await expect(zeros.getByTestId("options-flow-signal")).toHaveText("掃單");
+    await expect(zeros.getByTestId("options-flow-ticker")).toContainText("Call $100");
+    await expect(zeros.getByTestId("options-flow-premium")).toHaveText("$0");
+    await expect(zeros.getByTestId("options-flow-volume")).toHaveText("0");
+    await expect(zeros.getByTestId("options-flow-oi")).toHaveText("0");
+  });
+
+  test("empty unusual flow stays empty, not UNKNOWN", async ({ page }) => {
+    await page.route("**/api/options/flow/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          underlying: "MU",
+          as_of: "2026-06-19T22:30:00Z",
+          signals: [],
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=options&symbol=MU", { waitUntil: "load" });
+    await expect(page.getByTestId("options-flow-empty")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("options-flow-empty")).toContainText("近期無不尋常期權流訊號");
+    await expect(page.getByTestId("options-flow-empty")).not.toContainText("UNKNOWN");
+    await expect(page.getByTestId("options-flow-table")).toHaveCount(0);
   });
 });
