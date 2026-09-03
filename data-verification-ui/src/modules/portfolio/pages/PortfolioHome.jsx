@@ -187,7 +187,13 @@ function AddHoldingModal({ onClose, onSubmit, pending }) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-white">新增倉位</h2>
-          <button type="button" className="text-[var(--muted)] hover:text-white" onClick={onClose}>
+          <button
+            type="button"
+            data-testid="portfolio-add-modal-close"
+            aria-label="關閉"
+            className="inline-flex min-h-[36px] items-center px-2 text-[var(--muted)] hover:text-white"
+            onClick={onClose}
+          >
             x
           </button>
         </div>
