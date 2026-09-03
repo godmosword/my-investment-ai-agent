@@ -97,6 +97,12 @@ function finiteDaysUntil(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function formatRemainingDays(daysUntil) {
+  const n = finiteDaysUntil(daysUntil);
+  if (n == null || n < 0) return "UNKNOWN";
+  return `D-${n}`;
+}
+
 function earningsDaysBySymbol(items) {
   const map = new Map();
   if (!Array.isArray(items)) return map;
@@ -303,11 +309,9 @@ function HoldingSymbolCell({ symbol, daysUntil, symbolClassName }) {
           </Link>
         </>
       ) : null}
-      {daysUntil != null ? (
-        <span data-testid="portfolio-holding-earnings-dn" className="font-mono text-[11px] text-cyan-200">
-          {`D-${Math.max(0, daysUntil)}`}
-        </span>
-      ) : null}
+      <span data-testid="portfolio-holding-earnings-dn" className="font-mono text-[11px] text-cyan-200">
+        {formatRemainingDays(daysUntil)}
+      </span>
     </div>
   );
 }

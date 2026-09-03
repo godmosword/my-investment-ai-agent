@@ -208,4 +208,127 @@ test.describe("Portfolio route (/portfolio)", () => {
     const table = page.getByTestId("portfolio-holdings-table");
     await expect(table.getByTestId("portfolio-holding-earnings-dn")).toHaveText("D-4");
   });
+
+  test("expired and missing earnings days show UNKNOWN, not clamped D-0", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/earnings/upcoming" || url.pathname === "/api/earnings/upcoming/",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            as_of: "2026-05-16",
+            days: 14,
+            watchlist_size: 2,
+            items: [
+              {
+                symbol: "NVDA",
+                pillar: "ai_silicon",
+                next_earnings_date: "2026-05-10",
+                days_until: -6,
+                status: "unknown",
+              },
+              {
+                symbol: "AMD",
+                pillar: "semiconductor",
+                next_earnings_date: "2026-06-01",
+                status: "unknown",
+              },
+            ],
+          }),
+        });
+      },
+    );
+
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+
+    const table = page.getByTestId("portfolio-holdings-table");
+    const dn = table.getByTestId("portfolio-holding-earnings-dn");
+    await expect(dn).toHaveText("UNKNOWN");
+    await expect(dn).not.toHaveText("D-0");
+    await expect(table).not.toContainText("D-0");
+    await expect(table).not.toContainText("D--6");
+  });
+
+  test("days_until 0 still shows D-0; unmatched holding is UNKNOWN", async ({ page }) => {
+    await page.route("**/api/portfolio/pnl**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_value: 8000,
+          total_pnl: 3000,
+          total_day_pnl: 120,
+          holdings: [
+            {
+              id: "1",
+              symbol: "NVDA",
+              shares: 10,
+              cost_basis: 500,
+              opened_at: "2024-01-01",
+              notes: "",
+              last_price: 800,
+              day_change_pct: 1.5,
+              market_value: 8000,
+              cost: 5000,
+              pnl: 3000,
+              pnl_pct: 60,
+              day_pnl: 120,
+              weight: 50,
+            },
+            {
+              id: "2",
+              symbol: "AMD",
+              shares: 5,
+              cost_basis: 100,
+              opened_at: "2024-02-01",
+              notes: "",
+              last_price: 120,
+              day_change_pct: 0,
+              market_value: 600,
+              cost: 500,
+              pnl: 100,
+              pnl_pct: 20,
+              day_pnl: 0,
+              weight: 50,
+            },
+          ],
+        }),
+      });
+    });
+    await page.route(
+      (url) => url.pathname === "/api/earnings/upcoming" || url.pathname === "/api/earnings/upcoming/",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            as_of: "2026-05-16",
+            days: 14,
+            watchlist_size: 1,
+            items: [
+              {
+                symbol: "NVDA",
+                pillar: "ai_silicon",
+                next_earnings_date: "2026-05-16",
+                days_until: 0,
+                status: "unknown",
+              },
+            ],
+          }),
+        });
+      },
+    );
+
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+
+    const table = page.getByTestId("portfolio-holdings-table");
+    const rows = table.locator("tbody tr");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0).getByTestId("portfolio-holding-earnings-dn")).toHaveText("D-0");
+    await expect(rows.nth(1).getByTestId("portfolio-holding-earnings-dn")).toHaveText("UNKNOWN");
+    await expect(rows.nth(1)).not.toContainText("D-0");
+  });
 });
