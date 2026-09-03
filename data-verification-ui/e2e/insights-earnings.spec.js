@@ -71,10 +71,24 @@ test.describe("Insights — Earnings calendar tab (P3)", () => {
                 status: "unknown",
               },
               {
+                symbol: "INTC",
+                pillar: "semiconductor",
+                next_earnings_date: "2026-05-01",
+                days_until: -5,
+                status: "unknown",
+              },
+              {
                 symbol: "NVDA",
                 pillar: "ai_silicon",
                 next_earnings_date: "2026-05-20",
                 days_until: 4,
+                status: "unknown",
+              },
+              {
+                symbol: "AAPL",
+                pillar: "consumer_devices",
+                next_earnings_date: "2026-05-16",
+                days_until: 0,
                 status: "unknown",
               },
             ],
@@ -92,8 +106,16 @@ test.describe("Insights — Earnings calendar tab (P3)", () => {
     await expect(amdRow).not.toContainText("D-0");
     await expect(amdRow).not.toContainText("D-NaN");
 
+    const intcRow = page.locator('[data-testid="earnings-calendar-row"][data-symbol="INTC"]');
+    await expect(intcRow.getByTestId("earnings-days-until")).toHaveText("UNKNOWN");
+    await expect(intcRow).not.toContainText("D-0");
+    await expect(intcRow).not.toContainText("D--5");
+
     const nvdaRow = page.locator('[data-testid="earnings-calendar-row"][data-symbol="NVDA"]');
     await expect(nvdaRow.getByTestId("earnings-days-until")).toHaveText("D-4");
+
+    const aaplRow = page.locator('[data-testid="earnings-calendar-row"][data-symbol="AAPL"]');
+    await expect(aaplRow.getByTestId("earnings-days-until")).toHaveText("D-0");
   });
 
   test("calendar session status is 未知 and does not invent 盤前／盤後", async ({ page }) => {
