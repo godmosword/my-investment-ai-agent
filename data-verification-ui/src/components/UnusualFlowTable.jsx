@@ -9,6 +9,8 @@
  * }> }} props
  */
 
+import { finiteNumber } from "../utils/finiteNumber";
+
 const SIGNAL_LABELS = {
   volume_oi: "量/OI 異常",
   sweep: "掃單",
@@ -73,13 +75,21 @@ function ContractLabel({ ticker }) {
 }
 
 function ScoreBar({ score }) {
-  const pct = Math.max(0, Math.min(1, Number(score) || 0)) * 100;
+  const s = finiteNumber(score);
+  if (s == null) {
+    return (
+      <span data-testid="options-score-unknown" className="text-[11px] text-white/60">
+        UNKNOWN
+      </span>
+    );
+  }
+  const pct = Math.max(0, Math.min(1, s)) * 100;
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span data-testid="options-score-bar" className="inline-flex items-center gap-1.5">
       <span className="h-1.5 w-12 overflow-hidden rounded bg-white/10">
         <span className="block h-full bg-amber-300/80" style={{ width: `${pct}%` }} />
       </span>
-      <span className="text-[11px] text-white/60">{(Number(score) || 0).toFixed(2)}</span>
+      <span data-testid="options-score-value" className="text-[11px] text-white/60">{s.toFixed(2)}</span>
     </span>
   );
 }
