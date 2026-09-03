@@ -61,13 +61,21 @@ function fundingTone(value) {
   return "text-white/70";
 }
 
-function SourceBadge({ live, source }) {
-  const label = live ? "live" : source || "mock";
+function sourceBadgeLabel(live, source) {
+  if (isLivePayload(live)) return "live";
+  const text = source == null ? "" : String(source).trim();
+  return text || "UNKNOWN";
+}
+
+function SourceBadge({ live, source, testId = "onchain-source-badge" }) {
+  const label = sourceBadgeLabel(live, source);
   return (
     <span
-      data-testid="onchain-source-badge"
+      data-testid={testId}
       className={`rounded border px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-        live ? "border-emerald-400/40 text-emerald-200/90" : "border-amber-300/30 text-amber-200/85"
+        isLivePayload(live)
+          ? "border-emerald-400/40 text-emerald-200/90"
+          : "border-amber-300/30 text-amber-200/85"
       }`}
     >
       {label}
@@ -84,7 +92,7 @@ function BtcValuationBlock({ block, live }) {
           <div className="card-title">BTC 估值</div>
           <div className="text-[11px] text-[var(--muted)]">{block?.note || "MVRV-Z, realized price"}</div>
         </div>
-        <SourceBadge source={block?.source} />
+        <SourceBadge source={block?.source} testId="onchain-block-source-badge" />
       </header>
       <table className="w-full text-[12px]">
         <thead className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
@@ -132,7 +140,7 @@ function ExchangeFlowBlock({ block, live }) {
             <div className="card-title">交易所淨流入</div>
             <div className="text-[11px] text-[var(--muted)]">CEX 淨流：無免費同級來源</div>
           </div>
-          <SourceBadge source="disabled" />
+          <SourceBadge source="disabled" testId="onchain-block-source-badge" />
         </header>
         <div className="rounded border border-white/10 bg-black/20 p-2 text-[12px] text-amber-100/85">
           無免費同級來源；CryptoQuant / Glassnode 付費資料仍為 pending。此區塊不使用 mock 淨流數字。
@@ -149,7 +157,7 @@ function ExchangeFlowBlock({ block, live }) {
           <div className="card-title">交易所淨流入</div>
           <div className="text-[11px] text-[var(--muted)]">{block?.note || "+inflow = sell-side"}</div>
         </div>
-        <SourceBadge source={block?.source} />
+        <SourceBadge source={block?.source} testId="onchain-block-source-badge" />
       </header>
       <table className="w-full text-[12px]">
         <thead className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
@@ -197,7 +205,7 @@ function FundingRateBlock({ block, live }) {
           <div className="card-title">永續資費（年化）</div>
           <div className="text-[11px] text-[var(--muted)]">{block?.note || ">5% 歷史過熱"}</div>
         </div>
-        <SourceBadge source={block?.source} />
+        <SourceBadge source={block?.source} testId="onchain-block-source-badge" />
       </header>
       <table className="w-full text-[12px]">
         <thead className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
@@ -273,7 +281,7 @@ export default function OnchainMetricsPanel() {
           <div className="text-[11px] uppercase text-cyan-200">Crypto · On-chain</div>
           <div className="text-[11px] text-[var(--muted)]">as_of {data?.as_of || "—"}</div>
         </div>
-        <SourceBadge live={data?.live} source={data?.live ? "live" : "mock"} />
+        <SourceBadge live={data?.live} source={data?.source} />
       </header>
       {data?.disclaimer ? (
         <div

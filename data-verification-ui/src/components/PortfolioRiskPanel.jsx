@@ -24,12 +24,18 @@ function loadBudget() {
   }
 }
 
+function persistEquity(account_equity) {
+  if (account_equity === "" || account_equity == null) return "";
+  const n = Number(account_equity);
+  return Number.isFinite(n) ? n : "";
+}
+
 function saveBudget(account_equity, risk_pct) {
   try {
     globalThis.localStorage?.setItem(
       STORAGE_KEY,
       JSON.stringify({
-        account_equity: Number(account_equity) || 0,
+        account_equity: persistEquity(account_equity),
         risk_pct: Number(risk_pct) || DEFAULT_RISK_PCT,
       }),
     );
@@ -47,6 +53,11 @@ function toNumber(value) {
 function moneyFmt(n) {
   if (!Number.isFinite(n)) return "—";
   return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+function budgetDisplay(equity, riskBudget) {
+  if (equity === "" || equity == null) return "UNKNOWN";
+  return moneyFmt(riskBudget);
 }
 
 function priceFmt(n) {
@@ -269,7 +280,8 @@ export default function PortfolioRiskPanel() {
             />
           </label>
           <div className="mt-2 text-[11px] text-[var(--muted)]">
-            預算 = {moneyFmt(metrics.riskBudget)}
+            預算 ={" "}
+            <span data-testid="risk-budget-value">{budgetDisplay(equity, metrics.riskBudget)}</span>
           </div>
         </div>
 

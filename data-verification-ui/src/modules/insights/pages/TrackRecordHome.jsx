@@ -191,7 +191,8 @@ export default function TrackRecordHome() {
       </div>
       ) : null}
 
-      <div className="card overflow-hidden p-0">
+      {summaryPresent ? (
+      <div className="card overflow-hidden p-0" data-testid="track-record-closed-card">
         <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-3 py-2">
           <div className="card-title">閉倉紀錄</div>
           <div className="text-[12px] text-[var(--muted)]">{records.length} rows</div>
@@ -271,6 +272,7 @@ export default function TrackRecordHome() {
           </div>
         )}
       </div>
+      ) : null}
     </div>
   );
 }
