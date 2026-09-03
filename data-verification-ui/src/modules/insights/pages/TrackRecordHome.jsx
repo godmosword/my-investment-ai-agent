@@ -176,7 +176,8 @@ export default function TrackRecordHome() {
       </div>
       ) : null}
 
-      <div className="card mb-3 p-3">
+      {summaryPresent ? (
+      <div className="card mb-3 p-3" data-testid="track-record-equity-card">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <div className="card-title">累積曲線</div>
@@ -188,6 +189,7 @@ export default function TrackRecordHome() {
           <EquityCurveChart curve={summary?.equity_curve || []} />
         </Suspense>
       </div>
+      ) : null}
 
       <div className="card overflow-hidden p-0">
         <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-3 py-2">
