@@ -60,6 +60,45 @@ test.describe("Portfolio TP/SL calculator (queue 45 · P1)", () => {
     expect(parsed.risk_pct).toBe(0.75);
   });
 
+  test("empty equity does not persist 0 and budget is UNKNOWN not $0", async ({ page }) => {
+    await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
+
+    const equity = page.getByTestId("risk-equity-input");
+    const budget = page.getByTestId("risk-budget-value");
+    await expect(equity).toHaveValue("");
+    await expect(budget).toHaveText("UNKNOWN");
+    await expect(budget).not.toHaveText("$0");
+
+    await expect
+      .poll(async () => {
+        const raw = await page.evaluate(() => window.localStorage.getItem("qsi_risk_budget_v1"));
+        if (!raw) return "missing";
+        return JSON.parse(raw).account_equity;
+      })
+      .not.toBe(0);
+
+    await equity.fill("50000");
+    await expect(budget).toHaveText("$500");
+
+    await equity.fill("");
+    await expect(budget).toHaveText("UNKNOWN");
+    await expect(budget).not.toHaveText("$0");
+    await expect
+      .poll(async () => {
+        const raw = await page.evaluate(() => window.localStorage.getItem("qsi_risk_budget_v1"));
+        if (!raw) return "missing";
+        return JSON.parse(raw).account_equity;
+      })
+      .toBe("");
+
+    await page.reload({ waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("risk-equity-input")).toHaveValue("");
+    await expect(page.getByTestId("risk-budget-value")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("risk-budget-value")).not.toHaveText("$0");
+  });
+
   test("submits manual PENDING_REVIEW intent on click", async ({ page }) => {
     await page.goto("/portfolio?tab=risk", { waitUntil: "load" });
     await expect(page.getByTestId("portfolio-risk-panel")).toBeVisible({ timeout: 60_000 });
