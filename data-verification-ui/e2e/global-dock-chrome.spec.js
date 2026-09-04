@@ -249,6 +249,9 @@ test.describe("ITER-P4-44I workspace dock zh + touch", () => {
     await expect(workspace.getByTestId("workspace-digest-alerts-pending")).toHaveText(/^\d+ 待觸發$/);
     await expect(workspace.getByTestId("workspace-windows-active")).toHaveText(/^\d+ 進行中$/);
     await expect(digest.getByTestId("workspace-alert-digest-asof")).toContainText("摘要時間");
+    await expect(workspace.getByTestId("workspace-digest-top-theme")).toHaveText("AI 半導體（e2e）");
+    await expect(workspace.getByTestId("workspace-digest-portfolio-value")).toHaveText("$8,000");
+    await expect(workspace.getByTestId("workspace-digest-portfolio-pnl")).toHaveText("$3,000");
 
     await expect(digest).not.toContainText("Digest");
     await expect(digest).not.toContainText("active");
@@ -402,5 +405,80 @@ test.describe("ITER-P4-44J price alerts honesty", () => {
     await expect(row("ZEROP").getByTestId("price-alerts-row-price")).toHaveText("$0.00");
     await expect(row("ZEROP").getByTestId("price-alerts-row-price")).not.toHaveText("UNKNOWN");
     await expect(panel).not.toContainText("—");
+  });
+});
+
+function isThemesPath(pathname) {
+  return pathname === "/api/industries/themes" || pathname.startsWith("/api/industries/themes/");
+}
+
+function isPortfolioPnlPath(pathname) {
+  return pathname === "/api/portfolio/pnl" || pathname === "/api/portfolio/pnl/";
+}
+
+test.describe("ITER-P4-44K workspace digest honesty", () => {
+  test("missing theme label and missing/non-finite money are UNKNOWN, not em dash", async ({ page }) => {
+    await page.route(
+      (url) => isThemesPath(url.pathname) || url.pathname.startsWith("/api/industries/themes"),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ themes: [], rotation: [], source: "e2e" }),
+        });
+      },
+    );
+    await page.route(
+      (url) => isPortfolioPnlPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ total_value: null, total_pnl: "n/a", holdings: [] }),
+        });
+      },
+    );
+
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+    const workspace = page.getByTestId("workspace-panel");
+    await expect(workspace).toBeVisible({ timeout: 60_000 });
+    await expect(workspace.getByTestId("workspace-digest-top-theme")).toHaveText("UNKNOWN");
+    await expect(workspace.getByTestId("workspace-digest-portfolio-value")).toHaveText("UNKNOWN");
+    await expect(workspace.getByTestId("workspace-digest-portfolio-pnl")).toHaveText("UNKNOWN");
+    await expect(workspace.getByTestId("workspace-digest")).not.toContainText("—");
+  });
+
+  test("omitted theme label is UNKNOWN; finite money 0 stays $0", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/industries/themes" || url.pathname.startsWith("/api/industries/themes"),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ themes: [{ id: "blank", label: "", symbols: [] }], source: "e2e" }),
+        });
+      },
+    );
+    await page.route(
+      (url) => isPortfolioPnlPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ total_value: 0, total_pnl: 0, holdings: [] }),
+        });
+      },
+    );
+
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+    const workspace = page.getByTestId("workspace-panel");
+    await expect(workspace).toBeVisible({ timeout: 60_000 });
+    await expect(workspace.getByTestId("workspace-digest-top-theme")).toHaveText("UNKNOWN");
+    await expect(workspace.getByTestId("workspace-digest-portfolio-value")).toHaveText("$0");
+    await expect(workspace.getByTestId("workspace-digest-portfolio-pnl")).toHaveText("$0");
+    await expect(workspace.getByTestId("workspace-digest-portfolio-value")).not.toHaveText("UNKNOWN");
+    await expect(workspace.getByTestId("workspace-digest")).not.toContainText("—");
   });
 });
