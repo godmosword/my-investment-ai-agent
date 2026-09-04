@@ -7,8 +7,8 @@ import {
   PORTAL_PHASE4_CTA,
 } from "../../../constants/portalPhase4";
 import { useAnalysisBundle, useExecutionIntents } from "../../../hooks/useApi";
-import { paperIntentMarkers } from "../paperIntentMarkers";
 import { finiteNumber } from "../../../utils/finiteNumber";
+import { paperIntentMarkers } from "../paperIntentMarkers";
 
 const SymbolCandleChart = lazy(() => import("../../../components/SymbolCandleChart"));
 

@@ -400,6 +400,7 @@ test.describe("ITER-P4-44J price alerts honesty", () => {
     await expect(row("OMITP").getByTestId("price-alerts-row-price")).toHaveText("UNKNOWN");
     await expect(row("NANP").getByTestId("price-alerts-row-price")).toHaveText("UNKNOWN");
     await expect(row("ZEROP").getByTestId("price-alerts-row-price")).toHaveText("$0.00");
-    await expect(panel.getByTestId("price-alerts-row-price")).not.toHaveText("—");
+    await expect(row("ZEROP").getByTestId("price-alerts-row-price")).not.toHaveText("UNKNOWN");
+    await expect(panel).not.toContainText("—");
   });
 });
