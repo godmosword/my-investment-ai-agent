@@ -78,7 +78,7 @@ export default function TrackRecordHome() {
   return (
     <div data-testid="track-record-home" className="px-1">
       <div className="page-header">
-        <div className="page-title">Track Record</div>
+        <div className="page-title">實績</div>
         <div className="page-subtitle">Paper-only outcomes · source-audited</div>
       </div>
 
