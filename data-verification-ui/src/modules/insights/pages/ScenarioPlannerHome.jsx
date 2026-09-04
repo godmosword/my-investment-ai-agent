@@ -47,13 +47,18 @@ export default function ScenarioPlannerHome() {
         </div>
       ) : (
         <div className="grid gap-2 md:grid-cols-3" data-testid="scenario-card-grid">
-          {scenarios.map((s) => (
-            <div key={s.id} className="rounded border border-white/10 bg-black/30 p-2" data-testid={`scenario-card-${s.id}`}>
-              <div className="text-[11px] uppercase text-cyan-200">{s.label}</div>
-              <div className="mt-1 font-mono text-[12px] text-white/90">shift {s.notional_shift_pct}%</div>
-              <div className="mt-1 text-[11px] text-white/60">{s.notes}</div>
-            </div>
-          ))}
+          {scenarios.map((s) => {
+            const shiftPct = finiteNumber(s.notional_shift_pct);
+            return (
+              <div key={s.id} className="rounded border border-white/10 bg-black/30 p-2" data-testid={`scenario-card-${s.id}`}>
+                <div className="text-[11px] uppercase text-cyan-200">{s.label}</div>
+                <div className="mt-1 font-mono text-[12px] text-white/90" data-testid="scenario-notional-shift">
+                  {shiftPct == null ? "UNKNOWN" : `名義移轉 ${shiftPct}%`}
+                </div>
+                <div className="mt-1 text-[11px] text-white/60">{s.notes}</div>
+              </div>
+            );
+          })}
         </div>
       )}
       <div className="rounded border border-white/10 bg-white/[0.03] p-2" data-testid="scenario-portfolio">
@@ -67,12 +72,12 @@ export default function ScenarioPlannerHome() {
       </div>
       {data.target_hints?.length ? (
         <div className="rounded border border-white/10 bg-white/[0.03] p-2" data-testid="scenario-target-hints">
-          <div className="text-[11px] font-semibold uppercase text-cyan-200">Target hints（僅 intent 欄位）</div>
+          <div className="text-[11px] font-semibold uppercase text-cyan-200" data-testid="scenario-target-hints-title">目標提示（僅 intent）</div>
           <ul className="mt-1 list-inside list-disc space-y-1 text-[12px] text-white/75">
             {data.target_hints.slice(0, 8).map((h) => (
-              <li key={h.signal_id}>
+              <li key={h.signal_id} data-testid="scenario-target-hint">
                 <span className="font-mono text-white/90">{h.asset}</span>
-                {h.in_portfolio ? " · book" : ""}
+                {h.in_portfolio ? <span data-testid="scenario-hint-in-portfolio"> · 持倉內</span> : ""}
                 {": "}
                 {(h.suggestions || []).map((s) => s.text).join(" · ")}
               </li>
