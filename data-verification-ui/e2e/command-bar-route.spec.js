@@ -65,6 +65,41 @@ test.describe("Terminal Command Bar (queue 29)", () => {
     await expect(hud).toContainText("e2emock01");
   });
 
+  test("pending RUN HUD shows 提交中 without cached idle", async ({ page }) => {
+    let releasePost = () => {};
+    const holdPost = new Promise((resolve) => {
+      releasePost = resolve;
+    });
+    await page.route(
+      (url) => url.pathname === "/api/run-crew" || url.pathname === "/api/run-crew/",
+      async (route) => {
+        if (route.request().method() !== "POST") {
+          await route.continue();
+          return;
+        }
+        await holdPost;
+        await route.continue();
+      },
+    );
+
+    await page.goto("/insights", { waitUntil: "load" });
+    const bar = page.getByTestId("terminal-command-bar");
+    await expect(bar).toBeVisible({ timeout: 60_000 });
+
+    await page.getByTestId("cmd-bar-run").click();
+
+    const hud = page.getByTestId("terminal-crew-status-hud");
+    await expect(hud).toBeVisible({ timeout: 5_000 });
+    await expect(hud).toContainText("提交中");
+    await expect(hud).not.toContainText("idle");
+    await expect(page.getByTestId("terminal-crew-status-value")).toHaveCount(0);
+
+    releasePost();
+    await expect(page.getByTestId("cmd-bar-run-toast")).toBeVisible({ timeout: 5_000 });
+    await expect(hud).not.toContainText("提交中");
+    await expect(page.getByTestId("terminal-crew-status-value")).toContainText("running");
+  });
+
   test("crew status missing / empty / non-finite is UNKNOWN never em dash", async ({ page }) => {
     await page.route(
       (url) => url.pathname === "/api/run-crew/status" || url.pathname === "/api/run-crew/status/",

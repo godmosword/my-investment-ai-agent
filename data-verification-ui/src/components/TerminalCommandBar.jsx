@@ -337,8 +337,9 @@ export default function TerminalCommandBar({ trailing = null }) {
           aria-live="polite"
         >
           <span className="font-semibold text-amber-200/95">Crew</span>
-          {runCrew.isPending ? " · 提交中…" : null}
-          <span data-testid="terminal-crew-status-value"> · {crewStatusText}</span>
+          {runCrew.isPending ? " · 提交中…" : (
+            <span data-testid="terminal-crew-status-value"> · {crewStatusText}</span>
+          )}
           {crewStatus.data?.job_id ? (
             <span className="font-mono text-amber-100/85"> · {String(crewStatus.data.job_id)}</span>
           ) : null}
