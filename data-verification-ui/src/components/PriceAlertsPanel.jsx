@@ -8,8 +8,8 @@ import {
 import { finiteNumber } from "../utils/finiteNumber";
 
 function money(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -156,7 +156,8 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
             <div>
               <span className="font-mono text-white">{alert.symbol}</span>
               <span className="ml-2 text-white/65" data-testid="price-alerts-row-direction">
-                {directionLabel(alert.direction)} {money(alert.target_price)}
+                {directionLabel(alert.direction)}{" "}
+                <span data-testid="price-alerts-row-price">{money(alert.target_price)}</span>
               </span>
               {alert.triggered_at ? (
                 <span className="ml-2 text-emerald-300" data-testid="price-alerts-triggered">
