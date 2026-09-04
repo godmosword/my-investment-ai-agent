@@ -384,7 +384,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
       </label>
 
       <div className="mt-3 rounded border border-white/10 bg-white/[0.03] p-2" data-testid="workspace-digest">
-        <div className="mb-2 text-[11px] font-semibold uppercase text-cyan-200">Digest</div>
+        <div className="mb-2 text-[11px] font-semibold uppercase text-cyan-200" data-testid="workspace-digest-heading">摘要</div>
         <div className="grid grid-cols-2 gap-2 text-[12px]">
           <div>
             <div className="text-[var(--muted)]">{PANEL_LABELS.portfolio}</div>
@@ -395,8 +395,8 @@ export default function WorkspacePanel({ compact = false } = {}) {
           </div>
           <div>
             <div className="text-[var(--muted)]">{PANEL_LABELS.paper}</div>
-            <div className="text-white">{digest.paperActive} active</div>
-            <div className="text-white/60">{digest.paperClosed} closed</div>
+            <div className="text-white" data-testid="workspace-digest-paper-active">{digest.paperActive} 進行中</div>
+            <div className="text-white/60" data-testid="workspace-digest-paper-closed">{digest.paperClosed} 已結</div>
           </div>
           <div>
             <div className="text-[var(--muted)]">{PANEL_LABELS.columns}</div>
@@ -404,10 +404,10 @@ export default function WorkspacePanel({ compact = false } = {}) {
           </div>
           <div>
             <div className="text-[var(--muted)]">{PANEL_LABELS.alerts}</div>
-            <div className="text-white">{digest.alertsTotal} total</div>
-            <div className="text-amber-200">{digest.alertsTriggered} triggered</div>
+            <div className="text-white" data-testid="workspace-digest-alerts-total">{digest.alertsTotal} 合計</div>
+            <div className="text-amber-200" data-testid="workspace-digest-alerts-triggered">{digest.alertsTriggered} 已觸發</div>
             {digest.alertsPending != null ? (
-              <div className="text-white/60">{digest.alertsPending} pending</div>
+              <div className="text-white/60" data-testid="workspace-digest-alerts-pending">{digest.alertsPending} 待觸發</div>
             ) : null}
             {digest.alertSymbolsShort ? (
               <div className="truncate text-[11px] text-white/50" title={digest.alertSymbolsFull}>
@@ -417,10 +417,10 @@ export default function WorkspacePanel({ compact = false } = {}) {
             ) : null}
             {digest.alertDigestAsOf ? (
               <div className="text-[10px] text-white/40" data-testid="workspace-alert-digest-asof">
-                digest as_of {new Date(digest.alertDigestAsOf).toLocaleString("zh-TW", { hour12: false })}
+                摘要時間 {new Date(digest.alertDigestAsOf).toLocaleString("zh-TW", { hour12: false })}
               </div>
             ) : alertDigest.isError ? (
-              <div className="text-[10px] text-amber-100/80">digest API 不可用</div>
+              <div className="text-[10px] text-amber-100/80">摘要 API 不可用</div>
             ) : null}
           </div>
         </div>
@@ -428,8 +428,8 @@ export default function WorkspacePanel({ compact = false } = {}) {
 
       <div className="mt-3 rounded border border-white/10 bg-white/[0.03] p-2" data-testid="workspace-window-grid">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-[11px] font-semibold uppercase text-cyan-200">Windows</div>
-          <div className="text-[11px] text-[var(--muted)]">{panels.length} active</div>
+          <div className="text-[11px] font-semibold uppercase text-cyan-200" data-testid="workspace-windows-heading">視窗</div>
+          <div className="text-[11px] text-[var(--muted)]" data-testid="workspace-windows-active">{panels.length} 進行中</div>
         </div>
         <div className="space-y-2">
           {Object.keys(PANEL_LABELS).map((key) => (

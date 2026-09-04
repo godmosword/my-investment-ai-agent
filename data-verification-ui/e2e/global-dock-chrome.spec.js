@@ -231,4 +231,32 @@ test.describe("ITER-P4-44I workspace dock zh + touch", () => {
     await expect(windows).not.toContainText("Columns");
     await expect(layout.locator('option[value="balanced"]')).not.toHaveText("balanced");
   });
+
+  test("workspace digest and windows status copy is Traditional Chinese", async ({ page }) => {
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+
+    const workspace = page.getByTestId("workspace-panel");
+    await expect(workspace).toBeVisible({ timeout: 60_000 });
+
+    const digest = workspace.getByTestId("workspace-digest");
+    await expect(workspace.getByTestId("workspace-digest-heading")).toHaveText("摘要");
+    await expect(workspace.getByTestId("workspace-windows-heading")).toHaveText("視窗");
+    await expect(workspace.getByTestId("workspace-digest-paper-active")).toHaveText("1 進行中");
+    await expect(workspace.getByTestId("workspace-digest-paper-closed")).toHaveText("1 已結");
+    await expect(workspace.getByTestId("workspace-digest-alerts-total")).toHaveText("0 合計");
+    await expect(workspace.getByTestId("workspace-digest-alerts-triggered")).toHaveText("0 已觸發");
+    await expect(workspace.getByTestId("workspace-digest-alerts-pending")).toHaveText("0 待觸發");
+    await expect(workspace.getByTestId("workspace-windows-active")).toHaveText("4 進行中");
+    await expect(digest.getByTestId("workspace-alert-digest-asof")).toContainText("摘要時間");
+
+    await expect(digest).not.toContainText("Digest");
+    await expect(digest).not.toContainText("active");
+    await expect(digest).not.toContainText("closed");
+    await expect(digest).not.toContainText("triggered");
+    await expect(digest).not.toContainText("pending");
+    await expect(digest).not.toContainText("total");
+    await expect(workspace.getByTestId("workspace-window-grid")).not.toContainText("Windows");
+    await expect(digest).not.toContainText("as_of");
+  });
 });
