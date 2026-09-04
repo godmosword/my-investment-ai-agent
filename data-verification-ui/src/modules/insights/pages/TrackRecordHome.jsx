@@ -149,10 +149,10 @@ export default function TrackRecordHome() {
           data-testid="track-record-empty-guidance"
           className="card mb-3 border border-cyan-300/20 bg-cyan-950/[0.08] p-3 text-[13px] leading-relaxed text-white/78"
         >
-          <div className="font-semibold text-cyan-100">還缺 closed paper signals</div>
+          <div className="font-semibold text-cyan-100">還缺已結紙上訊號</div>
           <p className="mt-1 mb-0 text-white/65">
-            實績需要已關閉的紙上意圖或 <code className="font-mono">recommendation_outcomes</code>{" "}
-            mark-to-market rows。先在「紙上生命週期」建立/推進 paper intent，或排程{" "}
+            實績需要已關閉的紙上意圖，或 <code className="font-mono">recommendation_outcomes</code>{" "}
+            的市價結算列。先在「紙上生命週期」建立／推進紙上意圖，或排程{" "}
             <code className="font-mono">scripts/mark_recommendations.py</code> 後再讀績效。
           </p>
         </div>
@@ -219,7 +219,7 @@ export default function TrackRecordHome() {
           </div>
         </div>
         {records.length === 0 && !loading ? (
-          <div className="p-3 text-[13px] text-[var(--muted)]">尚無可計算的 closed paper signal。</div>
+          <div className="p-3 text-[13px] text-[var(--muted)]">尚無可計算的已結紙上訊號。</div>
         ) : (
           <div className="overflow-x-auto">
             <table data-testid="track-record-closed-table" className="w-full min-w-[760px] text-left text-[12px]">

@@ -118,9 +118,18 @@ test.describe("Insights Track Record tab", () => {
 
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-empty-guidance")).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId("track-record-empty-guidance")).toContainText("還缺 closed paper signals");
-    await expect(page.getByTestId("track-record-empty-guidance")).toContainText("實績需要");
-    await expect(page.getByTestId("track-record-empty-guidance")).not.toContainText("Track Record");
+    const guidance = page.getByTestId("track-record-empty-guidance");
+    await expect(guidance).toContainText("還缺已結紙上訊號");
+    await expect(guidance).toContainText("實績需要已關閉的紙上意圖");
+    await expect(guidance).toContainText("市價結算列");
+    await expect(guidance).toContainText("recommendation_outcomes");
+    await expect(guidance).toContainText("scripts/mark_recommendations.py");
+    await expect(guidance).not.toContainText("closed paper signals");
+    await expect(guidance).not.toContainText("mark-to-market");
+    await expect(guidance).not.toContainText("paper intent");
+    await expect(guidance).not.toContainText("Track Record");
+    await expect(page.getByTestId("track-record-closed-card")).toContainText("尚無可計算的已結紙上訊號。");
+    await expect(page.getByTestId("track-record-closed-card")).not.toContainText("closed paper signal");
   });
 
   test("loading copy is 載入實績…, not Track Record", async ({ page }) => {
