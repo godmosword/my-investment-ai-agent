@@ -5,15 +5,21 @@ import {
   useDeletePriceAlert,
   usePriceAlerts,
 } from "../hooks/useApi";
+import { finiteNumber } from "../utils/finiteNumber";
 
 function money(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 2,
   }).format(n);
+}
+
+function countLabel(value) {
+  const n = finiteNumber(value);
+  return n == null ? "UNKNOWN" : n;
 }
 
 function directionLabel(direction) {
@@ -65,7 +71,8 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
     checkAlerts.mutate(
       { sendPush: false },
       {
-        onSuccess: (data) => setMessage(`已檢查 ${data.checked ?? 0} 筆，觸發 ${data.triggered ?? 0} 筆`),
+        onSuccess: (data) =>
+          setMessage(`已檢查 ${countLabel(data?.checked)} 筆，觸發 ${countLabel(data?.triggered)} 筆`),
         onError: (err) => setMessage(`檢查失敗：${err.message}`),
       },
     );
@@ -149,7 +156,8 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
             <div>
               <span className="font-mono text-white">{alert.symbol}</span>
               <span className="ml-2 text-white/65" data-testid="price-alerts-row-direction">
-                {directionLabel(alert.direction)} {money(alert.target_price)}
+                {directionLabel(alert.direction)}{" "}
+                <span data-testid="price-alerts-row-price">{money(alert.target_price)}</span>
               </span>
               {alert.triggered_at ? (
                 <span className="ml-2 text-emerald-300" data-testid="price-alerts-triggered">
