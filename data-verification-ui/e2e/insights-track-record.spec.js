@@ -29,10 +29,14 @@ test.describe("Insights Track Record tab", () => {
     await expect(page.getByTestId("track-record-avg-return").locator(".metric-label")).toHaveText("平均報酬");
     await expect(page.getByTestId("track-record-max-dd").locator(".metric-label")).toHaveText("最大回撤");
     await expect(page.getByTestId("track-record-sharpe").locator(".metric-label")).toHaveText("Sharpe");
+    await expect(page.getByTestId("track-record-cumulative").locator(".metric-label")).toHaveText("累積");
+    await expect(page.getByTestId("track-record-wl")).toContainText("3 已結");
+    await expect(page.getByTestId("track-record-wl")).not.toContainText("closed");
     await expect(page.getByTestId("track-record-home")).not.toContainText("W / L");
     await expect(page.getByTestId("track-record-home")).not.toContainText("Hit Rate");
     await expect(page.getByTestId("track-record-home")).not.toContainText("Avg Return");
     await expect(page.getByTestId("track-record-home")).not.toContainText("Max DD");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Total");
   });
 
   test("loads summary, closed rows, and tag slice", async ({ page }) => {

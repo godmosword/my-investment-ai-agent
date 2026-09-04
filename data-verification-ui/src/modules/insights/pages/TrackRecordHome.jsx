@@ -163,7 +163,7 @@ export default function TrackRecordHome() {
         <Kpi
           label="勝／負"
           value={wlLabel(summary)}
-          sub={`${presentCount(summary?.total_closed)} closed`}
+          sub={`${presentCount(summary?.total_closed)} 已結`}
           testId="track-record-wl"
         />
         <Kpi
@@ -186,9 +186,10 @@ export default function TrackRecordHome() {
           testId="track-record-max-dd"
         />
         <Kpi
-          label="Total"
+          label="累積"
           value={fmtPct(summary?.cumulative_return_pct, 1)}
           valueClass={tone(summary?.cumulative_return_pct)}
+          testId="track-record-cumulative"
         />
       </div>
       ) : null}
