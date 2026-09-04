@@ -72,11 +72,11 @@ export default function SymbolDeepDive() {
     <section data-testid="symbol-deep-dive" className="mb-3 rounded border border-cyan-300/20 bg-cyan-400/[0.02] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[11px] uppercase text-cyan-200">Analysis Deep Dive</div>
+          <div className="text-[11px] uppercase text-cyan-200" data-testid="symbol-deep-dive-title">深度分析</div>
           <h1 className="mt-1 text-[20px] font-semibold text-white">{symbol}</h1>
         </div>
         <div className="text-right">
-          <div className="text-[11px] uppercase text-[var(--muted)]">Last</div>
+          <div className="text-[11px] uppercase text-[var(--muted)]" data-testid="symbol-last-label">最新價</div>
           <div className="font-mono text-[18px] font-semibold text-white" data-testid="symbol-last-price">{formatPrice(quote.last)}</div>
         </div>
       </div>
