@@ -133,8 +133,8 @@ export default function SymbolDeepDive() {
 
       {query.isLoading ? <div className="mt-3 text-[13px] text-[var(--muted)]">載入分析資料…</div> : null}
       {query.error ? (
-        <div className="mt-3 text-[13px] text-red-300" role="alert">
-          Deep dive 無法載入：{query.error.message}
+        <div className="mt-3 text-[13px] text-red-300" role="alert" data-testid="symbol-deep-dive-error">
+          無法載入深度分析：{query.error.message}
         </div>
       ) : null}
       {!query.isLoading && !query.error ? (

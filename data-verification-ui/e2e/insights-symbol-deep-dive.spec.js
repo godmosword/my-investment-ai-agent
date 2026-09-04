@@ -170,4 +170,23 @@ test.describe("Insights symbol deep dive", () => {
     await expect(page.getByTestId("symbol-filing-block-title")).not.toHaveText("Filing");
     await expect(page.getByTestId("symbol-agency-block-title")).not.toHaveText("Agency");
   });
+
+  test("analysis error is 無法載入深度分析 without Deep dive", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/analysis/NVDA" || url.pathname === "/api/analysis/NVDA/",
+      async (route) => {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "e2e_analysis_down" }),
+        });
+      },
+    );
+    await page.goto("/insights?symbol=NVDA", { waitUntil: "load" });
+    const alert = page.getByTestId("symbol-deep-dive-error");
+    await expect(alert).toBeVisible({ timeout: 60_000 });
+    await expect(alert).toContainText("無法載入深度分析：");
+    await expect(alert).not.toContainText("Deep dive");
+    await expect(alert).not.toContainText("Deep Dive");
+  });
 });
