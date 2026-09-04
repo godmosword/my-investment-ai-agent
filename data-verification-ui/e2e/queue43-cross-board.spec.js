@@ -39,11 +39,11 @@ test.describe("Queue 43 cross-board polish", () => {
     const workspace = page.getByTestId("workspace-panel");
     await expect(workspace).toBeVisible();
     await expect(workspace.getByTestId("workspace-digest")).toContainText("$8,000");
-    await expect(workspace.getByTestId("workspace-window-grid")).toContainText("Portfolio");
+    await expect(workspace.getByTestId("workspace-window-grid")).toContainText("持倉");
     await workspace.getByTestId("workspace-layout").selectOption("dense");
-    await expect(workspace).toContainText("Workspace layout saved");
+    await expect(workspace).toContainText("版面已儲存");
     await workspace.getByTestId("workspace-panel-up-alerts").click();
-    await expect(workspace).toContainText("Workspace panels saved");
+    await expect(workspace).toContainText("面板順序已儲存");
     await workspace
       .getByTestId("workspace-import-text")
       .fill('{"version":1,"keys":{"qsi_watchlist":"[\\"MSFT\\"]","terminal_recent_symbols":"MSFT","qs_workspace_layout":"focus","qs_workspace_panels":"[\\"portfolio\\",\\"alerts\\"]"}}');

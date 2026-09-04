@@ -21,10 +21,10 @@ const EVENT_KEYS = {
 };
 const DEFAULT_PANELS = ["paper", "portfolio", "columns", "alerts"];
 const PANEL_LABELS = {
-  paper: "Paper",
-  portfolio: "Portfolio",
-  columns: "Columns",
-  alerts: "Alerts",
+  paper: "模擬單",
+  portfolio: "持倉",
+  columns: "專欄",
+  alerts: "警示",
 };
 
 function readWorkspace() {
@@ -227,7 +227,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
         const store = readSizeStoreObj();
         store[bpLabel] = { ...weightsRef.current };
         writeSizeStoreObj(store);
-        setMessage(`Panel heights saved (${bpLabel})`);
+        setMessage(`面板高度已儲存（${bpLabel}）`);
       };
       globalThis.addEventListener("pointermove", onMove);
       globalThis.addEventListener("pointerup", onUp, { once: true });
@@ -299,7 +299,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
       /* ignore */
     }
     emitWorkspaceChanged();
-    setMessage("Workspace layout saved");
+    setMessage("版面已儲存");
   };
 
   const updatePanels = (next) => {
@@ -307,7 +307,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
     const saved = clean.length ? clean : DEFAULT_PANELS;
     setPanels(saved);
     savePanels(saved);
-    setMessage("Workspace panels saved");
+    setMessage("面板順序已儲存");
   };
 
   const togglePanel = (key) => {
@@ -353,8 +353,8 @@ export default function WorkspacePanel({ compact = false } = {}) {
     <section className="card p-3" data-testid="workspace-panel">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="card-title">Workspace</div>
-          <div className="text-[12px] text-[var(--muted)]">local layout · panel order · cross-board digest</div>
+          <div className="card-title" data-testid="workspace-title">工作區</div>
+          <div className="text-[12px] text-[var(--muted)]" data-testid="workspace-subtitle">本機版面 · 面板順序 · 跨板塊摘要</div>
           <div className="text-[10px] text-white/45" data-testid="workspace-cross-tab-sync-hint">
             跨分頁／多視窗：另開同源分頁修改此區會經 localStorage 自動同步（Phase 2）。
           </div>
@@ -369,17 +369,17 @@ export default function WorkspacePanel({ compact = false } = {}) {
         </button>
       </div>
 
-      <label className="block text-[12px] text-white/70">
-        Layout
+      <label className="block text-[12px] text-white/70" data-testid="workspace-layout-label">
+        版面
         <select
           data-testid="workspace-layout"
           value={layout}
           onChange={(e) => updateLayout(e.target.value)}
           className="mt-1 min-h-[40px] w-full rounded border border-white/15 bg-black/25 px-2 text-[13px] text-white"
         >
-          <option value="balanced">balanced</option>
-          <option value="dense">dense</option>
-          <option value="focus">focus</option>
+          <option value="balanced">均衡</option>
+          <option value="dense">緊湊</option>
+          <option value="focus">聚焦</option>
         </select>
       </label>
 
@@ -387,23 +387,23 @@ export default function WorkspacePanel({ compact = false } = {}) {
         <div className="mb-2 text-[11px] font-semibold uppercase text-cyan-200">Digest</div>
         <div className="grid grid-cols-2 gap-2 text-[12px]">
           <div>
-            <div className="text-[var(--muted)]">Portfolio</div>
+            <div className="text-[var(--muted)]">{PANEL_LABELS.portfolio}</div>
             <div className="font-mono text-white">{money(digest.portfolioValue)}</div>
             <div className={Number(digest.portfolioPnl) >= 0 ? "text-emerald-300" : "text-red-300"}>
               {money(digest.portfolioPnl)}
             </div>
           </div>
           <div>
-            <div className="text-[var(--muted)]">Paper</div>
+            <div className="text-[var(--muted)]">{PANEL_LABELS.paper}</div>
             <div className="text-white">{digest.paperActive} active</div>
             <div className="text-white/60">{digest.paperClosed} closed</div>
           </div>
           <div>
-            <div className="text-[var(--muted)]">Columns</div>
+            <div className="text-[var(--muted)]">{PANEL_LABELS.columns}</div>
             <div className="truncate text-white">{digest.topTheme}</div>
           </div>
           <div>
-            <div className="text-[var(--muted)]">Alerts</div>
+            <div className="text-[var(--muted)]">{PANEL_LABELS.alerts}</div>
             <div className="text-white">{digest.alertsTotal} total</div>
             <div className="text-amber-200">{digest.alertsTriggered} triggered</div>
             {digest.alertsPending != null ? (

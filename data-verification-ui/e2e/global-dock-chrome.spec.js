@@ -203,4 +203,32 @@ test.describe("ITER-P4-44I workspace dock zh + touch", () => {
     await expect(tiles.nth(0)).toHaveAttribute("data-testid", "workspace-panel-tile-paper");
     await expect(tiles.nth(1)).toHaveAttribute("data-testid", "workspace-panel-tile-portfolio");
   });
+
+  test("workspace title, subtitle, layout, and panel labels are Traditional Chinese", async ({ page }) => {
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+
+    const workspace = page.getByTestId("workspace-panel");
+    await expect(workspace).toBeVisible({ timeout: 60_000 });
+    await expect(workspace.getByTestId("workspace-title")).toHaveText("工作區");
+    await expect(workspace.getByTestId("workspace-subtitle")).toHaveText("本機版面 · 面板順序 · 跨板塊摘要");
+    await expect(workspace.getByTestId("workspace-layout-label")).toContainText("版面");
+
+    const layout = workspace.getByTestId("workspace-layout");
+    await expect(layout.locator('option[value="balanced"]')).toHaveText("均衡");
+    await expect(layout.locator('option[value="dense"]')).toHaveText("緊湊");
+    await expect(layout.locator('option[value="focus"]')).toHaveText("聚焦");
+    await expect(layout).toHaveValue("balanced");
+
+    const windows = workspace.getByTestId("workspace-window-grid");
+    await expect(windows).toContainText("模擬單");
+    await expect(windows).toContainText("持倉");
+    await expect(windows).toContainText("專欄");
+    await expect(windows).toContainText("警示");
+    await expect(workspace.getByTestId("workspace-digest")).toContainText("持倉");
+    await expect(workspace.getByTestId("workspace-title")).not.toHaveText("Workspace");
+    await expect(windows).not.toContainText("Portfolio");
+    await expect(windows).not.toContainText("Columns");
+    await expect(layout.locator('option[value="balanced"]')).not.toHaveText("balanced");
+  });
 });
