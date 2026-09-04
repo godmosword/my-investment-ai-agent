@@ -53,4 +53,27 @@ test.describe("FE-1 Responsive App Shell", () => {
     expect(vars.bottomTab).not.toBe("");
     expect(vars.sidebar).toBe("220px");
   });
+
+  test("desktop SideNav Portfolio label is 投資組合", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    const item = page.getByTestId("side-nav-portfolio");
+    await expect(item).toBeVisible({ timeout: 60_000 });
+    await expect(item).toHaveAttribute("aria-label", "投資組合");
+    await expect(item).toContainText("投資組合");
+    await expect(item).not.toHaveAttribute("aria-label", "Portfolio");
+    await expect(item).not.toContainText("Portfolio");
+  });
+
+  test("mobile BottomNav full label is 投資組合; short stays 組合", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/dashboard", { waitUntil: "load" });
+    const item = page.getByTestId("bottom-nav-portfolio");
+    await expect(item).toBeVisible({ timeout: 60_000 });
+    await expect(item).toHaveAttribute("aria-label", "投資組合");
+    await expect(item).toHaveAttribute("title", "投資組合");
+    await expect(page.getByTestId("bottom-nav-portfolio-short")).toHaveText("組合");
+    await expect(item).not.toHaveAttribute("aria-label", "Portfolio");
+    await expect(item).not.toHaveAttribute("title", "Portfolio");
+  });
 });

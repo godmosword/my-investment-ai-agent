@@ -8,7 +8,7 @@ const PRIMARY_TABS = [
   { to: "/dashboard", icon: "📊", label: "數據儀表板" },
   { to: "/insights",  icon: "🖥️", label: "投資觀點" },
   { to: "/columns",   icon: "🏭", label: "科技專欄" },
-  { to: "/portfolio", icon: "📌", label: "Portfolio" },
+  { to: "/portfolio", icon: "📌", label: "投資組合" },
 ];
 
 const SYSTEM_TABS = [
@@ -49,6 +49,7 @@ function NavItem({ to, icon, label, end }) {
     <NavLink
       to={to}
       end={end}
+      data-testid={`side-nav-${to.replace(/^\//, "")}`}
       className={({ isActive }) => `side-nav__item${isActive ? " active" : ""}`}
       aria-label={label}
     >
