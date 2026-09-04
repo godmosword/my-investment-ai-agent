@@ -77,6 +77,40 @@ test.describe("Insights symbol deep dive", () => {
     await expect(page.getByTestId("symbol-deep-dive")).not.toContainText("—");
   });
 
+  test("snapshot chrome is 快照 / 來源 / 截至 and warning prefix is 快照警示", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/analysis/NVDA" || url.pathname === "/api/analysis/NVDA/",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            symbol: "NVDA",
+            quote: { symbol: "NVDA", last: 100.5 },
+            snapshot: { symbol: "NVDA", source: "e2e_snap", as_of: "2026-05-14T00:00:00Z", price_series: [] },
+            snapshot_error: "stale_quote",
+          }),
+        });
+      },
+    );
+    await page.goto("/insights?symbol=NVDA", { waitUntil: "load" });
+    await expect(page.getByTestId("symbol-deep-dive")).toBeVisible({ timeout: 60_000 });
+    const snap = page.getByTestId("symbol-snapshot-block");
+    await expect(page.getByTestId("symbol-snapshot-heading")).toHaveText("快照");
+    await expect(page.getByTestId("symbol-snapshot-source-label")).toHaveText("來源");
+    await expect(page.getByTestId("symbol-snapshot-as-of-label")).toHaveText("截至");
+    await expect(page.getByTestId("symbol-snapshot-source")).toHaveText("e2e_snap");
+    await expect(page.getByTestId("symbol-snapshot-as-of")).toHaveText("2026-05-14T00:00:00Z");
+    const warn = page.getByTestId("symbol-snapshot-error");
+    await expect(warn).toBeVisible();
+    await expect(warn).toContainText("快照警示");
+    await expect(warn).toContainText("stale_quote");
+    await expect(snap).not.toContainText("Snapshot");
+    await expect(snap).not.toContainText("Source:");
+    await expect(snap).not.toContainText("As of:");
+    await expect(warn).not.toContainText("Snapshot warning:");
+  });
+
   test("finite last price 0 stays $0.00; present source and as_of still render", async ({ page }) => {
     await page.route(
       (url) => url.pathname === "/api/analysis/NVDA" || url.pathname === "/api/analysis/NVDA/",

@@ -139,16 +139,20 @@ export default function SymbolDeepDive() {
       ) : null}
       {!query.isLoading && !query.error ? (
         <div className="mt-3 grid gap-2 md:grid-cols-3">
-          <div className="rounded border border-white/10 bg-white/[0.03] p-3">
-            <div className="text-[12px] font-semibold uppercase text-cyan-200">Snapshot</div>
+          <div className="rounded border border-white/10 bg-white/[0.03] p-3" data-testid="symbol-snapshot-block">
+            <div className="text-[12px] font-semibold uppercase text-cyan-200" data-testid="symbol-snapshot-heading">快照</div>
             <div className="mt-2 text-[13px] text-white/70">
-              Source: <span className="font-mono" data-testid="symbol-snapshot-source">{presentOrUnknown(snapshot.source)}</span>
+              <span data-testid="symbol-snapshot-source-label">來源</span>{" "}
+              <span className="font-mono" data-testid="symbol-snapshot-source">{presentOrUnknown(snapshot.source)}</span>
             </div>
             <div className="mt-1 text-[13px] text-white/70">
-              As of: <span className="font-mono" data-testid="symbol-snapshot-as-of">{presentOrUnknown(snapshot.as_of || quote.as_of)}</span>
+              <span data-testid="symbol-snapshot-as-of-label">截至</span>{" "}
+              <span className="font-mono" data-testid="symbol-snapshot-as-of">{presentOrUnknown(snapshot.as_of || quote.as_of)}</span>
             </div>
             {query.data?.snapshot_error ? (
-              <div className="mt-2 text-[12px] text-amber-200">Snapshot warning: {query.data.snapshot_error}</div>
+              <div className="mt-2 text-[12px] text-amber-200" data-testid="symbol-snapshot-error">
+                快照警示 {query.data.snapshot_error}
+              </div>
             ) : null}
           </div>
           {hasFilingPayload(filing) ? (
