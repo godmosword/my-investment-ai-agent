@@ -38,6 +38,18 @@ function wlLabel(summary) {
   return `${presentCount(summary.wins)}/${presentCount(summary.losses)}`;
 }
 
+function presentCategory(value) {
+  const s = String(value ?? "").trim();
+  return s || "UNKNOWN";
+}
+
+function presentClosedAt(value) {
+  const s = String(value ?? "").trim();
+  if (!s) return "UNKNOWN";
+  const prefix = s.slice(0, 10).trim();
+  return prefix || "UNKNOWN";
+}
+
 function tone(value) {
   const n = Number(value);
   if (n > 0) return "text-green-400";
@@ -79,7 +91,7 @@ export default function TrackRecordHome() {
     <div data-testid="track-record-home" className="px-1">
       <div className="page-header">
         <div className="page-title">實績</div>
-        <div className="page-subtitle">Paper-only outcomes · source-audited</div>
+        <div className="page-subtitle">僅紙上結果 · 來源可稽核</div>
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
@@ -109,12 +121,12 @@ export default function TrackRecordHome() {
 
       {error ? (
         <div className="card mb-3 p-3 text-[13px] text-red-300" data-testid="track-record-error" role="alert">
-          Track Record 暫時無法載入。
+          實績暫時無法載入。
         </div>
       ) : null}
       {loading && !summaryPresent ? (
         <div className="loading mb-3" data-testid="track-record-loading" role="status">
-          載入 Track Record…
+          載入實績…
         </div>
       ) : null}
       {!loading && !error && !summaryPresent ? (
@@ -123,7 +135,7 @@ export default function TrackRecordHome() {
           data-testid="track-record-unknown-empty"
           role="status"
         >
-          UNKNOWN：尚無 Track Record 摘要
+          UNKNOWN：尚無實績摘要
         </div>
       ) : null}
 
@@ -134,7 +146,7 @@ export default function TrackRecordHome() {
         >
           <div className="font-semibold text-cyan-100">還缺 closed paper signals</div>
           <p className="mt-1 mb-0 text-white/65">
-            Track Record 需要已關閉的紙上意圖或 <code className="font-mono">recommendation_outcomes</code>{" "}
+            實績需要已關閉的紙上意圖或 <code className="font-mono">recommendation_outcomes</code>{" "}
             mark-to-market rows。先在「紙上生命週期」建立/推進 paper intent，或排程{" "}
             <code className="font-mono">scripts/mark_recommendations.py</code> 後再讀績效。
           </p>
@@ -144,26 +156,26 @@ export default function TrackRecordHome() {
       {summaryPresent ? (
       <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-6">
         <Kpi
-          label="W / L"
+          label="勝／負"
           value={wlLabel(summary)}
           sub={`${presentCount(summary?.total_closed)} closed`}
           testId="track-record-wl"
         />
         <Kpi
-          label="Hit Rate"
+          label="命中率"
           value={fmtPct(summary?.hit_rate_pct, 1)}
           valueClass="text-green-400"
           testId="track-record-hit-rate"
         />
         <Kpi
-          label="Avg Return"
+          label="平均報酬"
           value={fmtPct(summary?.avg_return_pct, 2)}
           valueClass={tone(summary?.avg_return_pct)}
           testId="track-record-avg-return"
         />
         <Kpi label="Sharpe" value={fmtNum(summary?.sharpe, 2)} valueClass="text-cyan-200" testId="track-record-sharpe" />
         <Kpi
-          label="Max DD"
+          label="最大回撤"
           value={fmtPct(summary?.max_drawdown_pct, 1)}
           valueClass="text-red-400"
           testId="track-record-max-dd"
@@ -229,14 +241,19 @@ export default function TrackRecordHome() {
                         {row.thesis_one_liner || row.signal_id}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-white/70">{row.category || "—"}</td>
+                    <td className="px-3 py-2 text-white/70" data-testid="track-record-row-category">
+                      {presentCategory(row.category)}
+                    </td>
                     <td className="px-3 py-2 font-mono">{fmtNum(row.entry_price, 2)}</td>
                     <td className="px-3 py-2 font-mono">{fmtNum(row.exit_price, 2)}</td>
                     <td className={`px-3 py-2 font-mono font-semibold ${tone(row.return_pct)}`}>
                       {fmtPct(row.return_pct, 2)}
                     </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]">
-                      {String(row.closed_at ?? "").slice(0, 10) || "—"}
+                    <td
+                      className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]"
+                      data-testid="track-record-row-closed-at"
+                    >
+                      {presentClosedAt(row.closed_at)}
                     </td>
                     <td className="px-3 py-2">
                       <code className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-cyan-200">

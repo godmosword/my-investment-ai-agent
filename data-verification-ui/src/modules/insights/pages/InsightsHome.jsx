@@ -77,7 +77,7 @@ function DataHealthSummary() {
               title={item?.source || ""}
               data-testid="insights-health-meta"
             >
-              {rowCount == null ? item?.source || "檢查中" : `${rowCount} rows`}
+              {rowCount == null ? item?.source || "檢查中" : `${rowCount} 筆`}
             </div>
           </div>
         );

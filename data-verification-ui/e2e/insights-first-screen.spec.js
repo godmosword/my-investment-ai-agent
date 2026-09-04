@@ -145,7 +145,13 @@ test.describe("Insights — first screen is 今日建議 (ITER-P4-44A)", () => {
     await page.getByTestId("insights-intro-toggle").click();
     await expect(page.getByTestId("insights-health-reports").getByTestId("insights-health-meta")).toHaveText("檢查中");
     await expect(page.getByTestId("insights-health-options").getByTestId("insights-health-meta")).toHaveText("檢查中");
+    await expect(page.getByTestId("insights-health-paper").getByTestId("insights-health-meta")).toHaveText("1 筆");
+    await expect(page.getByTestId("insights-health-track-record").getByTestId("insights-health-meta")).toHaveText(
+      "1 筆",
+    );
+    await expect(page.getByTestId("insights-health-scenario").getByTestId("insights-health-meta")).toHaveText("1 筆");
     await expect(page.getByTestId("insights-data-health-summary")).not.toContainText("checking");
+    await expect(page.getByTestId("insights-data-health-summary")).not.toContainText("rows");
   });
 
   test("?tab=signals still opens QuantHome", async ({ page }) => {

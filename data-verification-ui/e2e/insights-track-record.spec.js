@@ -16,6 +16,23 @@ test.describe("Insights Track Record tab", () => {
     const title = page.getByTestId("track-record-home").locator(".page-title");
     await expect(title).toHaveText("實績");
     await expect(title).not.toHaveText("Track Record");
+    await expect(page.getByTestId("track-record-home").locator(".page-subtitle")).toHaveText(
+      "僅紙上結果 · 來源可稽核",
+    );
+  });
+
+  test("KPI labels are 勝／負 命中率 平均報酬 最大回撤; Sharpe stays", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-wl").locator(".metric-label")).toHaveText("勝／負");
+    await expect(page.getByTestId("track-record-hit-rate").locator(".metric-label")).toHaveText("命中率");
+    await expect(page.getByTestId("track-record-avg-return").locator(".metric-label")).toHaveText("平均報酬");
+    await expect(page.getByTestId("track-record-max-dd").locator(".metric-label")).toHaveText("最大回撤");
+    await expect(page.getByTestId("track-record-sharpe").locator(".metric-label")).toHaveText("Sharpe");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("W / L");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Hit Rate");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Avg Return");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Max DD");
   });
 
   test("loads summary, closed rows, and tag slice", async ({ page }) => {
@@ -93,6 +110,39 @@ test.describe("Insights Track Record tab", () => {
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-empty-guidance")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("track-record-empty-guidance")).toContainText("還缺 closed paper signals");
+    await expect(page.getByTestId("track-record-empty-guidance")).toContainText("實績需要");
+    await expect(page.getByTestId("track-record-empty-guidance")).not.toContainText("Track Record");
+  });
+
+  test("loading copy is 載入實績…, not Track Record", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 8_000));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 0,
+          wins: 0,
+          losses: 0,
+          equity_curve: [],
+          source: "e2e",
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 8_000));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ records: [], total: 0, limit: 50, offset: 0, source: "e2e" }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "domcontentloaded" });
+    const loading = page.getByTestId("track-record-loading");
+    await expect(loading).toBeVisible({ timeout: 5_000 });
+    await expect(loading).toHaveText("載入實績…");
+    await expect(loading).not.toContainText("Track Record");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Track Record");
   });
 });
 
@@ -111,7 +161,8 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("track-record-unknown-empty")).toBeVisible();
-    await expect(page.getByTestId("track-record-unknown-empty")).toContainText("UNKNOWN");
+    await expect(page.getByTestId("track-record-unknown-empty")).toHaveText("UNKNOWN：尚無實績摘要");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Track Record");
     await expect(page.getByTestId("track-record-wl")).toHaveCount(0);
     await expect(page.getByTestId("track-record-hit-rate")).toHaveCount(0);
     await expect(page.getByTestId("track-record-empty-guidance")).toHaveCount(0);
@@ -169,6 +220,8 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("track-record-error")).toBeVisible();
+    await expect(page.getByTestId("track-record-error")).toHaveText("實績暫時無法載入。");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Track Record");
     await expect(page.getByTestId("track-record-wl")).toHaveCount(0);
     await expect(page.getByTestId("track-record-empty-guidance")).toHaveCount(0);
   });
@@ -222,5 +275,72 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await expect(page.getByTestId("track-record-closed-table")).toBeVisible();
     await expect(page.getByTestId("track-record-action-deep-dive")).toHaveCount(0);
     await expect(page.getByTestId("track-record-action-monitor")).toHaveCount(0);
+  });
+
+  test("missing category and closed_at are UNKNOWN, not em dash; date prefix stays", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 3,
+          wins: 2,
+          losses: 1,
+          hit_rate_pct: 66.7,
+          avg_return_pct: 1,
+          sharpe: 1,
+          max_drawdown_pct: -1,
+          cumulative_return_pct: 1,
+          equity_curve: [],
+          source: "e2e",
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 3 },
+          records: [
+            { signal_id: "e2e-missing", asset: "AAA", outcome: "win", direction: "LONG" },
+            {
+              signal_id: "e2e-blank",
+              asset: "BBB",
+              outcome: "loss",
+              direction: "SHORT",
+              category: "   ",
+              closed_at: "   ",
+            },
+            {
+              signal_id: "e2e-ok",
+              asset: "CCC",
+              outcome: "win",
+              direction: "LONG",
+              category: "AI",
+              closed_at: "2026-05-13T12:00:00Z",
+            },
+          ],
+          total: 3,
+          limit: 50,
+          offset: 0,
+          source: "e2e",
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    const table = page.getByTestId("track-record-closed-table");
+    await expect(table).toBeVisible();
+    const categories = table.getByTestId("track-record-row-category");
+    const closedAts = table.getByTestId("track-record-row-closed-at");
+    await expect(categories).toHaveCount(3);
+    await expect(categories.nth(0)).toHaveText("UNKNOWN");
+    await expect(categories.nth(1)).toHaveText("UNKNOWN");
+    await expect(categories.nth(2)).toHaveText("AI");
+    await expect(closedAts.nth(0)).toHaveText("UNKNOWN");
+    await expect(closedAts.nth(1)).toHaveText("UNKNOWN");
+    await expect(closedAts.nth(2)).toHaveText("2026-05-13");
+    await expect(table).not.toContainText("—");
   });
 });
