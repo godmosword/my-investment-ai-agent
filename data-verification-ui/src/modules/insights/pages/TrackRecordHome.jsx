@@ -199,7 +199,9 @@ export default function TrackRecordHome() {
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <div className="card-title">累積曲線</div>
-            <div className="text-[12px] text-[var(--muted)]">{tag ? `${tag} slice` : "all closed signals"}</div>
+            <div className="text-[12px] text-[var(--muted)]" data-testid="track-record-equity-subtitle">
+              {tag ? `${tag} 篩選` : "全部已結"}
+            </div>
           </div>
           <div className="font-mono text-[12px] text-[var(--muted)]" data-testid="track-record-equity-source">
             {presentSource(payload?.source ?? summary?.source)}

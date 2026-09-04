@@ -67,6 +67,18 @@ test.describe("Insights Track Record tab", () => {
     await expect(page.getByTestId("track-record-closed-table").getByText("BTC", { exact: true })).toBeHidden();
   });
 
+  test("equity subtitle is 全部已結 or tag 篩選, not English slice", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    const subtitle = page.getByTestId("track-record-equity-subtitle");
+    await expect(subtitle).toHaveText("全部已結");
+    await expect(subtitle).not.toContainText("all closed signals");
+    await expect(subtitle).not.toContainText("slice");
+    await page.getByTestId("track-record-tag-ai").click();
+    await expect(subtitle).toHaveText("AI 篩選");
+    await expect(subtitle).not.toContainText("slice");
+  });
+
   test("closed card count is 筆, not rows", async ({ page }) => {
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
@@ -134,6 +146,8 @@ test.describe("Insights Track Record tab", () => {
     await expect(guidance).not.toContainText("Track Record");
     await expect(page.getByTestId("track-record-closed-card")).toContainText("尚無可計算的已結紙上訊號。");
     await expect(page.getByTestId("track-record-closed-card")).not.toContainText("closed paper signal");
+    await expect(page.getByTestId("track-record-wl")).toContainText("0 已結");
+    await expect(page.getByTestId("track-record-cumulative").locator(".metric-label")).toHaveText("累積");
   });
 
   test("loading copy is 載入實績…, not Track Record", async ({ page }) => {
