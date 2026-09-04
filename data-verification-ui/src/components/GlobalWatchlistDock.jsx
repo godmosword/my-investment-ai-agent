@@ -30,7 +30,7 @@ export default function GlobalWatchlistDock() {
             <Watchlist
               compact
               dataTestId="global-watchlist"
-              title="Watchlist"
+              title="觀察清單"
               description="跨板塊共享 · localStorage"
             />
             <PriceAlertsPanel compact />

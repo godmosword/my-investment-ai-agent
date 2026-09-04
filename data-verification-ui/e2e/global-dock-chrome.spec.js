@@ -259,4 +259,23 @@ test.describe("ITER-P4-44I workspace dock zh + touch", () => {
     await expect(workspace.getByTestId("workspace-window-grid")).not.toContainText("Windows");
     await expect(digest).not.toContainText("as_of");
   });
+
+  test("watchlist title is 觀察清單 and alert success is 警示已建立", async ({ page }) => {
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+
+    const watchlist = page.getByTestId("global-watchlist");
+    await expect(watchlist).toBeVisible({ timeout: 60_000 });
+    await expect(watchlist.getByTestId("watchlist-title")).toHaveText("觀察清單");
+    await expect(watchlist.getByTestId("watchlist-title")).not.toHaveText("Watchlist");
+
+    const panel = page.getByTestId("price-alerts-panel");
+    await expect(panel).toBeVisible();
+    await panel.getByPlaceholder("NVDA").fill("TSLA");
+    await panel.getByPlaceholder("900").fill("200");
+    await panel.getByTestId("price-alerts-add").click();
+    await expect(panel.getByTestId("price-alerts-status")).toHaveText("警示已建立");
+    await expect(panel).not.toContainText("Alert 已建立");
+    await expect(panel.getByTestId("price-alerts-row")).toContainText("TSLA");
+  });
 });

@@ -54,7 +54,7 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
       {
         onSuccess: () => {
           setForm({ symbol: "", direction: "above", target_price: "", note: "" });
-          setMessage("Alert 已建立");
+          setMessage("警示已建立");
         },
         onError: (err) => setMessage(`建立失敗：${err.message}`),
       },
@@ -124,7 +124,7 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
       </form>
 
       {message ? (
-        <div className="mt-2 rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-[12px] text-white/70" role="status">
+        <div className="mt-2 rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-[12px] text-white/70" data-testid="price-alerts-status" role="status">
           {message}
         </div>
       ) : null}
