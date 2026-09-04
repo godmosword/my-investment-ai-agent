@@ -19,7 +19,7 @@ const TABS = [
   { id: "daily", label: "今日建議", testId: "insights-tab-daily" },
   { id: "earnings", label: "財報行事曆", testId: "insights-tab-earnings" },
   { id: "paper", label: "紙上生命週期", testId: "insights-tab-paper" },
-  { id: "track-record", label: "Track Record", testId: "insights-tab-track-record" },
+  { id: "track-record", label: "實績", testId: "insights-tab-track-record" },
   { id: "scenario", label: "情境建議", testId: "insights-tab-scenario" },
   { id: "signals", label: "訊號", testId: "insights-tab-signals" },
   { id: "options", label: "選擇權流", testId: "insights-tab-options" },
