@@ -7,6 +7,7 @@ import Sparkline from "../../../components/Sparkline";
 import TodayBtcSnapshotStrip from "../../../components/TodayBtcSnapshotStrip";
 import { useMacroSnapshot } from "../../../hooks/useApi";
 import { PORTAL_PHASE4_GATE0 } from "../../../constants/portalPhase4";
+import { finiteNumber } from "../../../utils/finiteNumber";
 
 const DASHBOARD_TABS = [
   { id: "overview", label: "宏觀總覽", testId: "dashboard-tab-overview" },
@@ -14,18 +15,27 @@ const DASHBOARD_TABS = [
 ];
 const DASHBOARD_TAB_IDS = new Set(DASHBOARD_TABS.map((t) => t.id));
 
+/** Missing-data display sentinels: N/A, NA, dashes, empty, whitespace-only. Absent display is not a sentinel. */
+function isMissingDisplay(display) {
+  if (display == null) return false;
+  const s = String(display).trim();
+  if (s === "") return true;
+  const folded = s.toLowerCase();
+  return folded === "n/a" || folded === "na" || s === "—" || s === "-" || s === "–";
+}
+
 function formatValue(indicator) {
-  if (!indicator) return "N/A";
-  if (indicator.display) return indicator.display;
-  const n = Number(indicator.value);
-  if (!Number.isFinite(n)) return "N/A";
+  if (!indicator) return "UNKNOWN";
+  const n = finiteNumber(indicator.value);
+  if (n == null || isMissingDisplay(indicator.display)) return "UNKNOWN";
+  if (typeof indicator.display === "string" && indicator.display.trim()) return indicator.display;
   if (indicator.unit === "USD") return `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
   return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 function formatChange(value, unit = "%") {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toFixed(unit === "bp" ? 1 : 2)}${unit}`;
 }
@@ -53,9 +63,9 @@ function MacroCard({ indicator }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="metric-label">{indicator.label}</div>
-          <div className="metric-value">{formatValue(indicator)}</div>
+          <div className="metric-value" data-testid="macro-indicator-value">{formatValue(indicator)}</div>
         </div>
-        <span className={`metric-delta ${deltaClass(indicator)}`}>
+        <span className={`metric-delta ${deltaClass(indicator)}`} data-testid="macro-indicator-change-5d">
           5D {formatChange(indicator.change_5d, indicator.change_unit || "%")}
         </span>
       </div>
@@ -63,17 +73,11 @@ function MacroCard({ indicator }) {
         <Sparkline values={indicator.spark || []} tone={tone} label={`${indicator.label} sparkline`} />
       </div>
       <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--muted)]">
-        <span>1D {formatChange(indicator.change_1d, indicator.change_unit || "%")}</span>
+        <span data-testid="macro-indicator-change-1d">1D {formatChange(indicator.change_1d, indicator.change_unit || "%")}</span>
         <span className="truncate">{indicator.source}</span>
       </div>
     </article>
   );
-}
-
-function finiteNumber(value) {
-  if (value == null || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
 }
 
 function regimeTone(label) {

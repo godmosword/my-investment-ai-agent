@@ -157,6 +157,61 @@ test.describe("Portfolio route (/portfolio)", () => {
     await expect(page.getByTestId("portfolio-total-pnl-sub")).not.toContainText("0.0%");
   });
 
+  test("quote-error holding Last/Weight/Day Δ/P&L show UNKNOWN on cards and table", async ({ page }) => {
+    await page.route("**/api/portfolio/pnl**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          source: "jsonl",
+          as_of: "2026-06-26T00:00:00Z",
+          total_value: 0,
+          total_pnl: 0,
+          total_day_pnl: 0,
+          holdings: [
+            {
+              id: "1",
+              symbol: "NVDA",
+              shares: 10,
+              cost_basis: 500,
+              opened_at: "2024-01-01",
+              notes: "",
+              error: "quote_unavailable",
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/portfolio", { waitUntil: "load" });
+    await expect(page.getByTestId("portfolio-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("portfolio-home")).not.toContainText("尚無持倉");
+    await expect(page.getByTestId("portfolio-home")).not.toContainText("無法載入 portfolio");
+
+    const table = page.getByTestId("portfolio-holdings-table");
+    await expect(table).toBeVisible();
+    await expect(table.getByTestId("portfolio-holding-last")).toHaveText("UNKNOWN");
+    await expect(table.getByTestId("portfolio-holding-weight")).toHaveText("UNKNOWN");
+    await expect(table.getByTestId("portfolio-holding-day-delta")).toHaveText("UNKNOWN");
+    await expect(table.getByTestId("portfolio-holding-pnl")).toHaveText("UNKNOWN");
+    await expect(table).not.toContainText("N/A");
+    await expect(table).not.toContainText("quote unavailable");
+    await expect(table).not.toContainText("—");
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    const card = page.getByTestId("portfolio-holding-card-NVDA");
+    await expect(card).toBeVisible();
+    await expect(card.getByTestId("portfolio-holding-last")).toHaveText("UNKNOWN");
+    await expect(card.getByTestId("portfolio-holding-weight")).toHaveText("UNKNOWN");
+    await expect(card.getByTestId("portfolio-holding-day-delta")).toHaveText("UNKNOWN");
+    await expect(card.getByTestId("portfolio-holding-pnl")).toHaveText("UNKNOWN");
+    await expect(card).not.toContainText("N/A");
+    await expect(card).not.toContainText("quote unavailable");
+    await expect(card).not.toContainText("—");
+  });
+
   test("holding insight and news links are at least 36px tall on table and cards", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/portfolio", { waitUntil: "load" });

@@ -16,6 +16,12 @@ function money(value) {
   }).format(n);
 }
 
+function directionLabel(direction) {
+  if (direction === "above") return "高於";
+  if (direction === "below") return "低於";
+  return direction;
+}
+
 export default function PriceAlertsPanel({ compact = false } = {}) {
   const alertsQuery = usePriceAlerts();
   const createAlert = useCreatePriceAlert();
@@ -124,29 +130,41 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
       ) : null}
 
       <div className="mt-3 space-y-2">
-        {alertsQuery.isLoading ? <div className="text-[13px] text-[var(--muted)]">載入 alerts…</div> : null}
+        {alertsQuery.isLoading ? (
+          <div className="text-[13px] text-[var(--muted)]" data-testid="price-alerts-loading">
+            載入警示…
+          </div>
+        ) : null}
         {!alertsQuery.isLoading && alerts.length === 0 ? (
-          <div className="text-[13px] text-[var(--muted)]">尚無 price alert。</div>
+          <div className="text-[13px] text-[var(--muted)]" data-testid="price-alerts-empty">
+            尚無價格警示。
+          </div>
         ) : null}
         {alerts.map((alert) => (
           <div
             key={alert.id}
+            data-testid="price-alerts-row"
             className="flex flex-wrap items-center justify-between gap-2 rounded border border-white/10 bg-white/[0.03] px-2 py-2 text-[12px]"
           >
             <div>
               <span className="font-mono text-white">{alert.symbol}</span>
-              <span className="ml-2 text-white/65">
-                {alert.direction} {money(alert.target_price)}
+              <span className="ml-2 text-white/65" data-testid="price-alerts-row-direction">
+                {directionLabel(alert.direction)} {money(alert.target_price)}
               </span>
-              {alert.triggered_at ? <span className="ml-2 text-emerald-300">triggered</span> : null}
+              {alert.triggered_at ? (
+                <span className="ml-2 text-emerald-300" data-testid="price-alerts-triggered">
+                  已觸發
+                </span>
+              ) : null}
               {alert.error ? <span className="ml-2 text-red-300">{alert.error}</span> : null}
             </div>
             <button
               type="button"
-              className="min-h-[32px] rounded border border-white/15 px-2 text-white/60 hover:text-red-300"
+              data-testid="price-alerts-remove"
+              className="min-h-[44px] rounded border border-white/15 px-2 text-white/60 hover:text-red-300"
               onClick={() => deleteAlert.mutate(alert.id)}
             >
-              Remove
+              移除
             </button>
           </div>
         ))}
