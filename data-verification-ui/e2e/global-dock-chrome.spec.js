@@ -133,3 +133,41 @@ test.describe("ITER-P4-44F global dock chrome", () => {
     await expect(belowRow).not.toContainText("below");
   });
 });
+
+test.describe("ITER-P4-44I workspace dock zh + touch", () => {
+  test("workspace export/import are 匯出／匯入, ≥44px, and still export/import", async ({ page }) => {
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+
+    const workspace = page.getByTestId("workspace-panel");
+    await expect(workspace).toBeVisible({ timeout: 60_000 });
+
+    const exp = workspace.getByTestId("workspace-export");
+    await expect(exp).toHaveText("匯出");
+    const expBox = await exp.boundingBox();
+    expect(expBox, "Export button has a bounding box").not.toBeNull();
+    expect(expBox.height).toBeGreaterThanOrEqual(44);
+
+    const imp = workspace.getByTestId("workspace-import");
+    await expect(imp).toHaveText("匯入");
+    const impBox = await imp.boundingBox();
+    expect(impBox, "Import button has a bounding box").not.toBeNull();
+    expect(impBox.height).toBeGreaterThanOrEqual(44);
+
+    await expect(workspace).not.toContainText("Export");
+    await expect(imp).not.toHaveText("Import");
+
+    const downloadPromise = page.waitForEvent("download");
+    await exp.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("qsi-workspace.json");
+    await expect(workspace.getByRole("status")).toHaveText("工作區已匯出");
+
+    await workspace
+      .getByTestId("workspace-import-text")
+      .fill('{"version":1,"keys":{"qs_workspace_layout":"focus"}}');
+    await imp.click();
+    await expect(workspace.getByRole("status")).toHaveText("工作區已匯入");
+    await expect(workspace.getByTestId("workspace-layout")).toHaveValue("focus");
+  });
+});

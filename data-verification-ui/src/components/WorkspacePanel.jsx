@@ -332,7 +332,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
     a.download = "qsi-workspace.json";
     a.click();
     URL.revokeObjectURL(url);
-    setMessage("Workspace exported");
+    setMessage("工作區已匯出");
   };
 
   const importWorkspace = () => {
@@ -343,9 +343,9 @@ export default function WorkspacePanel({ compact = false } = {}) {
       setLayout(globalThis.localStorage?.getItem("qs_workspace_layout") || "balanced");
       setPanels(readPanels());
       setImportText("");
-      setMessage("Workspace imported");
+      setMessage("工作區已匯入");
     } catch (err) {
-      setMessage(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
+      setMessage(`匯入失敗：${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -362,10 +362,10 @@ export default function WorkspacePanel({ compact = false } = {}) {
         <button
           type="button"
           data-testid="workspace-export"
-          className="min-h-[40px] rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/80 hover:bg-white/5"
+          className="min-h-[44px] rounded border border-white/15 px-3 py-1.5 text-[12px] text-white/80 hover:bg-white/5"
           onClick={exportWorkspace}
         >
-          Export
+          匯出
         </button>
       </div>
 
@@ -505,10 +505,10 @@ export default function WorkspacePanel({ compact = false } = {}) {
       <button
         type="button"
         data-testid="workspace-import"
-        className="mt-2 min-h-[40px] rounded bg-cyan-700 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-cyan-600"
+        className="mt-2 min-h-[44px] rounded bg-cyan-700 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-cyan-600"
         onClick={importWorkspace}
       >
-        Import
+        匯入
       </button>
       {message ? (
         <div className="mt-2 rounded border border-white/10 bg-white/[0.03] px-2 py-1 text-[12px] text-white/70" role="status">

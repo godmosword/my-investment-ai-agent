@@ -48,7 +48,7 @@ test.describe("Queue 43 cross-board polish", () => {
       .getByTestId("workspace-import-text")
       .fill('{"version":1,"keys":{"qsi_watchlist":"[\\"MSFT\\"]","terminal_recent_symbols":"MSFT","qs_workspace_layout":"focus","qs_workspace_panels":"[\\"portfolio\\",\\"alerts\\"]"}}');
     await workspace.getByTestId("workspace-import").click();
-    await expect(workspace).toContainText("Workspace imported");
+    await expect(workspace).toContainText("工作區已匯入");
     await expect(page.getByTestId("global-watchlist")).toContainText("MSFT");
   });
 });
