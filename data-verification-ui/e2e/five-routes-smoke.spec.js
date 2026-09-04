@@ -38,8 +38,11 @@ test.describe("5-board Terminal routes", () => {
     });
     const panel = page.getByTestId("insights-data-health-summary");
     await expect(panel).toBeVisible({ timeout: 60_000 });
-    await expect(panel).toContainText("Options");
-    await expect(panel).toContainText("Track Record");
+    await expect(panel.getByTestId("insights-health-options").getByTestId("insights-health-label")).toHaveText("選擇權");
+    await expect(panel.getByTestId("insights-health-track-record").getByTestId("insights-health-label")).toHaveText(
+      "實績",
+    );
+    await expect(panel).not.toContainText("Track Record");
   });
 
   test("320px BottomNav six tabs stay single-line without overlap", async ({ page }) => {
