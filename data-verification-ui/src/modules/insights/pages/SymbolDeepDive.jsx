@@ -8,13 +8,20 @@ import {
 } from "../../../constants/portalPhase4";
 import { useAnalysisBundle, useExecutionIntents } from "../../../hooks/useApi";
 import { paperIntentMarkers } from "../paperIntentMarkers";
+import { finiteNumber } from "../../../utils/finiteNumber";
 
 const SymbolCandleChart = lazy(() => import("../../../components/SymbolCandleChart"));
 
 function formatPrice(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function presentOrUnknown(value) {
+  if (value == null) return "UNKNOWN";
+  const text = String(value).trim();
+  return text ? text : "UNKNOWN";
 }
 
 function hasFilingPayload(value) {
@@ -70,7 +77,7 @@ export default function SymbolDeepDive() {
         </div>
         <div className="text-right">
           <div className="text-[11px] uppercase text-[var(--muted)]">Last</div>
-          <div className="font-mono text-[18px] font-semibold text-white">{formatPrice(quote.last)}</div>
+          <div className="font-mono text-[18px] font-semibold text-white" data-testid="symbol-last-price">{formatPrice(quote.last)}</div>
         </div>
       </div>
 
@@ -135,10 +142,10 @@ export default function SymbolDeepDive() {
           <div className="rounded border border-white/10 bg-white/[0.03] p-3">
             <div className="text-[12px] font-semibold uppercase text-cyan-200">Snapshot</div>
             <div className="mt-2 text-[13px] text-white/70">
-              Source: <span className="font-mono">{snapshot.source || "—"}</span>
+              Source: <span className="font-mono" data-testid="symbol-snapshot-source">{presentOrUnknown(snapshot.source)}</span>
             </div>
             <div className="mt-1 text-[13px] text-white/70">
-              As of: <span className="font-mono">{snapshot.as_of || quote.as_of || "—"}</span>
+              As of: <span className="font-mono" data-testid="symbol-snapshot-as-of">{presentOrUnknown(snapshot.as_of || quote.as_of)}</span>
             </div>
             {query.data?.snapshot_error ? (
               <div className="mt-2 text-[12px] text-amber-200">Snapshot warning: {query.data.snapshot_error}</div>
