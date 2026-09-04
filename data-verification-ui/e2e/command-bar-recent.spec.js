@@ -16,11 +16,13 @@ test.describe("Terminal Command Bar — recent symbols", () => {
     // Ensure clean slate.
     await page.evaluate(() => globalThis.localStorage.removeItem("terminal_recent_symbols")); // TERMINAL_RECENT_SYMBOLS_KEY
 
-    await page.getByPlaceholder(/AAPL/i).fill("AAPL GO");
-    await page.getByRole("button", { name: "GO" }).click();
+    await page.getByTestId("cmd-bar-input").fill("AAPL GO");
+    await page.getByTestId("cmd-bar-go").click();
 
     const recent = page.getByTestId("terminal-command-recent");
     await expect(recent).toBeVisible();
+    await expect(page.getByTestId("terminal-command-recent-label")).toHaveText("最近");
+    await expect(recent).not.toContainText("Recent");
     await expect(recent.getByRole("button", { name: "AAPL" })).toBeVisible();
 
     const stored = await page.evaluate(() =>
@@ -29,8 +31,8 @@ test.describe("Terminal Command Bar — recent symbols", () => {
     expect(stored).toContain("AAPL");
 
     // Second symbol — chip ordering newest-first.
-    await page.getByPlaceholder(/AAPL/i).fill("NVDA");
-    await page.getByRole("button", { name: "GO" }).click();
+    await page.getByTestId("cmd-bar-input").fill("NVDA");
+    await page.getByTestId("cmd-bar-go").click();
 
     const chips = recent.getByRole("button");
     await expect(chips.first()).toHaveText("NVDA");
