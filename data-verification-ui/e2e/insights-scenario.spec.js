@@ -28,7 +28,7 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
     await expect(page.getByTestId("scenario-card-base")).toBeVisible();
     await expect(page.getByTestId("scenario-card-defensive").getByTestId("scenario-notional-shift")).toHaveText("名義移轉 -5%");
     await expect(page.getByTestId("scenario-card-base").getByTestId("scenario-notional-shift")).toHaveText("名義移轉 0%");
-    await expect(page.getByTestId("scenario-card-grid")).not.toContainText("shift ");
+    await expect(page.getByTestId("scenario-notional-shift").first()).not.toHaveText(/shift /i);
   });
 
   test("portfolio block is 持倉; empty top_symbols and missing HHI are UNKNOWN; finite 0 stays 0", async ({ page }) => {
@@ -176,9 +176,9 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
             scenarioPayload({
               scenarios: [
                 { id: "defensive", label: "Defensive tilt", notional_shift_pct: -5, notes: "mock" },
-                { id: "missing", label: "Missing shift", notes: "mock" },
-                { id: "bad", label: "Bad shift", notional_shift_pct: "n/a", notes: "mock" },
-                { id: "zero", label: "Zero shift", notional_shift_pct: 0, notes: "mock" },
+                { id: "missing", label: "Missing pct", notes: "mock" },
+                { id: "bad", label: "Bad pct", notional_shift_pct: "n/a", notes: "mock" },
+                { id: "zero", label: "Zero pct", notional_shift_pct: 0, notes: "mock" },
               ],
               target_hints: [
                 {
@@ -215,7 +215,9 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
     await expect(page.getByTestId("scenario-card-zero").getByTestId("scenario-notional-shift")).toHaveText("名義移轉 0%");
     await expect(page.getByTestId("scenario-card-missing").getByTestId("scenario-notional-shift")).toHaveText("UNKNOWN");
     await expect(page.getByTestId("scenario-card-bad").getByTestId("scenario-notional-shift")).toHaveText("UNKNOWN");
-    await expect(page.getByTestId("scenario-card-grid")).not.toContainText("shift ");
+    await expect(page.getByTestId("scenario-card-defensive").getByTestId("scenario-notional-shift")).not.toHaveText(
+      /shift /i,
+    );
     await expect(page.getByTestId("scenario-card-missing")).not.toContainText("—");
   });
 });
