@@ -188,7 +188,11 @@ export default function TerminalCommandBar({ trailing = null }) {
 
   const focused = (symbol || "").trim().toUpperCase();
   const inWatch = useMemo(() => focused && watchSet.has(focused), [focused, watchSet]);
-  const crewHudActive = runCrew.isPending || crewStatus.data?.status === "running";
+  const crewStatusText = presentCrewStatus(crewStatus.data?.status);
+  const crewHudActive =
+    runCrew.isPending ||
+    crewStatus.data?.status === "running" ||
+    (crewStatus.isSuccess && crewStatusText === "UNKNOWN");
   const cmdPlaceholder = useMemo(
     () => getTerminalCommandBarPlaceholder(location.pathname),
     [location.pathname],
@@ -334,7 +338,7 @@ export default function TerminalCommandBar({ trailing = null }) {
         >
           <span className="font-semibold text-amber-200/95">Crew</span>
           {runCrew.isPending ? " · 提交中…" : null}
-          <span data-testid="terminal-crew-status-value"> · {presentCrewStatus(crewStatus.data?.status)}</span>
+          <span data-testid="terminal-crew-status-value"> · {crewStatusText}</span>
           {crewStatus.data?.job_id ? (
             <span className="font-mono text-amber-100/85"> · {String(crewStatus.data.job_id)}</span>
           ) : null}

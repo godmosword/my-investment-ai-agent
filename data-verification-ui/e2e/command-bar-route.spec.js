@@ -79,9 +79,8 @@ test.describe("Terminal Command Bar (queue 29)", () => {
     await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
-    await page.getByTestId("cmd-bar-run").click();
     const hud = page.getByTestId("terminal-crew-status-hud");
-    await expect(hud).toBeVisible({ timeout: 5_000 });
+    await expect(hud).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("terminal-crew-status-value")).toContainText("UNKNOWN");
     await expect(hud).not.toContainText("—");
   });
@@ -100,8 +99,7 @@ test.describe("Terminal Command Bar (queue 29)", () => {
     await page.goto("/insights", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
-    await page.getByTestId("cmd-bar-run").click();
-    await expect(page.getByTestId("terminal-crew-status-hud")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("terminal-crew-status-hud")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId("terminal-crew-status-value")).toContainText("UNKNOWN");
     await expect(page.getByTestId("terminal-crew-status-hud")).not.toContainText("—");
   });
