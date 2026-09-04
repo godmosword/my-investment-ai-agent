@@ -34,7 +34,7 @@ function writeWatchlist(items, notify = false) {
 }
 
 export default function Watchlist({
-  title = "Watchlist",
+  title = "觀察清單",
   description = "LocalStorage v1 · 最多 20 個代號",
   dataTestId = "portfolio-watchlist",
   compact = false,
@@ -71,7 +71,7 @@ export default function Watchlist({
     <section className="card p-3" data-testid={dataTestId}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="card-title">{title}</div>
+          <div className="card-title" data-testid="watchlist-title">{title}</div>
           {description ? <div className="text-[12px] text-[var(--muted)]">{description}</div> : null}
         </div>
         <div className={`flex flex-1 justify-end gap-2 ${compact ? "min-w-full" : "min-w-[220px]"}`}>

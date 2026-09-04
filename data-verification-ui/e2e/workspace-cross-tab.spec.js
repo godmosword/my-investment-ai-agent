@@ -19,6 +19,9 @@ test.describe("Workspace cross-tab sync (Queue 34 Phase 2)", () => {
       const selB = pageB.getByTestId("workspace-layout");
       await expect(selA).toBeVisible({ timeout: 60_000 });
       await expect(selB).toBeVisible({ timeout: 60_000 });
+      await expect(selA.locator('option[value="balanced"]')).toHaveText("均衡");
+      await expect(selA.locator('option[value="dense"]')).toHaveText("緊湊");
+      await expect(selA.locator('option[value="focus"]')).toHaveText("聚焦");
 
       await selA.selectOption("focus");
       await expect(selB).toHaveValue("focus", { timeout: 8_000 });
