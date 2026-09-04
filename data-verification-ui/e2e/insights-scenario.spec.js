@@ -262,7 +262,8 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
     );
     await page.goto("/insights?tab=scenario", { waitUntil: "load" });
     await expect(page.getByTestId("scenario-planner-home")).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId("scenario-target-hints-title")).toHaveText("目標提示（僅 intent）");
+    await expect(page.getByTestId("scenario-target-hints-title")).toHaveText("目標提示（僅意圖）");
+    await expect(page.getByTestId("scenario-target-hints-title")).not.toContainText(/intent/i);
     await expect(page.getByTestId("scenario-target-hints")).not.toContainText("Target hints");
     await expect(page.getByTestId("scenario-hint-in-portfolio")).toHaveText(" · 持倉內");
     await expect(page.getByTestId("scenario-target-hints")).not.toContainText("book");

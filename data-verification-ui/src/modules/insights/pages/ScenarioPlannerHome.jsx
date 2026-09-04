@@ -90,7 +90,7 @@ export default function ScenarioPlannerHome() {
       </div>
       {data.target_hints?.length ? (
         <div className="rounded border border-white/10 bg-white/[0.03] p-2" data-testid="scenario-target-hints">
-          <div className="text-[11px] font-semibold uppercase text-cyan-200" data-testid="scenario-target-hints-title">目標提示（僅 intent）</div>
+          <div className="text-[11px] font-semibold uppercase text-cyan-200" data-testid="scenario-target-hints-title">目標提示（僅意圖）</div>
           <ul className="mt-1 list-inside list-disc space-y-1 text-[12px] text-white/75">
             {data.target_hints.slice(0, 8).map((h) => (
               <li key={h.signal_id} data-testid="scenario-target-hint">
