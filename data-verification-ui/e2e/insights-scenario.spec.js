@@ -26,9 +26,70 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
     await expect(page.getByTestId("scenario-planner-home")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("scenario-card-defensive")).toBeVisible();
     await expect(page.getByTestId("scenario-card-base")).toBeVisible();
+    await expect(page.getByTestId("scenario-card-opportunistic")).toBeVisible();
+    await expect(page.getByTestId("scenario-card-defensive").getByTestId("scenario-title")).toHaveText("防守偏向");
+    await expect(page.getByTestId("scenario-card-base").getByTestId("scenario-title")).toHaveText("維持結構");
+    await expect(page.getByTestId("scenario-card-opportunistic").getByTestId("scenario-title")).toHaveText("伺機減碼");
+    await expect(page.getByTestId("scenario-card-defensive").getByTestId("scenario-notes")).toHaveText("mock");
+    await expect(page.getByTestId("scenario-card-grid")).not.toContainText("Defensive tilt");
+    await expect(page.getByTestId("scenario-card-grid")).not.toContainText("Hold structure");
+    await expect(page.getByTestId("scenario-card-grid")).not.toContainText("Opportunistic trim");
     await expect(page.getByTestId("scenario-card-defensive").getByTestId("scenario-notional-shift")).toHaveText("名義移轉 -5%");
     await expect(page.getByTestId("scenario-card-base").getByTestId("scenario-notional-shift")).toHaveText("名義移轉 0%");
     await expect(page.getByTestId("scenario-notional-shift").first()).not.toHaveText(/shift /i);
+  });
+
+  test("card titles map by id; blank/missing notes are UNKNOWN; API English labels stay hidden", async ({ page }) => {
+    await page.route(
+      (url) => isScenarioPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            scenarioPayload({
+              scenarios: [
+                { id: "defensive", label: "Defensive tilt", notional_shift_pct: -5, notes: "mock" },
+                { id: "base", label: "Hold structure", notional_shift_pct: 0, notes: "   " },
+                { id: "opportunistic", label: "Opportunistic trim", notional_shift_pct: 0, notes: "" },
+                { id: "mystery", label: "Defensive tilt", notional_shift_pct: 1, notes: null },
+                { label: "Defensive tilt", notional_shift_pct: 2, notes: "kept" },
+              ],
+            }),
+          ),
+        });
+      },
+    );
+    await page.goto("/insights?tab=scenario", { waitUntil: "load" });
+    await expect(page.getByTestId("scenario-planner-home")).toBeVisible({ timeout: 60_000 });
+
+    const defensive = page.getByTestId("scenario-card-defensive");
+    await expect(defensive.getByTestId("scenario-title")).toHaveText("防守偏向");
+    await expect(defensive.getByTestId("scenario-notes")).toHaveText("mock");
+    await expect(defensive).not.toContainText("Defensive tilt");
+
+    await expect(page.getByTestId("scenario-card-base").getByTestId("scenario-title")).toHaveText("維持結構");
+    await expect(page.getByTestId("scenario-card-base").getByTestId("scenario-notes")).toHaveText("UNKNOWN");
+
+    await expect(page.getByTestId("scenario-card-opportunistic").getByTestId("scenario-title")).toHaveText(
+      "伺機減碼",
+    );
+    await expect(page.getByTestId("scenario-card-opportunistic").getByTestId("scenario-notes")).toHaveText(
+      "UNKNOWN",
+    );
+
+    await expect(page.getByTestId("scenario-card-mystery").getByTestId("scenario-title")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("scenario-card-mystery").getByTestId("scenario-notes")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("scenario-card-mystery")).not.toContainText("Defensive tilt");
+
+    const missingId = page.getByTestId("scenario-card-undefined");
+    await expect(missingId.getByTestId("scenario-title")).toHaveText("UNKNOWN");
+    await expect(missingId.getByTestId("scenario-notes")).toHaveText("kept");
+    await expect(missingId).not.toContainText("Defensive tilt");
+
+    await expect(page.getByTestId("scenario-card-grid")).not.toContainText("Defensive tilt");
+    await expect(page.getByTestId("scenario-card-grid")).not.toContainText("Hold structure");
+    await expect(page.getByTestId("scenario-card-grid")).not.toContainText("Opportunistic trim");
   });
 
   test("portfolio block is 持倉; empty top_symbols and missing HHI are UNKNOWN; finite 0 stays 0", async ({ page }) => {

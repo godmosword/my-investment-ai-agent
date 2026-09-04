@@ -1,6 +1,20 @@
 import { useScenarioSuggestions } from "../../../hooks/useApi";
 import { finiteNumber } from "../../../utils/finiteNumber";
 
+const SCENARIO_TITLE_BY_ID = {
+  defensive: "防守偏向",
+  base: "維持結構",
+  opportunistic: "伺機減碼",
+};
+
+function scenarioCardTitle(id) {
+  return SCENARIO_TITLE_BY_ID[id] ?? "UNKNOWN";
+}
+
+function scenarioCardNotes(notes) {
+  return typeof notes === "string" && notes.trim() !== "" ? notes : "UNKNOWN";
+}
+
 export default function ScenarioPlannerHome() {
   const q = useScenarioSuggestions();
 
@@ -51,11 +65,15 @@ export default function ScenarioPlannerHome() {
             const shiftPct = finiteNumber(s.notional_shift_pct);
             return (
               <div key={s.id} className="rounded border border-white/10 bg-black/30 p-2" data-testid={`scenario-card-${s.id}`}>
-                <div className="text-[11px] uppercase text-cyan-200">{s.label}</div>
+                <div className="text-[11px] uppercase text-cyan-200" data-testid="scenario-title">
+                  {scenarioCardTitle(s.id)}
+                </div>
                 <div className="mt-1 font-mono text-[12px] text-white/90" data-testid="scenario-notional-shift">
                   {shiftPct == null ? "UNKNOWN" : `名義移轉 ${shiftPct}%`}
                 </div>
-                <div className="mt-1 text-[11px] text-white/60">{s.notes}</div>
+                <div className="mt-1 text-[11px] text-white/60" data-testid="scenario-notes">
+                  {scenarioCardNotes(s.notes)}
+                </div>
               </div>
             );
           })}
