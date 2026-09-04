@@ -276,4 +276,71 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await expect(page.getByTestId("track-record-action-deep-dive")).toHaveCount(0);
     await expect(page.getByTestId("track-record-action-monitor")).toHaveCount(0);
   });
+
+  test("missing category and closed_at are UNKNOWN, not em dash; date prefix stays", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 3,
+          wins: 2,
+          losses: 1,
+          hit_rate_pct: 66.7,
+          avg_return_pct: 1,
+          sharpe: 1,
+          max_drawdown_pct: -1,
+          cumulative_return_pct: 1,
+          equity_curve: [],
+          source: "e2e",
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 3 },
+          records: [
+            { signal_id: "e2e-missing", asset: "AAA", outcome: "win", direction: "LONG" },
+            {
+              signal_id: "e2e-blank",
+              asset: "BBB",
+              outcome: "loss",
+              direction: "SHORT",
+              category: "   ",
+              closed_at: "   ",
+            },
+            {
+              signal_id: "e2e-ok",
+              asset: "CCC",
+              outcome: "win",
+              direction: "LONG",
+              category: "AI",
+              closed_at: "2026-05-13T12:00:00Z",
+            },
+          ],
+          total: 3,
+          limit: 50,
+          offset: 0,
+          source: "e2e",
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    const table = page.getByTestId("track-record-closed-table");
+    await expect(table).toBeVisible();
+    const categories = table.getByTestId("track-record-row-category");
+    const closedAts = table.getByTestId("track-record-row-closed-at");
+    await expect(categories).toHaveCount(3);
+    await expect(categories.nth(0)).toHaveText("UNKNOWN");
+    await expect(categories.nth(1)).toHaveText("UNKNOWN");
+    await expect(categories.nth(2)).toHaveText("AI");
+    await expect(closedAts.nth(0)).toHaveText("UNKNOWN");
+    await expect(closedAts.nth(1)).toHaveText("UNKNOWN");
+    await expect(closedAts.nth(2)).toHaveText("2026-05-13");
+    await expect(table).not.toContainText("—");
+  });
 });

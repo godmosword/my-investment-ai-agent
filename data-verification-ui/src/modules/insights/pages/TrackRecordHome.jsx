@@ -38,6 +38,18 @@ function wlLabel(summary) {
   return `${presentCount(summary.wins)}/${presentCount(summary.losses)}`;
 }
 
+function presentCategory(value) {
+  const s = String(value ?? "").trim();
+  return s || "UNKNOWN";
+}
+
+function presentClosedAt(value) {
+  const s = String(value ?? "").trim();
+  if (!s) return "UNKNOWN";
+  const prefix = s.slice(0, 10).trim();
+  return prefix || "UNKNOWN";
+}
+
 function tone(value) {
   const n = Number(value);
   if (n > 0) return "text-green-400";
@@ -229,14 +241,19 @@ export default function TrackRecordHome() {
                         {row.thesis_one_liner || row.signal_id}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-white/70">{row.category || "—"}</td>
+                    <td className="px-3 py-2 text-white/70" data-testid="track-record-row-category">
+                      {presentCategory(row.category)}
+                    </td>
                     <td className="px-3 py-2 font-mono">{fmtNum(row.entry_price, 2)}</td>
                     <td className="px-3 py-2 font-mono">{fmtNum(row.exit_price, 2)}</td>
                     <td className={`px-3 py-2 font-mono font-semibold ${tone(row.return_pct)}`}>
                       {fmtPct(row.return_pct, 2)}
                     </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]">
-                      {String(row.closed_at ?? "").slice(0, 10) || "—"}
+                    <td
+                      className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]"
+                      data-testid="track-record-row-closed-at"
+                    >
+                      {presentClosedAt(row.closed_at)}
                     </td>
                     <td className="px-3 py-2">
                       <code className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-cyan-200">
