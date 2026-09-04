@@ -279,3 +279,64 @@ test.describe("ITER-P4-44I workspace dock zh + touch", () => {
     await expect(panel.getByTestId("price-alerts-row").filter({ hasText: "TSLA" })).toBeVisible();
   });
 });
+
+function isPriceAlertsCheckPath(pathname) {
+  return pathname === "/api/push/price-alerts/check" || pathname === "/api/push/price-alerts/check/";
+}
+
+test.describe("ITER-P4-44J price alerts honesty", () => {
+  test("check success with null/omitted checked and triggered shows UNKNOWN, not 0", async ({ page }) => {
+    await page.route(
+      (url) => isPriceAlertsCheckPath(url.pathname),
+      async (route) => {
+        if (route.request().method() !== "POST") {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ checked: null, alerts: [], push_results: [] }),
+        });
+      },
+    );
+
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+    const panel = page.getByTestId("price-alerts-panel");
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    await panel.getByTestId("price-alerts-check").click();
+
+    const status = panel.getByTestId("price-alerts-status");
+    await expect(status).toHaveText("已檢查 UNKNOWN 筆，觸發 UNKNOWN 筆");
+    await expect(status).not.toHaveText(/已檢查 0 筆/);
+    await expect(status).not.toHaveText(/觸發 0 筆/);
+  });
+
+  test("check success with real 0 stays 0", async ({ page }) => {
+    await page.route(
+      (url) => isPriceAlertsCheckPath(url.pathname),
+      async (route) => {
+        if (route.request().method() !== "POST") {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ checked: 0, triggered: 0, alerts: [], push_results: [] }),
+        });
+      },
+    );
+
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+    const panel = page.getByTestId("price-alerts-panel");
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    await panel.getByTestId("price-alerts-check").click();
+
+    const status = panel.getByTestId("price-alerts-status");
+    await expect(status).toHaveText("已檢查 0 筆，觸發 0 筆");
+    await expect(status).not.toContainText("UNKNOWN");
+  });
+});

@@ -5,6 +5,7 @@ import {
   useDeletePriceAlert,
   usePriceAlerts,
 } from "../hooks/useApi";
+import { finiteNumber } from "../utils/finiteNumber";
 
 function money(value) {
   const n = Number(value);
@@ -14,6 +15,11 @@ function money(value) {
     currency: "USD",
     maximumFractionDigits: 2,
   }).format(n);
+}
+
+function countLabel(value) {
+  const n = finiteNumber(value);
+  return n == null ? "UNKNOWN" : n;
 }
 
 function directionLabel(direction) {
@@ -65,7 +71,8 @@ export default function PriceAlertsPanel({ compact = false } = {}) {
     checkAlerts.mutate(
       { sendPush: false },
       {
-        onSuccess: (data) => setMessage(`已檢查 ${data.checked ?? 0} 筆，觸發 ${data.triggered ?? 0} 筆`),
+        onSuccess: (data) =>
+          setMessage(`已檢查 ${countLabel(data?.checked)} 筆，觸發 ${countLabel(data?.triggered)} 筆`),
         onError: (err) => setMessage(`檢查失敗：${err.message}`),
       },
     );
