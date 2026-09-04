@@ -144,26 +144,26 @@ export default function TrackRecordHome() {
       {summaryPresent ? (
       <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-6">
         <Kpi
-          label="W / L"
+          label="勝／負"
           value={wlLabel(summary)}
           sub={`${presentCount(summary?.total_closed)} closed`}
           testId="track-record-wl"
         />
         <Kpi
-          label="Hit Rate"
+          label="命中率"
           value={fmtPct(summary?.hit_rate_pct, 1)}
           valueClass="text-green-400"
           testId="track-record-hit-rate"
         />
         <Kpi
-          label="Avg Return"
+          label="平均報酬"
           value={fmtPct(summary?.avg_return_pct, 2)}
           valueClass={tone(summary?.avg_return_pct)}
           testId="track-record-avg-return"
         />
         <Kpi label="Sharpe" value={fmtNum(summary?.sharpe, 2)} valueClass="text-cyan-200" testId="track-record-sharpe" />
         <Kpi
-          label="Max DD"
+          label="最大回撤"
           value={fmtPct(summary?.max_drawdown_pct, 1)}
           valueClass="text-red-400"
           testId="track-record-max-dd"

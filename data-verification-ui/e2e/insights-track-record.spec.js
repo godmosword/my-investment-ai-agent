@@ -21,6 +21,20 @@ test.describe("Insights Track Record tab", () => {
     );
   });
 
+  test("KPI labels are 勝／負 命中率 平均報酬 最大回撤; Sharpe stays", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-wl").locator(".metric-label")).toHaveText("勝／負");
+    await expect(page.getByTestId("track-record-hit-rate").locator(".metric-label")).toHaveText("命中率");
+    await expect(page.getByTestId("track-record-avg-return").locator(".metric-label")).toHaveText("平均報酬");
+    await expect(page.getByTestId("track-record-max-dd").locator(".metric-label")).toHaveText("最大回撤");
+    await expect(page.getByTestId("track-record-sharpe").locator(".metric-label")).toHaveText("Sharpe");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("W / L");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Hit Rate");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Avg Return");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Max DD");
+  });
+
   test("loads summary, closed rows, and tag slice", async ({ page }) => {
     await page.goto("/insights", { waitUntil: "load" });
 
