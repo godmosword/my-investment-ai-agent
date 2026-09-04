@@ -352,4 +352,85 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await expect(closedAts.nth(2)).toHaveText("2026-05-13");
     await expect(table).not.toContainText("—");
   });
+
+  test("equity source missing or blank is UNKNOWN, not em dash; real source stays", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-equity-source")).toHaveText("execution_intents.jsonl");
+
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 1,
+          wins: 1,
+          losses: 0,
+          hit_rate_pct: 100,
+          avg_return_pct: 1,
+          sharpe: 1,
+          max_drawdown_pct: -1,
+          cumulative_return_pct: 1,
+          equity_curve: [],
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 1 },
+          records: [{ signal_id: "e2e-src-missing", asset: "AAA", outcome: "win", direction: "LONG" }],
+          total: 1,
+          limit: 50,
+          offset: 0,
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    const missing = page.getByTestId("track-record-equity-source");
+    await expect(missing).toHaveText("UNKNOWN");
+    await expect(missing).not.toContainText("—");
+    await expect(page.getByTestId("track-record-equity-card")).not.toContainText("—");
+
+    await page.unroute("**/api/track-record/summary*");
+    await page.unroute("**/api/track-record/closed*");
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 1,
+          wins: 1,
+          losses: 0,
+          hit_rate_pct: 100,
+          avg_return_pct: 1,
+          sharpe: 1,
+          max_drawdown_pct: -1,
+          cumulative_return_pct: 1,
+          equity_curve: [],
+          source: "   ",
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 1, source: "\t" },
+          records: [{ signal_id: "e2e-src-blank", asset: "BBB", outcome: "win", direction: "LONG" }],
+          total: 1,
+          limit: 50,
+          offset: 0,
+          source: "  ",
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    const blank = page.getByTestId("track-record-equity-source");
+    await expect(blank).toHaveText("UNKNOWN");
+    await expect(blank).not.toContainText("—");
+  });
 });

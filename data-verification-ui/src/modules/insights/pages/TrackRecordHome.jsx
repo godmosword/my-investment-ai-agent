@@ -50,6 +50,11 @@ function presentClosedAt(value) {
   return prefix || "UNKNOWN";
 }
 
+function presentSource(value) {
+  const s = String(value ?? "").trim();
+  return s || "UNKNOWN";
+}
+
 function tone(value) {
   const n = Number(value);
   if (n > 0) return "text-green-400";
@@ -195,7 +200,9 @@ export default function TrackRecordHome() {
             <div className="card-title">累積曲線</div>
             <div className="text-[12px] text-[var(--muted)]">{tag ? `${tag} slice` : "all closed signals"}</div>
           </div>
-          <div className="font-mono text-[12px] text-[var(--muted)]">{payload?.source ?? summary?.source ?? "—"}</div>
+          <div className="font-mono text-[12px] text-[var(--muted)]" data-testid="track-record-equity-source">
+            {presentSource(payload?.source ?? summary?.source)}
+          </div>
         </div>
         <Suspense fallback={<div className="loading text-[12px] text-white/50">載入曲線…</div>}>
           <EquityCurveChart curve={summary?.equity_curve || []} />
