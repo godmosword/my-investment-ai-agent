@@ -2,6 +2,22 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Insights Track Record tab", () => {
+  test("tab visible copy is 實績, not Track Record", async ({ page }) => {
+    await page.goto("/insights", { waitUntil: "load" });
+    const tab = page.getByTestId("insights-tab-track-record");
+    await expect(tab).toBeVisible({ timeout: 60_000 });
+    await expect(tab).toHaveText("實績");
+    await expect(tab).not.toHaveText("Track Record");
+  });
+
+  test("page title is 實績, not Track Record", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    const title = page.getByTestId("track-record-home").locator(".page-title");
+    await expect(title).toHaveText("實績");
+    await expect(title).not.toHaveText("Track Record");
+  });
+
   test("loads summary, closed rows, and tag slice", async ({ page }) => {
     await page.goto("/insights", { waitUntil: "load" });
 

@@ -19,7 +19,7 @@ const TABS = [
   { id: "daily", label: "今日建議", testId: "insights-tab-daily" },
   { id: "earnings", label: "財報行事曆", testId: "insights-tab-earnings" },
   { id: "paper", label: "紙上生命週期", testId: "insights-tab-paper" },
-  { id: "track-record", label: "Track Record", testId: "insights-tab-track-record" },
+  { id: "track-record", label: "實績", testId: "insights-tab-track-record" },
   { id: "scenario", label: "情境建議", testId: "insights-tab-scenario" },
   { id: "signals", label: "訊號", testId: "insights-tab-signals" },
   { id: "options", label: "選擇權流", testId: "insights-tab-options" },
@@ -28,11 +28,11 @@ const TABS = [
 const TAB_IDS = new Set(TABS.map((t) => t.id));
 
 const HEALTH_ITEMS = [
-  { id: "reports", label: "Daily" },
-  { id: "paper", label: "Paper" },
-  { id: "track-record", label: "Track Record" },
-  { id: "scenario", label: "Scenario" },
-  { id: "options", label: "Options" },
+  { id: "reports", label: "日報" },
+  { id: "paper", label: "紙上" },
+  { id: "track-record", label: "實績" },
+  { id: "scenario", label: "情境" },
+  { id: "options", label: "選擇權" },
 ];
 
 function statusClass(status) {
@@ -61,13 +61,23 @@ function DataHealthSummary() {
         const status = dataHealth.isError ? "error" : item?.status || (dataHealth.isLoading ? "loading" : "pending");
         const rowCount = item?.row_count;
         return (
-          <div key={cfg.id} className={`rounded border px-2.5 py-2 text-[12px] ${statusClass(status)}`}>
+          <div
+            key={cfg.id}
+            data-testid={`insights-health-${cfg.id}`}
+            className={`rounded border px-2.5 py-2 text-[12px] ${statusClass(status)}`}
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold">{cfg.label}</span>
+              <span className="font-semibold" data-testid="insights-health-label">
+                {cfg.label}
+              </span>
               <span className="font-mono text-[10px] uppercase opacity-80">{status}</span>
             </div>
-            <div className="mt-1 truncate font-mono text-[11px] opacity-70" title={item?.source || ""}>
-              {rowCount == null ? item?.source || "checking" : `${rowCount} rows`}
+            <div
+              className="mt-1 truncate font-mono text-[11px] opacity-70"
+              title={item?.source || ""}
+              data-testid="insights-health-meta"
+            >
+              {rowCount == null ? item?.source || "檢查中" : `${rowCount} rows`}
             </div>
           </div>
         );

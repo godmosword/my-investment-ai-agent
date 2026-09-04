@@ -115,6 +115,39 @@ test.describe("Insights — first screen is 今日建議 (ITER-P4-44A)", () => {
     expect(briefAfter.y).toBeLessThan(introAfter.y);
   });
 
+  test("data health labels are zh; missing source/row_count is 檢查中", async ({ page }) => {
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("insights-intro-toggle").click();
+
+    const health = page.getByTestId("insights-data-health-summary");
+    await expect(health).toBeVisible();
+    await expect(health.getByTestId("insights-health-label")).toHaveText(["日報", "紙上", "實績", "情境", "選擇權"]);
+
+    await page.route("**/api/data-health*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          items: [
+            { id: "reports", status: "ready" },
+            { id: "paper", status: "ready", row_count: 1, source: "e2e" },
+            { id: "track-record", status: "ready", row_count: 1, source: "e2e" },
+            { id: "scenario", status: "ready", row_count: 1, source: "e2e" },
+            { id: "options", status: "pending" },
+          ],
+        }),
+      });
+    });
+    await page.reload({ waitUntil: "load" });
+    await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("insights-intro-toggle").click();
+    await expect(page.getByTestId("insights-health-reports").getByTestId("insights-health-meta")).toHaveText("檢查中");
+    await expect(page.getByTestId("insights-health-options").getByTestId("insights-health-meta")).toHaveText("檢查中");
+    await expect(page.getByTestId("insights-data-health-summary")).not.toContainText("checking");
+  });
+
   test("?tab=signals still opens QuantHome", async ({ page }) => {
     await page.goto("/insights?tab=signals", { waitUntil: "load" });
     await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });
