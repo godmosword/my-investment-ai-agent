@@ -93,6 +93,39 @@ test.describe("Insights Track Record tab", () => {
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-empty-guidance")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("track-record-empty-guidance")).toContainText("還缺 closed paper signals");
+    await expect(page.getByTestId("track-record-empty-guidance")).toContainText("實績需要");
+    await expect(page.getByTestId("track-record-empty-guidance")).not.toContainText("Track Record");
+  });
+
+  test("loading copy is 載入實績…, not Track Record", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 8_000));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 0,
+          wins: 0,
+          losses: 0,
+          equity_curve: [],
+          source: "e2e",
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 8_000));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ records: [], total: 0, limit: 50, offset: 0, source: "e2e" }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "domcontentloaded" });
+    const loading = page.getByTestId("track-record-loading");
+    await expect(loading).toBeVisible({ timeout: 5_000 });
+    await expect(loading).toHaveText("載入實績…");
+    await expect(loading).not.toContainText("Track Record");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Track Record");
   });
 });
 
@@ -111,7 +144,8 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("track-record-unknown-empty")).toBeVisible();
-    await expect(page.getByTestId("track-record-unknown-empty")).toContainText("UNKNOWN");
+    await expect(page.getByTestId("track-record-unknown-empty")).toHaveText("UNKNOWN：尚無實績摘要");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Track Record");
     await expect(page.getByTestId("track-record-wl")).toHaveCount(0);
     await expect(page.getByTestId("track-record-hit-rate")).toHaveCount(0);
     await expect(page.getByTestId("track-record-empty-guidance")).toHaveCount(0);
@@ -169,6 +203,8 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("track-record-error")).toBeVisible();
+    await expect(page.getByTestId("track-record-error")).toHaveText("實績暫時無法載入。");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Track Record");
     await expect(page.getByTestId("track-record-wl")).toHaveCount(0);
     await expect(page.getByTestId("track-record-empty-guidance")).toHaveCount(0);
   });

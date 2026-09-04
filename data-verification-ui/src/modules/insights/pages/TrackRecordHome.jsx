@@ -109,12 +109,12 @@ export default function TrackRecordHome() {
 
       {error ? (
         <div className="card mb-3 p-3 text-[13px] text-red-300" data-testid="track-record-error" role="alert">
-          Track Record 暫時無法載入。
+          實績暫時無法載入。
         </div>
       ) : null}
       {loading && !summaryPresent ? (
         <div className="loading mb-3" data-testid="track-record-loading" role="status">
-          載入 Track Record…
+          載入實績…
         </div>
       ) : null}
       {!loading && !error && !summaryPresent ? (
@@ -123,7 +123,7 @@ export default function TrackRecordHome() {
           data-testid="track-record-unknown-empty"
           role="status"
         >
-          UNKNOWN：尚無 Track Record 摘要
+          UNKNOWN：尚無實績摘要
         </div>
       ) : null}
 
@@ -134,7 +134,7 @@ export default function TrackRecordHome() {
         >
           <div className="font-semibold text-cyan-100">還缺 closed paper signals</div>
           <p className="mt-1 mb-0 text-white/65">
-            Track Record 需要已關閉的紙上意圖或 <code className="font-mono">recommendation_outcomes</code>{" "}
+            實績需要已關閉的紙上意圖或 <code className="font-mono">recommendation_outcomes</code>{" "}
             mark-to-market rows。先在「紙上生命週期」建立/推進 paper intent，或排程{" "}
             <code className="font-mono">scripts/mark_recommendations.py</code> 後再讀績效。
           </p>
