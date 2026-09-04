@@ -60,7 +60,7 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
     await expect(page.getByTestId("scenario-top-symbols")).not.toHaveText("—");
   });
 
-  test("non-finite HHI is UNKNOWN; real HHI 0 stays 0", async ({ page }) => {
+  test("non-finite HHI is UNKNOWN", async ({ page }) => {
     await page.route(
       (url) => isScenarioPath(url.pathname),
       async (route) => {
@@ -79,8 +79,9 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
     await expect(page.getByTestId("scenario-planner-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("scenario-hhi")).toHaveText("UNKNOWN");
     await expect(page.getByTestId("scenario-top-symbols")).toContainText("CASH 0%");
+  });
 
-    await page.unroute((url) => isScenarioPath(url.pathname));
+  test("real HHI 0 stays 0", async ({ page }) => {
     await page.route(
       (url) => isScenarioPath(url.pathname),
       async (route) => {
@@ -95,9 +96,69 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
         });
       },
     );
-    await page.reload({ waitUntil: "load" });
+    await page.goto("/insights?tab=scenario", { waitUntil: "load" });
     await expect(page.getByTestId("scenario-planner-home")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("scenario-hhi")).toHaveText("0");
     await expect(page.getByTestId("scenario-hhi")).not.toHaveText("UNKNOWN");
+  });
+
+  test("empty scenarios shows 尚無情境建議, not a blank card grid", async ({ page }) => {
+    await page.route(
+      (url) => isScenarioPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(scenarioPayload({ scenarios: [] })),
+        });
+      },
+    );
+    await page.goto("/insights?tab=scenario", { waitUntil: "load" });
+    await expect(page.getByTestId("scenario-planner-home")).toBeVisible({ timeout: 60_000 });
+    const empty = page.getByTestId("scenario-planner-empty");
+    await expect(empty).toBeVisible();
+    await expect(empty).toHaveText("尚無情境建議");
+    await expect(page.getByTestId("scenario-card-grid")).toHaveCount(0);
+    await expect(page.locator('[data-testid^="scenario-card-"]')).toHaveCount(0);
+    await expect(page.getByTestId("scenario-planner-loading")).toHaveCount(0);
+    await expect(page.getByTestId("scenario-planner-error")).toHaveCount(0);
+    await expect(page.getByTestId("scenario-planner-disabled")).toHaveCount(0);
+  });
+
+  test("scenario 500 shows error, not empty", async ({ page }) => {
+    await page.route(
+      (url) => isScenarioPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "e2e scenario fail" }),
+        });
+      },
+    );
+    await page.goto("/insights?tab=scenario", { waitUntil: "load" });
+    await expect(page.getByTestId("scenario-planner-error")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("scenario-planner-empty")).toHaveCount(0);
+    await expect(page.getByTestId("scenario-planner-home")).toHaveCount(0);
+    await expect(page.getByTestId("scenario-planner-disabled")).toHaveCount(0);
+    await expect(page.getByTestId("scenario-planner-loading")).toHaveCount(0);
+  });
+
+  test("scenario 404 stays disabled, not empty", async ({ page }) => {
+    await page.route(
+      (url) => isScenarioPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "not enabled" }),
+        });
+      },
+    );
+    await page.goto("/insights?tab=scenario", { waitUntil: "load" });
+    await expect(page.getByTestId("scenario-planner-disabled")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("scenario-planner-empty")).toHaveCount(0);
+    await expect(page.getByTestId("scenario-planner-home")).toHaveCount(0);
+    await expect(page.getByTestId("scenario-planner-error")).toHaveCount(0);
   });
 });

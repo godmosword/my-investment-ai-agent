@@ -32,19 +32,30 @@ export default function ScenarioPlannerHome() {
   const topLine = topSymbols.length
     ? topSymbols.map((t) => `${t.symbol} ${t.weight_pct}%`).join(" · ")
     : "UNKNOWN";
+  const scenarios = Array.isArray(data.scenarios) ? data.scenarios : [];
 
   return (
     <div data-testid="scenario-planner-home" className="space-y-3 text-[13px] text-white/85">
       <p className="rounded border border-amber-500/30 bg-amber-950/20 px-2 py-1.5 text-[12px] text-amber-100">{data.disclaimer}</p>
-      <div className="grid gap-2 md:grid-cols-3">
-        {(data.scenarios || []).map((s) => (
-          <div key={s.id} className="rounded border border-white/10 bg-black/30 p-2" data-testid={`scenario-card-${s.id}`}>
-            <div className="text-[11px] uppercase text-cyan-200">{s.label}</div>
-            <div className="mt-1 font-mono text-[12px] text-white/90">shift {s.notional_shift_pct}%</div>
-            <div className="mt-1 text-[11px] text-white/60">{s.notes}</div>
-          </div>
-        ))}
-      </div>
+      {scenarios.length === 0 ? (
+        <div
+          data-testid="scenario-planner-empty"
+          className="rounded border border-white/10 bg-white/[0.03] p-3 text-[13px] text-white/70"
+          role="status"
+        >
+          尚無情境建議
+        </div>
+      ) : (
+        <div className="grid gap-2 md:grid-cols-3" data-testid="scenario-card-grid">
+          {scenarios.map((s) => (
+            <div key={s.id} className="rounded border border-white/10 bg-black/30 p-2" data-testid={`scenario-card-${s.id}`}>
+              <div className="text-[11px] uppercase text-cyan-200">{s.label}</div>
+              <div className="mt-1 font-mono text-[12px] text-white/90">shift {s.notional_shift_pct}%</div>
+              <div className="mt-1 text-[11px] text-white/60">{s.notes}</div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="rounded border border-white/10 bg-white/[0.03] p-2" data-testid="scenario-portfolio">
         <div className="text-[11px] font-semibold uppercase text-cyan-200" data-testid="scenario-portfolio-title">持倉</div>
         <div className="mt-1 font-mono text-[12px]">
