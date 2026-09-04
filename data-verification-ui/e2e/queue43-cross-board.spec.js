@@ -42,7 +42,7 @@ test.describe("Queue 43 cross-board polish", () => {
     await expect(workspace.getByTestId("workspace-window-grid")).toContainText("Portfolio");
     await workspace.getByTestId("workspace-layout").selectOption("dense");
     await expect(workspace).toContainText("Workspace layout saved");
-    await workspace.getByRole("button", { name: "Up" }).last().click();
+    await workspace.getByTestId("workspace-panel-up-alerts").click();
     await expect(workspace).toContainText("Workspace panels saved");
     await workspace
       .getByTestId("workspace-import-text")

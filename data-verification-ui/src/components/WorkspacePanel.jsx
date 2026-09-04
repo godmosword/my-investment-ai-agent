@@ -445,19 +445,21 @@ export default function WorkspacePanel({ compact = false } = {}) {
               <div className="flex gap-1">
                 <button
                   type="button"
-                  className="min-h-[28px] rounded border border-white/15 px-2 text-white/60 disabled:opacity-30"
+                  data-testid={`workspace-panel-up-${key}`}
+                  className="min-h-[44px] rounded border border-white/15 px-2 text-white/60 disabled:opacity-30"
                   disabled={!panels.includes(key) || panels.indexOf(key) === 0}
                   onClick={() => movePanel(key, -1)}
                 >
-                  Up
+                  上移
                 </button>
                 <button
                   type="button"
-                  className="min-h-[28px] rounded border border-white/15 px-2 text-white/60 disabled:opacity-30"
+                  data-testid={`workspace-panel-down-${key}`}
+                  className="min-h-[44px] rounded border border-white/15 px-2 text-white/60 disabled:opacity-30"
                   disabled={!panels.includes(key) || panels.indexOf(key) === panels.length - 1}
                   onClick={() => movePanel(key, 1)}
                 >
-                  Down
+                  下移
                 </button>
               </div>
             </div>

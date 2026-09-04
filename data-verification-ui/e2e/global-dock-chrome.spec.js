@@ -170,4 +170,37 @@ test.describe("ITER-P4-44I workspace dock zh + touch", () => {
     await expect(workspace.getByRole("status")).toHaveText("工作區已匯入");
     await expect(workspace.getByTestId("workspace-layout")).toHaveValue("focus");
   });
+
+  test("workspace panel 上移／下移 are ≥44px and still reorder", async ({ page }) => {
+    await page.goto("/dashboard", { waitUntil: "load" });
+    await page.getByTestId("global-watchlist-toggle").click();
+
+    const workspace = page.getByTestId("workspace-panel");
+    await expect(workspace).toBeVisible({ timeout: 60_000 });
+
+    const up = workspace.getByTestId("workspace-panel-up-portfolio");
+    const down = workspace.getByTestId("workspace-panel-down-portfolio");
+    await expect(up).toHaveText("上移");
+    await expect(down).toHaveText("下移");
+    const upBox = await up.boundingBox();
+    const downBox = await down.boundingBox();
+    expect(upBox, "上移 has a bounding box").not.toBeNull();
+    expect(downBox, "下移 has a bounding box").not.toBeNull();
+    expect(upBox.height).toBeGreaterThanOrEqual(44);
+    expect(downBox.height).toBeGreaterThanOrEqual(44);
+
+    await expect(workspace.getByTestId("workspace-panel-up-paper")).toBeDisabled();
+    await expect(workspace.getByTestId("workspace-panel-down-alerts")).toBeDisabled();
+    await expect(up).not.toHaveText("Up");
+    await expect(down).not.toHaveText("Down");
+
+    await up.click();
+    const tiles = workspace.locator('[data-testid^="workspace-panel-tile-"]');
+    await expect(tiles.nth(0)).toHaveAttribute("data-testid", "workspace-panel-tile-portfolio");
+    await expect(tiles.nth(1)).toHaveAttribute("data-testid", "workspace-panel-tile-paper");
+
+    await workspace.getByTestId("workspace-panel-down-portfolio").click();
+    await expect(tiles.nth(0)).toHaveAttribute("data-testid", "workspace-panel-tile-paper");
+    await expect(tiles.nth(1)).toHaveAttribute("data-testid", "workspace-panel-tile-portfolio");
+  });
 });
