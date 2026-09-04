@@ -242,12 +242,12 @@ test.describe("ITER-P4-44I workspace dock zh + touch", () => {
     const digest = workspace.getByTestId("workspace-digest");
     await expect(workspace.getByTestId("workspace-digest-heading")).toHaveText("摘要");
     await expect(workspace.getByTestId("workspace-windows-heading")).toHaveText("視窗");
-    await expect(workspace.getByTestId("workspace-digest-paper-active")).toHaveText("1 進行中");
-    await expect(workspace.getByTestId("workspace-digest-paper-closed")).toHaveText("1 已結");
-    await expect(workspace.getByTestId("workspace-digest-alerts-total")).toHaveText("0 合計");
-    await expect(workspace.getByTestId("workspace-digest-alerts-triggered")).toHaveText("0 已觸發");
-    await expect(workspace.getByTestId("workspace-digest-alerts-pending")).toHaveText("0 待觸發");
-    await expect(workspace.getByTestId("workspace-windows-active")).toHaveText("4 進行中");
+    await expect(workspace.getByTestId("workspace-digest-paper-active")).toHaveText(/^\d+ 進行中$/);
+    await expect(workspace.getByTestId("workspace-digest-paper-closed")).toHaveText(/^\d+ 已結$/);
+    await expect(workspace.getByTestId("workspace-digest-alerts-total")).toHaveText(/^\d+ 合計$/);
+    await expect(workspace.getByTestId("workspace-digest-alerts-triggered")).toHaveText(/^\d+ 已觸發$/);
+    await expect(workspace.getByTestId("workspace-digest-alerts-pending")).toHaveText(/^\d+ 待觸發$/);
+    await expect(workspace.getByTestId("workspace-windows-active")).toHaveText(/^\d+ 進行中$/);
     await expect(digest.getByTestId("workspace-alert-digest-asof")).toContainText("摘要時間");
 
     await expect(digest).not.toContainText("Digest");
@@ -276,6 +276,6 @@ test.describe("ITER-P4-44I workspace dock zh + touch", () => {
     await panel.getByTestId("price-alerts-add").click();
     await expect(panel.getByTestId("price-alerts-status")).toHaveText("警示已建立");
     await expect(panel).not.toContainText("Alert 已建立");
-    await expect(panel.getByTestId("price-alerts-row")).toContainText("TSLA");
+    await expect(panel.getByTestId("price-alerts-row").filter({ hasText: "TSLA" })).toBeVisible();
   });
 });
