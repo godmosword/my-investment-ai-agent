@@ -1,4 +1,5 @@
 import { useScenarioSuggestions } from "../../../hooks/useApi";
+import { finiteNumber } from "../../../utils/finiteNumber";
 
 export default function ScenarioPlannerHome() {
   const q = useScenarioSuggestions();
@@ -26,6 +27,12 @@ export default function ScenarioPlannerHome() {
     );
   }
 
+  const hhi = finiteNumber(data.portfolio?.concentration_hhi);
+  const topSymbols = Array.isArray(data.portfolio?.top_symbols) ? data.portfolio.top_symbols : [];
+  const topLine = topSymbols.length
+    ? topSymbols.map((t) => `${t.symbol} ${t.weight_pct}%`).join(" · ")
+    : "UNKNOWN";
+
   return (
     <div data-testid="scenario-planner-home" className="space-y-3 text-[13px] text-white/85">
       <p className="rounded border border-amber-500/30 bg-amber-950/20 px-2 py-1.5 text-[12px] text-amber-100">{data.disclaimer}</p>
@@ -38,11 +45,13 @@ export default function ScenarioPlannerHome() {
           </div>
         ))}
       </div>
-      <div className="rounded border border-white/10 bg-white/[0.03] p-2">
-        <div className="text-[11px] font-semibold uppercase text-cyan-200">Portfolio</div>
-        <div className="mt-1 font-mono text-[12px]">HHI {data.portfolio?.concentration_hhi}</div>
-        <div className="mt-1 text-[11px] text-white/60">
-          {(data.portfolio?.top_symbols || []).map((t) => `${t.symbol} ${t.weight_pct}%`).join(" · ") || "—"}
+      <div className="rounded border border-white/10 bg-white/[0.03] p-2" data-testid="scenario-portfolio">
+        <div className="text-[11px] font-semibold uppercase text-cyan-200" data-testid="scenario-portfolio-title">持倉</div>
+        <div className="mt-1 font-mono text-[12px]">
+          HHI <span data-testid="scenario-hhi">{hhi == null ? "UNKNOWN" : hhi}</span>
+        </div>
+        <div className="mt-1 text-[11px] text-white/60" data-testid="scenario-top-symbols">
+          {topLine}
         </div>
       </div>
       {data.target_hints?.length ? (
