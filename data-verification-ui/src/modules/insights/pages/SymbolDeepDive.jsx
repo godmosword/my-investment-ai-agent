@@ -37,7 +37,7 @@ function OptionalBlock({ title, value, testId }) {
   if (value == null || value === "" || (Array.isArray(value) && value.length === 0)) return null;
   return (
     <div data-testid={testId} className="rounded border border-white/10 bg-white/[0.03] p-3">
-      <div className="text-[12px] font-semibold uppercase text-cyan-200">{title}</div>
+      <div className="text-[12px] font-semibold text-cyan-200" data-testid={`${testId}-title`}>{title}</div>
       <div className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-white/70">
         {Array.isArray(value) ? value.join("\n") : typeof value === "object" ? JSON.stringify(value, null, 2) : String(value)}
       </div>
@@ -156,7 +156,7 @@ export default function SymbolDeepDive() {
             ) : null}
           </div>
           {hasFilingPayload(filing) ? (
-            <OptionalBlock title="Filing" value={filing} testId="symbol-filing-block" />
+            <OptionalBlock title="財報" value={filing} testId="symbol-filing-block" />
           ) : (
             <div
               data-testid="symbol-filing-empty"
@@ -167,7 +167,7 @@ export default function SymbolDeepDive() {
             </div>
           )}
           <OptionalBlock title="NotebookLM" value={notebook} testId="symbol-notebook-block" />
-          <OptionalBlock title="Agency" value={agency} testId="symbol-agency-block" />
+          <OptionalBlock title="機構備註" value={agency} testId="symbol-agency-block" />
         </div>
       ) : null}
     </section>

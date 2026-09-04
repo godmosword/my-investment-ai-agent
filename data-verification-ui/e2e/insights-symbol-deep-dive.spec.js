@@ -134,4 +134,40 @@ test.describe("Insights symbol deep dive", () => {
     await expect(page.getByTestId("symbol-snapshot-source")).toHaveText("e2e_zero");
     await expect(page.getByTestId("symbol-snapshot-as-of")).toHaveText("2026-05-14T00:00:00Z");
   });
+
+  test("optional blocks use 財報 / 機構備註; NotebookLM stays", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/analysis/NVDA" || url.pathname === "/api/analysis/NVDA/",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            symbol: "NVDA",
+            quote: { symbol: "NVDA", last: 100.5 },
+            snapshot: {
+              symbol: "NVDA",
+              source: "e2e_optional",
+              as_of: "2026-05-14T00:00:00Z",
+              filing_summary: "10-K excerpt",
+              notebooklm: "notebook note",
+              agency_notes: "agency note",
+              price_series: [],
+            },
+            snapshot_error: null,
+          }),
+        });
+      },
+    );
+    await page.goto("/insights?symbol=NVDA", { waitUntil: "load" });
+    await expect(page.getByTestId("symbol-deep-dive")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("symbol-filing-block-title")).toHaveText("財報");
+    await expect(page.getByTestId("symbol-notebook-block-title")).toHaveText("NotebookLM");
+    await expect(page.getByTestId("symbol-agency-block-title")).toHaveText("機構備註");
+    await expect(page.getByTestId("symbol-filing-block")).toContainText("10-K excerpt");
+    await expect(page.getByTestId("symbol-notebook-block")).toContainText("notebook note");
+    await expect(page.getByTestId("symbol-agency-block")).toContainText("agency note");
+    await expect(page.getByTestId("symbol-filing-block-title")).not.toHaveText("Filing");
+    await expect(page.getByTestId("symbol-agency-block-title")).not.toHaveText("Agency");
+  });
 });
