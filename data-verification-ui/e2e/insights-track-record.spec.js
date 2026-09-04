@@ -63,6 +63,15 @@ test.describe("Insights Track Record tab", () => {
     await expect(page.getByTestId("track-record-closed-table").getByText("BTC", { exact: true })).toBeHidden();
   });
 
+  test("closed card count is 筆, not rows", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    const count = page.getByTestId("track-record-closed-count");
+    await expect(count).toHaveText("3 筆");
+    await expect(count).not.toContainText("rows");
+    await expect(page.getByTestId("track-record-closed-card")).not.toContainText("rows");
+  });
+
   test("equity curve renders as themed chart (VU2)", async ({ page }) => {
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });

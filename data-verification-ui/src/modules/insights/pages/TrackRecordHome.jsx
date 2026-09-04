@@ -207,7 +207,9 @@ export default function TrackRecordHome() {
       <div className="card overflow-hidden p-0" data-testid="track-record-closed-card">
         <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-3 py-2">
           <div className="card-title">閉倉紀錄</div>
-          <div className="text-[12px] text-[var(--muted)]">{records.length} rows</div>
+          <div className="text-[12px] text-[var(--muted)]" data-testid="track-record-closed-count">
+            {records.length} 筆
+          </div>
         </div>
         {records.length === 0 && !loading ? (
           <div className="p-3 text-[13px] text-[var(--muted)]">尚無可計算的 closed paper signal。</div>
