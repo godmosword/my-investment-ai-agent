@@ -79,7 +79,7 @@ export default function TrackRecordHome() {
     <div data-testid="track-record-home" className="px-1">
       <div className="page-header">
         <div className="page-title">實績</div>
-        <div className="page-subtitle">Paper-only outcomes · source-audited</div>
+        <div className="page-subtitle">僅紙上結果 · 來源可稽核</div>
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">

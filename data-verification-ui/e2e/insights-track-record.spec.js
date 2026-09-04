@@ -16,6 +16,9 @@ test.describe("Insights Track Record tab", () => {
     const title = page.getByTestId("track-record-home").locator(".page-title");
     await expect(title).toHaveText("實績");
     await expect(title).not.toHaveText("Track Record");
+    await expect(page.getByTestId("track-record-home").locator(".page-subtitle")).toHaveText(
+      "僅紙上結果 · 來源可稽核",
+    );
   });
 
   test("loads summary, closed rows, and tag slice", async ({ page }) => {
