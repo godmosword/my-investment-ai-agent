@@ -1,5 +1,8 @@
+import { finiteNumber } from "../utils/finiteNumber";
+
 export default function MetricCard({ label, value, delta, unit = "", format }) {
-  const display = value == null ? "—" : (format ? format(value) : `${value}${unit}`);
+  const n = finiteNumber(value);
+  const display = n == null ? "UNKNOWN" : (format ? format(n) : `${n}${unit}`);
 
   let deltaClass = "delta-flat";
   let deltaStr = null;
@@ -10,9 +13,9 @@ export default function MetricCard({ label, value, delta, unit = "", format }) {
   }
 
   return (
-    <div className="metric-card">
+    <div className="metric-card" data-testid="metric-card">
       <div className="metric-label">{label}</div>
-      <div className="metric-value">{display}</div>
+      <div className="metric-value" data-testid="metric-card-value">{display}</div>
       {deltaStr && <div className={`metric-delta ${deltaClass}`}>{deltaStr}</div>}
     </div>
   );

@@ -6,7 +6,7 @@ const ROUTES = [
   { path: "/dashboard", testId: "dashboard-home", nav: "數據儀表板", provenance: "workbench-data-health-chip" },
   { path: "/insights", testId: "insights-home", nav: "投資觀點", provenance: "workbench-data-health-chip" },
   { path: "/columns", testId: "columns-home", nav: "科技專欄", provenance: "reader-source-line" },
-  { path: "/portfolio", testId: "portfolio-home", nav: "Portfolio", provenance: "workbench-data-health-chip" },
+  { path: "/portfolio", testId: "portfolio-home", nav: "投資組合", provenance: "workbench-data-health-chip" },
 ];
 
 test.describe("5-board Terminal routes", () => {
@@ -55,7 +55,7 @@ test.describe("5-board Terminal routes", () => {
       { href: "/dashboard", name: "數據儀表板" },
       { href: "/insights", name: "投資觀點" },
       { href: "/columns", name: "科技專欄" },
-      { href: "/portfolio", name: "Portfolio" },
+      { href: "/portfolio", name: "投資組合" },
       { href: "/settings", name: "設定" },
     ];
     for (let i = 0; i < expected.length; i++) {

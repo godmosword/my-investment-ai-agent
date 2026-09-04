@@ -26,6 +26,9 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
     await expect(page.getByTestId("scenario-planner-home")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("scenario-card-defensive")).toBeVisible();
     await expect(page.getByTestId("scenario-card-base")).toBeVisible();
+    await expect(page.getByTestId("scenario-card-defensive").getByTestId("scenario-notional-shift")).toHaveText("名義移轉 -5%");
+    await expect(page.getByTestId("scenario-card-base").getByTestId("scenario-notional-shift")).toHaveText("名義移轉 0%");
+    await expect(page.getByTestId("scenario-notional-shift").first()).not.toHaveText(/shift /i);
   });
 
   test("portfolio block is 持倉; empty top_symbols and missing HHI are UNKNOWN; finite 0 stays 0", async ({ page }) => {
@@ -160,5 +163,61 @@ test.describe("Insights scenario tab (queue 28d UI)", () => {
     await expect(page.getByTestId("scenario-planner-empty")).toHaveCount(0);
     await expect(page.getByTestId("scenario-planner-home")).toHaveCount(0);
     await expect(page.getByTestId("scenario-planner-error")).toHaveCount(0);
+  });
+
+  test("target hints and shift copy are zh; missing/non-finite shift is UNKNOWN", async ({ page }) => {
+    await page.route(
+      (url) => isScenarioPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            scenarioPayload({
+              scenarios: [
+                { id: "defensive", label: "Defensive tilt", notional_shift_pct: -5, notes: "mock" },
+                { id: "missing", label: "Missing pct", notes: "mock" },
+                { id: "bad", label: "Bad pct", notional_shift_pct: "n/a", notes: "mock" },
+                { id: "zero", label: "Zero pct", notional_shift_pct: 0, notes: "mock" },
+              ],
+              target_hints: [
+                {
+                  signal_id: "hint-nvda",
+                  asset: "NVDA",
+                  in_portfolio: true,
+                  suggestions: [{ text: "trim" }],
+                },
+                {
+                  signal_id: "hint-cash",
+                  asset: "CASH",
+                  in_portfolio: false,
+                  suggestions: [{ text: "hold" }],
+                },
+              ],
+            }),
+          ),
+        });
+      },
+    );
+    await page.goto("/insights?tab=scenario", { waitUntil: "load" });
+    await expect(page.getByTestId("scenario-planner-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("scenario-target-hints-title")).toHaveText("目標提示（僅 intent）");
+    await expect(page.getByTestId("scenario-target-hints")).not.toContainText("Target hints");
+    await expect(page.getByTestId("scenario-hint-in-portfolio")).toHaveText(" · 持倉內");
+    await expect(page.getByTestId("scenario-target-hints")).not.toContainText("book");
+    const cashHint = page.getByTestId("scenario-target-hint").filter({ hasText: "CASH" });
+    await expect(cashHint).toBeVisible();
+    await expect(cashHint.getByTestId("scenario-hint-in-portfolio")).toHaveCount(0);
+
+    await expect(page.getByTestId("scenario-card-defensive").getByTestId("scenario-notional-shift")).toHaveText(
+      "名義移轉 -5%",
+    );
+    await expect(page.getByTestId("scenario-card-zero").getByTestId("scenario-notional-shift")).toHaveText("名義移轉 0%");
+    await expect(page.getByTestId("scenario-card-missing").getByTestId("scenario-notional-shift")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("scenario-card-bad").getByTestId("scenario-notional-shift")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("scenario-card-defensive").getByTestId("scenario-notional-shift")).not.toHaveText(
+      /shift /i,
+    );
+    await expect(page.getByTestId("scenario-card-missing")).not.toContainText("—");
   });
 });

@@ -7,6 +7,7 @@ import {
   usePriceAlertDigest,
 } from "../hooks/useApi";
 import { emitWorkspaceChanged, QSI_WORKSPACE_CHANGED_EVENT } from "../constants/workspaceSync";
+import { finiteNumber } from "../utils/finiteNumber";
 
 const WORKSPACE_KEYS = [
   "qsi_watchlist",
@@ -149,8 +150,8 @@ function weightsForPanels(panelKeys, savedBp) {
 }
 
 function money(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
+  const n = finiteNumber(value);
+  if (n == null) return "UNKNOWN";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -280,7 +281,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
       portfolioPnl: portfolio.data?.total_pnl,
       paperActive: paper.data?.summary?.active_count ?? 0,
       paperClosed: paper.data?.summary?.closed_count ?? 0,
-      topTheme: themeRows[0]?.label || "—",
+      topTheme: themeRows[0]?.label || "UNKNOWN",
       alertsTotal: d?.total ?? alertRows.length,
       alertsTriggered: d?.triggered ?? alertRows.filter((item) => item.triggered_at).length,
       alertsPending: d?.pending,
@@ -388,8 +389,8 @@ export default function WorkspacePanel({ compact = false } = {}) {
         <div className="grid grid-cols-2 gap-2 text-[12px]">
           <div>
             <div className="text-[var(--muted)]">{PANEL_LABELS.portfolio}</div>
-            <div className="font-mono text-white">{money(digest.portfolioValue)}</div>
-            <div className={Number(digest.portfolioPnl) >= 0 ? "text-emerald-300" : "text-red-300"}>
+            <div className="font-mono text-white" data-testid="workspace-digest-portfolio-value">{money(digest.portfolioValue)}</div>
+            <div className={Number(digest.portfolioPnl) >= 0 ? "text-emerald-300" : "text-red-300"} data-testid="workspace-digest-portfolio-pnl">
               {money(digest.portfolioPnl)}
             </div>
           </div>
@@ -400,7 +401,7 @@ export default function WorkspacePanel({ compact = false } = {}) {
           </div>
           <div>
             <div className="text-[var(--muted)]">{PANEL_LABELS.columns}</div>
-            <div className="truncate text-white">{digest.topTheme}</div>
+            <div className="truncate text-white" data-testid="workspace-digest-top-theme">{digest.topTheme}</div>
           </div>
           <div>
             <div className="text-[var(--muted)]">{PANEL_LABELS.alerts}</div>

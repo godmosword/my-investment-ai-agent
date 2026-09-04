@@ -159,7 +159,7 @@ export default function SymbolDeepDive() {
               className="rounded border border-white/10 bg-white/[0.03] p-3 text-[13px] text-[var(--muted)]"
               role="status"
             >
-              尚無本股財報摘要。UNKNOWN
+              尚無本股財報摘要
             </div>
           )}
           <OptionalBlock title="NotebookLM" value={notebook} testId="symbol-notebook-block" />
