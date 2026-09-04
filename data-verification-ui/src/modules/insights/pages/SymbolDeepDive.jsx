@@ -37,7 +37,7 @@ function OptionalBlock({ title, value, testId }) {
   if (value == null || value === "" || (Array.isArray(value) && value.length === 0)) return null;
   return (
     <div data-testid={testId} className="rounded border border-white/10 bg-white/[0.03] p-3">
-      <div className="text-[12px] font-semibold uppercase text-cyan-200">{title}</div>
+      <div className="text-[12px] font-semibold text-cyan-200" data-testid={`${testId}-title`}>{title}</div>
       <div className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-white/70">
         {Array.isArray(value) ? value.join("\n") : typeof value === "object" ? JSON.stringify(value, null, 2) : String(value)}
       </div>
@@ -72,11 +72,11 @@ export default function SymbolDeepDive() {
     <section data-testid="symbol-deep-dive" className="mb-3 rounded border border-cyan-300/20 bg-cyan-400/[0.02] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[11px] uppercase text-cyan-200">Analysis Deep Dive</div>
+          <div className="text-[11px] uppercase text-cyan-200" data-testid="symbol-deep-dive-title">深度分析</div>
           <h1 className="mt-1 text-[20px] font-semibold text-white">{symbol}</h1>
         </div>
         <div className="text-right">
-          <div className="text-[11px] uppercase text-[var(--muted)]">Last</div>
+          <div className="text-[11px] uppercase text-[var(--muted)]" data-testid="symbol-last-label">最新價</div>
           <div className="font-mono text-[18px] font-semibold text-white" data-testid="symbol-last-price">{formatPrice(quote.last)}</div>
         </div>
       </div>
@@ -133,26 +133,30 @@ export default function SymbolDeepDive() {
 
       {query.isLoading ? <div className="mt-3 text-[13px] text-[var(--muted)]">載入分析資料…</div> : null}
       {query.error ? (
-        <div className="mt-3 text-[13px] text-red-300" role="alert">
-          Deep dive 無法載入：{query.error.message}
+        <div className="mt-3 text-[13px] text-red-300" role="alert" data-testid="symbol-deep-dive-error">
+          無法載入深度分析：{query.error.message}
         </div>
       ) : null}
       {!query.isLoading && !query.error ? (
         <div className="mt-3 grid gap-2 md:grid-cols-3">
-          <div className="rounded border border-white/10 bg-white/[0.03] p-3">
-            <div className="text-[12px] font-semibold uppercase text-cyan-200">Snapshot</div>
+          <div className="rounded border border-white/10 bg-white/[0.03] p-3" data-testid="symbol-snapshot-block">
+            <div className="text-[12px] font-semibold uppercase text-cyan-200" data-testid="symbol-snapshot-heading">快照</div>
             <div className="mt-2 text-[13px] text-white/70">
-              Source: <span className="font-mono" data-testid="symbol-snapshot-source">{presentOrUnknown(snapshot.source)}</span>
+              <span data-testid="symbol-snapshot-source-label">來源</span>{" "}
+              <span className="font-mono" data-testid="symbol-snapshot-source">{presentOrUnknown(snapshot.source)}</span>
             </div>
             <div className="mt-1 text-[13px] text-white/70">
-              As of: <span className="font-mono" data-testid="symbol-snapshot-as-of">{presentOrUnknown(snapshot.as_of || quote.as_of)}</span>
+              <span data-testid="symbol-snapshot-as-of-label">截至</span>{" "}
+              <span className="font-mono" data-testid="symbol-snapshot-as-of">{presentOrUnknown(snapshot.as_of || quote.as_of)}</span>
             </div>
             {query.data?.snapshot_error ? (
-              <div className="mt-2 text-[12px] text-amber-200">Snapshot warning: {query.data.snapshot_error}</div>
+              <div className="mt-2 text-[12px] text-amber-200" data-testid="symbol-snapshot-error">
+                快照警示 {query.data.snapshot_error}
+              </div>
             ) : null}
           </div>
           {hasFilingPayload(filing) ? (
-            <OptionalBlock title="Filing" value={filing} testId="symbol-filing-block" />
+            <OptionalBlock title="財報" value={filing} testId="symbol-filing-block" />
           ) : (
             <div
               data-testid="symbol-filing-empty"
@@ -163,7 +167,7 @@ export default function SymbolDeepDive() {
             </div>
           )}
           <OptionalBlock title="NotebookLM" value={notebook} testId="symbol-notebook-block" />
-          <OptionalBlock title="Agency" value={agency} testId="symbol-agency-block" />
+          <OptionalBlock title="機構備註" value={agency} testId="symbol-agency-block" />
         </div>
       ) : null}
     </section>

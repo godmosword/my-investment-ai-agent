@@ -6,8 +6,8 @@ test.describe("Queue 43 cross-board polish", () => {
     await page.goto("/dashboard", { waitUntil: "load" });
     const bar = page.getByTestId("terminal-command-bar");
     await expect(bar).toBeVisible({ timeout: 60_000 });
-    const commandInput = bar.getByRole("textbox", { name: /terminal command input/i });
-    const goButton = bar.getByRole("button", { name: "GO" });
+    const commandInput = page.getByTestId("cmd-bar-input");
+    const goButton = page.getByTestId("cmd-bar-go");
 
     await commandInput.fill("columns go");
     await goButton.click();

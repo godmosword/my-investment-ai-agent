@@ -15,10 +15,10 @@ test.describe("NEXT-1 touch target smoke", () => {
     await page.goto("/dashboard", { waitUntil: "load" });
 
     const bar = page.getByTestId("terminal-command-bar");
-    await expectTargetAtLeast(bar.locator("input").first());
-    await expectTargetAtLeast(bar.getByRole("button", { name: "GO" }));
+    await expectTargetAtLeast(bar.getByTestId("cmd-bar-input"));
+    await expectTargetAtLeast(page.getByTestId("cmd-bar-go"));
     await expectTargetAtLeast(page.getByTestId("cmd-bar-run"));
-    await expectTargetAtLeast(bar.getByRole("button", { name: "WATCH" }));
+    await expectTargetAtLeast(page.getByTestId("cmd-bar-watch"));
     await expectTargetAtLeast(page.getByTestId("global-watchlist-toggle"));
   });
 
@@ -27,8 +27,8 @@ test.describe("NEXT-1 touch target smoke", () => {
     await page.goto("/dashboard", { waitUntil: "load" });
 
     const bar = page.getByTestId("terminal-command-bar");
-    await expectTargetAtLeast(bar.locator("input").first());
-    await expectTargetAtLeast(bar.getByRole("button", { name: "GO" }));
+    await expectTargetAtLeast(bar.getByTestId("cmd-bar-input"));
+    await expectTargetAtLeast(page.getByTestId("cmd-bar-go"));
     await expectTargetAtLeast(page.getByTestId("cmd-bar-run"));
     await expectTargetAtLeast(page.getByTestId("global-watchlist-toggle"));
   });

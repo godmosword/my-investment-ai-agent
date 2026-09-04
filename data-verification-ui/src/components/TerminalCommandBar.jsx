@@ -106,6 +106,15 @@ function parseGoInput(raw) {
   return parts[0] ?? "";
 }
 
+function presentCrewStatus(value) {
+  if (value == null) return "UNKNOWN";
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "UNKNOWN";
+  const text = String(value).trim();
+  if (!text) return "UNKNOWN";
+  if (text === "NaN" || text === "Infinity" || text === "-Infinity") return "UNKNOWN";
+  return text;
+}
+
 function parseBoardRoute(raw) {
   const upper = String(raw ?? "")
     .trim()
@@ -179,7 +188,11 @@ export default function TerminalCommandBar({ trailing = null }) {
 
   const focused = (symbol || "").trim().toUpperCase();
   const inWatch = useMemo(() => focused && watchSet.has(focused), [focused, watchSet]);
-  const crewHudActive = runCrew.isPending || crewStatus.data?.status === "running";
+  const crewStatusText = presentCrewStatus(crewStatus.data?.status);
+  const crewHudActive =
+    runCrew.isPending ||
+    crewStatus.data?.status === "running" ||
+    (crewStatus.isSuccess && crewStatusText === "UNKNOWN");
   const cmdPlaceholder = useMemo(
     () => getTerminalCommandBarPlaceholder(location.pathname),
     [location.pathname],
@@ -264,9 +277,14 @@ export default function TerminalCommandBar({ trailing = null }) {
     <div
       data-testid="terminal-command-bar"
       className="workbench-secondary-panel flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-black/30 px-2 py-1.5 md:gap-2 md:px-3"
-      aria-label="Terminal Command Bar"
+      aria-label="指令列"
     >
-      <span className="hidden text-[11px] uppercase tracking-wide text-[var(--muted)] sm:inline">Cmd</span>
+      <span
+        className="hidden text-[11px] uppercase tracking-wide text-[var(--muted)] sm:inline"
+        data-testid="cmd-bar-label"
+      >
+        指令
+      </span>
       <input
         type="text"
         value={input}
@@ -275,7 +293,8 @@ export default function TerminalCommandBar({ trailing = null }) {
           if (e.key === "Enter") onGo();
         }}
         placeholder={cmdPlaceholder}
-        aria-label="Terminal command input"
+        aria-label="指令輸入"
+        data-testid="cmd-bar-input"
         className="min-h-[44px] min-w-[150px] flex-1 rounded border border-white/15 bg-black/40 px-2 py-1 text-[13px] text-white placeholder:text-white/35 sm:max-w-md"
         autoComplete="off"
         spellCheck={false}
@@ -283,8 +302,10 @@ export default function TerminalCommandBar({ trailing = null }) {
       />
       <button
         type="button"
+        data-testid="cmd-bar-go"
         className="min-h-[44px] rounded bg-emerald-700/80 px-3 py-1 text-[12px] font-semibold text-white hover:bg-emerald-600"
         onClick={onGo}
+        aria-label="前往"
       >
         GO
       </button>
@@ -316,7 +337,9 @@ export default function TerminalCommandBar({ trailing = null }) {
           aria-live="polite"
         >
           <span className="font-semibold text-amber-200/95">Crew</span>
-          {runCrew.isPending ? " · 提交中…" : ` · ${String(crewStatus.data?.status || "—")}`}
+          {runCrew.isPending ? " · 提交中…" : (
+            <span data-testid="terminal-crew-status-value"> · {crewStatusText}</span>
+          )}
           {crewStatus.data?.job_id ? (
             <span className="font-mono text-amber-100/85"> · {String(crewStatus.data.job_id)}</span>
           ) : null}
@@ -330,12 +353,13 @@ export default function TerminalCommandBar({ trailing = null }) {
       ) : null}
       <button
         type="button"
+        data-testid="cmd-bar-watch"
         disabled={!focused}
         className="min-h-[44px] rounded border border-white/20 bg-white/[0.03] px-3 py-1 text-[12px] text-white/90 hover:bg-white/5 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-white/30"
         onClick={toggleWatch}
         title="納入 SSE watch_symbols（最多 8 個由後端截斷）"
       >
-        {inWatch ? "UNWATCH" : "WATCH"}
+        {inWatch ? "取消觀察" : "觀察"}
       </button>
       {focused ? (
         <span className="text-[12px] text-[var(--muted)]">
@@ -348,7 +372,7 @@ export default function TerminalCommandBar({ trailing = null }) {
           data-testid="terminal-command-recent"
           className="flex w-full flex-wrap items-center gap-1 pt-1 text-[11px] text-[var(--muted)]"
         >
-          <span className="uppercase tracking-wide">Recent</span>
+          <span className="uppercase tracking-wide" data-testid="terminal-command-recent-label">最近</span>
           {recent.map((sym) => (
             <button
               key={sym}

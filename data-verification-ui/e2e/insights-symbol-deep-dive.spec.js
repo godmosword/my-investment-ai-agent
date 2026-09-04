@@ -9,6 +9,15 @@ test.describe("Insights symbol deep dive", () => {
     await expect(page.getByTestId("symbol-deep-dive")).toContainText("e2e_mock");
   });
 
+  test("chrome titles are 深度分析 and 最新價", async ({ page }) => {
+    await page.goto("/insights?symbol=NVDA", { waitUntil: "load" });
+    await expect(page.getByTestId("symbol-deep-dive")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("symbol-deep-dive-title")).toHaveText("深度分析");
+    await expect(page.getByTestId("symbol-last-label")).toHaveText("最新價");
+    await expect(page.getByTestId("symbol-deep-dive-title")).not.toHaveText("Analysis Deep Dive");
+    await expect(page.getByTestId("symbol-last-label")).not.toHaveText("Last");
+  });
+
   test("shows paper QSREC marker for matching PAPER intent only", async ({ page }) => {
     await page.goto("/insights?symbol=NVDA", { waitUntil: "load" });
     await expect(page.getByTestId("symbol-deep-dive")).toBeVisible({ timeout: 60_000 });
@@ -68,6 +77,40 @@ test.describe("Insights symbol deep dive", () => {
     await expect(page.getByTestId("symbol-deep-dive")).not.toContainText("—");
   });
 
+  test("snapshot chrome is 快照 / 來源 / 截至 and warning prefix is 快照警示", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/analysis/NVDA" || url.pathname === "/api/analysis/NVDA/",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            symbol: "NVDA",
+            quote: { symbol: "NVDA", last: 100.5 },
+            snapshot: { symbol: "NVDA", source: "e2e_snap", as_of: "2026-05-14T00:00:00Z", price_series: [] },
+            snapshot_error: "stale_quote",
+          }),
+        });
+      },
+    );
+    await page.goto("/insights?symbol=NVDA", { waitUntil: "load" });
+    await expect(page.getByTestId("symbol-deep-dive")).toBeVisible({ timeout: 60_000 });
+    const snap = page.getByTestId("symbol-snapshot-block");
+    await expect(page.getByTestId("symbol-snapshot-heading")).toHaveText("快照");
+    await expect(page.getByTestId("symbol-snapshot-source-label")).toHaveText("來源");
+    await expect(page.getByTestId("symbol-snapshot-as-of-label")).toHaveText("截至");
+    await expect(page.getByTestId("symbol-snapshot-source")).toHaveText("e2e_snap");
+    await expect(page.getByTestId("symbol-snapshot-as-of")).toHaveText("2026-05-14T00:00:00Z");
+    const warn = page.getByTestId("symbol-snapshot-error");
+    await expect(warn).toBeVisible();
+    await expect(warn).toContainText("快照警示");
+    await expect(warn).toContainText("stale_quote");
+    await expect(snap).not.toContainText("Snapshot");
+    await expect(snap).not.toContainText("Source:");
+    await expect(snap).not.toContainText("As of:");
+    await expect(warn).not.toContainText("Snapshot warning:");
+  });
+
   test("finite last price 0 stays $0.00; present source and as_of still render", async ({ page }) => {
     await page.route(
       (url) => url.pathname === "/api/analysis/NVDA" || url.pathname === "/api/analysis/NVDA/",
@@ -90,5 +133,60 @@ test.describe("Insights symbol deep dive", () => {
     await expect(page.getByTestId("symbol-last-price")).not.toHaveText("UNKNOWN");
     await expect(page.getByTestId("symbol-snapshot-source")).toHaveText("e2e_zero");
     await expect(page.getByTestId("symbol-snapshot-as-of")).toHaveText("2026-05-14T00:00:00Z");
+  });
+
+  test("optional blocks use 財報 / 機構備註; NotebookLM stays", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/analysis/NVDA" || url.pathname === "/api/analysis/NVDA/",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            symbol: "NVDA",
+            quote: { symbol: "NVDA", last: 100.5 },
+            snapshot: {
+              symbol: "NVDA",
+              source: "e2e_optional",
+              as_of: "2026-05-14T00:00:00Z",
+              filing_summary: "10-K excerpt",
+              notebooklm: "notebook note",
+              agency_notes: "agency note",
+              price_series: [],
+            },
+            snapshot_error: null,
+          }),
+        });
+      },
+    );
+    await page.goto("/insights?symbol=NVDA", { waitUntil: "load" });
+    await expect(page.getByTestId("symbol-deep-dive")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("symbol-filing-block-title")).toHaveText("財報");
+    await expect(page.getByTestId("symbol-notebook-block-title")).toHaveText("NotebookLM");
+    await expect(page.getByTestId("symbol-agency-block-title")).toHaveText("機構備註");
+    await expect(page.getByTestId("symbol-filing-block")).toContainText("10-K excerpt");
+    await expect(page.getByTestId("symbol-notebook-block")).toContainText("notebook note");
+    await expect(page.getByTestId("symbol-agency-block")).toContainText("agency note");
+    await expect(page.getByTestId("symbol-filing-block-title")).not.toHaveText("Filing");
+    await expect(page.getByTestId("symbol-agency-block-title")).not.toHaveText("Agency");
+  });
+
+  test("analysis error is 無法載入深度分析 without Deep dive", async ({ page }) => {
+    await page.route(
+      (url) => url.pathname === "/api/analysis/NVDA" || url.pathname === "/api/analysis/NVDA/",
+      async (route) => {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({ detail: "e2e_analysis_down" }),
+        });
+      },
+    );
+    await page.goto("/insights?symbol=NVDA", { waitUntil: "load" });
+    const alert = page.getByTestId("symbol-deep-dive-error");
+    await expect(alert).toBeVisible({ timeout: 60_000 });
+    await expect(alert).toContainText("無法載入深度分析：");
+    await expect(alert).not.toContainText("Deep dive");
+    await expect(alert).not.toContainText("Deep Dive");
   });
 });
