@@ -237,7 +237,14 @@ function IntentCreateForm() {
 function LifecycleTable({ rows }) {
   const visible = Array.isArray(rows) ? rows.slice(0, 30) : [];
   if (visible.length === 0) {
-    return <div className="rounded border border-white/10 p-3 text-[13px] text-[var(--muted)]">目前沒有紙上生命週期列。</div>;
+    return (
+      <div
+        className="rounded border border-white/10 p-3 text-[13px] text-[var(--muted)]"
+        data-testid="paper-lifecycle-table-empty"
+      >
+        目前沒有紙上生命週期列。
+      </div>
+    );
   }
   return (
     <div className="overflow-x-auto rounded border border-white/10" data-testid="paper-lifecycle-table">

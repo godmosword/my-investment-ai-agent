@@ -118,6 +118,122 @@ test.describe("Insights paper lifecycle honesty (ITER-V2-009)", () => {
     await expect(page.getByTestId("paper-kpi-realized")).not.toContainText("0%");
   });
 
+  test("empty lifecycle table copy is 列, not rows", async ({ page }) => {
+    await page.route(
+      (url) => isPaperSummaryPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            as_of: "2026-05-13T00:00:00Z",
+            source: "e2e",
+            summary: {
+              total: 0,
+              active_count: 0,
+              closed_count: 0,
+              wins: 0,
+              losses: 0,
+              avg_realized_return_pct: 0,
+              avg_quality_score: 0,
+            },
+            rows: [],
+          }),
+        });
+      },
+    );
+    await page.goto("/insights?tab=paper", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-lifecycle-home")).toBeVisible({ timeout: 60_000 });
+    const emptyTable = page.getByTestId("paper-lifecycle-table-empty");
+    await expect(emptyTable).toHaveText("目前沒有紙上生命週期列。");
+    await expect(emptyTable).not.toContainText("rows");
+  });
+
+  test("missing category and thesis_one_liner are UNKNOWN, not em dash", async ({ page }) => {
+    await page.route(
+      (url) => isPaperSummaryPath(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            as_of: "2026-05-13T00:00:00Z",
+            source: "e2e",
+            summary: {
+              total: 3,
+              active_count: 3,
+              closed_count: 0,
+              wins: 0,
+              losses: 0,
+              avg_realized_return_pct: 0,
+              avg_quality_score: 70,
+            },
+            rows: [
+              {
+                signal_id: "e2e-missing",
+                asset: "AAA",
+                direction: "LONG",
+                status: "APPROVED_FOR_PAPER",
+              },
+              {
+                signal_id: "e2e-blank",
+                asset: "BBB",
+                direction: "SHORT",
+                status: "APPROVED_FOR_PAPER",
+                category: "   ",
+                thesis_one_liner: "   ",
+              },
+              {
+                signal_id: "e2e-ok",
+                asset: "CCC",
+                direction: "LONG",
+                status: "APPROVED_FOR_PAPER",
+                category: "AI",
+                thesis_one_liner: "real thesis",
+              },
+            ],
+          }),
+        });
+      },
+    );
+    await page.goto("/insights?tab=paper", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-lifecycle-home")).toBeVisible({ timeout: 60_000 });
+    const table = page.getByTestId("paper-lifecycle-table");
+    await expect(table).toBeVisible();
+    const categories = table.getByTestId("paper-row-category");
+    const theses = table.getByTestId("paper-row-thesis");
+    await expect(categories).toHaveCount(3);
+    await expect(categories.nth(0)).toHaveText("UNKNOWN");
+    await expect(categories.nth(1)).toHaveText("UNKNOWN");
+    await expect(categories.nth(2)).toHaveText("AI");
+    await expect(theses.nth(0)).toHaveText("UNKNOWN");
+    await expect(theses.nth(1)).toHaveText("UNKNOWN");
+    await expect(theses.nth(2)).toHaveText("real thesis");
+    await expect(table).not.toContainText("—");
+  });
+
+  test("publishable transparency letter shows 樣本就緒", async ({ page }) => {
+    await page.route("**/api/paper/transparency-letter*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          as_of: "2026-05-13T00:00:00Z",
+          month: "2026-05",
+          source: "e2e",
+          summary: { closed_count: 5, min_publishable_sample: 5, publishable: true },
+          alignment: {},
+          letter_markdown: "e2e",
+        }),
+      });
+    });
+    await page.goto("/insights?tab=paper", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-lifecycle-home")).toBeVisible({ timeout: 60_000 });
+    const badge = page.getByTestId("paper-letter-publishable");
+    await expect(badge).toHaveText("樣本就緒");
+    await expect(badge).not.toContainText("sample ready");
+  });
+
   test("transparency letter missing month shows UNKNOWN, not current month", async ({ page }) => {
     await page.route("**/api/paper/transparency-letter*", async (route) => {
       await route.fulfill({
