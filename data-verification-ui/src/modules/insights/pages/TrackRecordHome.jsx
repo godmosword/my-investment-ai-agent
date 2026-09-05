@@ -50,6 +50,11 @@ function presentClosedAt(value) {
   return prefix || "UNKNOWN";
 }
 
+function presentSource(value) {
+  const s = String(value ?? "").trim();
+  return s || "UNKNOWN";
+}
+
 function tone(value) {
   const n = Number(value);
   if (n > 0) return "text-green-400";
@@ -144,10 +149,10 @@ export default function TrackRecordHome() {
           data-testid="track-record-empty-guidance"
           className="card mb-3 border border-cyan-300/20 bg-cyan-950/[0.08] p-3 text-[13px] leading-relaxed text-white/78"
         >
-          <div className="font-semibold text-cyan-100">還缺 closed paper signals</div>
+          <div className="font-semibold text-cyan-100">還缺已結紙上訊號</div>
           <p className="mt-1 mb-0 text-white/65">
-            實績需要已關閉的紙上意圖或 <code className="font-mono">recommendation_outcomes</code>{" "}
-            mark-to-market rows。先在「紙上生命週期」建立/推進 paper intent，或排程{" "}
+            實績需要已關閉的紙上意圖，或 <code className="font-mono">recommendation_outcomes</code>{" "}
+            的市價結算列。先在「紙上生命週期」建立／推進紙上意圖，或排程{" "}
             <code className="font-mono">scripts/mark_recommendations.py</code> 後再讀績效。
           </p>
         </div>
@@ -158,7 +163,7 @@ export default function TrackRecordHome() {
         <Kpi
           label="勝／負"
           value={wlLabel(summary)}
-          sub={`${presentCount(summary?.total_closed)} closed`}
+          sub={`${presentCount(summary?.total_closed)} 已結`}
           testId="track-record-wl"
         />
         <Kpi
@@ -181,9 +186,10 @@ export default function TrackRecordHome() {
           testId="track-record-max-dd"
         />
         <Kpi
-          label="Total"
+          label="累積"
           value={fmtPct(summary?.cumulative_return_pct, 1)}
           valueClass={tone(summary?.cumulative_return_pct)}
+          testId="track-record-cumulative"
         />
       </div>
       ) : null}
@@ -193,9 +199,13 @@ export default function TrackRecordHome() {
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <div className="card-title">累積曲線</div>
-            <div className="text-[12px] text-[var(--muted)]">{tag ? `${tag} slice` : "all closed signals"}</div>
+            <div className="text-[12px] text-[var(--muted)]" data-testid="track-record-equity-subtitle">
+              {tag ? `${tag} 篩選` : "全部已結"}
+            </div>
           </div>
-          <div className="font-mono text-[12px] text-[var(--muted)]">{payload?.source ?? summary?.source ?? "—"}</div>
+          <div className="font-mono text-[12px] text-[var(--muted)]" data-testid="track-record-equity-source">
+            {presentSource(payload?.source ?? summary?.source)}
+          </div>
         </div>
         <Suspense fallback={<div className="loading text-[12px] text-white/50">載入曲線…</div>}>
           <EquityCurveChart curve={summary?.equity_curve || []} />
@@ -207,10 +217,12 @@ export default function TrackRecordHome() {
       <div className="card overflow-hidden p-0" data-testid="track-record-closed-card">
         <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-3 py-2">
           <div className="card-title">閉倉紀錄</div>
-          <div className="text-[12px] text-[var(--muted)]">{records.length} rows</div>
+          <div className="text-[12px] text-[var(--muted)]" data-testid="track-record-closed-count">
+            {records.length} 筆
+          </div>
         </div>
         {records.length === 0 && !loading ? (
-          <div className="p-3 text-[13px] text-[var(--muted)]">尚無可計算的 closed paper signal。</div>
+          <div className="p-3 text-[13px] text-[var(--muted)]">尚無可計算的已結紙上訊號。</div>
         ) : (
           <div className="overflow-x-auto">
             <table data-testid="track-record-closed-table" className="w-full min-w-[760px] text-left text-[12px]">

@@ -29,10 +29,14 @@ test.describe("Insights Track Record tab", () => {
     await expect(page.getByTestId("track-record-avg-return").locator(".metric-label")).toHaveText("平均報酬");
     await expect(page.getByTestId("track-record-max-dd").locator(".metric-label")).toHaveText("最大回撤");
     await expect(page.getByTestId("track-record-sharpe").locator(".metric-label")).toHaveText("Sharpe");
+    await expect(page.getByTestId("track-record-cumulative").locator(".metric-label")).toHaveText("累積");
+    await expect(page.getByTestId("track-record-wl")).toContainText("3 已結");
+    await expect(page.getByTestId("track-record-wl")).not.toContainText("closed");
     await expect(page.getByTestId("track-record-home")).not.toContainText("W / L");
     await expect(page.getByTestId("track-record-home")).not.toContainText("Hit Rate");
     await expect(page.getByTestId("track-record-home")).not.toContainText("Avg Return");
     await expect(page.getByTestId("track-record-home")).not.toContainText("Max DD");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("Total");
   });
 
   test("loads summary, closed rows, and tag slice", async ({ page }) => {
@@ -61,6 +65,27 @@ test.describe("Insights Track Record tab", () => {
     await page.getByTestId("track-record-tag-ai").click();
     await expect(page.getByTestId("track-record-closed-table").getByText("MSFT", { exact: true })).toBeVisible();
     await expect(page.getByTestId("track-record-closed-table").getByText("BTC", { exact: true })).toBeHidden();
+  });
+
+  test("equity subtitle is 全部已結 or tag 篩選, not English slice", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    const subtitle = page.getByTestId("track-record-equity-subtitle");
+    await expect(subtitle).toHaveText("全部已結");
+    await expect(subtitle).not.toContainText("all closed signals");
+    await expect(subtitle).not.toContainText("slice");
+    await page.getByTestId("track-record-tag-ai").click();
+    await expect(subtitle).toHaveText("AI 篩選");
+    await expect(subtitle).not.toContainText("slice");
+  });
+
+  test("closed card count is 筆, not rows", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    const count = page.getByTestId("track-record-closed-count");
+    await expect(count).toHaveText("3 筆");
+    await expect(count).not.toContainText("rows");
+    await expect(page.getByTestId("track-record-closed-card")).not.toContainText("rows");
   });
 
   test("equity curve renders as themed chart (VU2)", async ({ page }) => {
@@ -109,9 +134,20 @@ test.describe("Insights Track Record tab", () => {
 
     await page.goto("/insights?tab=track-record", { waitUntil: "load" });
     await expect(page.getByTestId("track-record-empty-guidance")).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId("track-record-empty-guidance")).toContainText("還缺 closed paper signals");
-    await expect(page.getByTestId("track-record-empty-guidance")).toContainText("實績需要");
-    await expect(page.getByTestId("track-record-empty-guidance")).not.toContainText("Track Record");
+    const guidance = page.getByTestId("track-record-empty-guidance");
+    await expect(guidance).toContainText("還缺已結紙上訊號");
+    await expect(guidance).toContainText("實績需要已關閉的紙上意圖");
+    await expect(guidance).toContainText("市價結算列");
+    await expect(guidance).toContainText("recommendation_outcomes");
+    await expect(guidance).toContainText("scripts/mark_recommendations.py");
+    await expect(guidance).not.toContainText("closed paper signals");
+    await expect(guidance).not.toContainText("mark-to-market");
+    await expect(guidance).not.toContainText("paper intent");
+    await expect(guidance).not.toContainText("Track Record");
+    await expect(page.getByTestId("track-record-closed-card")).toContainText("尚無可計算的已結紙上訊號。");
+    await expect(page.getByTestId("track-record-closed-card")).not.toContainText("closed paper signal");
+    await expect(page.getByTestId("track-record-wl")).toContainText("0 已結");
+    await expect(page.getByTestId("track-record-cumulative").locator(".metric-label")).toHaveText("累積");
   });
 
   test("loading copy is 載入實績…, not Track Record", async ({ page }) => {
@@ -342,5 +378,86 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     await expect(closedAts.nth(1)).toHaveText("UNKNOWN");
     await expect(closedAts.nth(2)).toHaveText("2026-05-13");
     await expect(table).not.toContainText("—");
+  });
+
+  test("equity source missing or blank is UNKNOWN, not em dash; real source stays", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-equity-source")).toHaveText("execution_intents.jsonl");
+
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 1,
+          wins: 1,
+          losses: 0,
+          hit_rate_pct: 100,
+          avg_return_pct: 1,
+          sharpe: 1,
+          max_drawdown_pct: -1,
+          cumulative_return_pct: 1,
+          equity_curve: [],
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 1 },
+          records: [{ signal_id: "e2e-src-missing", asset: "AAA", outcome: "win", direction: "LONG" }],
+          total: 1,
+          limit: 50,
+          offset: 0,
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    const missing = page.getByTestId("track-record-equity-source");
+    await expect(missing).toHaveText("UNKNOWN");
+    await expect(missing).not.toContainText("—");
+    await expect(page.getByTestId("track-record-equity-card")).not.toContainText("—");
+
+    await page.unroute("**/api/track-record/summary*");
+    await page.unroute("**/api/track-record/closed*");
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 1,
+          wins: 1,
+          losses: 0,
+          hit_rate_pct: 100,
+          avg_return_pct: 1,
+          sharpe: 1,
+          max_drawdown_pct: -1,
+          cumulative_return_pct: 1,
+          equity_curve: [],
+          source: "   ",
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 1, source: "\t" },
+          records: [{ signal_id: "e2e-src-blank", asset: "BBB", outcome: "win", direction: "LONG" }],
+          total: 1,
+          limit: 50,
+          offset: 0,
+          source: "  ",
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    const blank = page.getByTestId("track-record-equity-source");
+    await expect(blank).toHaveText("UNKNOWN");
+    await expect(blank).not.toContainText("—");
   });
 });
