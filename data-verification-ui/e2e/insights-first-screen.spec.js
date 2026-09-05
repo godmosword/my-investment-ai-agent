@@ -154,6 +154,66 @@ test.describe("Insights — first screen is 今日建議 (ITER-P4-44A)", () => {
     await expect(page.getByTestId("insights-data-health-summary")).not.toContainText("rows");
   });
 
+  test("data health status chips are zh, not English codes", async ({ page }) => {
+    const statusOf = (id) => page.getByTestId(`insights-health-${id}`).getByTestId("insights-health-status");
+
+    await page.route("**/api/data-health*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          items: [
+            { id: "reports", status: "ready", row_count: 1, source: "e2e" },
+            { id: "paper", status: "empty", row_count: 0, source: "e2e" },
+            { id: "track-record", status: "stale", row_count: 1, source: "e2e" },
+            { id: "scenario", status: "error", row_count: 1, source: "e2e" },
+            { id: "options", status: "loading" },
+          ],
+        }),
+      });
+    });
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("insights-intro-toggle").click();
+
+    await expect(statusOf("reports")).toHaveText("就緒");
+    await expect(statusOf("paper")).toHaveText("空");
+    await expect(statusOf("track-record")).toHaveText("過期");
+    await expect(statusOf("scenario")).toHaveText("錯誤");
+    await expect(statusOf("options")).toHaveText("載入中");
+
+    const health = page.getByTestId("insights-data-health-summary");
+    await expect(health).not.toContainText("ready");
+    await expect(health).not.toContainText("empty");
+    await expect(health).not.toContainText("stale");
+    await expect(health).not.toContainText("error");
+    await expect(health).not.toContainText("loading");
+
+    await page.route("**/api/data-health*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          enabled: true,
+          items: [
+            { id: "reports", status: "pending" },
+            { id: "paper", status: "mystery" },
+            { id: "track-record", status: "ready", row_count: 1, source: "e2e" },
+            { id: "scenario", status: "ready", row_count: 1, source: "e2e" },
+            { id: "options", status: "ready", row_count: 1, source: "e2e" },
+          ],
+        }),
+      });
+    });
+    await page.reload({ waitUntil: "load" });
+    await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("insights-intro-toggle").click();
+    await expect(statusOf("reports")).toHaveText("等待中");
+    await expect(statusOf("paper")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("insights-data-health-summary")).not.toContainText("pending");
+  });
+
   test("?tab=signals still opens QuantHome", async ({ page }) => {
     await page.goto("/insights?tab=signals", { waitUntil: "load" });
     await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });

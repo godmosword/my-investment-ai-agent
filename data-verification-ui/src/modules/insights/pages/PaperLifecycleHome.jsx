@@ -39,6 +39,11 @@ function presentCount(value) {
   return n;
 }
 
+function presentText(value) {
+  const s = String(value ?? "").trim();
+  return s || "UNKNOWN";
+}
+
 function presentWinsLosses(summary) {
   const winsMissing = summary?.wins == null || summary?.wins === "";
   const lossesMissing = summary?.losses == null || summary?.losses === "";
@@ -48,8 +53,8 @@ function presentWinsLosses(summary) {
   return `${wins} wins / ${losses} losses`;
 }
 
-function sampleLabel(summary) {
-  if (summary?.publishable) return "sample ready";
+function publishableLabel(summary) {
+  if (summary?.publishable) return "樣本就緒";
   const closed = presentCount(summary?.closed_count);
   const min = presentCount(summary?.min_publishable_sample);
   return `sample ${closed}/${min}`;
@@ -232,7 +237,14 @@ function IntentCreateForm() {
 function LifecycleTable({ rows }) {
   const visible = Array.isArray(rows) ? rows.slice(0, 30) : [];
   if (visible.length === 0) {
-    return <div className="rounded border border-white/10 p-3 text-[13px] text-[var(--muted)]">目前沒有紙上生命週期 rows。</div>;
+    return (
+      <div
+        className="rounded border border-white/10 p-3 text-[13px] text-[var(--muted)]"
+        data-testid="paper-lifecycle-table-empty"
+      >
+        目前沒有紙上生命週期列。
+      </div>
+    );
   }
   return (
     <div className="overflow-x-auto rounded border border-white/10" data-testid="paper-lifecycle-table">
@@ -254,7 +266,9 @@ function LifecycleTable({ rows }) {
               <td className="px-2 py-2">
                 <div className="font-mono text-white">{row.asset}</div>
                 <div className="font-mono text-[10px] text-[var(--muted)]">{row.signal_id}</div>
-                <div className="text-[11px] text-white/60">{row.direction} · {row.category || "—"}</div>
+                <div className="text-[11px] text-white/60">
+                  {row.direction} · <span data-testid="paper-row-category">{presentText(row.category)}</span>
+                </div>
               </td>
               <td className="px-2 py-2 text-white/75">{row.status}</td>
               <td className="px-2 py-2">
@@ -276,7 +290,9 @@ function LifecycleTable({ rows }) {
                   tgt {fmtPct(row.target_distance_pct)} / stop {fmtPct(row.stop_distance_pct)}
                 </div>
               </td>
-              <td className="px-2 py-2 text-white/65">{row.thesis_one_liner || "—"}</td>
+              <td className="px-2 py-2 text-white/65" data-testid="paper-row-thesis">
+                {presentText(row.thesis_one_liner)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -310,7 +326,7 @@ function TransparencyLetterCard({ letter }) {
           }`}
           data-testid="paper-letter-publishable"
         >
-          {sampleLabel(summary)}
+          {publishableLabel(summary)}
         </span>
       </div>
 
