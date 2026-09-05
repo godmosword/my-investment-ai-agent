@@ -53,8 +53,8 @@ function presentWinsLosses(summary) {
   return `${wins} wins / ${losses} losses`;
 }
 
-function sampleLabel(summary) {
-  if (summary?.publishable) return "sample ready";
+function publishableLabel(summary) {
+  if (summary?.publishable) return "樣本就緒";
   const closed = presentCount(summary?.closed_count);
   const min = presentCount(summary?.min_publishable_sample);
   return `sample ${closed}/${min}`;
@@ -319,7 +319,7 @@ function TransparencyLetterCard({ letter }) {
           }`}
           data-testid="paper-letter-publishable"
         >
-          {sampleLabel(summary)}
+          {publishableLabel(summary)}
         </span>
       </div>
 
