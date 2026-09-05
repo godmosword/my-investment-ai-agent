@@ -35,6 +35,19 @@ const HEALTH_ITEMS = [
   { id: "options", label: "選擇權" },
 ];
 
+const HEALTH_STATUS_LABEL = {
+  ready: "就緒",
+  empty: "空",
+  stale: "過期",
+  error: "錯誤",
+  loading: "載入中",
+  pending: "等待中",
+};
+
+function healthStatusLabel(status) {
+  return HEALTH_STATUS_LABEL[status] ?? "UNKNOWN";
+}
+
 function statusClass(status) {
   if (status === "ready") return "border-emerald-300/30 bg-emerald-400/[0.08] text-emerald-100";
   if (status === "empty") return "border-cyan-300/25 bg-cyan-400/[0.06] text-cyan-100";
@@ -70,7 +83,9 @@ function DataHealthSummary() {
               <span className="font-semibold" data-testid="insights-health-label">
                 {cfg.label}
               </span>
-              <span className="font-mono text-[10px] uppercase opacity-80">{status}</span>
+              <span className="font-mono text-[10px] uppercase opacity-80" data-testid="insights-health-status">
+                {healthStatusLabel(status)}
+              </span>
             </div>
             <div
               className="mt-1 truncate font-mono text-[11px] opacity-70"
