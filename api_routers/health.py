@@ -23,8 +23,8 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/healthz")
-def healthz() -> dict[str, str]:
-    return {"status": "ok"}
+def healthz() -> dict[str, Any]:
+    return {"ok": True, "service": "api"}
 
 
 def _configured(value: str | None) -> bool:

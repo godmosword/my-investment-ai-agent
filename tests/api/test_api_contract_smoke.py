@@ -9,7 +9,8 @@ def test_health_ok(client):
     r = client.get("/healthz")
     assert r.status_code == 200
     body = r.json()
-    assert "status" in body
+    assert body.get("ok") is True
+    assert body.get("service") == "api"
 
 
 def test_metrics_latest_shape(client, monkeypatch):

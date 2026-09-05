@@ -4,6 +4,37 @@ This checklist is for repo-side Portal readiness. It does not close cloud-only
 ops items until a staging operator has run the matching environment checks and
 recorded the date in `TODOS.md` / `CHANGELOG.md`.
 
+## 2026-09-05 正式上線
+
+Repo-side of criterion 2 only. This document does not deploy Cloud Run.
+
+**Three criteria (all required):**
+
+1. Production PWA is `pwa-deploy.yml` **prebuilt** (Human signs GitHub environment `production`).
+2. API **Service** answers cheap liveness with HTTP **200** (`GET /healthz` → `{"ok": true, "service": "api"}`; no `QSILICON_MASTER_KEY`).
+3. Phone `/insights` shows today's recommendation plus paper reconcile (data or an honest error, not a dead page).
+
+**Job ≠ Service.** [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) deploys the Cloud Run **Job** (daily brief). This repo has **no** GitHub workflow that deploys the HTTP API **Service**. The Service is a manual / legacy deploy.
+
+**2026-09-05 production fact** (this PR does not heal it):
+
+| Surface | Result |
+|---------|--------|
+| PWA `https://my-investment-ai-agent.vercel.app/insights` | HTTP **200** (static shell) |
+| Service `https://my-investment-ai-agent-api-yp2y6wuioa-de.a.run.app` `/docs`, `/openapi.json`, `/api/reports`, `/api/track-record/summary`, `/api/paper/lifecycle` | **503** (Google HTML) |
+| Same origin `GET /healthz` | **404** |
+
+Human: Cloud Console → Cloud Run → **my-investment-ai-agent-api** (`asia-east1`) → current revision + logs. After a healthy revision that includes this `/healthz`, criterion 2 can be re-probed at the Service URL. Landing this PR does **not** make the live 503 Service recover.
+
+**smoke:prod** (probe after Human redeploy, or to record current failure):
+
+```bash
+cd data-verification-ui
+BASE_URL=https://my-investment-ai-agent.vercel.app \
+API_BASE=https://my-investment-ai-agent-api-yp2y6wuioa-de.a.run.app \
+npm run smoke:prod
+```
+
 ## API Smoke
 
 Run against local API or staging API:
