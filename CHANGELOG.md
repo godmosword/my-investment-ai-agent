@@ -5,6 +5,13 @@
 
 ## 2026-09-05
 
+### PWA（ITER-TR-LOOP-001 — 今日建議對上紙上狀態）
+
+- [`/insights` 首屏](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 今日建議 honesty 下方新增緊湊「紙上對帳」條：標的只取日報已解析欄（`recommendations[].asset`／`tickers`／`focus_symbols`／`assets`），不從正文刮 ticker、不用工作區關注代號。
+- 紙上狀態只讀既有 `usePaperLifecycle`／`useExecutionIntents`／`useTrackRecordClosed`：無列→`無紙上記錄`；未結→`紙上未結`；已結且 API 報酬為有限數→`紙上已結`＋該數字（`0` 仍顯示 `0`）；缺欄／非有限報酬→`UNKNOWN`。禁止 em-dash 與假 `$0`。
+- 同頁連結「實績」→`/insights?tab=track-record`、「生命週期」→`/insights?tab=paper`。空／載入／錯誤／缺欄分 `data-testid`。
+- E2E：[`insights-first-screen.spec.js`](data-verification-ui/e2e/insights-first-screen.spec.js)。**未改** KPI／Sharpe／命中率、summary 語意、`validate_report`／Telegram／`crew.py`、production。
+
 ### PWA/API（ITER-TR-AUDIT-001 — 紙上實績可審計摘要）
 
 - **[`GET /api/track-record/summary`](api_routers/track_record.py)／closed／by-tag**：`summarize_records` KPI 形狀與語意不變。[`track_record.build_track_record_payload`](track_record.py) **additive** 併入 `as_of`／`period_start`／`period_end`（納入列 `closed_at` 最小／最大）、`sample_size`、`inclusion_rules`（**依 source**：jsonl＝已結＋出場價；BigQuery＝`return_pct` 可算，允許 `mark_price`／未結市價結算列）、`prior_alignment`（正規化時保留 `prior_recommendation_id` 等連結欄才回證據物件，**不捏合對齊率**；否則 `null`）。BQ DDL 目前無這些連結欄，故不 SELECT 不存在的欄。

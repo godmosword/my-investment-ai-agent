@@ -3,6 +3,7 @@ import TerminalSseStatusBar from "../../../components/TerminalSseStatusBar";
 import SymbolFocusBar from "../../../components/SymbolFocusBar";
 import { useSymbolFocus } from "../../../context/SymbolFocusContext";
 import DailyBriefHonesty from "./DailyBriefHonesty";
+import PaperReconcileStrip from "./PaperReconcileStrip";
 
 const TerminalSymbolCard = lazy(() => import("../../../components/TerminalSymbolCard"));
 const ExecutionIntentsBlotter = lazy(() => import("../../../components/ExecutionIntentsBlotter"));
@@ -315,6 +316,7 @@ export default function DailyBriefPage({ children = null }) {
   return (
     <>
       <DailyBriefHonesty />
+      <PaperReconcileStrip />
       {children}
       <div
         data-testid="daily-brief-workspace-note"
