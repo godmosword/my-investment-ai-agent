@@ -28,7 +28,8 @@ test.describe("Insights Track Record tab", () => {
     await expect(page.getByTestId("track-record-hit-rate").locator(".metric-label")).toHaveText("命中率");
     await expect(page.getByTestId("track-record-avg-return").locator(".metric-label")).toHaveText("平均報酬");
     await expect(page.getByTestId("track-record-max-dd").locator(".metric-label")).toHaveText("最大回撤");
-    await expect(page.getByTestId("track-record-sharpe").locator(".metric-label")).toHaveText("Sharpe");
+    await expect(page.getByTestId("track-record-sharpe").locator(".metric-label")).toContainText("Sharpe");
+    await expect(page.getByTestId("track-record-sharpe").locator(".metric-label")).toContainText("夏普");
     await expect(page.getByTestId("track-record-cumulative").locator(".metric-label")).toHaveText("累積");
     await expect(page.getByTestId("track-record-wl")).toContainText("3 已結");
     await expect(page.getByTestId("track-record-wl")).not.toContainText("closed");
@@ -459,5 +460,244 @@ test.describe("Insights Track Record honesty (ITER-V2-010)", () => {
     const blank = page.getByTestId("track-record-equity-source");
     await expect(blank).toHaveText("UNKNOWN");
     await expect(blank).not.toContainText("—");
+  });
+});
+
+test.describe("Insights Track Record audit (ITER-TR-AUDIT-001)", () => {
+  test("有資料：期間／截至／樣本／來源可見，納入規則不假裝 quality", async ({ page }) => {
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-audit-period")).toContainText("2026-05-11");
+    await expect(page.getByTestId("track-record-audit-period")).toContainText("2026-05-13");
+    await expect(page.getByTestId("track-record-audit-as-of")).toContainText("2026-05-13");
+    await expect(page.getByTestId("track-record-audit-sample")).toHaveText("樣本 3");
+    await expect(page.getByTestId("track-record-audit-source")).toContainText("execution_intents.jsonl");
+    await expect(page.getByTestId("track-record-equity-audit-period")).toContainText("2026-05-11");
+    await expect(page.getByTestId("track-record-equity-audit-as-of")).toContainText("2026-05-13");
+    await expect(page.getByTestId("track-record-equity-audit-sample")).toHaveText("樣本 3");
+    await expect(page.getByTestId("track-record-equity-audit-source")).toContainText("execution_intents.jsonl");
+
+    const panel = page.getByTestId("track-record-inclusion-panel");
+    await expect(panel).toBeVisible();
+    await expect(page.getByTestId("track-record-inclusion-summary")).toHaveText("內部透明度／納入規則");
+    await expect(page.getByTestId("track-record-quality-note")).toHaveText("本頁未套用 quality 權重");
+    await expect(page.getByTestId("track-record-prior-alignment")).toHaveText("上期建議追蹤 UNKNOWN");
+    await expect(panel).not.toContainText("quality-adjusted");
+    await expect(panel).not.toContainText("已套用 quality");
+
+    const table = page.getByTestId("track-record-closed-table");
+    await expect(table.getByRole("columnheader", { name: "訊號" })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "進場" })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "出場" })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "報酬" })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "結案" })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "來源" })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "操作" })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "標籤" })).toBeVisible();
+    await expect(page.getByTestId("track-record-action-deep-dive").first()).toHaveText("深入");
+    await expect(page.getByTestId("track-record-action-monitor").first()).toHaveText("監控");
+    await expect(table).not.toContainText("Signal");
+    await expect(table).not.toContainText("Entry");
+    await expect(table).not.toContainText("Deep dive");
+  });
+
+  test("無資料：樣本 0 仍顯示 0，期間／截至 UNKNOWN，納入規則仍可見", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 0,
+          wins: 0,
+          losses: 0,
+          flats: 0,
+          hit_rate_pct: 0,
+          avg_return_pct: 0,
+          sharpe: 0,
+          max_drawdown_pct: 0,
+          cumulative_return_pct: 0,
+          equity_curve: [],
+          as_of: null,
+          period_start: null,
+          period_end: null,
+          sample_size: 0,
+          inclusion_rules: {
+            universe: "paper_tracked_closed_only",
+            quality_weighted: false,
+            quality_filter_applied: false,
+            notes: ["本頁未套用 quality 權重。"],
+          },
+          prior_alignment: null,
+          source: "execution_intents.jsonl",
+          source_row_count: 0,
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 0, equity_curve: [], sample_size: 0, prior_alignment: null },
+          records: [],
+          total: 0,
+          limit: 50,
+          offset: 0,
+          source: "execution_intents.jsonl",
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-empty-guidance")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-audit-period")).toHaveText("期間 UNKNOWN");
+    await expect(page.getByTestId("track-record-audit-as-of")).toHaveText("截至 UNKNOWN");
+    await expect(page.getByTestId("track-record-audit-sample")).toHaveText("樣本 0");
+    await expect(page.getByTestId("track-record-audit-source")).toContainText("execution_intents.jsonl");
+    await expect(page.getByTestId("track-record-wl")).toContainText("0 已結");
+    await expect(page.getByTestId("track-record-hit-rate")).toContainText("0.0%");
+    await expect(page.getByTestId("track-record-inclusion-panel")).toBeVisible();
+    await expect(page.getByTestId("track-record-quality-note")).toHaveText("本頁未套用 quality 權重");
+    await expect(page.getByTestId("track-record-prior-alignment")).toHaveText("上期建議追蹤 UNKNOWN");
+  });
+
+  test("部分缺欄：期間／截至／來源／上期追蹤 UNKNOWN，真實 0 不改成 UNKNOWN", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 2,
+          wins: 0,
+          losses: 0,
+          flats: 2,
+          hit_rate_pct: 0,
+          avg_return_pct: 0,
+          sharpe: 0,
+          max_drawdown_pct: 0,
+          cumulative_return_pct: 0,
+          equity_curve: [],
+        }),
+      });
+    });
+    await page.route("**/api/track-record/closed*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          summary: { total_closed: 2 },
+          records: [
+            { signal_id: "e2e-partial-1", asset: "AAA", outcome: "flat", direction: "LONG", return_pct: 0 },
+          ],
+          total: 2,
+          limit: 50,
+          offset: 0,
+        }),
+      });
+    });
+
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-audit-period")).toHaveText("期間 UNKNOWN");
+    await expect(page.getByTestId("track-record-audit-as-of")).toHaveText("截至 UNKNOWN");
+    await expect(page.getByTestId("track-record-audit-sample")).toHaveText("樣本 2");
+    await expect(page.getByTestId("track-record-audit-source")).toHaveText("來源 UNKNOWN");
+    await expect(page.getByTestId("track-record-equity-audit-period")).toHaveText("期間 UNKNOWN");
+    await expect(page.getByTestId("track-record-equity-source")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("track-record-hit-rate")).toContainText("0.0%");
+    await expect(page.getByTestId("track-record-sharpe")).toContainText("0.00");
+    await expect(page.getByTestId("track-record-hit-rate")).not.toContainText("UNKNOWN");
+    await expect(page.getByTestId("track-record-sharpe")).not.toContainText("UNKNOWN");
+    await expect(page.getByTestId("track-record-quality-note")).toHaveText("本頁未套用 quality 權重");
+    await expect(page.getByTestId("track-record-prior-alignment")).toHaveText("上期建議追蹤 UNKNOWN");
+    await expect(page.getByTestId("track-record-inclusion-panel")).not.toContainText("已套用 quality");
+  });
+
+  test("上期追蹤只在後端有證據時顯示，不由前端捏合", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 1,
+          wins: 1,
+          losses: 0,
+          flats: 0,
+          hit_rate_pct: 100,
+          avg_return_pct: 12,
+          sharpe: 1,
+          max_drawdown_pct: 0,
+          cumulative_return_pct: 12,
+          equity_curve: [],
+          as_of: "2026-05-14T00:00:00Z",
+          period_start: "2026-05-14T00:00:00Z",
+          period_end: "2026-05-14T00:00:00Z",
+          sample_size: 1,
+          source: "bigquery",
+          prior_alignment: {
+            available: true,
+            evidence_field: "prior_recommendation_id",
+            linked_count: 1,
+            sample_size: 1,
+          },
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-prior-alignment")).toContainText("證據欄 prior_recommendation_id");
+    await expect(page.getByTestId("track-record-prior-alignment")).toContainText("帶上期連結 1");
+    await expect(page.getByTestId("track-record-prior-alignment")).not.toContainText("UNKNOWN");
+    await expect(page.getByTestId("track-record-home")).not.toContainText("對齊率");
+  });
+
+  test("BigQuery 納入規則不假裝只收已結出場價", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 1,
+          wins: 1,
+          losses: 0,
+          flats: 0,
+          hit_rate_pct: 100,
+          avg_return_pct: 12,
+          sharpe: 1,
+          max_drawdown_pct: 0,
+          cumulative_return_pct: 12,
+          equity_curve: [],
+          as_of: "2026-05-14T00:00:00Z",
+          period_start: "2026-05-14T00:00:00Z",
+          period_end: "2026-05-14T00:00:00Z",
+          sample_size: 1,
+          source: "bigquery",
+          inclusion_rules: {
+            source: "bigquery",
+            universe: "recommendation_outcomes_with_return",
+            included_statuses: [],
+            accepts_mark_price: true,
+            quality_weighted: false,
+            quality_filter_applied: false,
+            notes: [
+              "來源 BigQuery recommendation_outcomes：WHERE return_pct IS NOT NULL。",
+              "不限 PAPER_CLOSED／CLOSED／EXITED；出場可用 exit_price 或 mark_price，故可能含市價結算列（含未結 APPROVED_FOR_PAPER 快照）。",
+            ],
+          },
+          prior_alignment: null,
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-inclusion-universe")).toContainText(
+      "recommendation_outcomes_with_return",
+    );
+    const panel = page.getByTestId("track-record-inclusion-panel");
+    await expect(panel).toContainText("mark_price");
+    await expect(panel).toContainText("APPROVED_FOR_PAPER");
+    await expect(page.getByTestId("track-record-inclusion-excluded")).toHaveCount(0);
+    await expect(page.getByTestId("track-record-quality-note")).toHaveText("本頁未套用 quality 權重");
+    await expect(page.getByTestId("track-record-prior-alignment")).toHaveText("上期建議追蹤 UNKNOWN");
   });
 });

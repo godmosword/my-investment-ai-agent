@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-09-05
+
+### PWA/API（ITER-TR-AUDIT-001 — 紙上實績可審計摘要）
+
+- **[`GET /api/track-record/summary`](api_routers/track_record.py)／closed／by-tag**：`summarize_records` KPI 形狀與語意不變。[`track_record.build_track_record_payload`](track_record.py) **additive** 併入 `as_of`／`period_start`／`period_end`（納入列 `closed_at` 最小／最大）、`sample_size`、`inclusion_rules`（**依 source**：jsonl＝已結＋出場價；BigQuery＝`return_pct` 可算，允許 `mark_price`／未結市價結算列）、`prior_alignment`（正規化時保留 `prior_recommendation_id` 等連結欄才回證據物件，**不捏合對齊率**；否則 `null`）。BQ DDL 目前無這些連結欄，故不 SELECT 不存在的欄。
+- **[`TrackRecordHome.jsx`](data-verification-ui/src/modules/insights/pages/TrackRecordHome.jsx)**：KPI 與累積曲線旁顯示期間／截至／樣本／來源（缺→`UNKNOWN`；真實 `0` 仍顯示 `0`）。摺疊「內部透明度／納入規則」；payload 無 quality 時寫明「本頁未套用 quality 權重」。上期建議追蹤有後端證據才顯示，否則 `UNKNOWN`。閉倉表殘英欄名改繁中；Sharpe 保留並加可見「夏普」。
+- E2E：[`insights-track-record.spec.js`](data-verification-ui/e2e/insights-track-record.spec.js) 三態（有資料／無資料／部分缺欄）+ 上期證據；mock [`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 同步審計欄。Python：[`tests/api/test_track_record_router.py`](tests/api/test_track_record_router.py)。
+- **刻意未動**：KPI／曲線公式、quality-adjusted 本體、scenario、隊列 27／18–21、日報 HTML／Gate、`validate_report`／Telegram／`crew.py`、production。
+
 ## 2026-08-30
 
 ### PWA（隊列 44 · ITER-P4-44A — /insights 首屏為今日建議）

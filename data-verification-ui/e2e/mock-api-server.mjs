@@ -440,6 +440,31 @@ const trackRecordRecords = [
   },
 ];
 
+function trackRecordAudit(records = trackRecordRecords) {
+  const dated = records.map((row) => String(row.closed_at || "").trim()).filter(Boolean).sort();
+  const asOf = dated.length ? dated[dated.length - 1] : null;
+  return {
+    as_of: asOf,
+    period_start: dated.length ? dated[0] : null,
+    period_end: asOf,
+    sample_size: records.length,
+    inclusion_rules: {
+      source: "execution_intents.jsonl",
+      universe: "paper_tracked_closed_only",
+      included_statuses: ["PAPER_CLOSED", "CLOSED", "EXITED"],
+      required_fields: ["signal_id", "asset", "direction", "entry_price", "exit_price", "return_pct"],
+      accepts_mark_price: false,
+      quality_weighted: false,
+      quality_filter_applied: false,
+      notes: [
+        "來源 execution_intents.jsonl：僅 PAPER_CLOSED／CLOSED／EXITED，且須有進場／出場價與可計算報酬。",
+        "本頁未套用 quality 權重。",
+      ],
+    },
+    prior_alignment: null,
+  };
+}
+
 function trackRecordSummary(records = trackRecordRecords) {
   const total = records.length;
   const wins = records.filter((row) => row.return_pct > 0).length;
@@ -464,6 +489,7 @@ function trackRecordSummary(records = trackRecordRecords) {
     max_drawdown_pct: -5,
     cumulative_return_pct: (equity - 1) * 100,
     equity_curve,
+    ...trackRecordAudit(records),
   };
 }
 

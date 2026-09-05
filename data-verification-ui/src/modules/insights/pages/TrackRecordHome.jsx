@@ -55,6 +55,148 @@ function presentSource(value) {
   return s || "UNKNOWN";
 }
 
+function presentDateStamp(value) {
+  const s = String(value ?? "").trim();
+  if (!s) return "UNKNOWN";
+  const prefix = s.slice(0, 10).trim();
+  return prefix || "UNKNOWN";
+}
+
+function presentPeriod(start, end) {
+  const a = presentDateStamp(start);
+  const b = presentDateStamp(end);
+  if (a === "UNKNOWN" && b === "UNKNOWN") return "UNKNOWN";
+  if (a === "UNKNOWN") return b;
+  if (b === "UNKNOWN") return a;
+  return a === b ? a : `${a} – ${b}`;
+}
+
+function presentSampleSize(summary) {
+  if (!summary || typeof summary !== "object") return "UNKNOWN";
+  for (const key of ["sample_size", "total_closed", "source_row_count"]) {
+    if (summary[key] == null || summary[key] === "") continue;
+    const n = Number(summary[key]);
+    if (Number.isFinite(n)) return n;
+  }
+  return "UNKNOWN";
+}
+
+function payloadAppliesQuality(summary) {
+  if (!summary || typeof summary !== "object") return false;
+  if (summary.quality != null && summary.quality !== "") return true;
+  if (summary.quality_adjusted != null && summary.quality_adjusted !== "") return true;
+  if (summary.avg_quality_score != null && summary.avg_quality_score !== "") return true;
+  const rules = summary.inclusion_rules;
+  if (rules && typeof rules === "object") {
+    if (rules.quality_weighted === true || rules.quality_filter_applied === true) return true;
+  }
+  return false;
+}
+
+function presentPriorAlignment(value) {
+  if (value == null || value === "") return "UNKNOWN";
+  if (typeof value !== "object") return "UNKNOWN";
+  if (value.available === false) return "UNKNOWN";
+  const parts = [];
+  if (value.evidence_field) parts.push(`證據欄 ${value.evidence_field}`);
+  if (value.linked_count != null && Number.isFinite(Number(value.linked_count))) {
+    parts.push(`帶上期連結 ${Number(value.linked_count)}`);
+  }
+  if (value.aligned_count != null && Number.isFinite(Number(value.aligned_count))) {
+    parts.push(`標記對齊 ${Number(value.aligned_count)}`);
+  }
+  if (value.sample_size != null && Number.isFinite(Number(value.sample_size))) {
+    parts.push(`樣本 ${Number(value.sample_size)}`);
+  }
+  if (value.match_rate_pct != null && Number.isFinite(Number(value.match_rate_pct))) {
+    parts.push(`對齊率 ${Number(value.match_rate_pct)}%`);
+  }
+  return parts.length ? parts.join(" · ") : "UNKNOWN";
+}
+
+function AuditMeta({ summary, source, testIdPrefix }) {
+  return (
+    <div
+      className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px] text-[var(--muted)]"
+      data-testid={`${testIdPrefix}-audit-meta`}
+    >
+      <span data-testid={`${testIdPrefix}-audit-period`}>期間 {presentPeriod(summary?.period_start, summary?.period_end)}</span>
+      <span data-testid={`${testIdPrefix}-audit-as-of`}>截至 {presentDateStamp(summary?.as_of)}</span>
+      <span data-testid={`${testIdPrefix}-audit-sample`}>樣本 {presentSampleSize(summary)}</span>
+      <span data-testid={`${testIdPrefix}-audit-source`}>來源 {presentSource(source)}</span>
+    </div>
+  );
+}
+
+function InclusionPanel({ summary }) {
+  const rules = summary?.inclusion_rules && typeof summary.inclusion_rules === "object" ? summary.inclusion_rules : null;
+  const notes = Array.isArray(rules?.notes) ? rules.notes.filter((row) => String(row || "").trim()) : [];
+  const statuses = Array.isArray(rules?.included_statuses) ? rules.included_statuses : [];
+  const required = Array.isArray(rules?.required_fields) ? rules.required_fields : [];
+  const qualityNote = payloadAppliesQuality(summary) ? null : "本頁未套用 quality 權重";
+
+  return (
+    <details
+      className="card mb-3 p-3 text-[13px] leading-relaxed text-white/78"
+      data-testid="track-record-inclusion-panel"
+      open
+    >
+      <summary
+        className="cursor-pointer font-semibold text-cyan-100"
+        data-testid="track-record-inclusion-summary"
+      >
+        內部透明度／納入規則
+      </summary>
+      <div className="mt-2 space-y-2 text-white/70">
+        {rules?.universe ? (
+          <div data-testid="track-record-inclusion-universe">
+            宇宙 <code className="font-mono text-cyan-200">{rules.universe}</code>
+          </div>
+        ) : (
+          <div data-testid="track-record-inclusion-universe">宇宙 paper-tracked 已結紙上結果</div>
+        )}
+        {statuses.length ? (
+          <div data-testid="track-record-inclusion-included">
+            納入{" "}
+            {statuses.map((row) => (
+              <code key={row} className="mr-1 font-mono text-cyan-200">
+                {row}
+              </code>
+            ))}
+          </div>
+        ) : rules ? null : (
+          <div data-testid="track-record-inclusion-included">
+            納入 已結紙上意圖（PAPER_CLOSED／CLOSED／EXITED），且具備訊號、標的、方向、進場／出場價與可計算報酬。
+          </div>
+        )}
+        {rules ? null : (
+          <div data-testid="track-record-inclusion-excluded">
+            排除 未結、被拒、被取代、待審，或缺價／缺報酬列。
+          </div>
+        )}
+        {required.length ? (
+          <div data-testid="track-record-inclusion-required">
+            必要欄位 {required.join("、")}
+          </div>
+        ) : null}
+        {notes
+          .filter((note) => !String(note).includes("本頁未套用 quality 權重"))
+          .map((note) => (
+            <div key={note}>{note}</div>
+          ))}
+        {qualityNote ? (
+          <div className="text-amber-100/90" data-testid="track-record-quality-note">
+            {qualityNote}
+          </div>
+        ) : null}
+        <div data-testid="track-record-prior-alignment">
+          上期建議追蹤 {presentPriorAlignment(summary?.prior_alignment)}
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function tone(value) {
   const n = Number(value);
   if (n > 0) return "text-green-400";
@@ -178,7 +320,17 @@ export default function TrackRecordHome() {
           valueClass={tone(summary?.avg_return_pct)}
           testId="track-record-avg-return"
         />
-        <Kpi label="Sharpe" value={fmtNum(summary?.sharpe, 2)} valueClass="text-cyan-200" testId="track-record-sharpe" />
+        <Kpi
+          label={
+            <span title="夏普比率" aria-label="夏普比率">
+              Sharpe
+              <span className="ml-1 text-[10px] font-normal normal-case text-[var(--muted)]">夏普</span>
+            </span>
+          }
+          value={fmtNum(summary?.sharpe, 2)}
+          valueClass="text-cyan-200"
+          testId="track-record-sharpe"
+        />
         <Kpi
           label="最大回撤"
           value={fmtPct(summary?.max_drawdown_pct, 1)}
@@ -195,6 +347,18 @@ export default function TrackRecordHome() {
       ) : null}
 
       {summaryPresent ? (
+        <div className="mb-3">
+          <AuditMeta
+            summary={summary}
+            source={payload?.source ?? summary?.source}
+            testIdPrefix="track-record"
+          />
+        </div>
+      ) : null}
+
+      {summaryPresent ? <InclusionPanel summary={summary} /> : null}
+
+      {summaryPresent ? (
       <div className="card mb-3 p-3" data-testid="track-record-equity-card">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
@@ -206,6 +370,13 @@ export default function TrackRecordHome() {
           <div className="font-mono text-[12px] text-[var(--muted)]" data-testid="track-record-equity-source">
             {presentSource(payload?.source ?? summary?.source)}
           </div>
+        </div>
+        <div className="mb-2">
+          <AuditMeta
+            summary={summary}
+            source={payload?.source ?? summary?.source}
+            testIdPrefix="track-record-equity"
+          />
         </div>
         <Suspense fallback={<div className="loading text-[12px] text-white/50">載入曲線…</div>}>
           <EquityCurveChart curve={summary?.equity_curve || []} />
@@ -228,14 +399,14 @@ export default function TrackRecordHome() {
             <table data-testid="track-record-closed-table" className="w-full min-w-[760px] text-left text-[12px]">
               <thead className="bg-white/[0.03] text-[10px] uppercase text-[var(--muted)]">
                 <tr>
-                  <th className="px-3 py-2">Signal</th>
-                  <th className="px-3 py-2">Tag</th>
-                  <th className="px-3 py-2">Entry</th>
-                  <th className="px-3 py-2">Exit</th>
-                  <th className="px-3 py-2">Return</th>
-                  <th className="px-3 py-2">Closed</th>
-                  <th className="px-3 py-2">Source</th>
-                  <th className="px-3 py-2">Actions</th>
+                  <th className="px-3 py-2">訊號</th>
+                  <th className="px-3 py-2">標籤</th>
+                  <th className="px-3 py-2">進場</th>
+                  <th className="px-3 py-2">出場</th>
+                  <th className="px-3 py-2">報酬</th>
+                  <th className="px-3 py-2">結案</th>
+                  <th className="px-3 py-2">來源</th>
+                  <th className="px-3 py-2">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -280,7 +451,7 @@ export default function TrackRecordHome() {
                             data-testid="track-record-action-deep-dive"
                             className="inline-flex min-h-[36px] items-center rounded border border-emerald-500/30 px-2 py-1 text-[11px] text-emerald-100/90 hover:bg-emerald-950/20"
                           >
-                            Deep dive
+                            深入
                           </Link>
                         ) : null}
                         {String(row.asset ?? "").trim() ? (
@@ -289,7 +460,7 @@ export default function TrackRecordHome() {
                             data-testid="track-record-action-monitor"
                             className="inline-flex min-h-[36px] items-center rounded border border-white/15 px-2 py-1 text-[11px] text-white/75 hover:bg-white/5"
                           >
-                            Monitor
+                            監控
                           </Link>
                         ) : null}
                       </div>
