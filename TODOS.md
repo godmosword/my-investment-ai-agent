@@ -4,7 +4,7 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
-**同步狀態（2026-09-05 — ITER-TR-LOOP-001）**：`/insights` 首屏今日建議下「紙上對帳」— 只對已解析標的標無紙上／未結／已結＋API 報酬／UNKNOWN；未上 production。見 CHANGELOG **2026-09-05**。
+**同步狀態（2026-09-05 — ITER-TR-LOOP-001）**：`/insights` 首屏今日建議下「紙上對帳」— 只對已解析標的標無紙上／未結／已結＋API 報酬／UNKNOWN；未結只看生命週期／意圖（實績 closed 舊市價快照不誤判）。未上 production。見 CHANGELOG **2026-09-05**。
 
 **同步狀態（2026-09-05 — ITER-TR-AUDIT-001）**：`/insights` 實績頁紙上可審計摘要 — 期間／截至／樣本／來源、內部透明度／納入規則依 source（jsonl 已結 vs BQ 可含市價結算）、無 quality 不假裝過濾、上期追蹤有連結欄才顯示否則 UNKNOWN。既有 KPI 語意不變；未上 production。見 CHANGELOG **2026-09-05**。
 

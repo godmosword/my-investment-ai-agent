@@ -80,14 +80,18 @@ export function reconcileSymbol(symbol, { lifecycleRows, intentRows, closedRecor
   const life = rowsMatching(lifecycleRows, symbol);
   const intents = rowsMatching(intentRows, symbol);
   const closed = rowsMatching(closedRecords, symbol);
-  const all = [...life, ...intents, ...closed];
+  const live = [...life, ...intents];
+  const all = [...live, ...closed];
 
   if (all.length === 0) {
     return { kind: "none", label: "無紙上記錄" };
   }
 
-  const openRows = all.filter((row) => PAPER_OPEN_STATUSES.has(statusOf(row) || ""));
-  if (openRows.length) {
+  // Open only from lifecycle + intents. Track-record closed can still carry
+  // older APPROVED_FOR_PAPER mark-to-market snapshots for the same signal.
+  const liveClosed = live.filter((row) => PAPER_CLOSED_STATUSES.has(statusOf(row) || ""));
+  const liveOpen = live.filter((row) => PAPER_OPEN_STATUSES.has(statusOf(row) || ""));
+  if (liveOpen.length && !liveClosed.length) {
     return { kind: "open", label: "紙上未結" };
   }
 

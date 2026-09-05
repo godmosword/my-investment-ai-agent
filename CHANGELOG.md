@@ -8,7 +8,7 @@
 ### PWA（ITER-TR-LOOP-001 — 今日建議對上紙上狀態）
 
 - [`/insights` 首屏](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 今日建議 honesty 下方新增緊湊「紙上對帳」條：標的只取日報已解析欄（`recommendations[].asset`／`tickers`／`focus_symbols`／`assets`），不從正文刮 ticker、不用工作區關注代號。
-- 紙上狀態只讀既有 `usePaperLifecycle`／`useExecutionIntents`／`useTrackRecordClosed`：無列→`無紙上記錄`；未結→`紙上未結`；已結且 API 報酬為有限數→`紙上已結`＋該數字（`0` 仍顯示 `0`）；缺欄／非有限報酬→`UNKNOWN`。禁止 em-dash 與假 `$0`。
+- 紙上狀態只讀既有 `usePaperLifecycle`／`useExecutionIntents`／`useTrackRecordClosed`：無列→`無紙上記錄`；未結→`紙上未結`；已結且 API 報酬為有限數→`紙上已結`＋該數字（`0` 仍顯示 `0`）；缺欄／非有限報酬→`UNKNOWN`。禁止 em-dash 與假 `$0`。**未結只看生命週期／意圖列**（實績 closed 裡舊的 `APPROVED_FOR_PAPER` 市價快照不誤判未結）；生命週期／意圖同時有已結列時以已結為準。
 - 同頁連結「實績」→`/insights?tab=track-record`、「生命週期」→`/insights?tab=paper`。空／載入／錯誤／缺欄分 `data-testid`。
 - E2E：[`insights-first-screen.spec.js`](data-verification-ui/e2e/insights-first-screen.spec.js)。**未改** KPI／Sharpe／命中率、summary 語意、`validate_report`／Telegram／`crew.py`、production。
 

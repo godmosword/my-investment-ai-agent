@@ -389,6 +389,58 @@ test.describe("Insights — 紙上對帳 on first screen (ITER-TR-LOOP-001)", ()
     await expect(page.getByTestId("paper-reconcile-strip")).not.toContainText("$0");
   });
 
+  test("stale APPROVED_FOR_PAPER on track-record closed does not override PAPER_CLOSED", async ({
+    page,
+  }) => {
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["NVDA"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(
+        route,
+        lifecyclePayload([
+          { asset: "NVDA", status: "PAPER_CLOSED", return_pct: 8, signal_id: "e2e-nvda-closed" },
+        ]),
+      );
+    });
+    await page.route((url) => isTrackRecordClosedPath(url.pathname), async (route) => {
+      await fulfillJson(
+        route,
+        closedPayload([
+          {
+            asset: "NVDA",
+            status: "APPROVED_FOR_PAPER",
+            return_pct: 12,
+            signal_id: "e2e-nvda-closed",
+            closed_at: "2026-05-11T00:00:00Z",
+          },
+          {
+            asset: "NVDA",
+            status: "PAPER_CLOSED",
+            return_pct: 8,
+            signal_id: "e2e-nvda-closed",
+            closed_at: "2026-05-13T00:00:00Z",
+          },
+        ]),
+      );
+    });
+    await page.route((url) => isExecutionIntentsListPath(url.pathname), async (route) => {
+      await fulfillJson(route, [
+        { asset: "NVDA", status: "APPROVED_FOR_PAPER", signal_id: "e2e-nvda-closed" },
+      ]);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-rows")).toBeVisible({ timeout: 60_000 });
+
+    const nvda = page.locator("[data-testid=paper-reconcile-row][data-symbol=NVDA]");
+    await expect(nvda).toHaveAttribute("data-status", "closed");
+    await expect(nvda.getByTestId("paper-reconcile-closed")).toHaveText("紙上已結");
+    await expect(nvda.getByTestId("paper-reconcile-return")).toHaveText("8");
+    await expect(nvda.getByTestId("paper-reconcile-open")).toHaveCount(0);
+    await expect(page.getByTestId("paper-reconcile-strip")).not.toContainText("紙上未結");
+  });
+
   test("paper API 500 is error, distinct from empty", async ({ page }) => {
     await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
       await fulfillJson(route, briefReport(["NVDA"]));
