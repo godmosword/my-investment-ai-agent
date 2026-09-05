@@ -238,6 +238,69 @@ def summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+_PRIOR_LINK_KEYS = ("prior_recommendation_id", "prior_signal_id", "matched_recommendation_id")
+
+
+def _closed_at_sort_key(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def build_inclusion_rules() -> dict[str, Any]:
+    """Static v1 paper-tracked inclusion rules. Quality is not applied."""
+    return {
+        "universe": "paper_tracked_closed_only",
+        "included_statuses": ["PAPER_CLOSED", "CLOSED", "EXITED"],
+        "required_fields": ["signal_id", "asset", "direction", "entry_price", "exit_price", "return_pct"],
+        "quality_weighted": False,
+        "quality_filter_applied": False,
+        "notes": [
+            "僅納入可計算報酬的已結紙上意圖或 recommendation_outcomes。",
+            "本頁未套用 quality 權重。",
+        ],
+    }
+
+
+def build_prior_alignment(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return linkage evidence only. Never invent a match rate."""
+    evidence_field = ""
+    linked = 0
+    for row in records:
+        for key in _PRIOR_LINK_KEYS:
+            if str(row.get(key) or "").strip():
+                linked += 1
+                if not evidence_field:
+                    evidence_field = key
+                break
+    if linked == 0:
+        return None
+    return {
+        "available": True,
+        "evidence_field": evidence_field,
+        "linked_count": linked,
+        "sample_size": len(records),
+    }
+
+
+def build_audit_fields(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Additive audit meta. Does not change KPI meanings in summarize_records."""
+    dated = sorted(
+        (_closed_at_sort_key(row.get("closed_at")) for row in records),
+        key=lambda value: value,
+    )
+    dated = [value for value in dated if value]
+    returns = [_float_or_none(row.get("return_pct")) for row in records]
+    sample_size = sum(1 for value in returns if value is not None)
+    as_of = dated[-1] if dated else None
+    return {
+        "as_of": as_of,
+        "period_start": dated[0] if dated else None,
+        "period_end": as_of,
+        "sample_size": sample_size,
+        "inclusion_rules": build_inclusion_rules(),
+        "prior_alignment": build_prior_alignment(records),
+    }
+
+
 def build_track_record_payload(
     records: list[dict[str, Any]],
     *,
@@ -246,6 +309,7 @@ def build_track_record_payload(
     source: str = "execution_intents.jsonl",
 ) -> dict[str, Any]:
     summary = summarize_records(records)
+    summary = {**summary, **build_audit_fields(records)}
     sliced = records[offset : offset + limit] if limit is not None else records[offset:]
     return {
         "summary": summary,
