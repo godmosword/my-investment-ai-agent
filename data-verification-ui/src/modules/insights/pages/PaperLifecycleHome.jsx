@@ -39,6 +39,11 @@ function presentCount(value) {
   return n;
 }
 
+function presentText(value) {
+  const s = String(value ?? "").trim();
+  return s || "UNKNOWN";
+}
+
 function presentWinsLosses(summary) {
   const winsMissing = summary?.wins == null || summary?.wins === "";
   const lossesMissing = summary?.losses == null || summary?.losses === "";
@@ -254,7 +259,9 @@ function LifecycleTable({ rows }) {
               <td className="px-2 py-2">
                 <div className="font-mono text-white">{row.asset}</div>
                 <div className="font-mono text-[10px] text-[var(--muted)]">{row.signal_id}</div>
-                <div className="text-[11px] text-white/60">{row.direction} · {row.category || "—"}</div>
+                <div className="text-[11px] text-white/60">
+                  {row.direction} · <span data-testid="paper-row-category">{presentText(row.category)}</span>
+                </div>
               </td>
               <td className="px-2 py-2 text-white/75">{row.status}</td>
               <td className="px-2 py-2">
@@ -276,7 +283,9 @@ function LifecycleTable({ rows }) {
                   tgt {fmtPct(row.target_distance_pct)} / stop {fmtPct(row.stop_distance_pct)}
                 </div>
               </td>
-              <td className="px-2 py-2 text-white/65">{row.thesis_one_liner || "—"}</td>
+              <td className="px-2 py-2 text-white/65" data-testid="paper-row-thesis">
+                {presentText(row.thesis_one_liner)}
+              </td>
             </tr>
           ))}
         </tbody>
