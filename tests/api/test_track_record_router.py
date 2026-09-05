@@ -3,10 +3,11 @@ from __future__ import annotations
 import pytest
 
 from tests.api.helpers import make_api_client, write_jsonl_rows
-
-from track_record import build_audit_fields, build_mark_to_market_rows, summarize_records
-
-
+from track_record import (
+    build_audit_fields,
+    build_mark_to_market_rows,
+    summarize_records,
+)
 
 
 @pytest.fixture()
@@ -85,7 +86,7 @@ def test_track_record_summary_from_closed_intents(client):
     assert body["sample_size"] == 3
     assert body["inclusion_rules"]["quality_weighted"] is False
     assert body["inclusion_rules"]["quality_filter_applied"] is False
-    assert "本頁未套用 quality 權重" in body["inclusion_rules"]["notes"]
+    assert "本頁未套用 quality 權重。" in body["inclusion_rules"]["notes"]
     assert body["prior_alignment"] is None
 
 
