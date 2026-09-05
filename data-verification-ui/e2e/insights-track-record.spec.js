@@ -650,4 +650,54 @@ test.describe("Insights Track Record audit (ITER-TR-AUDIT-001)", () => {
     await expect(page.getByTestId("track-record-prior-alignment")).not.toContainText("UNKNOWN");
     await expect(page.getByTestId("track-record-home")).not.toContainText("對齊率");
   });
+
+  test("BigQuery 納入規則不假裝只收已結出場價", async ({ page }) => {
+    await page.route("**/api/track-record/summary*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          total_closed: 1,
+          wins: 1,
+          losses: 0,
+          flats: 0,
+          hit_rate_pct: 100,
+          avg_return_pct: 12,
+          sharpe: 1,
+          max_drawdown_pct: 0,
+          cumulative_return_pct: 12,
+          equity_curve: [],
+          as_of: "2026-05-14T00:00:00Z",
+          period_start: "2026-05-14T00:00:00Z",
+          period_end: "2026-05-14T00:00:00Z",
+          sample_size: 1,
+          source: "bigquery",
+          inclusion_rules: {
+            source: "bigquery",
+            universe: "recommendation_outcomes_with_return",
+            included_statuses: [],
+            accepts_mark_price: true,
+            quality_weighted: false,
+            quality_filter_applied: false,
+            notes: [
+              "來源 BigQuery recommendation_outcomes：WHERE return_pct IS NOT NULL。",
+              "不限 PAPER_CLOSED／CLOSED／EXITED；出場可用 exit_price 或 mark_price，故可能含市價結算列（含未結 APPROVED_FOR_PAPER 快照）。",
+            ],
+          },
+          prior_alignment: null,
+        }),
+      });
+    });
+    await page.goto("/insights?tab=track-record", { waitUntil: "load" });
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("track-record-inclusion-universe")).toContainText(
+      "recommendation_outcomes_with_return",
+    );
+    const panel = page.getByTestId("track-record-inclusion-panel");
+    await expect(panel).toContainText("mark_price");
+    await expect(panel).toContainText("APPROVED_FOR_PAPER");
+    await expect(page.getByTestId("track-record-inclusion-excluded")).toHaveCount(0);
+    await expect(page.getByTestId("track-record-quality-note")).toHaveText("本頁未套用 quality 權重");
+    await expect(page.getByTestId("track-record-prior-alignment")).toHaveText("上期建議追蹤 UNKNOWN");
+  });
 });

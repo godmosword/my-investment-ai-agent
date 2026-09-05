@@ -155,19 +155,25 @@ function InclusionPanel({ summary }) {
         ) : (
           <div data-testid="track-record-inclusion-universe">宇宙 paper-tracked 已結紙上結果</div>
         )}
-        <div data-testid="track-record-inclusion-included">
-          納入{" "}
-          {statuses.length
-            ? statuses.map((row) => (
-                <code key={row} className="mr-1 font-mono text-cyan-200">
-                  {row}
-                </code>
-              ))
-            : "已結紙上意圖（PAPER_CLOSED／CLOSED／EXITED），且具備訊號、標的、方向、進場／出場價與可計算報酬。"}
-        </div>
-        <div data-testid="track-record-inclusion-excluded">
-          排除 未結、被拒、被取代、待審，或缺價／缺報酬列。
-        </div>
+        {statuses.length ? (
+          <div data-testid="track-record-inclusion-included">
+            納入{" "}
+            {statuses.map((row) => (
+              <code key={row} className="mr-1 font-mono text-cyan-200">
+                {row}
+              </code>
+            ))}
+          </div>
+        ) : rules ? null : (
+          <div data-testid="track-record-inclusion-included">
+            納入 已結紙上意圖（PAPER_CLOSED／CLOSED／EXITED），且具備訊號、標的、方向、進場／出場價與可計算報酬。
+          </div>
+        )}
+        {rules ? null : (
+          <div data-testid="track-record-inclusion-excluded">
+            排除 未結、被拒、被取代、待審，或缺價／缺報酬列。
+          </div>
+        )}
         {required.length ? (
           <div data-testid="track-record-inclusion-required">
             必要欄位 {required.join("、")}

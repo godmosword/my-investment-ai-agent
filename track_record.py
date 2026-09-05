@@ -66,7 +66,7 @@ def normalize_closed_intent(row: dict[str, Any]) -> dict[str, Any] | None:
     closed_at = str(row.get("status_updated_at") or row.get("closed_at") or row.get("created_at") or "")
     category = _upper(row.get("category"))
     outcome = "win" if ret > 0 else "loss" if ret < 0 else "flat"
-    return {
+    record = {
         "signal_id": signal_id,
         "asset": asset,
         "direction": direction,
@@ -83,6 +83,8 @@ def normalize_closed_intent(row: dict[str, Any]) -> dict[str, Any] | None:
         "source_id": signal_id,
         "tags": [tag for tag in (category, asset, direction, outcome.upper()) if tag],
     }
+    record.update(_prior_link_fields(row))
+    return record
 
 
 def normalize_bigquery_outcome(row: dict[str, Any]) -> dict[str, Any] | None:
@@ -106,7 +108,7 @@ def normalize_bigquery_outcome(row: dict[str, Any]) -> dict[str, Any] | None:
     category = _upper(row.get("category"))
     outcome = _upper(row.get("outcome")).lower() or ("win" if ret > 0 else "loss" if ret < 0 else "flat")
     closed_at = str(row.get("as_of") or row.get("created_at") or "")
-    return {
+    record = {
         "signal_id": signal_id,
         "asset": asset,
         "direction": direction,
@@ -123,6 +125,8 @@ def normalize_bigquery_outcome(row: dict[str, Any]) -> dict[str, Any] | None:
         "source_id": signal_id,
         "tags": [tag for tag in (category, asset, direction, outcome.upper()) if tag],
     }
+    record.update(_prior_link_fields(row))
+    return record
 
 
 def _sort_closed(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -241,20 +245,46 @@ def summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
 _PRIOR_LINK_KEYS = ("prior_recommendation_id", "prior_signal_id", "matched_recommendation_id")
 
 
+def _prior_link_fields(row: dict[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for key in _PRIOR_LINK_KEYS:
+        value = str(row.get(key) or "").strip()
+        if value:
+            out[key] = value
+    return out
+
+
 def _closed_at_sort_key(value: Any) -> str:
     return str(value or "").strip()
 
 
-def build_inclusion_rules() -> dict[str, Any]:
-    """Static v1 paper-tracked inclusion rules. Quality is not applied."""
+def build_inclusion_rules(source: str = "execution_intents.jsonl") -> dict[str, Any]:
+    """Source-specific inclusion rules. Quality is not applied. Does not change KPI universe."""
+    if source == "bigquery":
+        return {
+            "source": source,
+            "universe": "recommendation_outcomes_with_return",
+            "included_statuses": [],
+            "required_fields": ["signal_id", "asset", "direction", "entry_price", "return_pct"],
+            "accepts_mark_price": True,
+            "quality_weighted": False,
+            "quality_filter_applied": False,
+            "notes": [
+                "來源 BigQuery recommendation_outcomes：WHERE return_pct IS NOT NULL。",
+                "不限 PAPER_CLOSED／CLOSED／EXITED；出場可用 exit_price 或 mark_price，故可能含市價結算列（含未結 APPROVED_FOR_PAPER 快照）。",
+                "本頁未套用 quality 權重。",
+            ],
+        }
     return {
+        "source": source,
         "universe": "paper_tracked_closed_only",
         "included_statuses": ["PAPER_CLOSED", "CLOSED", "EXITED"],
         "required_fields": ["signal_id", "asset", "direction", "entry_price", "exit_price", "return_pct"],
+        "accepts_mark_price": False,
         "quality_weighted": False,
         "quality_filter_applied": False,
         "notes": [
-            "僅納入可計算報酬的已結紙上意圖或 recommendation_outcomes。",
+            "來源 execution_intents.jsonl：僅 PAPER_CLOSED／CLOSED／EXITED，且須有進場／出場價與可計算報酬。",
             "本頁未套用 quality 權重。",
         ],
     }
@@ -281,7 +311,11 @@ def build_prior_alignment(records: list[dict[str, Any]]) -> dict[str, Any] | Non
     }
 
 
-def build_audit_fields(records: list[dict[str, Any]]) -> dict[str, Any]:
+def build_audit_fields(
+    records: list[dict[str, Any]],
+    *,
+    source: str = "execution_intents.jsonl",
+) -> dict[str, Any]:
     """Additive audit meta. Does not change KPI meanings in summarize_records."""
     dated = sorted(
         (_closed_at_sort_key(row.get("closed_at")) for row in records),
@@ -296,7 +330,7 @@ def build_audit_fields(records: list[dict[str, Any]]) -> dict[str, Any]:
         "period_start": dated[0] if dated else None,
         "period_end": as_of,
         "sample_size": sample_size,
-        "inclusion_rules": build_inclusion_rules(),
+        "inclusion_rules": build_inclusion_rules(source),
         "prior_alignment": build_prior_alignment(records),
     }
 
@@ -309,7 +343,7 @@ def build_track_record_payload(
     source: str = "execution_intents.jsonl",
 ) -> dict[str, Any]:
     summary = summarize_records(records)
-    summary = {**summary, **build_audit_fields(records)}
+    summary = {**summary, **build_audit_fields(records, source=source)}
     sliced = records[offset : offset + limit] if limit is not None else records[offset:]
     return {
         "summary": summary,

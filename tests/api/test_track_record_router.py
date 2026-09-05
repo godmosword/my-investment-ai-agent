@@ -6,6 +6,8 @@ from tests.api.helpers import make_api_client, write_jsonl_rows
 from track_record import (
     build_audit_fields,
     build_mark_to_market_rows,
+    normalize_bigquery_outcome,
+    normalize_closed_intent,
     summarize_records,
 )
 
@@ -86,6 +88,8 @@ def test_track_record_summary_from_closed_intents(client):
     assert body["sample_size"] == 3
     assert body["inclusion_rules"]["quality_weighted"] is False
     assert body["inclusion_rules"]["quality_filter_applied"] is False
+    assert body["inclusion_rules"]["universe"] == "paper_tracked_closed_only"
+    assert body["inclusion_rules"]["accepts_mark_price"] is False
     assert "本頁未套用 quality 權重。" in body["inclusion_rules"]["notes"]
     assert body["prior_alignment"] is None
 
@@ -174,6 +178,80 @@ def test_track_record_prior_alignment_only_when_evidence(client, monkeypatch):
     assert body["prior_alignment"]["linked_count"] == 1
     assert body["prior_alignment"]["sample_size"] == 1
     assert "match_rate_pct" not in body["prior_alignment"]
+    assert body["inclusion_rules"]["universe"] == "recommendation_outcomes_with_return"
+    assert body["inclusion_rules"]["included_statuses"] == []
+    assert body["inclusion_rules"]["accepts_mark_price"] is True
+    assert any("mark_price" in note for note in body["inclusion_rules"]["notes"])
+    assert any("APPROVED_FOR_PAPER" in note for note in body["inclusion_rules"]["notes"])
+
+
+def test_normalize_closed_intent_keeps_prior_link_fields():
+    record = normalize_closed_intent(
+        {
+            "signal_id": "ai-nvda-long-1",
+            "created_at": "2026-05-10T00:00:00Z",
+            "status_updated_at": "2026-05-11T00:00:00Z",
+            "category": "AI",
+            "asset": "NVDA",
+            "direction": "LONG",
+            "status": "PAPER_CLOSED",
+            "reference_entry_price": 100,
+            "paper_exit_price": 110,
+            "prior_recommendation_id": "rec-nvda-1",
+        }
+    )
+    assert record is not None
+    assert record["prior_recommendation_id"] == "rec-nvda-1"
+
+
+def test_normalize_bigquery_outcome_keeps_prior_link_fields():
+    record = normalize_bigquery_outcome(
+        {
+            "signal_id": "bq-nvda-1",
+            "asset": "NVDA",
+            "direction": "LONG",
+            "entry_price": 100,
+            "mark_price": 112,
+            "return_pct": 12,
+            "status": "APPROVED_FOR_PAPER",
+            "prior_signal_id": "rec-nvda-1",
+        }
+    )
+    assert record is not None
+    assert record["prior_signal_id"] == "rec-nvda-1"
+    assert record["status"] == "APPROVED_FOR_PAPER"
+
+
+def test_track_record_prior_alignment_from_intent_store(tmp_path, monkeypatch):
+    store = tmp_path / "execution_intents.jsonl"
+    write_jsonl_rows(
+        store,
+        [
+            {
+                "signal_id": "ai-nvda-long-1",
+                "created_at": "2026-05-10T00:00:00Z",
+                "status_updated_at": "2026-05-11T00:00:00Z",
+                "category": "AI",
+                "asset": "NVDA",
+                "direction": "LONG",
+                "status": "PAPER_CLOSED",
+                "reference_entry_price": 100,
+                "paper_exit_price": 110,
+                "prior_recommendation_id": "rec-nvda-1",
+            }
+        ],
+    )
+    linked_client = make_api_client(
+        monkeypatch,
+        EXECUTION_INTENT_STORE=str(store),
+        RECOMMENDATION_OUTCOMES_TABLE=None,
+    )
+    body = linked_client.get("/api/track-record/summary").json()
+    assert body["prior_alignment"]["available"] is True
+    assert body["prior_alignment"]["evidence_field"] == "prior_recommendation_id"
+    assert body["prior_alignment"]["linked_count"] == 1
+    closed = linked_client.get("/api/track-record/closed").json()
+    assert closed["records"][0]["prior_recommendation_id"] == "rec-nvda-1"
 
 
 def test_track_record_closed_endpoint_paginates_and_exposes_source(client):
@@ -228,6 +306,9 @@ def test_track_record_uses_bigquery_outcomes_when_available(client, monkeypatch)
     summary = client.get("/api/track-record/summary").json()
     assert summary["source"] == "bigquery"
     assert summary["source_row_count"] == 1
+    assert summary["inclusion_rules"]["universe"] == "recommendation_outcomes_with_return"
+    assert summary["inclusion_rules"]["accepts_mark_price"] is True
+    assert summary["inclusion_rules"]["included_statuses"] == []
 
     closed = client.get("/api/track-record/closed").json()
     assert closed["source"] == "bigquery"

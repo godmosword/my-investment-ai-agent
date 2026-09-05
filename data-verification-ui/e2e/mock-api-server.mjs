@@ -449,12 +449,17 @@ function trackRecordAudit(records = trackRecordRecords) {
     period_end: asOf,
     sample_size: records.length,
     inclusion_rules: {
+      source: "execution_intents.jsonl",
       universe: "paper_tracked_closed_only",
       included_statuses: ["PAPER_CLOSED", "CLOSED", "EXITED"],
       required_fields: ["signal_id", "asset", "direction", "entry_price", "exit_price", "return_pct"],
+      accepts_mark_price: false,
       quality_weighted: false,
       quality_filter_applied: false,
-      notes: ["僅納入可計算報酬的已結紙上意圖或 recommendation_outcomes。", "本頁未套用 quality 權重。"],
+      notes: [
+        "來源 execution_intents.jsonl：僅 PAPER_CLOSED／CLOSED／EXITED，且須有進場／出場價與可計算報酬。",
+        "本頁未套用 quality 權重。",
+      ],
     },
     prior_alignment: null,
   };

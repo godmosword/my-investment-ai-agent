@@ -102,6 +102,10 @@ def normalize_execution_intent_row(row: dict[str, Any]) -> dict[str, Any]:
         "paper_fill_price": _normalize_float_or_none(row.get("paper_fill_price")),
         "paper_exit_price": _normalize_float_or_none(row.get("paper_exit_price")),
     }
+    for key in ("prior_recommendation_id", "prior_signal_id", "matched_recommendation_id"):
+        value = str(row.get(key) or "").strip()
+        if value:
+            normalized[key] = value
     return normalized
 
 

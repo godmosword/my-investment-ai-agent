@@ -7,7 +7,7 @@
 
 ### PWA/API（ITER-TR-AUDIT-001 — 紙上實績可審計摘要）
 
-- **[`GET /api/track-record/summary`](api_routers/track_record.py)／closed／by-tag**：`summarize_records` KPI 形狀與語意不變。[`track_record.build_track_record_payload`](track_record.py) **additive** 併入 `as_of`／`period_start`／`period_end`（納入列 `closed_at` 最小／最大）、`sample_size`、`inclusion_rules`（靜態紙上已結規則；`quality_weighted=false`）、`prior_alignment`（僅當閉倉列帶 `prior_recommendation_id` 等連結欄才回證據物件，**不捏合對齊率**；否則 `null`）。
+- **[`GET /api/track-record/summary`](api_routers/track_record.py)／closed／by-tag**：`summarize_records` KPI 形狀與語意不變。[`track_record.build_track_record_payload`](track_record.py) **additive** 併入 `as_of`／`period_start`／`period_end`（納入列 `closed_at` 最小／最大）、`sample_size`、`inclusion_rules`（**依 source**：jsonl＝已結＋出場價；BigQuery＝`return_pct` 可算，允許 `mark_price`／未結市價結算列）、`prior_alignment`（正規化時保留 `prior_recommendation_id` 等連結欄才回證據物件，**不捏合對齊率**；否則 `null`）。BQ DDL 目前無這些連結欄，故不 SELECT 不存在的欄。
 - **[`TrackRecordHome.jsx`](data-verification-ui/src/modules/insights/pages/TrackRecordHome.jsx)**：KPI 與累積曲線旁顯示期間／截至／樣本／來源（缺→`UNKNOWN`；真實 `0` 仍顯示 `0`）。摺疊「內部透明度／納入規則」；payload 無 quality 時寫明「本頁未套用 quality 權重」。上期建議追蹤有後端證據才顯示，否則 `UNKNOWN`。閉倉表殘英欄名改繁中；Sharpe 保留並加可見「夏普」。
 - E2E：[`insights-track-record.spec.js`](data-verification-ui/e2e/insights-track-record.spec.js) 三態（有資料／無資料／部分缺欄）+ 上期證據；mock [`mock-api-server.mjs`](data-verification-ui/e2e/mock-api-server.mjs) 同步審計欄。Python：[`tests/api/test_track_record_router.py`](tests/api/test_track_record_router.py)。
 - **刻意未動**：KPI／曲線公式、quality-adjusted 本體、scenario、隊列 27／18–21、日報 HTML／Gate、`validate_report`／Telegram／`crew.py`、production。
