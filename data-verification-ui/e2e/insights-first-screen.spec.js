@@ -227,3 +227,255 @@ test.describe("Insights — first screen is 今日建議 (ITER-P4-44A)", () => {
     await expect(page.getByTestId("symbol-deep-dive")).toContainText("NVDA");
   });
 });
+
+function isReportDetailPath(pathname) {
+  return /^\/api\/reports\/\d{4}-\d{2}-\d{2}$/.test(pathname);
+}
+
+function isPaperLifecyclePath(pathname) {
+  return pathname === "/api/paper/lifecycle" || pathname === "/api/paper/pnl";
+}
+
+function isTrackRecordClosedPath(pathname) {
+  return pathname === "/api/track-record/closed";
+}
+
+function isExecutionIntentsListPath(pathname) {
+  return pathname === "/api/execution-intents";
+}
+
+function briefReport(symbols) {
+  return {
+    report_date: "2026-05-09",
+    timestamp: "2026-04-14T00:00:00Z",
+    grok_summary: "e2e grok",
+    gpt_summary: "e2e gpt",
+    tickers: symbols,
+    recommendations: symbols.map((asset) => ({ asset })),
+  };
+}
+
+function lifecyclePayload(rows) {
+  return {
+    as_of: "2026-05-13T00:00:00Z",
+    source: "e2e",
+    summary: { total: rows.length, active_count: 0, closed_count: 0 },
+    rows,
+  };
+}
+
+function closedPayload(records) {
+  return {
+    summary: { total_closed: records.length },
+    records,
+    total: records.length,
+    limit: 50,
+    offset: 0,
+    source: "e2e",
+  };
+}
+
+async function fulfillJson(route, body, status = 200) {
+  await route.fulfill({
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(body),
+  });
+}
+
+test.describe("Insights — 紙上對帳 on first screen (ITER-TR-LOOP-001)", () => {
+  test("first screen shows 紙上對帳 without opening 實績 tab", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 720 });
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("insights-home")).toBeVisible({ timeout: 60_000 });
+
+    const strip = page.getByTestId("paper-reconcile-strip");
+    await expect(strip).toBeVisible({ timeout: 60_000 });
+    await expect(strip).toContainText("紙上對帳");
+    await expect(page.getByTestId("paper-reconcile-empty")).toBeVisible();
+    await expect(page.getByTestId("paper-reconcile-empty")).toContainText("UNKNOWN：日報未提供已解析標的");
+    await expect(page.getByTestId("paper-reconcile-row")).toHaveCount(0);
+    await expect(strip).not.toContainText("—");
+    await expect(strip).not.toContainText("$0");
+    await expect(page.getByTestId("track-record-home")).toHaveCount(0);
+    await expect(page.getByTestId("paper-lifecycle-home")).toHaveCount(0);
+
+    const brief = page.getByTestId("daily-brief-panel");
+    const stripBox = await strip.boundingBox();
+    const briefBox = await brief.boundingBox();
+    expect(stripBox).toBeTruthy();
+    expect(briefBox).toBeTruthy();
+    expect(briefBox.y).toBeLessThan(stripBox.y);
+    expect(stripBox.y).toBeLessThan(720);
+  });
+
+  test("open / closed+return / no paper row use designed vocabulary", async ({ page }) => {
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["NVDA", "BTC", "AAPL"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(
+        route,
+        lifecyclePayload([
+          { asset: "NVDA", status: "APPROVED_FOR_PAPER", return_pct: 12 },
+        ]),
+      );
+    });
+    await page.route((url) => isTrackRecordClosedPath(url.pathname), async (route) => {
+      await fulfillJson(
+        route,
+        closedPayload([
+          { asset: "BTC", status: "PAPER_CLOSED", return_pct: 10, signal_id: "e2e-btc-closed" },
+        ]),
+      );
+    });
+    await page.route((url) => isExecutionIntentsListPath(url.pathname), async (route) => {
+      await fulfillJson(route, []);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-strip")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("paper-reconcile-rows")).toBeVisible();
+    await expect(page.getByTestId("track-record-home")).toHaveCount(0);
+
+    const nvda = page.locator("[data-testid=paper-reconcile-row][data-symbol=NVDA]");
+    const btc = page.locator("[data-testid=paper-reconcile-row][data-symbol=BTC]");
+    const aapl = page.locator("[data-testid=paper-reconcile-row][data-symbol=AAPL]");
+    await expect(nvda).toBeVisible();
+    await expect(nvda).toHaveAttribute("data-status", "open");
+    await expect(nvda.getByTestId("paper-reconcile-open")).toHaveText("紙上未結");
+    await expect(btc).toHaveAttribute("data-status", "closed");
+    await expect(btc.getByTestId("paper-reconcile-closed")).toHaveText("紙上已結");
+    await expect(btc.getByTestId("paper-reconcile-return")).toHaveText("10");
+    await expect(aapl).toHaveAttribute("data-status", "none");
+    await expect(aapl.getByTestId("paper-reconcile-none")).toHaveText("無紙上記錄");
+
+    const strip = page.getByTestId("paper-reconcile-strip");
+    await expect(strip).not.toContainText("—");
+    await expect(strip).not.toContainText("$0");
+    await expect(strip).not.toContainText("紙上已結 $");
+  });
+
+  test("closed finite 0 stays 0; missing return is UNKNOWN", async ({ page }) => {
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["MSFT", "TSLA"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(route, lifecyclePayload([]));
+    });
+    await page.route((url) => isTrackRecordClosedPath(url.pathname), async (route) => {
+      await fulfillJson(
+        route,
+        closedPayload([
+          { asset: "MSFT", status: "PAPER_CLOSED", return_pct: 0, signal_id: "e2e-msft-flat" },
+          { asset: "TSLA", status: "PAPER_CLOSED", signal_id: "e2e-tsla-missing" },
+        ]),
+      );
+    });
+    await page.route((url) => isExecutionIntentsListPath(url.pathname), async (route) => {
+      await fulfillJson(route, []);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-rows")).toBeVisible({ timeout: 60_000 });
+
+    const msft = page.locator("[data-testid=paper-reconcile-row][data-symbol=MSFT]");
+    const tsla = page.locator("[data-testid=paper-reconcile-row][data-symbol=TSLA]");
+    await expect(msft).toHaveAttribute("data-status", "closed");
+    await expect(msft.getByTestId("paper-reconcile-return")).toHaveText("0");
+    await expect(tsla).toHaveAttribute("data-status", "unknown");
+    await expect(tsla.getByTestId("paper-reconcile-missing-field")).toHaveText("UNKNOWN");
+    await expect(page.getByTestId("paper-reconcile-strip")).not.toContainText("—");
+    await expect(page.getByTestId("paper-reconcile-strip")).not.toContainText("$0");
+  });
+
+  test("stale APPROVED_FOR_PAPER on track-record closed does not override PAPER_CLOSED", async ({
+    page,
+  }) => {
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["NVDA"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(
+        route,
+        lifecyclePayload([
+          { asset: "NVDA", status: "PAPER_CLOSED", return_pct: 8, signal_id: "e2e-nvda-closed" },
+        ]),
+      );
+    });
+    await page.route((url) => isTrackRecordClosedPath(url.pathname), async (route) => {
+      await fulfillJson(
+        route,
+        closedPayload([
+          {
+            asset: "NVDA",
+            status: "APPROVED_FOR_PAPER",
+            return_pct: 12,
+            signal_id: "e2e-nvda-closed",
+            closed_at: "2026-05-11T00:00:00Z",
+          },
+          {
+            asset: "NVDA",
+            status: "PAPER_CLOSED",
+            return_pct: 8,
+            signal_id: "e2e-nvda-closed",
+            closed_at: "2026-05-13T00:00:00Z",
+          },
+        ]),
+      );
+    });
+    await page.route((url) => isExecutionIntentsListPath(url.pathname), async (route) => {
+      await fulfillJson(route, [
+        { asset: "NVDA", status: "APPROVED_FOR_PAPER", signal_id: "e2e-nvda-closed" },
+      ]);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-rows")).toBeVisible({ timeout: 60_000 });
+
+    const nvda = page.locator("[data-testid=paper-reconcile-row][data-symbol=NVDA]");
+    await expect(nvda).toHaveAttribute("data-status", "closed");
+    await expect(nvda.getByTestId("paper-reconcile-closed")).toHaveText("紙上已結");
+    await expect(nvda.getByTestId("paper-reconcile-return")).toHaveText("8");
+    await expect(nvda.getByTestId("paper-reconcile-open")).toHaveCount(0);
+    await expect(page.getByTestId("paper-reconcile-strip")).not.toContainText("紙上未結");
+  });
+
+  test("paper API 500 is error, distinct from empty", async ({ page }) => {
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["NVDA"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(route, { detail: "e2e paper fail" }, 500);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-error")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("paper-reconcile-empty")).toHaveCount(0);
+    await expect(page.getByTestId("paper-reconcile-rows")).toHaveCount(0);
+  });
+
+  test("實績 and 生命週期 links stay on /insights tabs", async ({ page }) => {
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-strip")).toBeVisible({ timeout: 60_000 });
+
+    const trackLink = page.getByTestId("paper-reconcile-link-track-record");
+    const paperLink = page.getByTestId("paper-reconcile-link-paper");
+    await expect(trackLink).toHaveAttribute("href", "/insights?tab=track-record");
+    await expect(paperLink).toHaveAttribute("href", "/insights?tab=paper");
+    await expect(trackLink).not.toHaveAttribute("target", "_blank");
+    await expect(paperLink).not.toHaveAttribute("target", "_blank");
+
+    await trackLink.click();
+    await expect(page).toHaveURL(/\/insights\?tab=track-record/);
+    await expect(page.getByTestId("insights-tab-track-record")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("track-record-home")).toBeVisible({ timeout: 60_000 });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-link-paper")).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("paper-reconcile-link-paper").click();
+    await expect(page).toHaveURL(/\/insights\?tab=paper/);
+    await expect(page.getByTestId("insights-tab-paper")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("paper-lifecycle-home")).toBeVisible({ timeout: 60_000 });
+  });
+});
