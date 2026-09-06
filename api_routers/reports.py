@@ -49,7 +49,8 @@ def _get_bq_client() -> bigquery.Client:
 
 # Module-level Jinja2 env (bytecode-cached, autoescape enabled for XSS safety)
 def _build_jinja2_env() -> Environment:  # lazy import avoids a hard Jinja2 dep at startup
-    from jinja2 import Environment, FileSystemLoader, Markup
+    from jinja2 import Environment, FileSystemLoader
+    from markupsafe import Markup  # Jinja2 3.1 removed the jinja2.Markup re-export
     from report_render import tg_escape
     import json as _json
 
@@ -62,8 +63,18 @@ def _build_jinja2_env() -> Environment:  # lazy import avoids a hard Jinja2 dep 
     # tg_escape output is already HTML-entity-encoded — wrap as Markup so
     # autoescape doesn't double-encode & → &amp;amp; etc.
     _env.filters["tg_escape"] = lambda v: Markup(tg_escape(v))
-    # tojson renders into <pre> — autoescape will encode < > keeping the pre safe
-    _env.filters["tojson"] = lambda v, indent=None: _json.dumps(v, ensure_ascii=False, indent=indent)
+    # tojson renders into <pre> — autoescape will encode < > keeping the pre safe.
+    # The QSREC payload it receives is a list of pydantic models, which bare
+    # json.dumps cannot serialise, so dump those through model_dump first.
+    def _json_default(value: Any) -> Any:
+        model_dump = getattr(value, "model_dump", None)
+        if callable(model_dump):
+            return model_dump(mode="json")
+        return str(value)
+
+    _env.filters["tojson"] = lambda v, indent=None: _json.dumps(
+        v, ensure_ascii=False, indent=indent, default=_json_default
+    )
     return _env
 
 

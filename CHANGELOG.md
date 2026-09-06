@@ -5,6 +5,13 @@
 
 ## 2026-09-06
 
+### Fix（ITER-API-HTML-001 — `GET /api/reports/{date}/html` 500 修復）
+
+- 該路由對**任何** schema 合法的報告都回 500，兩個獨立缺陷都只在這支 handler 的匯出路徑上：`_build_jinja2_env` 從 `jinja2` import `Markup`（Jinja2 3.1 起移除該 re-export，改由 `markupsafe` 提供）；`tojson` filter 是裸 `json.dumps`，但模板傳進去的 `report.crypto.qsrec + report.ai.qsrec` 是 pydantic `TradeRecommendation` 清單 → TypeError。
+- **只修第一個不夠**：`DailyBriefReport` 拒絕空 `qsrec`，所以每份合法報告都會走到第二個；未知物件改以 `model_dump(mode="json")` 序列化，`<pre>` 內仍走 autoescape（QSREC 區塊照舊 HTML-escape，無 XSS 變化）。
+- **測試**：[`tests/api/test_reports_router.py`](tests/api/test_reports_router.py) 新增一條契約測試，寫入合法報告到 `DAILY_BRIEF_JSON_DIR` 後斷言 200 + `text/html`。對 `origin/main` 驗過 RED（ImportError），修後 GREEN。
+- **未動**：其餘 reports 行為、OpenAPI path／method 表（62 條逐字相同）、`validate_report`、Telegram HTML 白名單、`crew.py` prompt、`Dockerfile` CMD、workflows。**Job ≠ Service：本切片不部署 Service**。
+
 ### API/Ops（ITER-API-SLIM-002 — `/api/reports*` 搬進 router，P2-1）
 
 - **[`api_routers/reports.py`](api_routers/reports.py) 新檔**：原本夾在 middleware 與 `/api/trades` 之間的九條 inline route（`/api/reports`、`/api/reports/profile-stats`、`/{date}/structured`、`/{date}/gate-status`、`/{date}/html`、`/api/brief-layouts`、`/api/reports/qsrec-stats`、`/api/gate-failures`、`/api/reports/{date}`）連同其私有 helper 與 HTML export 的 Jinja2 env 一併搬入。**宣告順序照搬**：`profile-stats`／`qsrec-stats` 必須排在 `/{report_date}` 之前，否則字面路徑會被路徑參數吃掉。
