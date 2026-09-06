@@ -14,7 +14,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -38,6 +38,60 @@ def _get_bq_client(project_id: str = PROJECT_ID) -> bigquery.Client:
     if project_id not in _bq_clients:
         _bq_clients[project_id] = bigquery.Client(project=project_id)
     return _bq_clients[project_id]
+
+
+# ── 建議儲存後端 ───────────────────────────────────────────────────────────────
+# GCP 移除後 BigQuery 不再是唯一去處；雙後端形狀對齊 api_routers/portfolio.py。
+_RECS_STORE = "trade_recommendations.jsonl"
+
+# 讀回時要還原為 date 物件的欄位——下游 (today - rep_date).days 依賴它。
+_REC_DATE_FIELDS = ("report_date", "exit_date")
+
+
+def _recs_store_backend() -> str:
+    backend = os.getenv("TRACKER_STORE_BACKEND", "jsonl").strip().lower()
+    return "bigquery" if backend == "bigquery" else "jsonl"
+
+
+def _parse_iso_date(value) -> date | None:
+    """JSONL 存 ISO 字串，BigQuery 給 date 物件；兩者都要能吃。"""
+    if value is None or isinstance(value, date):
+        return value if not isinstance(value, datetime) else value.date()
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_rec_row(row: dict) -> dict:
+    coerced = dict(row)
+    for field in _REC_DATE_FIELDS:
+        if field in coerced:
+            coerced[field] = _parse_iso_date(coerced[field])
+    return coerced
+
+
+def _serialise_rec_row(row: dict) -> dict:
+    serialised = dict(row)
+    for field in _REC_DATE_FIELDS:
+        value = serialised.get(field)
+        if isinstance(value, date):
+            serialised[field] = value.isoformat()
+    return serialised
+
+
+def _load_recs() -> list[dict]:
+    """Read every stored recommendation from the local JSONL store."""
+    from state_store import read_jsonl
+
+    return [_coerce_rec_row(row) for row in read_jsonl(_RECS_STORE)]
+
+
+def _replace_recs(rows: list[dict]) -> None:
+    """Rewrite the whole store — mirrors the BigQuery DELETE + insert path."""
+    from state_store import replace_jsonl
+
+    replace_jsonl(_RECS_STORE, [_serialise_rec_row(row) for row in rows])
 
 
 # ── 建議 JSON 區塊標記 ─────────────────────────────────────────────────────────
@@ -665,6 +719,17 @@ def save_recommendations(report_text: str,
         logger.info("No valid recommendations found in report (raw_count=%d).", len(raw_recs))
         return 0
 
+    if _recs_store_backend() == "jsonl":
+        # 與下方 BigQuery 分支同義：刪除同日既有 OPEN，保留 HIT_* / EXPIRED。
+        target_date = _parse_iso_date(report_date)
+        kept = [
+            row for row in _load_recs()
+            if not (row.get("report_date") == target_date and row.get("status") == "OPEN")
+        ]
+        _replace_recs(kept + recs)
+        logger.info("Saved %d recommendations to local store (date=%s).", len(recs), report_date)
+        return len(recs)
+
     try:
         client = _get_bq_client(project_id)
         _ensure_table(client)
@@ -698,23 +763,36 @@ def check_and_update_positions(project_id: str = PROJECT_ID) -> list[dict]:
     已關倉的建議以 BigQuery DML UPDATE 更新狀態與 P&L。
     回傳當日已關倉的建議摘要列表。
     """
-    try:
-        client = _get_bq_client(project_id)
-    except Exception as e:
-        logger.error("BigQuery client init failed in check_and_update_positions: %s", e)
-        return []
+    use_jsonl = _recs_store_backend() == "jsonl"
+    client = None
+    all_rows: list[dict] = []
 
-    # 查詢所有未平倉建議
-    try:
-        rows = list(client.query(f"""
-            SELECT *
-            FROM `{RECOMMENDATIONS_TABLE}`
-            WHERE status = 'OPEN'
-              AND report_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-        """).result())
-    except Exception as e:
-        logger.warning("Failed to query open positions: %s", e)
-        return []
+    if use_jsonl:
+        all_rows = _load_recs()
+        cutoff = date.today() - timedelta(days=30)
+        rows = [
+            row for row in all_rows
+            if row.get("status") == "OPEN"
+            and (row.get("report_date") or date.min) >= cutoff
+        ]
+    else:
+        try:
+            client = _get_bq_client(project_id)
+        except Exception as e:
+            logger.error("BigQuery client init failed in check_and_update_positions: %s", e)
+            return []
+
+        # 查詢所有未平倉建議
+        try:
+            rows = list(client.query(f"""
+                SELECT *
+                FROM `{RECOMMENDATIONS_TABLE}`
+                WHERE status = 'OPEN'
+                  AND report_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+            """).result())
+        except Exception as e:
+            logger.warning("Failed to query open positions: %s", e)
+            return []
 
     if not rows:
         logger.info("No open positions to check today.")
@@ -770,6 +848,27 @@ def check_and_update_positions(project_id: str = PROJECT_ID) -> list[dict]:
             2,
         )
 
+        if use_jsonl:
+            # 就地更新記憶體中的那一列，迴圈結束後一次寫回（等價於逐列 DML UPDATE）。
+            row.update(
+                status=new_status,
+                exit_price=price,
+                exit_date=today,
+                pnl_pct=pnl,
+                days_held=days_held,
+            )
+            logger.info(
+                "Position closed: %s %s → %s | P&L: %+.1f%% | held %d days",
+                asset, direction, new_status, pnl, days_held,
+            )
+            closed.append({
+                "asset":     asset,
+                "direction": direction,
+                "status":    new_status,
+                "pnl_pct":   pnl,
+            })
+            continue
+
         # 以 parameterized DML 更新（防注入）
         try:
             client.query(
@@ -806,6 +905,9 @@ def check_and_update_positions(project_id: str = PROJECT_ID) -> list[dict]:
             })
         except Exception as e:
             logger.error("Failed to update position %s (date=%s): %s", asset, rep_date, e)
+
+    if use_jsonl and closed:
+        _replace_recs(all_rows)
 
     return closed
 
@@ -918,24 +1020,35 @@ def get_recent_lessons(days: int = 3, project_id: str = PROJECT_ID) -> str:
         min_reduce = 2
     min_reduce = max(1, min(min_reduce, 20))
 
-    try:
-        client = _get_bq_client(project_id)
-        rows = list(
-            client.query(
-                f"""
-                SELECT asset, category, direction, pnl_pct, exit_date
-                FROM `{RECOMMENDATIONS_TABLE}`
-                WHERE status = 'HIT_STOP'
-                  AND exit_date IS NOT NULL
-                  AND exit_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {d_int} DAY)
-                ORDER BY exit_date DESC, asset ASC
-                LIMIT 500
-                """
-            ).result()
-        )
-    except Exception as e:
-        logger.warning("get_recent_lessons BigQuery query failed: %s", e)
-        return ""
+    if _recs_store_backend() == "jsonl":
+        cutoff = date.today() - timedelta(days=d_int)
+        rows = [
+            row for row in _load_recs()
+            if row.get("status") == "HIT_STOP"
+            and row.get("exit_date") is not None
+            and row["exit_date"] >= cutoff
+        ]
+        rows.sort(key=lambda r: (r["exit_date"], r.get("asset") or ""), reverse=True)
+        rows = rows[:500]
+    else:
+        try:
+            client = _get_bq_client(project_id)
+            rows = list(
+                client.query(
+                    f"""
+                    SELECT asset, category, direction, pnl_pct, exit_date
+                    FROM `{RECOMMENDATIONS_TABLE}`
+                    WHERE status = 'HIT_STOP'
+                      AND exit_date IS NOT NULL
+                      AND exit_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {d_int} DAY)
+                    ORDER BY exit_date DESC, asset ASC
+                    LIMIT 500
+                    """
+                ).result()
+            )
+        except Exception as e:
+            logger.warning("get_recent_lessons BigQuery query failed: %s", e)
+            return ""
 
     if not rows:
         logger.info(
@@ -961,78 +1074,50 @@ def get_recent_lessons(days: int = 3, project_id: str = PROJECT_ID) -> str:
     return out
 
 
-def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
-    """
-    查詢最近一個交易日的 QSREC 建議，抓取當前價格，
-    回傳 Telegram HTML 格式的「上期建議追蹤」區塊。
-    若無數據或 BigQuery 不可用，回傳空字串。
-    """
-    try:
-        client = _get_bq_client(project_id)
-        # 同一 report_date + canonical asset + direction 可能有多筆（同日重跑）；
-        # 僅保留一筆：優先 OPEN，否則最新 created_at，避免同標同方向多進場價洗版。
-        rows = list(client.query(f"""
-            WITH last_day AS (
-              SELECT MAX(report_date) AS d
-              FROM `{RECOMMENDATIONS_TABLE}`
-              WHERE report_date < CURRENT_DATE()
-            ),
-            normalized AS (
-              SELECT
-                asset,
-                direction,
-                category,
-                entry_price,
-                target_price,
-                stop_price,
-                narrative,
-                report_date,
-                status,
-                created_at,
-                REGEXP_REPLACE(
-                  REGEXP_REPLACE(
-                    UPPER(TRIM(REGEXP_REPLACE(asset, '^\\\\$+', ''))),
-                    '\\\\s+',
-                    ''
-                  ),
-                  '-',
-                  '/'
-                ) AS canon_asset,
-                UPPER(COALESCE(direction, '')) AS canon_dir
-              FROM `{RECOMMENDATIONS_TABLE}`
-              WHERE report_date = (SELECT d FROM last_day)
-            ),
-            ranked AS (
-              SELECT
-                asset,
-                direction,
-                category,
-                entry_price,
-                target_price,
-                stop_price,
-                narrative,
-                report_date,
-                canon_asset,
-                ROW_NUMBER() OVER (
-                  PARTITION BY report_date, canon_asset, canon_dir
-                  ORDER BY
-                    CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END,
-                    COALESCE(created_at, TIMESTAMP(report_date)) DESC
-                ) AS rn
-              FROM normalized
-            )
-            SELECT asset, direction, category, entry_price, target_price, stop_price, narrative, report_date
-            FROM ranked
-            WHERE rn = 1
-              AND entry_price > 0
-            ORDER BY canon_asset ASC, direction ASC
-        """).result())
-    except Exception as e:
-        logger.warning("load_previous_recs_block: BigQuery query failed: %s", e)
-        return ""
 
+
+def _previous_recs_rows_local() -> list[dict]:
+    """Select the previous trading day's rows from the local store.
+
+    Mirrors the BigQuery CTE: newest ``report_date`` strictly before today, one row
+    per (canonical asset, direction) preferring ``OPEN`` then the latest
+    ``created_at``, dropping non-positive entry prices, ordered for display.
+    """
+    today = date.today()
+    rows = [
+        row for row in _load_recs()
+        if row.get("report_date") is not None and row["report_date"] < today
+    ]
     if not rows:
-        return ""
+        return []
+
+    last_day = max(row["report_date"] for row in rows)
+    same_day = [row for row in rows if row["report_date"] == last_day]
+
+    ranked: dict[tuple[str, str], dict] = {}
+    for row in same_day:
+        key = (canonical_asset_key(row.get("asset", "")), str(row.get("direction") or "").upper())
+        incumbent = ranked.get(key)
+        if incumbent is None or _previous_rec_rank(row) > _previous_rec_rank(incumbent):
+            ranked[key] = row
+
+    selected = [row for row in ranked.values() if float(row.get("entry_price") or 0) > 0]
+    selected.sort(key=lambda r: (canonical_asset_key(r.get("asset", "")), str(r.get("direction") or "")))
+    return selected
+
+
+def _previous_rec_rank(row: dict) -> tuple[int, str]:
+    """Sort key matching the BigQuery ROW_NUMBER ordering (higher wins)."""
+    open_first = 1 if row.get("status") == "OPEN" else 0
+    created_at = str(row.get("created_at") or "")
+    return (open_first, created_at)
+
+
+def _render_previous_recs_block(rows: list) -> str:
+    """Render the previous-recommendations Telegram block from already-selected rows.
+
+    Shared by both storage backends so the display contract cannot drift between them.
+    """
 
     # 批次取得最新收盤價（合併 symbol 一次 yfinance 請求為主）
     assets = [row["asset"] for row in rows]
@@ -1132,10 +1217,159 @@ def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
     return "\n".join(lines)
 
 
-def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -> str:
+def load_previous_recs_block(project_id: str = PROJECT_ID) -> str:
     """
-    查詢過去 days 天的已關倉建議，生成 Telegram HTML 格式績效週報。
-    無數據或查詢失敗時回傳空字串。
+    查詢最近一個交易日的 QSREC 建議，抓取當前價格，
+    回傳 Telegram HTML 格式的「上期建議追蹤」區塊。
+    若無數據或 BigQuery 不可用，回傳空字串。
+    """
+    if _recs_store_backend() == "jsonl":
+        rows = _previous_recs_rows_local()
+        if not rows:
+            return ""
+        return _render_previous_recs_block(rows)
+
+    try:
+        client = _get_bq_client(project_id)
+        # 同一 report_date + canonical asset + direction 可能有多筆（同日重跑）；
+        # 僅保留一筆：優先 OPEN，否則最新 created_at，避免同標同方向多進場價洗版。
+        rows = list(client.query(f"""
+            WITH last_day AS (
+              SELECT MAX(report_date) AS d
+              FROM `{RECOMMENDATIONS_TABLE}`
+              WHERE report_date < CURRENT_DATE()
+            ),
+            normalized AS (
+              SELECT
+                asset,
+                direction,
+                category,
+                entry_price,
+                target_price,
+                stop_price,
+                narrative,
+                report_date,
+                status,
+                created_at,
+                REGEXP_REPLACE(
+                  REGEXP_REPLACE(
+                    UPPER(TRIM(REGEXP_REPLACE(asset, '^\\\\$+', ''))),
+                    '\\\\s+',
+                    ''
+                  ),
+                  '-',
+                  '/'
+                ) AS canon_asset,
+                UPPER(COALESCE(direction, '')) AS canon_dir
+              FROM `{RECOMMENDATIONS_TABLE}`
+              WHERE report_date = (SELECT d FROM last_day)
+            ),
+            ranked AS (
+              SELECT
+                asset,
+                direction,
+                category,
+                entry_price,
+                target_price,
+                stop_price,
+                narrative,
+                report_date,
+                canon_asset,
+                ROW_NUMBER() OVER (
+                  PARTITION BY report_date, canon_asset, canon_dir
+                  ORDER BY
+                    CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END,
+                    COALESCE(created_at, TIMESTAMP(report_date)) DESC
+                ) AS rn
+              FROM normalized
+            )
+            SELECT asset, direction, category, entry_price, target_price, stop_price, narrative, report_date
+            FROM ranked
+            WHERE rn = 1
+              AND entry_price > 0
+            ORDER BY canon_asset ASC, direction ASC
+        """).result())
+    except Exception as e:
+        logger.warning("load_previous_recs_block: BigQuery query failed: %s", e)
+        return ""
+
+    if not rows:
+        return ""
+
+    return _render_previous_recs_block(rows)
+
+
+def _performance_rows_local(days: int):
+    """Local-store equivalent of the three performance queries.
+
+    Same window (report_date within *days*), same exclusion (status != OPEN) and the
+    same grouping/ordering, so the rendering below cannot tell the backends apart.
+    """
+    cutoff = date.today() - timedelta(days=days)
+    closed = [
+        row for row in _load_recs()
+        if row.get("status") not in (None, "OPEN")
+        and row.get("report_date") is not None
+        and row["report_date"] >= cutoff
+    ]
+
+    by_status: dict[str, list[dict]] = {}
+    for row in closed:
+        by_status.setdefault(row["status"], []).append(row)
+
+    def _avg(values: list[float], digits: int) -> float | None:
+        return round(sum(values) / len(values), digits) if values else None
+
+    rows = []
+    for status in sorted(by_status):
+        group = by_status[status]
+        pnls = [float(r["pnl_pct"]) for r in group if r.get("pnl_pct") is not None]
+        held = [float(r["days_held"]) for r in group if r.get("days_held") is not None]
+        rows.append({
+            "status":   status,
+            "cnt":      len(group),
+            "avg_pnl":  _avg(pnls, 2),
+            "best":     round(max(pnls), 2) if pnls else None,
+            "worst":    round(min(pnls), 2) if pnls else None,
+            "avg_days": _avg(held, 1),
+        })
+
+    pnl_rows = sorted(
+        (
+            {
+                "report_date":      r["report_date"],
+                "created_at":       r.get("created_at"),
+                "pnl_pct":          r["pnl_pct"],
+                "regime_at_signal": r.get("regime_at_signal"),
+            }
+            for r in closed if r.get("pnl_pct") is not None
+        ),
+        key=lambda r: (r["report_date"], str(r["created_at"] or "")),
+    )
+
+    by_regime: dict[str, list[float]] = {}
+    for row in pnl_rows:
+        by_regime.setdefault(row["regime_at_signal"] or "unknown", []).append(float(row["pnl_pct"]))
+
+    regime_rows = [
+        {
+            "regime":   regime,
+            "cnt":      len(pnls),
+            "avg_pnl":  _avg(pnls, 2),
+            "win_rate": round(sum(1 for p in pnls if p > 0) / len(pnls) * 100, 1),
+        }
+        for regime, pnls in by_regime.items()
+    ]
+    regime_rows.sort(key=lambda r: r["cnt"], reverse=True)
+
+    return rows, pnl_rows, regime_rows
+
+
+def _performance_rows_bigquery(project_id: str, days: int):
+    """Fetch the three performance result sets from BigQuery.
+
+    Returns ``None`` when the query fails, so the caller can degrade to an
+    empty summary exactly as the inline try/except used to.
     """
     try:
         client = _get_bq_client(project_id)
@@ -1178,7 +1412,22 @@ def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -
         """).result())
     except Exception as e:
         logger.warning("Cannot generate performance summary: %s", e)
-        return ""
+        return None
+    return rows, pnl_rows, regime_rows
+
+
+def generate_performance_summary(project_id: str = PROJECT_ID, days: int = 30) -> str:
+    """
+    查詢過去 days 天的已關倉建議，生成 Telegram HTML 格式績效週報。
+    無數據或查詢失敗時回傳空字串。
+    """
+    if _recs_store_backend() == "jsonl":
+        rows, pnl_rows, regime_rows = _performance_rows_local(days)
+    else:
+        fetched = _performance_rows_bigquery(project_id, days)
+        if fetched is None:
+            return ""
+        rows, pnl_rows, regime_rows = fetched
 
     if not rows:
         logger.info("No closed positions in the last %d days for performance summary.", days)
