@@ -21,9 +21,9 @@ def test_report_structured_shape(monkeypatch, client):
         "recommendations": [],
     }
 
-    monkeypatch.setattr("api._load_report_legacy", lambda _d: sample_legacy)
-    monkeypatch.setattr("api._latest_gate_failure_summary", lambda: None)
-    monkeypatch.setattr("api._try_load_daily_brief_raw_dict", lambda _d: (None, None))
+    monkeypatch.setattr("api_routers.reports._load_report_legacy", lambda _d: sample_legacy)
+    monkeypatch.setattr("api_routers.reports._latest_gate_failure_summary", lambda: None)
+    monkeypatch.setattr("api_routers.reports._try_load_daily_brief_raw_dict", lambda _d: (None, None))
 
     r = client.get("/api/reports/2026-04-01/structured?profile=full")
     assert r.status_code == 200
@@ -57,8 +57,8 @@ def test_report_structured_with_daily_brief_json(tmp_path, monkeypatch, client):
     json_path.write_text(model.model_dump_json(), encoding="utf-8")
 
     monkeypatch.setenv("DAILY_BRIEF_JSON_DIR", str(tmp_path))
-    monkeypatch.setattr("api._load_report_legacy", lambda _d: sample_legacy)
-    monkeypatch.setattr("api._latest_gate_failure_summary", lambda: None)
+    monkeypatch.setattr("api_routers.reports._load_report_legacy", lambda _d: sample_legacy)
+    monkeypatch.setattr("api_routers.reports._latest_gate_failure_summary", lambda: None)
 
     r = client.get("/api/reports/2026-04-01/structured?profile=full")
     assert r.status_code == 200

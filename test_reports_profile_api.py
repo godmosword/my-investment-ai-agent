@@ -38,7 +38,7 @@ def test_profile_stats_shape_with_full_data(monkeypatch, client):
         {"profile": "full", "report_count": 10, "latest_date": "2026-04-17"},
         {"profile": "lite", "report_count": 3, "latest_date": "2026-04-15"},
     ]
-    monkeypatch.setattr("api._get_bq_client", lambda: _fake_bq_client(rows))
+    monkeypatch.setattr("api_routers.reports._get_bq_client", lambda: _fake_bq_client(rows))
 
     r = client.get("/api/reports/profile-stats?days=30")
     assert r.status_code == 200
@@ -62,7 +62,7 @@ def test_profile_stats_includes_unknown_profile(monkeypatch, client):
         {"profile": "full", "report_count": 1, "latest_date": "2026-04-17"},
         {"profile": "experimental", "report_count": 2, "latest_date": "2026-04-16"},
     ]
-    monkeypatch.setattr("api._get_bq_client", lambda: _fake_bq_client(rows))
+    monkeypatch.setattr("api_routers.reports._get_bq_client", lambda: _fake_bq_client(rows))
 
     r = client.get("/api/reports/profile-stats")
     assert r.status_code == 200
@@ -75,7 +75,7 @@ def test_profile_stats_includes_unknown_profile(monkeypatch, client):
 
 @pytest.mark.smoke
 def test_profile_stats_empty(monkeypatch, client):
-    monkeypatch.setattr("api._get_bq_client", lambda: _fake_bq_client([]))
+    monkeypatch.setattr("api_routers.reports._get_bq_client", lambda: _fake_bq_client([]))
 
     r = client.get("/api/reports/profile-stats?days=7")
     assert r.status_code == 200
@@ -92,7 +92,7 @@ def test_profile_stats_empty(monkeypatch, client):
 def test_profile_stats_bigquery_failure(monkeypatch, client):
     mock_client = MagicMock()
     mock_client.query.side_effect = RuntimeError("BQ down")
-    monkeypatch.setattr("api._get_bq_client", lambda: mock_client)
+    monkeypatch.setattr("api_routers.reports._get_bq_client", lambda: mock_client)
 
     r = client.get("/api/reports/profile-stats")
     assert r.status_code == 503
@@ -126,7 +126,7 @@ def test_list_reports_without_profile(monkeypatch, client):
         }
     ]
     mock_client = _fake_bq_client(sample_rows)
-    monkeypatch.setattr("api._get_bq_client", lambda: mock_client)
+    monkeypatch.setattr("api_routers.reports._get_bq_client", lambda: mock_client)
 
     r = client.get("/api/reports?limit=5")
     assert r.status_code == 200
@@ -157,7 +157,7 @@ def test_list_reports_with_profile_joins_llm_run_log(monkeypatch, client):
         }
     ]
     mock_client = _fake_bq_client(sample_rows)
-    monkeypatch.setattr("api._get_bq_client", lambda: mock_client)
+    monkeypatch.setattr("api_routers.reports._get_bq_client", lambda: mock_client)
 
     r = client.get("/api/reports?limit=10&profile=lite")
     assert r.status_code == 200
@@ -180,7 +180,7 @@ def test_list_reports_invalid_profile(client):
 def test_list_reports_empty_profile_treated_as_absent(monkeypatch, client):
     """profile='' should behave as if no profile filter was supplied."""
     mock_client = _fake_bq_client([])
-    monkeypatch.setattr("api._get_bq_client", lambda: mock_client)
+    monkeypatch.setattr("api_routers.reports._get_bq_client", lambda: mock_client)
 
     r = client.get("/api/reports?profile=")
     assert r.status_code == 200

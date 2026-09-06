@@ -5,6 +5,14 @@
 
 ## 2026-09-06
 
+### API/Ops（ITER-API-SLIM-002 — `/api/reports*` 搬進 router，P2-1）
+
+- **[`api_routers/reports.py`](api_routers/reports.py) 新檔**：原本夾在 middleware 與 `/api/trades` 之間的九條 inline route（`/api/reports`、`/api/reports/profile-stats`、`/{date}/structured`、`/{date}/gate-status`、`/{date}/html`、`/api/brief-layouts`、`/api/reports/qsrec-stats`、`/api/gate-failures`、`/api/reports/{date}`）連同其私有 helper 與 HTML export 的 Jinja2 env 一併搬入。**宣告順序照搬**：`profile-stats`／`qsrec-stats` 必須排在 `/{report_date}` 之前，否則字面路徑會被路徑參數吃掉。
+- **契約不變**：路徑、query 上下界、payload 欄位、錯誤碼皆未改；OpenAPI 的 path／method 表在搬遷前後逐字相同。[`api.py`](api.py) 由 1806 行降到 902 行，只保留 app 組裝、CORS、兩支 middleware、include_router，以及尚未搬的 trades／paper／push／SSE。
+- **測試**：reports 契約測試移入 [`tests/api/test_reports_router.py`](tests/api/test_reports_router.py)，monkeypatch 錨點跟著 handler 改指 `api_routers.reports`（斷言內容不變）；[`test_reports_profile_api.py`](test_reports_profile_api.py)、[`test_report_structured_api.py`](test_report_structured_api.py) 同步。`pytest -m smoke` 230 passed。
+- **既有缺陷（本切片未修）**：`GET /api/reports/{date}/html` 在報告存在時會 500 — `_build_jinja2_env` 從 `jinja2` import `Markup`，該名稱在 Jinja2 3.1 已移到 `markupsafe`。搬遷前同樣重現，屬行為修正，另切片處理。
+- **未動**：`validate_report`、Telegram HTML 白名單、`crew.py` prompt、`Dockerfile` CMD、`deploy.yml`。**Job ≠ Service：本切片不部署 Service**。
+
 ### API/Ops（ITER-API-SLIM-001 — 啟動路徑與 Job 解耦，P1）
 
 - **`import api` 不再拉 Job 端重物**：[`bigquery_writer.py`](bigquery_writer.py) 的 `scipy.spatial.distance.cosine` 改為首次語義去重時才解析（比照既有 lazy SBERT，「取不到就跳過去重」語意不變）；[`telegram_sender.py`](telegram_sender.py) 以 PEP 562 `__getattr__` 綁定 `telebot`，送訊路徑（或測試 patch `telegram_sender.telebot.TeleBot`）碰到才 import；[`api.py`](api.py) 的 `yaml` 移進 `/api/brief-layouts` handler，`paper_execution` 改走 lazy proxy（`api.run_paper_execution_tick` 仍可 monkeypatch）。實測 `import api` **1.15s → 0.80s**，`scipy`／`telebot`／`redis` 不再出現在啟動 import 圖。
