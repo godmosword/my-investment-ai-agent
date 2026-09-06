@@ -37,11 +37,23 @@ NOTEBOOKLM_COST_LOG_TABLE = os.getenv("NOTEBOOKLM_COST_LOG_TABLE", "").strip()
 
 # ── 語義去重（Semantic Deduplication）──────────────────────────────────
 _SBERT_MODEL: object = None  # None=not loaded, False=unavailable, Model=ready
+# None=not resolved, False=unavailable, callable=ready. Resolved on first dedup call
+# so that importing this module (e.g. from the FastAPI app) does not pull in SciPy.
+_COSINE_DISTANCE: object = None
 
-try:
-    from scipy.spatial.distance import cosine as _cosine_distance
-except ImportError:
-    _cosine_distance = None
+
+def _get_cosine_distance():
+    """Lazy-resolve SciPy's cosine distance; returns ``None`` when unavailable."""
+    global _COSINE_DISTANCE
+    if _COSINE_DISTANCE is None:
+        try:
+            from scipy.spatial.distance import cosine
+
+            _COSINE_DISTANCE = cosine
+        except ImportError:
+            _COSINE_DISTANCE = False
+            logger.warning("scipy not installed; semantic dedup disabled.")
+    return _COSINE_DISTANCE if _COSINE_DISTANCE is not False else None
 
 
 def _get_sbert_model():
@@ -77,7 +89,11 @@ def _semantic_dedup_titles(titles: list[str], threshold: float = 0.80) -> list[s
     Returns:
         Deduplicated list preserving original order.
     """
-    if len(titles) <= 1 or _cosine_distance is None:
+    if len(titles) <= 1:
+        return titles
+
+    cosine_distance = _get_cosine_distance()
+    if cosine_distance is None:
         return titles
 
     model = _get_sbert_model()
@@ -91,7 +107,7 @@ def _semantic_dedup_titles(titles: list[str], threshold: float = 0.80) -> list[s
         for i, emb_i in enumerate(embeddings):
             is_dup = False
             for j in kept_indices:
-                sim = 1.0 - _cosine_distance(emb_i, embeddings[j])
+                sim = 1.0 - cosine_distance(emb_i, embeddings[j])
                 if sim > threshold:
                     logger.debug(
                         "Semantic dedup: title %d (%.30s…) %.3f-similar to %d (%.30s…), skipping.",

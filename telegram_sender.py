@@ -11,29 +11,40 @@ import re
 import time
 from datetime import datetime, timezone
 
-try:
-    import telebot
-except ImportError:
-    telebot = None
-
 logger = logging.getLogger(__name__)
 
 # Telegram HTML 支援的標籤白名單（與專案規範一致，不含 <pre>）
 _ALLOWED_TAGS = {"b", "i", "u", "s", "code", "blockquote", "a"}
 
 
+def __getattr__(name: str):
+    """PEP 562 hook: bind ``telegram_sender.telebot`` on first attribute access.
+
+    Importing pyTelegramBotAPI eagerly drags telebot (and redis) onto the FastAPI
+    startup path, which the daily-brief Job needs but ``uvicorn api:app`` does not.
+    Resolving it here keeps ``telegram_sender.telebot`` patchable by tests while the
+    import itself is deferred until something actually reads the attribute.
+    """
+    if name == "telebot":
+        try:
+            import telebot as module
+        except ImportError:
+            module = None
+        globals()["telebot"] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def _get_telebot():
     """Import pyTelegramBotAPI only when a Telegram send path is used."""
-    global telebot
-    if telebot is None:
-        try:
-            import telebot as telebot_mod
-        except ImportError as exc:
-            raise RuntimeError(
-                "pyTelegramBotAPI is required for Telegram sending; install pyTelegramBotAPI."
-            ) from exc
-        telebot = telebot_mod
-    return telebot
+    module = globals().get("telebot")
+    if module is None:
+        module = __getattr__("telebot")
+    if module is None:
+        raise RuntimeError(
+            "pyTelegramBotAPI is required for Telegram sending; install pyTelegramBotAPI."
+        )
+    return module
 
 
 def sanitize_telegram_html(text: str) -> str:
