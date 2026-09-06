@@ -13,7 +13,6 @@ import logging
 import os
 import re
 import time
-import yaml
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -38,7 +37,6 @@ from execution_intents import (
 from paper_lifecycle import build_paper_lifecycle_payload
 from transparency_letter import build_transparency_letter
 from track_record import normalize_closed_intent
-from paper_execution import run_paper_execution_tick
 import sse_token
 from war_room_stream import (
     drain_graph_node_events,
@@ -77,6 +75,17 @@ logger = logging.getLogger(__name__)
 def _get_bq_client() -> bigquery.Client:
     """BQ client accessor; tests monkeypatch ``api._get_bq_client``."""
     return _bq_singleton()
+
+
+def run_paper_execution_tick(*args: Any, **kwargs: Any) -> Any:
+    """Lazy proxy to ``paper_execution.run_paper_execution_tick``.
+
+    Imported on first call so that FastAPI startup does not pull in the
+    Job-side BigQuery writer. Tests still monkeypatch ``api.run_paper_execution_tick``.
+    """
+    from paper_execution import run_paper_execution_tick as _impl
+
+    return _impl(*args, **kwargs)
 
 _REPO_ROOT = Path(__file__).resolve().parent
 
@@ -674,6 +683,8 @@ def list_brief_layout_yaml_files() -> dict[str, Any]:
     ``BRIEF_LAYOUT_FILE``. Response includes ``runtime_hints`` (server env snapshot;
     no secrets).
     """
+    import yaml
+
     layouts_dir = _REPO_ROOT / "config" / "brief_layouts"
     if not layouts_dir.is_dir():
         return {"layouts": [], "runtime_hints": _brief_layouts_runtime_hints()}

@@ -4,6 +4,8 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
+**同步狀態（2026-09-06 — ITER-API-SLIM-001 · P1）**：HTTP API 與日報 Job 的**啟動路徑**解耦 — `scipy`（`bigquery_writer` 語義去重）、`telebot`／`redis`（`telegram_sender`）、`yaml`／`paper_execution`（`api.py`）改 lazy，`import api` 1.15s → 0.80s；新增 [`tests/api/test_api_import_boundary.py`](tests/api/test_api_import_boundary.py) 守門。`google.cloud.bigquery` 仍在啟動路徑（`api_deps`／`symbol_snapshot_service` 頂層 import），待 router 搬遷切片。**Job ≠ Service：本整理不部署 Service**，正式 Cloud Run Service 503 未動。見 CHANGELOG **2026-09-06**。
+
 **同步狀態（2026-09-05 — ITER-GO-LIVE-001）**：`GET /healthz` 廉價 liveness（無 master key；`{"ok": true, "service": "api"}`）；`smoke:prod` fail-closed 只認該契約。Job ≠ Service；正式 Cloud Run Service 仍 **503**、`/healthz` **404** — 本切片不部署、不假裝康復。見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」、CHANGELOG **2026-09-05**。
 
 **同步狀態（2026-09-05 — ITER-TR-LOOP-001）**：`/insights` 首屏今日建議下「紙上對帳」— 只對已解析標的標無紙上／未結／已結＋API 報酬／UNKNOWN；未結只看生命週期／意圖（實績 closed 舊市價快照不誤判）。未上 production。見 CHANGELOG **2026-09-05**。

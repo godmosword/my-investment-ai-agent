@@ -3,6 +3,15 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-09-06
+
+### API/Ops（ITER-API-SLIM-001 — 啟動路徑與 Job 解耦，P1）
+
+- **`import api` 不再拉 Job 端重物**：[`bigquery_writer.py`](bigquery_writer.py) 的 `scipy.spatial.distance.cosine` 改為首次語義去重時才解析（比照既有 lazy SBERT，「取不到就跳過去重」語意不變）；[`telegram_sender.py`](telegram_sender.py) 以 PEP 562 `__getattr__` 綁定 `telebot`，送訊路徑（或測試 patch `telegram_sender.telebot.TeleBot`）碰到才 import；[`api.py`](api.py) 的 `yaml` 移進 `/api/brief-layouts` handler，`paper_execution` 改走 lazy proxy（`api.run_paper_execution_tick` 仍可 monkeypatch）。實測 `import api` **1.15s → 0.80s**，`scipy`／`telebot`／`redis` 不再出現在啟動 import 圖。
+- **修訂 2026-09-05 敘述**：該日條目寫「不做 lazy-import」，本切片改為 **有界的 lazy-import**（僅上述三處，不重排 `api.py` 頂層、不拆 router）。`google.cloud.bigquery`（含 pandas，約 0.5s）**仍在**啟動路徑，因 [`api_deps.py`](api_deps.py)／[`symbol_snapshot_service.py`](symbol_snapshot_service.py) 頂層即 import；留待 router 搬遷切片處理。
+- **測試**：[`tests/api/test_api_import_boundary.py`](tests/api/test_api_import_boundary.py) — 於乾淨子行程（避開 root `conftest.py` 的 stub）驗證清空 GCP／LLM／Redis／Telegram env 後 `import api` 成功、`/healthz` 在 OpenAPI 路由表上、且 `crewai`／`litellm`／`sentence_transformers`／`scipy`／`telebot`／`redis`／`crew`／`main` 等未被載入。
+- **未動**：對外 URL 與 JSON 欄位語意、`validate_report`、Telegram HTML 白名單、`crew.py` prompt、`Dockerfile` CMD、`deploy.yml`。**Job ≠ Service：本切片不部署 Service**，正式站 503 不會因此復原。
+
 ## 2026-09-05
 
 ### API/Ops（ITER-GO-LIVE-001 — API liveness and ship probe）
