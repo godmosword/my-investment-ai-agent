@@ -11,7 +11,7 @@ import logging
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import bigquery
@@ -34,6 +34,62 @@ GATE_FAILURE_BQ_LOG = os.getenv("GATE_FAILURE_BQ_LOG", "1").lower() not in ("0",
 REVIEWER_LOG_BQ = os.getenv("REVIEWER_LOG_BQ", "1").lower() not in ("0", "false", "no")
 DAILY_BRIEF_JSON_BQ_TABLE = os.getenv("DAILY_BRIEF_JSON_BQ_TABLE", "").strip()
 NOTEBOOKLM_COST_LOG_TABLE = os.getenv("NOTEBOOKLM_COST_LOG_TABLE", "").strip()
+
+# ── daily_metrics 儲存後端 ─────────────────────────────────────────────
+# 日對日去重與「上次成功戰報時間」的記憶迴圈；GCP 移除後改存本地 JSONL。
+_METRICS_STORE = "daily_metrics.jsonl"
+_EXCLUSION_WINDOW_HOURS = 36
+
+
+def _metrics_store_backend() -> str:
+    backend = os.getenv("METRICS_STORE_BACKEND", "jsonl").strip().lower()
+    return "bigquery" if backend == "bigquery" else "jsonl"
+
+
+def _metrics_store_path():
+    from state_store import store_path
+
+    return store_path(_METRICS_STORE)
+
+
+def _load_metrics() -> list[dict]:
+    from state_store import read_jsonl
+
+    return read_jsonl(_METRICS_STORE)
+
+
+def _append_metrics(rows: list[dict]) -> int:
+    from state_store import append_jsonl
+
+    return append_jsonl(_METRICS_STORE, rows)
+
+
+def _parse_metrics_timestamp(value) -> datetime | None:
+    """Rows carry ISO timestamps; return an aware datetime for comparison."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _latest_metrics_row(*, within_hours: int | None = None) -> dict | None:
+    """Newest stored row, optionally restricted to the last *within_hours*."""
+    dated = [
+        (ts, row) for row in _load_metrics()
+        if (ts := _parse_metrics_timestamp(row.get("timestamp"))) is not None
+    ]
+    if not dated:
+        return None
+    ts, row = max(dated, key=lambda pair: pair[0])
+    if within_hours is not None:
+        if ts < datetime.now(timezone.utc) - timedelta(hours=within_hours):
+            return None
+    return row
 
 # ── 語義去重（Semantic Deduplication）──────────────────────────────────
 _SBERT_MODEL: object = None  # None=not loaded, False=unavailable, Model=ready
@@ -287,7 +343,36 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         dxy, etf_flow, avg_risk, mvrv_z, sentiment_score, sopr, exchange_netflow, regime_score,
     )
 
-    # ── 7. 寫入 BigQuery ──────────────────────────────────────────
+    # ── 7. 組列 ────────────────────────────────────────────────────
+    row = {
+        "timestamp":         datetime.now(timezone.utc).isoformat(),
+        "dxy":               dxy,
+        "etf_flow_millions": etf_flow,
+        "avg_risk_score":    avg_risk,
+        "gpu_b200_price":    gpu_b200,
+        "grok_summary":      grok_summary,
+        "gpt_summary":       gpt_summary,
+        "mvrv_z_score":      mvrv_z,
+        "news_titles":       news_titles_str,
+        # P2 新增欄位
+        "sentiment_score":   sentiment_score,
+        "sopr":              sopr,
+        "exchange_netflow":  exchange_netflow,
+        # Phase 4 新增欄位
+        "regime_score":      regime_score,
+    }
+    non_null_count = sum(1 for v in [dxy, etf_flow, avg_risk, mvrv_z] if v is not None)
+    if non_null_count == 0:
+        logger.warning("All key metrics are None — skipping write to avoid empty row.")
+        return
+    logger.info("Writing %d/4 key metrics.", non_null_count)
+
+    if _metrics_store_backend() == "jsonl":
+        _append_metrics([row])
+        logger.info("Daily metrics written to local store successfully.")
+        return
+
+    # ── 8. 寫入 BigQuery ──────────────────────────────────────────
     try:
         client = bigquery.Client(project=project_id)
 
@@ -320,28 +405,6 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
             client.update_table(table, ["schema"])
             logger.info("Added missing BigQuery columns: %s", ", ".join(f.name for f in missing_fields))
 
-        row = {
-            "timestamp":         datetime.now(timezone.utc).isoformat(),
-            "dxy":               dxy,
-            "etf_flow_millions": etf_flow,
-            "avg_risk_score":    avg_risk,
-            "gpu_b200_price":    gpu_b200,
-            "grok_summary":      grok_summary,
-            "gpt_summary":       gpt_summary,
-            "mvrv_z_score":      mvrv_z,
-            "news_titles":       news_titles_str,
-            # P2 新增欄位
-            "sentiment_score":   sentiment_score,
-            "sopr":              sopr,
-            "exchange_netflow":  exchange_netflow,
-            # Phase 4 新增欄位
-            "regime_score":      regime_score,
-        }
-        non_null_count = sum(1 for v in [dxy, etf_flow, avg_risk, mvrv_z] if v is not None)
-        if non_null_count == 0:
-            logger.warning("All key metrics are None — skipping BigQuery write to avoid empty row.")
-            return
-        logger.info("Writing %d/4 key metrics to BigQuery.", non_null_count)
 
         errors = client.insert_rows_json(metrics_table, [row])
         if errors:
@@ -355,8 +418,23 @@ def extract_and_save_metrics(report_text: str, project_id: str = PROJECT_ID) -> 
         logger.error("Failed to write metrics to BigQuery: %s", e)
 
 
-def _fetch_recent_recommended_assets(client: bigquery.Client, days: int = 3) -> list[str]:
-    """查詢近 N 天已建議的資產代號，供排除重複標的使用。"""
+def _fetch_recent_recommended_assets(client: "bigquery.Client | None", days: int = 3) -> list[str]:
+    """查詢近 N 天已建議的資產代號，供排除重複標的使用。
+
+    ``client is None`` 時改讀 tracker 的本地建議存放（無 BigQuery 環境）。
+    """
+    if client is None:
+        from datetime import date as _date
+
+        import tracker
+
+        cutoff = _date.today() - timedelta(days=days)
+        assets = {
+            row["asset"] for row in tracker._load_recs()
+            if row.get("asset") and (row.get("report_date") or _date.min) >= cutoff
+        }
+        return sorted(assets)
+
     try:
         rows = list(client.query(f"""
             SELECT DISTINCT asset
@@ -412,11 +490,28 @@ def _fetch_last_rotation_gate_warnings() -> str | None:
     )
 
 
-def _fetch_recent_stopped_out_trades(client: bigquery.Client, days: int = 3) -> str | None:
+def _fetch_recent_stopped_out_trades(client: "bigquery.Client | None", days: int = 3) -> str | None:
     """
     查詢近 N 天內觸發停損（HIT_STOP）的交易紀錄，格式化為 LLM 反思提示。
     讓 AI 知道近期哪些方向判斷失誤，自動降低同類看法的信心水準。
+
+    ``client is None`` 時改讀 tracker 的本地建議存放（無 BigQuery 環境）。
     """
+    if client is None:
+        from datetime import date as _date
+
+        import tracker
+
+        cutoff = _date.today() - timedelta(days=days)
+        rows = [
+            row for row in tracker._load_recs()
+            if row.get("status") == "HIT_STOP"
+            and (row.get("report_date") or _date.min) >= cutoff
+        ]
+        rows.sort(key=lambda r: r.get("report_date") or _date.min, reverse=True)
+        rows = rows[:5]
+        return _render_stopped_out_trades(rows)
+
     try:
         rows = list(client.query(f"""
             SELECT asset, direction, entry_price, stop_price, exit_price,
@@ -431,6 +526,11 @@ def _fetch_recent_stopped_out_trades(client: bigquery.Client, days: int = 3) -> 
         logger.warning("Failed to fetch stopped-out trades: %s", e)
         return None
 
+    return _render_stopped_out_trades(rows)
+
+
+def _render_stopped_out_trades(rows) -> str | None:
+    """Format stopped-out rows into the reflection prompt shared by both backends."""
     if not rows:
         return None
 
@@ -459,18 +559,24 @@ def fetch_exclusion_context(project_id: str = PROJECT_ID, metrics_table: str = M
         logger.info("SKIP_BIGQUERY=1 — skipping exclusion context fetch.")
         return None
     try:
-        client = bigquery.Client(project=project_id)
-        query = f"""
-            SELECT grok_summary, gpt_summary, news_titles
-            FROM `{metrics_table}`
-            WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 36 HOUR)
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """
-        rows = list(client.query(query).result())
-        if not rows:
-            return None
-        row = rows[0]
+        if _metrics_store_backend() == "jsonl":
+            client = None
+            row = _latest_metrics_row(within_hours=_EXCLUSION_WINDOW_HOURS)
+            if row is None:
+                return None
+        else:
+            client = bigquery.Client(project=project_id)
+            query = f"""
+                SELECT grok_summary, gpt_summary, news_titles
+                FROM `{metrics_table}`
+                WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {_EXCLUSION_WINDOW_HOURS} HOUR)
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """
+            rows = list(client.query(query).result())
+            if not rows:
+                return None
+            row = rows[0]
 
         parts: list[str] = []
 
@@ -532,6 +638,12 @@ def _get_last_success_report_time_utc(
     """查詢最近一次成功寫入 metrics 的時間（視為最近成功戰報時間）。"""
     if SKIP_BIGQUERY:
         return None
+
+    if _metrics_store_backend() == "jsonl":
+        row = _latest_metrics_row()
+        ts = _parse_metrics_timestamp(row.get("timestamp")) if row else None
+        return ts.strftime("%Y-%m-%d %H:%M UTC") if ts else None
+
     try:
         client = bigquery.Client(project=project_id)
         query = f"""

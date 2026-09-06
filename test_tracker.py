@@ -312,7 +312,7 @@ class TestGetRecentLessons(unittest.TestCase):
         mock_client.query.return_value = mock_job
         mock_get_client.return_value = mock_client
 
-        with patch.dict(os.environ, {"SKIP_BIGQUERY": "", "REFLECTION_MIN_STOPS_REDUCE": "2"}, clear=False):
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": "", "REFLECTION_MIN_STOPS_REDUCE": "2", "TRACKER_STORE_BACKEND": "bigquery"}, clear=False):
             out = get_recent_lessons(3)
 
         self.assertTrue(out.startswith("{"))
@@ -345,7 +345,7 @@ class TestGetRecentLessons(unittest.TestCase):
         mock_client.query.return_value = mock_job
         mock_get_client.return_value = mock_client
 
-        with patch.dict(os.environ, {"SKIP_BIGQUERY": "", "REFLECTION_MIN_STOPS_REDUCE": "2"}, clear=False):
+        with patch.dict(os.environ, {"SKIP_BIGQUERY": "", "REFLECTION_MIN_STOPS_REDUCE": "2", "TRACKER_STORE_BACKEND": "bigquery"}, clear=False):
             out = get_recent_lessons(3)
 
         self.assertIn("reduce_exposure", out)
@@ -376,6 +376,7 @@ class TestGetRecentLessons(unittest.TestCase):
 class TestGeneratePerformanceSummary(unittest.TestCase):
     """Telegram HTML 績效週報：指標定義與 regime 小樣本註記。"""
 
+    @patch.dict(os.environ, {"TRACKER_STORE_BACKEND": "bigquery"}, clear=False)
     @patch("tracker._get_bq_client")
     def test_includes_definitions_and_regime_caveats(self, mock_get_client):
         mock_client = MagicMock()
@@ -429,6 +430,7 @@ class TestGeneratePerformanceSummary(unittest.TestCase):
 
 
 class TestSaveRecommendationsDeleteScope(unittest.TestCase):
+    @patch.dict(os.environ, {"TRACKER_STORE_BACKEND": "bigquery"}, clear=False)
     @patch("tracker._ensure_table")
     @patch("tracker._get_bq_client")
     def test_delete_only_open_rows_for_report_date(self, mock_get_client, _mock_ensure):
