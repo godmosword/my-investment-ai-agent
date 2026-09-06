@@ -229,7 +229,7 @@ slug 不可用時：**不要**替換；Leader 代做並告知使用者。
 | Portal ship | [`PORTAL_SHIP_CHECKLIST.md`](PORTAL_SHIP_CHECKLIST.md) |
 | 營運 18–21 | `python3 scripts/verify_ops_queue_18_21.py` |
 
-**API 健康檢查（prod smoke）：** 優先 `GET /docs` 或 `GET /openapi.json`（Cloud Run 邊界對 `/healthz` 可能 404）；業務 endpoint 見 PORTAL_SHIP_CHECKLIST。
+**API 健康檢查（prod smoke）：** 必須 `GET /healthz` HTTP **200** 且 body 精確為 `{"ok": true, "service": "api"}`；**不得**以 `/docs` 或 `/openapi.json` 當作 liveness。業務 endpoint 見 PORTAL_SHIP_CHECKLIST。
 
 ---
 
@@ -320,7 +320,7 @@ slug 不可用時：**不要**替換；Leader 代做並告知使用者。
 | haiku 改 tools/crew/API | 金融／Gate 風險 |
 | `git add -A` | 混 WIP |
 | 跳過 graph gate | 戰報品質／Reviewer 回歸 |
-| prod smoke 只看 `/healthz` | Cloud Run 邊界已知 404 |
+| prod smoke 用 `/docs`／`/openapi.json` 當 liveness | 可在 Service 壞掉時 false-pass；契約只認 `/healthz` 精確 body |
 
 ---
 

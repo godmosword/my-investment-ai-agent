@@ -18,18 +18,28 @@ for path in /insights /news /dashboard /columns /portfolio; do
   echo "OK $u"
 done
 
-echo "== API liveness (prefer /docs or /openapi.json; /healthz may 404 at Cloud Run edge) =="
-hc=""
-for path in /docs /openapi.json /healthz; do
-  c=$(code "${API_BASE%/}${path}")
-  if [[ "$c" == "200" ]]; then
-    hc="$c"
-    echo "OK ${API_BASE%/}${path}"
-    break
-  fi
-  echo "skip ${API_BASE%/}${path} -> $c"
-done
-[[ "$hc" == "200" ]] || { echo "FAIL API liveness: none of /docs, /openapi.json, /healthz returned 200"; exit 1; }
+echo "== API liveness (GET /healthz only; exact JSON body required) =="
+hz_url="${API_BASE%/}/healthz"
+hz_file="$(mktemp)"
+cleanup_hz() { rm -f "$hz_file"; }
+trap cleanup_hz EXIT
+hz_code="$(curl -sS -o "$hz_file" -w "%{http_code}" "$hz_url" || true)"
+if [[ "$hz_code" != "200" ]]; then
+  echo "FAIL $hz_url -> HTTP $hz_code (do not treat /docs or /openapi.json as liveness)"
+  exit 1
+fi
+python3 - "$hz_file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as fh:
+    body = json.load(fh)
+expected = {"ok": True, "service": "api"}
+if body != expected:
+    raise SystemExit(f"FAIL /healthz body {body!r} != {expected!r}")
+print("OK /healthz exact body")
+PY
 
 echo "== API quote BTC (may be 401 without key — document your backend) =="
 if [[ ${#HDR[@]} -gt 0 ]]; then
