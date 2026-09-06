@@ -5,6 +5,14 @@
 
 ## 2026-09-05
 
+### API/Ops（ITER-GO-LIVE-001 — API liveness and ship probe）
+
+- **`GET /healthz`**：固定回 **200** `{"ok": true, "service": "api"}`。不要求 `QSILICON_MASTER_KEY`（middleware 只擋 `/api/*`）；handler 不探 BQ／LLM／crew／Redis／Telegram／paper tick。可選後端掛掉仍應 200。
+- **啟動崩潰**：本機清空常見 GCP／LLM／Redis／Telegram env 後 `import api` 成功且路由含 `/healthz` → **不大拆** `api.py`、不做 lazy-import。Cloud Run 映像／缺套件崩潰 **未證**。
+- **文件**：[`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」— 三條定義、Job ≠ Service、正式 Service **503**／`/healthz` **404**、Human 看 `my-investment-ai-agent-api`（`asia-east1`）revision／logs、`smoke:prod` 指令。
+- **`smoke:prod` fail-closed**：[`data-verification-ui/scripts/smoke-prod.sh`](data-verification-ui/scripts/smoke-prod.sh) 只認 `GET /healthz` HTTP 200 + 精確 `{"ok": true, "service": "api"}`；不再接受 `/docs`／`/openapi.json` any-200。Checklist／AGENT-WORKFLOW 同步，避免與 criterion 2 矛盾。
+- **測試**：[`tests/api/test_healthz.py`](tests/api/test_healthz.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)。**本 PR 不部署**；合入後正式網址仍是舊 revision，直到 Human 在 GCP 重佈。
+
 ### PWA（ITER-TR-LOOP-001 — 今日建議對上紙上狀態）
 
 - [`/insights` 首屏](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 今日建議 honesty 下方新增緊湊「紙上對帳」條：標的只取日報已解析欄（`recommendations[].asset`／`tickers`／`focus_symbols`／`assets`），不從正文刮 ticker、不用工作區關注代號。

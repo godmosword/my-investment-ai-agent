@@ -4,13 +4,46 @@ This checklist is for repo-side Portal readiness. It does not close cloud-only
 ops items until a staging operator has run the matching environment checks and
 recorded the date in `TODOS.md` / `CHANGELOG.md`.
 
+## 2026-09-05 正式上線
+
+Repo-side of criterion 2 only. This document does not deploy Cloud Run.
+
+**Three criteria (all required):**
+
+1. Production PWA is `pwa-deploy.yml` **prebuilt** (Human signs GitHub environment `production`).
+2. API **Service** answers cheap liveness with HTTP **200** (`GET /healthz` → `{"ok": true, "service": "api"}`; no `QSILICON_MASTER_KEY`).
+3. Phone `/insights` shows today's recommendation plus paper reconcile (data or an honest error, not a dead page).
+
+**Job ≠ Service.** [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) deploys the Cloud Run **Job** (daily brief). This repo has **no** GitHub workflow that deploys the HTTP API **Service**. The Service is a manual / legacy deploy.
+
+**2026-09-05 production fact** (this PR does not heal it):
+
+| Surface | Result |
+|---------|--------|
+| PWA `https://my-investment-ai-agent.vercel.app/insights` | HTTP **200** (static shell) |
+| Service `https://my-investment-ai-agent-api-yp2y6wuioa-de.a.run.app` `/docs`, `/openapi.json`, `/api/reports`, `/api/track-record/summary`, `/api/paper/lifecycle` | **503** (Google HTML) |
+| Same origin `GET /healthz` | **404** |
+
+Human: Cloud Console → Cloud Run → **my-investment-ai-agent-api** (`asia-east1`) → current revision + logs. After a healthy revision that includes this `/healthz`, criterion 2 can be re-probed at the Service URL. Landing this PR does **not** make the live 503 Service recover.
+
+**smoke:prod** (probe after Human redeploy, or to record current failure):
+
+```bash
+cd data-verification-ui
+BASE_URL=https://my-investment-ai-agent.vercel.app \
+API_BASE=https://my-investment-ai-agent-api-yp2y6wuioa-de.a.run.app \
+npm run smoke:prod
+```
+
 ## API Smoke
 
 Run against local API or staging API:
 
 ```bash
-# Liveness: prefer /docs or /openapi.json (Cloud Run edge may return 404 for /healthz)
-curl -fsS "$API_BASE/docs" || curl -fsS "$API_BASE/openapi.json"
+# Liveness (criterion 2): GET /healthz HTTP 200 + exact body {"ok": true, "service": "api"}.
+# Do NOT treat /docs or /openapi.json as liveness — they can 200 while the Service is unhealthy.
+curl -fsS "$API_BASE/healthz"
+# expect exact JSON object: {"ok": true, "service": "api"}
 curl -fsS "$API_BASE/api/execution-intents?limit=5"
 curl -fsS "$API_BASE/api/execution-intents/allowed-statuses"
 curl -fsS "$API_BASE/api/execution-intents/gate-index"
@@ -139,13 +172,13 @@ API_BASE="https://YOUR-CLOUD-RUN-SERVICE.a.run.app" \
 npm run smoke:prod
 ```
 
-Static PWA routes must return 200; API checks require a reachable `API_BASE` (`/docs` or `/openapi.json` for liveness; optional quote with `SMOKE_QSILICON_KEY`). `/healthz` may 404 at the Cloud Run edge — use business endpoints if liveness probes fail.
+Static PWA routes must return 200; API liveness requires a reachable `API_BASE` where `GET /healthz` returns HTTP **200** and body exactly `{"ok": true, "service": "api"}` (optional quote with `SMOKE_QSILICON_KEY`). Do **not** treat `/docs` or `/openapi.json` as liveness — a docs/OpenAPI 200 must not hide a missing or wrong `/healthz`.
 
 If static routes return **401** (Vercel Authentication), Production SSO is still on — turn it off per **Access / PWA** above, then re-run smoke.
 
 After this harden lands, confirm the newest production deployment `source` is `cli` (prebuilt), not `git`. Baseline before ship: `dpl_jDcjxjyMgPmXq5j292LZBbUyTQBX` was `source=git` (oss-scout chore).
 
-**2026-08-15 probe** (pre-ship of this harden): five PWA routes returned **200** (real `Q-Silicon War Room` HTML, not a Vercel login page). `smoke:prod` API liveness against Cloud Run Service `https://my-investment-ai-agent-api-yp2y6wuioa-de.a.run.app` was **not** 200 (`/docs` 500, `/openapi.json` 503, `/healthz` 404) — that is the API Service, not the Vercel static config. Re-run full `smoke:prod` after the next `pwa-deploy` prebuilt and after API liveness is 200.
+**2026-08-15 probe** (historical, pre-ship of this harden): five PWA routes returned **200** (real `Q-Silicon War Room` HTML, not a Vercel login page). Against Cloud Run Service `https://my-investment-ai-agent-api-yp2y6wuioa-de.a.run.app`, `/docs` was 500, `/openapi.json` 503, `/healthz` 404 — that is the API Service, not the Vercel static config. Current contract: only `GET /healthz` with exact `{"ok": true, "service": "api"}` counts as API liveness. Re-run full `smoke:prod` after the next `pwa-deploy` prebuilt and after Human redeploys a healthy API Service revision.
 
 ### Prebuilt deploy troubleshooting
 

@@ -4,13 +4,15 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
+**同步狀態（2026-09-05 — ITER-GO-LIVE-001）**：`GET /healthz` 廉價 liveness（無 master key；`{"ok": true, "service": "api"}`）；`smoke:prod` fail-closed 只認該契約。Job ≠ Service；正式 Cloud Run Service 仍 **503**、`/healthz` **404** — 本切片不部署、不假裝康復。見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」、CHANGELOG **2026-09-05**。
+
 **同步狀態（2026-09-05 — ITER-TR-LOOP-001）**：`/insights` 首屏今日建議下「紙上對帳」— 只對已解析標的標無紙上／未結／已結＋API 報酬／UNKNOWN；未結只看生命週期／意圖（實績 closed 舊市價快照不誤判）。未上 production。見 CHANGELOG **2026-09-05**。
 
 **同步狀態（2026-09-05 — ITER-TR-AUDIT-001）**：`/insights` 實績頁紙上可審計摘要 — 期間／截至／樣本／來源、內部透明度／納入規則依 source（jsonl 已結 vs BQ 可含市價結算）、無 quality 不假裝過濾、上期追蹤有連結欄才顯示否則 UNKNOWN。既有 KPI 語意不變；未上 production。見 CHANGELOG **2026-09-05**。
 
 **同步狀態（2026-08-15 — Portal Vercel harden）**：[`data-verification-ui/vercel.json`](data-verification-ui/vercel.json) **`git.deploymentEnabled.main=false`** — `main` 不再由 Git Integration 遠端 `vite build` 上正式站；Production 只走 [`pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) prebuilt。`VITE_API_URL` 真相來源＝GitHub secret；Preview 須 Dashboard Preview env。SSO：建議 Production 關、Preview 留（Dashboard 人工）。見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)、CHANGELOG **2026-08-15**。
 
-**同步狀態（2026-06-16 — PWA + Cloud Run Service 已對接）**：[`pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) **verify**（lint + E2E **86/86**）+ **deploy-vercel** 全綠；正式站 [`my-investment-ai-agent.vercel.app`](https://my-investment-ai-agent.vercel.app) 靜態路由 200。**Cloud Run Service** `my-investment-ai-agent-api`（FastAPI）已部署；GitHub secret **`VITE_API_URL`** 已指向該 Service origin，PWA macro 數據已驗證。**Job**（日報 pipeline）與 **Service**（HTTP API）並存 — 勿再假設「僅 Job、無 Service」。**`npm run smoke:prod`** 見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)（API liveness 優先 `/docs` 或 `/openapi.json`；邊界 `/healthz` 可能 404）。**Agent 編排**：[`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md) + [`.cursor/commands/`](../.cursor/commands/)。見 CHANGELOG **2026-06-16**。
+**同步狀態（2026-06-16 — PWA + Cloud Run Service 已對接）**：[`pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) **verify**（lint + E2E **86/86**）+ **deploy-vercel** 全綠；正式站 [`my-investment-ai-agent.vercel.app`](https://my-investment-ai-agent.vercel.app) 靜態路由 200。**Cloud Run Service** `my-investment-ai-agent-api`（FastAPI）已部署；GitHub secret **`VITE_API_URL`** 已指向該 Service origin，PWA macro 數據已驗證。**Job**（日報 pipeline）與 **Service**（HTTP API）並存 — 勿再假設「僅 Job、無 Service」。**`npm run smoke:prod`** 見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)（API liveness 只認 `GET /healthz` HTTP 200 + 精確 `{"ok": true, "service": "api"}`；不以 `/docs`／`/openapi.json` 當 liveness）。**Agent 編排**：[`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md) + [`.cursor/commands/`](../.cursor/commands/)。見 CHANGELOG **2026-06-16**。
 
 **同步狀態（2026-05-20 — Session 總表 · 隊列 57–71 入列）**：維護者策略 **工作流脊骨優先**、**不採** Glassnode／CryptoQuant／TrendForce 付費訂閱；[Session 總執行順序](#session-2026-05-20-execution-order) 收斂 CODEX **NEXT-1～5**（隊列 **57–61**）、免費資料 **52–56**、工作流／閉環／研究／規劃流程（隊列 **62–71**）。見 [§ Codex／FE-6 收尾](#codex-fe6-closeout-queue-57)、[§ 工作流脊骨](#workflow-spine-queue-62)、[§ Terminal 閉環](#terminal-closed-loop-queue-65)、[§ 研究與 Gate](#research-gate-queue-68)。
 
@@ -163,6 +165,7 @@
 
 | 主題 | 代表檔案／行為 |
 |------|----------------|
+| **ITER-GO-LIVE-001 — API liveness and ship probe（2026-09-05）** | [`GET /healthz`](api_routers/health.py) 固定 `{"ok": true, "service": "api"}`（無憑證、不探 BQ／LLM／crew）。文件 [`PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」。[`smoke-prod.sh`](data-verification-ui/scripts/smoke-prod.sh) fail-closed。測試 [`tests/api/test_healthz.py`](tests/api/test_healthz.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)。**不部署 Service**。CHANGELOG **2026-09-05**。 |
 | **ITER-TR-LOOP-001 — 今日建議對上紙上狀態（2026-09-05）** | [`PaperReconcileStrip.jsx`](data-verification-ui/src/modules/daily-brief/pages/PaperReconcileStrip.jsx) 首屏對帳條；標的只取日報已解析欄，狀態只讀既有紙上／意圖／已結 API。E2E [`insights-first-screen.spec.js`](data-verification-ui/e2e/insights-first-screen.spec.js)。CHANGELOG **2026-09-05**。 |
 | **ITER-TR-AUDIT-001 — 紙上實績可審計摘要（2026-09-05）** | [`track_record.py`](track_record.py) additive `as_of`／期間／`sample_size`／`inclusion_rules`／`prior_alignment`（無證據→`null`，不捏合對齊率）；[`TrackRecordHome.jsx`](data-verification-ui/src/modules/insights/pages/TrackRecordHome.jsx) 審計列＋納入規則面板＋殘英欄名繁中。E2E 三態 [`insights-track-record.spec.js`](data-verification-ui/e2e/insights-track-record.spec.js)。CHANGELOG **2026-09-05**。 |
 | **ITER-P4-44A — /insights 首屏為今日建議（2026-08-30）** | [`InsightsHome.jsx`](data-verification-ui/src/modules/insights/pages/InsightsHome.jsx) 第一屏改為 `DailyBriefHonesty`；工作台說明／CTA／`DataHealthSummary` 摺疊於 `insights-workbench-intro`。E2E [`insights-first-screen.spec.js`](data-verification-ui/e2e/insights-first-screen.spec.js)。CHANGELOG **2026-08-30**。 |
@@ -1180,6 +1183,7 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 ## 修訂紀錄
 
+- **2026-09-05（ITER-GO-LIVE-001）**：`GET /healthz` 廉價 liveness + 正式上線三條／Job≠Service／503 事實寫入 checklist。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### API/Ops（ITER-GO-LIVE-001）`。
 - **2026-09-05（ITER-TR-LOOP-001）**：今日建議首屏「紙上對帳」（已解析標的 × 既有紙上／已結 API）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### PWA（ITER-TR-LOOP-001）`。
 - **2026-09-05（ITER-TR-AUDIT-001）**：實績頁紙上可審計摘要（期間／as_of／樣本／source、納入規則、上期追蹤 UNKNOWN-or-證據）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### PWA/API（ITER-TR-AUDIT-001）`。
 - **2026-08-30（隊列 44 · ITER-P4-44A）**：`/insights` 第一屏改為今日建議；工作台說明／CTA／資料健康摺疊。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-08-30** `### PWA（隊列 44 · ITER-P4-44A）`。
