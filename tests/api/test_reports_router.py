@@ -6,6 +6,7 @@ assertions (paths, status codes, payload keys) are unchanged.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -163,3 +164,29 @@ def test_qsrec_stats_contract_and_bounds(client):
     )
     assert client.get("/api/reports/qsrec-stats?days=0").status_code == 422
     assert client.get("/api/reports/qsrec-stats?days=91").status_code == 422
+
+
+def test_report_html_renders_when_report_exists(tmp_path, monkeypatch):
+    """`/api/reports/{date}/html` renders a schema-valid report instead of 500-ing.
+
+    Covers both faults that made this route unreachable: the Jinja2 env build
+    (``jinja2.Markup``) and the QSREC payload render (``tojson`` over pydantic
+    models). ``DailyBriefReport`` rejects an empty ``qsrec``, so every valid report
+    exercises the second one.
+    """
+    from test_validate_report import _make_minimal_structured_report_dbr
+    from tests.api.helpers import make_api_client
+
+    report_date = "2026-05-09"
+    (tmp_path / f"{report_date}.json").write_text(
+        json.dumps(_make_minimal_structured_report_dbr().model_dump(mode="json"), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    html_client = make_api_client(monkeypatch, DAILY_BRIEF_JSON_DIR=str(tmp_path))
+
+    response = html_client.get(f"/api/reports/{report_date}/html")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "<html" in response.text.lower()
+    assert "Content-Disposition" not in response.headers
