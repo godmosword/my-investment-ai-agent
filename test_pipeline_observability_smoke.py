@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -39,6 +40,7 @@ def test_send_telegram_report_mock_bot():
 
 
 @pytest.mark.smoke
+@patch.dict(os.environ, {"METRICS_STORE_BACKEND": "bigquery"}, clear=False)
 def test_extract_and_save_metrics_logs_insert_errors(caplog):
     caplog.set_level(logging.ERROR)
     schema_names = [
