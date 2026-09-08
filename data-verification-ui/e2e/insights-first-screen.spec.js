@@ -455,6 +455,28 @@ test.describe("Insights — 紙上對帳 on first screen (ITER-TR-LOOP-001)", ()
     await expect(page.getByTestId("paper-reconcile-rows")).toHaveCount(0);
   });
 
+  test("PENDING_REVIEW intent is 無紙上記錄, not UNKNOWN", async ({ page }) => {
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["AAPL"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(route, lifecyclePayload([]));
+    });
+    await page.route((url) => isTrackRecordClosedPath(url.pathname), async (route) => {
+      await fulfillJson(route, closedPayload([]));
+    });
+    await page.route((url) => isExecutionIntentsListPath(url.pathname), async (route) => {
+      await fulfillJson(route, [{ asset: "AAPL", status: "PENDING_REVIEW", signal_id: "e2e-aapl-pending" }]);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-rows")).toBeVisible({ timeout: 60_000 });
+    const aapl = page.locator("[data-testid=paper-reconcile-row][data-symbol=AAPL]");
+    await expect(aapl).toHaveAttribute("data-status", "none");
+    await expect(aapl.getByTestId("paper-reconcile-none")).toHaveText("無紙上記錄");
+    await expect(aapl.getByTestId("paper-reconcile-missing-field")).toHaveCount(0);
+  });
+
   test("unrecognized status is UNKNOWN, not 無紙上記錄", async ({ page }) => {
     await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
       await fulfillJson(route, briefReport(["META"]));

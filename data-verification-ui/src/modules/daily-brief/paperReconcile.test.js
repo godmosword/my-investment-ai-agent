@@ -40,6 +40,28 @@ describe("reconcileSymbol honesty", () => {
     assert.equal(r.label, "UNKNOWN");
   });
 
+  it("known non-paper intent statuses stay none", () => {
+    for (const status of ["PENDING_REVIEW", "REJECTED", "SUPERSEDED"]) {
+      const r = reconcileSymbol("AAPL", {
+        lifecycleRows: [],
+        intentRows: [{ asset: "AAPL", status }],
+        closedRecords: [],
+      });
+      assert.equal(r.kind, "none", status);
+      assert.equal(r.label, "無紙上記錄", status);
+    }
+  });
+
+  it("mixed unrecognized + non-paper is unknown", () => {
+    const r = reconcileSymbol("META", {
+      lifecycleRows: [{ asset: "META", status: "WEIRD_STATE" }],
+      intentRows: [{ asset: "META", status: "PENDING_REVIEW" }],
+      closedRecords: [],
+    });
+    assert.equal(r.kind, "unknown");
+    assert.equal(r.label, "UNKNOWN");
+  });
+
   it("missing status is unknown", () => {
     const r = reconcileSymbol("META", {
       lifecycleRows: [{ asset: "META" }],

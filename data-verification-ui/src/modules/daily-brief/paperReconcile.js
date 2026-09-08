@@ -8,6 +8,13 @@ export const PAPER_OPEN_STATUSES = new Set([
 
 export const PAPER_CLOSED_STATUSES = new Set(["PAPER_CLOSED", "CLOSED", "EXITED"]);
 
+/** Known intent/lifecycle statuses that are not a paper open or closed position. */
+export const PAPER_NON_POSITION_STATUSES = new Set([
+  "PENDING_REVIEW",
+  "REJECTED",
+  "SUPERSEDED",
+]);
+
 /** Limits used by PaperReconcileStrip fetches — keep in sync with the strip. */
 export const PAPER_RECONCILE_INTENT_LIMIT = 100;
 export const PAPER_RECONCILE_CLOSED_LIMIT = 50;
@@ -147,6 +154,11 @@ export function reconcileSymbol(
   const missingStatus = all.some((row) => statusOf(row) === null || statusOf(row) === "");
   if (missingStatus) {
     return { kind: "unknown", label: "UNKNOWN" };
+  }
+
+  const statuses = all.map((row) => statusOf(row));
+  if (statuses.every((status) => PAPER_NON_POSITION_STATUSES.has(status))) {
+    return { kind: "none", label: "無紙上記錄" };
   }
 
   // Matched rows with unrecognized status are not 「無紙上記錄」.
