@@ -35,7 +35,6 @@ Keep at most **7** `NEW`/`READY`/`AUTHORIZED`/`IN_FLIGHT` rows. Archive `DONE`/`
 
 | id | title | evidence | impact | risk | score | status |
 |---|---|---|---|---|---|---|
-| TR-LOOP-FALSE-NEG | 紙上對帳假陰性：分頁截斷與未知 status 標成無紙上記錄 | `data-verification-ui/src/modules/daily-brief/pages/PaperReconcileStrip.jsx` `useTrackRecordClosed(50)` / `useExecutionIntents(100)`; `paperReconcile.js` fallback `kind: none` | 已結或未知列被說成沒有 | R1 | 60 | IN_FLIGHT |
 | CI-QUICK-BASELINE | `CI / quick` 既有 ruff 紅仍合併；需隔離 baseline 與任務回歸 | #185–#187 `quick` failure; PR #185 notes ~659 ruff | 綠燈假象；任務回歸難辨 | R1 | 8 | READY |
 | HONESTY-PORTFOLIO-EMDASH | `/portfolio` 缺值仍用 em dash，未走 UNKNOWN | `PortfolioHome.jsx`; `WatchlistMonitor.jsx` | 缺值假裝中性 | R1 | 16 | READY |
 | HONESTY-ANALYSIS-DEEPDIVE | `/analysis` 仍英文 Deep Dive + em dash | `AnalysisHome.jsx` | 與 Insights DeepDive 繁中不一致 | R1 | 12 | READY |
@@ -45,6 +44,7 @@ Keep at most **7** `NEW`/`READY`/`AUTHORIZED`/`IN_FLIGHT` rows. Archive `DONE`/`
 
 | id | title | status | note |
 |---|---|---|---|
+| TR-LOOP-FALSE-NEG | 紙上對帳假陰性：分頁截斷與未知 status 標成無紙上記錄 | DONE | 2026-09-08 #194；已知非紙上倉位仍「無紙上記錄」 |
 | DOCS-44BP-SYNC | CHANGELOG／TODOS 補記 P4-44B～44P；澄清與隊列 62 不同名 | DONE | 2026-09-08 本治理切片 |
 
 ## Ban list
