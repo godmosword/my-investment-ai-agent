@@ -19,8 +19,8 @@ Director updates these three lines when the week rolls or a slot is consumed:
 
 ```text
 CURRENT_WINDOW: 2026-W37
-QUOTA_USED: 0
-QUOTA_CONSUMED_ID: none
+QUOTA_USED: 1
+QUOTA_CONSUMED_ID: TR-LOOP-FALSE-NEG
 ```
 
 `CURRENT_WINDOW` is ISO week `YYYY-Www` in UTC. `QUOTA_USED` is `0` or `1`. `QUOTA_CONSUMED_ID` is a board `id` or `none`.
@@ -35,7 +35,7 @@ Keep at most **7** `NEW`/`READY`/`AUTHORIZED`/`IN_FLIGHT` rows. Archive `DONE`/`
 
 | id | title | evidence | impact | risk | score | status |
 |---|---|---|---|---|---|---|
-| TR-LOOP-FALSE-NEG | 紙上對帳假陰性：分頁截斷與未知 status 標成無紙上記錄 | `data-verification-ui/src/modules/daily-brief/pages/PaperReconcileStrip.jsx` `useTrackRecordClosed(50)` / `useExecutionIntents(100)`; `paperReconcile.js` fallback `kind: none` | 已結或未知列被說成沒有 | R1 | 60 | READY |
+| TR-LOOP-FALSE-NEG | 紙上對帳假陰性：分頁截斷與未知 status 標成無紙上記錄 | `data-verification-ui/src/modules/daily-brief/pages/PaperReconcileStrip.jsx` `useTrackRecordClosed(50)` / `useExecutionIntents(100)`; `paperReconcile.js` fallback `kind: none` | 已結或未知列被說成沒有 | R1 | 60 | IN_FLIGHT |
 | CI-QUICK-BASELINE | `CI / quick` 既有 ruff 紅仍合併；需隔離 baseline 與任務回歸 | #185–#187 `quick` failure; PR #185 notes ~659 ruff | 綠燈假象；任務回歸難辨 | R1 | 8 | READY |
 | HONESTY-PORTFOLIO-EMDASH | `/portfolio` 缺值仍用 em dash，未走 UNKNOWN | `PortfolioHome.jsx`; `WatchlistMonitor.jsx` | 缺值假裝中性 | R1 | 16 | READY |
 | HONESTY-ANALYSIS-DEEPDIVE | `/analysis` 仍英文 Deep Dive + em dash | `AnalysisHome.jsx` | 與 Insights DeepDive 繁中不一致 | R1 | 12 | READY |

@@ -7,8 +7,12 @@ import {
   useTrackRecordClosed,
 } from "../../../hooks/useApi";
 import {
+  PAPER_RECONCILE_CLOSED_LIMIT,
+  PAPER_RECONCILE_INTENT_LIMIT,
+  PAPER_RECONCILE_LIFECYCLE_LIMIT,
   closedRecordsFrom,
   extractBriefSymbols,
+  fetchWindowMayBeTruncated,
   intentRowsFrom,
   lifecycleRowsFrom,
   reconcileSymbol,
@@ -60,6 +64,7 @@ function StripShell({ stateTestId, role, children }) {
 
 function statusTestId(kind) {
   if (kind === "unknown") return "paper-reconcile-missing-field";
+  if (kind === "truncated") return "paper-reconcile-truncated";
   if (kind === "none") return "paper-reconcile-none";
   if (kind === "open") return "paper-reconcile-open";
   if (kind === "closed") return "paper-reconcile-closed";
@@ -70,9 +75,9 @@ export default function PaperReconcileStrip() {
   const reports = useReports(5);
   const latestDate = latestReportDate(reports.data);
   const detail = useReport(latestDate);
-  const lifecycle = usePaperLifecycle();
-  const intents = useExecutionIntents(100);
-  const closed = useTrackRecordClosed(50, 0);
+  const lifecycle = usePaperLifecycle({ limit: PAPER_RECONCILE_LIFECYCLE_LIMIT });
+  const intents = useExecutionIntents(PAPER_RECONCILE_INTENT_LIMIT);
+  const closed = useTrackRecordClosed(PAPER_RECONCILE_CLOSED_LIMIT, 0);
 
   const reportLoading = reports.isLoading || (Boolean(latestDate) && detail.isLoading);
   const reportError = Boolean(reports.isError || (latestDate && detail.isError));
@@ -124,9 +129,19 @@ export default function PaperReconcileStrip() {
   const lifecycleRows = lifecycleRowsFrom(lifecycle.data);
   const intentRows = intentRowsFrom(intents.data);
   const closedRecords = closedRecordsFrom(closed.data);
+  const windowMayBeTruncated = fetchWindowMayBeTruncated({
+    intentRows,
+    closedRecords,
+    lifecycleRows,
+  });
   const rows = symbols.map((symbol) => ({
     symbol,
-    ...reconcileSymbol(symbol, { lifecycleRows, intentRows, closedRecords }),
+    ...reconcileSymbol(symbol, {
+      lifecycleRows,
+      intentRows,
+      closedRecords,
+      windowMayBeTruncated,
+    }),
   }));
 
   return (

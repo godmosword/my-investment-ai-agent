@@ -16,6 +16,8 @@
 
 **同步狀態（2026-09-05 — ITER-GO-LIVE-001）**：`GET /healthz` 廉價 liveness（無 master key；`{"ok": true, "service": "api"}`）；`smoke:prod` fail-closed 只認該契約。Job ≠ Service；正式 Cloud Run Service 仍 **503**、`/healthz` **404** — 本切片不部署、不假裝康復。見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」、CHANGELOG **2026-09-05**。
 
+**同步狀態（2026-09-08 — ITER-TR-LOOP-FALSE-NEG-001）**：紙上對帳條對分頁截斷／未辨識 status 不再假陰性標「無紙上記錄」（改 UNKNOWN／truncated）。見 CHANGELOG **2026-09-08**。
+
 **同步狀態（2026-09-05 — ITER-TR-LOOP-001）**：`/insights` 首屏今日建議下「紙上對帳」— 只對已解析標的標無紙上／未結／已結＋API 報酬／UNKNOWN；未結只看生命週期／意圖（實績 closed 舊市價快照不誤判）。未上 production。見 CHANGELOG **2026-09-05**。
 
 **同步狀態（2026-09-05 — ITER-TR-AUDIT-001）**：`/insights` 實績頁紙上可審計摘要 — 期間／截至／樣本／來源、內部透明度／納入規則依 source（jsonl 已結 vs BQ 可含市價結算）、無 quality 不假裝過濾、上期追蹤有連結欄才顯示否則 UNKNOWN。既有 KPI 語意不變；未上 production。見 CHANGELOG **2026-09-05**。
@@ -176,6 +178,7 @@
 | 主題 | 代表檔案／行為 |
 |------|----------------|
 | **ITER-GO-LIVE-001 — API liveness and ship probe（2026-09-05）** | [`GET /healthz`](api_routers/health.py) 固定 `{"ok": true, "service": "api"}`（無憑證、不探 BQ／LLM／crew）。文件 [`PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」。[`smoke-prod.sh`](data-verification-ui/scripts/smoke-prod.sh) fail-closed。測試 [`tests/api/test_healthz.py`](tests/api/test_healthz.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)。**不部署 Service**。CHANGELOG **2026-09-05**。 |
+| **ITER-TR-LOOP-FALSE-NEG-001 — 紙上對帳假陰性（2026-09-08）** | [`paperReconcile.js`](data-verification-ui/src/modules/daily-brief/paperReconcile.js) 截斷／未知 status 不再標「無紙上記錄」。E2E／unit 見 CHANGELOG **2026-09-08**。 |
 | **ITER-TR-LOOP-001 — 今日建議對上紙上狀態（2026-09-05）** | [`PaperReconcileStrip.jsx`](data-verification-ui/src/modules/daily-brief/pages/PaperReconcileStrip.jsx) 首屏對帳條；標的只取日報已解析欄，狀態只讀既有紙上／意圖／已結 API。E2E [`insights-first-screen.spec.js`](data-verification-ui/e2e/insights-first-screen.spec.js)。CHANGELOG **2026-09-05**。 |
 | **ITER-TR-AUDIT-001 — 紙上實績可審計摘要（2026-09-05）** | [`track_record.py`](track_record.py) additive `as_of`／期間／`sample_size`／`inclusion_rules`／`prior_alignment`（無證據→`null`，不捏合對齊率）；[`TrackRecordHome.jsx`](data-verification-ui/src/modules/insights/pages/TrackRecordHome.jsx) 審計列＋納入規則面板＋殘英欄名繁中。E2E 三態 [`insights-track-record.spec.js`](data-verification-ui/e2e/insights-track-record.spec.js)。CHANGELOG **2026-09-05**。 |
 | **Human B — Grok 每週 1 張 R0/R1（2026-09-08）** | [`.grok/CANDIDATE_BOARD.md`](.grok/CANDIDATE_BOARD.md) 候選板＋禁做＋剩餘表面；Routine F 後 Director 可消耗一格。測試 [`tests/test_grok_candidate_board.py`](tests/test_grok_candidate_board.py)。CHANGELOG **2026-09-08**。 |
@@ -1197,6 +1200,7 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 - **2026-09-08（Human B 每週配額 + P4-44B～44P 補記）**：候選板／每週 1 張 R0/R1；CHANGELOG 補記 09-03～09-05 繁中包；隊列 62 仍開。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-08**。
 - **2026-09-05（ITER-GO-LIVE-001）**：`GET /healthz` 廉價 liveness + 正式上線三條／Job≠Service／503 事實寫入 checklist。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### API/Ops（ITER-GO-LIVE-001）`。
+- **2026-09-08（ITER-TR-LOOP-FALSE-NEG-001）**：紙上對帳假陰性（截斷／未知 status）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-08**。
 - **2026-09-05（ITER-TR-LOOP-001）**：今日建議首屏「紙上對帳」（已解析標的 × 既有紙上／已結 API）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### PWA（ITER-TR-LOOP-001）`。
 - **2026-09-05（ITER-TR-AUDIT-001）**：實績頁紙上可審計摘要（期間／as_of／樣本／source、納入規則、上期追蹤 UNKNOWN-or-證據）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### PWA/API（ITER-TR-AUDIT-001）`。
 - **2026-08-30（隊列 44 · ITER-P4-44A）**：`/insights` 第一屏改為今日建議；工作台說明／CTA／資料健康摺疊。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-08-30** `### PWA（隊列 44 · ITER-P4-44A）`。
