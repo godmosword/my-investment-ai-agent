@@ -65,7 +65,7 @@ Send this to `QSI-Director` after all six Bots exist:
 
 > Bootstrap Autonomous Engineering Team v1 for `godmosword/my-investment-ai-agent`. Read `.grok/TEAM_CHARTER.md`, `.grok/ITERATION_PROTOCOL.md`, `.grok/HANDOFF.md`, `.grok/roles/Director.md`, `.grok/ROUTINES.md`, and the repository's `CLAUDE.md`, `AGENTS.md`, `docs/AGENT-WORKFLOW.md`, `TODOS.md`, `CHANGELOG.md`, and relevant architecture docs. Confirm the team roster and repository state. Run Iteration 0 as an evidence-only baseline: do not change code. Produce the initial repo health map, risk register, and the top three candidate improvements ranked by the charter. Invite Architect / Product-UX / QA only when routing requires them. Publish one approved first task contract. Do not merge anything during Iteration 0.
 
-After Iteration 0 is satisfactory, use the routine specifications in `.grok/ROUTINES.md`.
+After Iteration 0 is satisfactory, use the routine specifications in `.grok/ROUTINES.md`. Discovery writes `.grok/CANDIDATE_BOARD.md`. Human B (2026-09-08) allows Director to start **one** qualifying `R0`/`R1` board row per UTC ISO week after Routine F. Merge stays Human. Daily scans do not implement.
 
 ## Autonomy target
 

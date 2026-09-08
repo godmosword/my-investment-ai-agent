@@ -13,14 +13,15 @@ Default loop:
 Read current repository state before selecting work:
 
 - latest commits and open PRs/issues;
-- `TODOS.md`, `CHANGELOG.md`, architecture status docs;
-- CI status and any known red baseline;
+- `.grok/CANDIDATE_BOARD.md` (scan-source list, ban list, remaining surfaces, quota ledger);
+- `TODOS.md`, `CHANGELOG.md`, architecture status docs — do **not** scan only the TODOS header;
+- CI status and any known red baseline (distinguish task-induced vs pre-existing);
 - recent production/UX regressions if evidenced in repo or authorized monitoring;
 - stale or contradictory documentation that could mislead implementation.
 
-Produce a candidate table with: evidence, user/system impact, confidence, rough cost, risk class, and priority score.
+Rewrite `.grok/CANDIDATE_BOARD.md` with: evidence, user/system impact, confidence, rough cost, risk class, and priority score. Keep ≤7 active rows.
 
-Do not code during SCAN.
+Do not code during SCAN. Daily SCAN never consumes the weekly quota.
 
 When control returns to QSI-Director, follow the canonical Director Transition Table in `.grok/roles/Director.md`. Do not duplicate that table here. Team-level routing is `.grok/HANDOFF.md`. QSI-Director is one role; there is no Director Mode / CTO Mode split. Primary `HANDOFF:` is single-owner and must equal the `SendToAgent` 1:1 target; `CC:` is non-owning. Room `@mention` is not invocation. Do not fan-out via the room group.
 
@@ -69,7 +70,9 @@ Selection criteria:
 - scope is bounded;
 - risk fits current autonomy level.
 
-Never choose a task solely because it is easy for an LLM.
+Never choose a task solely because it is easy for an LLM. Never choose a banned copy-pack. Prefer board rows already marked `READY`.
+
+Standing weekly quota (Human B): if this SELECT is the Routine F follow-up and `STANDING_WEEKLY_QUOTA` is `ENABLED`, Director may authorize **one** `R0`/`R1` row with score ≥ `QUOTA_MIN_PRIORITY` and `QUOTA_USED` = 0. Record `QUOTA_USED: 1` and `QUOTA_CONSUMED_ID` on the board in the same turn. Otherwise wait for an explicit Human mission. Merge is never selected here.
 
 ## 3. CONTRACT — Director
 
@@ -221,6 +224,7 @@ After the release outcome, capture only useful learning:
 - Did the verification strategy catch anything unexpected?
 - Did scope/cost differ materially from estimate?
 - Should a recurring lesson become a repo rule/test? Only promote repeated, evidenced lessons.
+- Update `.grok/CANDIDATE_BOARD.md`: move the consumed id to Archive (`DONE` / `REJECTED` / `DEFERRED`) with a one-line note. Do not open a new copy-pack row.
 
 The marker `🏁 QSI TEAM DONE — WAITING_FOR_HUMAN` means the team is stopped and waiting for the human. It is **not** Iteration status `COMPLETE`. Use `WAITING_FOR_HUMAN` while paused.
 

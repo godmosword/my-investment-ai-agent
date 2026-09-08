@@ -3,6 +3,20 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-09-08
+
+### Docs / Governance（Human B — Grok 每週 1 張 R0/R1 配額）
+
+- 人類授權 **B 檔**：例行掃描仍不得開工（`ROUTINE_IMPLEMENTATION_AUTONOMY` = `DISABLED`）；`QSI-Director` 在 Routine F 週報之後，可從 [`.grok/CANDIDATE_BOARD.md`](.grok/CANDIDATE_BOARD.md) 消耗 **每 UTC ISO 週 1 張** 合格 `R0`/`R1`（分數 ≥ 8、不在禁做清單、無 production 耦合）。Merge 仍是人類。`PAUSE_WEEKLY_QUOTA` 可關配額。
+- 新檔：候選板／禁做清單／剩餘誠實表面；週報模板 [`.grok/templates/WEEKLY_DIGEST.md`](.grok/templates/WEEKLY_DIGEST.md)。章程／Routines／Director／Protocol 對齊。測試 [`tests/test_grok_candidate_board.py`](tests/test_grok_candidate_board.py)。
+- **未動**：L1、L2A fail-close、`AUTO_MERGE_ELIGIBLE`、production deploy、日報／Gate／Telegram 紅線。
+
+### Docs（補記 P4-44B～44P — Portal 繁中／UNKNOWN／觸控包）
+
+- **2026-09-03～09-05 已合入、當時未寫本檔**：#170–#184（`grok/p4-44b`…`p4-44p`）把儀表板／情境／警示／DeepDive／指令列／工作區 dock／實績／資料健康 **status chip** 改繁中，缺值改 `UNKNOWN`（不造 `$0`、不用 em dash）。E2E 隨各 PR。
+- **與隊列 62 不同名**：5 月「44b」是密度收斂盤點／實作（[`PHASE4_44B_DENSITY_AUDIT.md`](docs/PHASE4_44B_DENSITY_AUDIT.md)、隊列 62）。9 月 `P4-44B` 是 Grok honesty／繁中包。隊列 62 **未**因此完成。
+- 剩餘 em dash／英文表面列在候選板，禁止再開下一包未列名的文案工廠。
+
 ## 2026-09-06
 
 ### Fix（ITER-API-HTML-001 — `GET /api/reports/{date}/html` 500 修復）

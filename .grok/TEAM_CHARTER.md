@@ -63,6 +63,35 @@ Operating level now in force: `CURRENT_AUTONOMY_LEVEL` = `L1`.
 
 While `CURRENT_AUTONOMY_LEVEL` is `L1`, `AUTO_MERGE_ELIGIBLE` is always `FALSE`, even if every other R0/R1 eligibility condition holds. Bots must not merge `main`. Human is the merger.
 
+#### Standing weekly quota (Human B, 2026-09-08)
+
+Human authorized a **standing implementation quota**. This does not raise `CURRENT_AUTONOMY_LEVEL` and does not enable `ROUTINE_IMPLEMENTATION_AUTONOMY`.
+
+```text
+STANDING_WEEKLY_QUOTA = ENABLED
+QUOTA_SIZE = 1
+QUOTA_WINDOW = ISO_WEEK_UTC
+QUOTA_RISK = R0|R1
+QUOTA_MIN_PRIORITY = 8
+```
+
+Living ledger: `.grok/CANDIDATE_BOARD.md`. Ban list and remaining honesty surfaces live in that file.
+
+What the quota **is**:
+
+- After Routine F writes the weekly digest, `QSI-Director` may start **at most one** Task Contract in that ISO week if a board row is `READY`, score ≥ `QUOTA_MIN_PRIORITY`, risk is `R0` or `R1`, and the row is not banned.
+- That start is an already-authorized mission. Director CONTRACT + `HANDOFF: @QSI-Engineer`.
+- Human merge remains required. Release stays `HOLD_FOR_HUMAN`.
+
+What the quota **is not**:
+
+- Daily Routine A / weekly D / weekly E still must not dispatch Engineer, start an iteration, or merge.
+- A second implementation in the same UTC ISO week, or any `IN_FLIGHT` Human mission already running, blocks quota consumption.
+- `R2`, `R3`, `.grok/**`, `.github/workflows/**`, auth/secrets, production infra/deploy, destructive data, live trading, and any production-coupled change are **out**. Those need a new Human sentence.
+- Changing this quota, the ban list, or autonomy files is R3.
+
+Human kill switch: `PAUSE_WEEKLY_QUOTA` → set `STANDING_WEEKLY_QUOTA: DISABLED` on the board in the same turn. Do not wake other roles to confirm.
+
 L2A is a dormant / future target. Do not delete the eligibility list, exact-SHA rule, production-deploy separation, or completed safety work below. L2A must not self-restore. Restoration requires both: (1) the runtime explicitly supports Release autonomous merge via `gh pr merge --merge --match-head-commit`; and (2) Human opens a new L2A acceptance mission. A runtime change alone must not re-run canary.
 
 #### Fail-close evidence (ITER-GOV-L2A-CANARY-001)
