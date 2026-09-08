@@ -8,6 +8,18 @@ export const PAPER_OPEN_STATUSES = new Set([
 
 export const PAPER_CLOSED_STATUSES = new Set(["PAPER_CLOSED", "CLOSED", "EXITED"]);
 
+/** Known intent/lifecycle statuses that are not a paper open or closed position. */
+export const PAPER_NON_POSITION_STATUSES = new Set([
+  "PENDING_REVIEW",
+  "REJECTED",
+  "SUPERSEDED",
+]);
+
+/** Limits used by PaperReconcileStrip fetches — keep in sync with the strip. */
+export const PAPER_RECONCILE_INTENT_LIMIT = 100;
+export const PAPER_RECONCILE_CLOSED_LIMIT = 50;
+export const PAPER_RECONCILE_LIFECYCLE_LIMIT = 200;
+
 export function normalizeSymbol(raw) {
   return String(raw ?? "").trim().toUpperCase();
 }
@@ -74,9 +86,31 @@ export function finiteReturnOf(row) {
 }
 
 /**
- * @returns {{ kind: "none"|"open"|"closed"|"unknown", label: string, returnValue?: number }}
+ * True when any reconcile fetch returned a full page — later rows may exist
+ * outside the window, so empty match must not claim 「無紙上記錄」.
  */
-export function reconcileSymbol(symbol, { lifecycleRows, intentRows, closedRecords } = {}) {
+export function fetchWindowMayBeTruncated({
+  intentRows,
+  closedRecords,
+  lifecycleRows,
+  intentLimit = PAPER_RECONCILE_INTENT_LIMIT,
+  closedLimit = PAPER_RECONCILE_CLOSED_LIMIT,
+  lifecycleLimit = PAPER_RECONCILE_LIFECYCLE_LIMIT,
+} = {}) {
+  return (
+    (Array.isArray(intentRows) && intentRows.length >= intentLimit) ||
+    (Array.isArray(closedRecords) && closedRecords.length >= closedLimit) ||
+    (Array.isArray(lifecycleRows) && lifecycleRows.length >= lifecycleLimit)
+  );
+}
+
+/**
+ * @returns {{ kind: "none"|"open"|"closed"|"unknown"|"truncated", label: string, returnValue?: number }}
+ */
+export function reconcileSymbol(
+  symbol,
+  { lifecycleRows, intentRows, closedRecords, windowMayBeTruncated = false } = {},
+) {
   const life = rowsMatching(lifecycleRows, symbol);
   const intents = rowsMatching(intentRows, symbol);
   const closed = rowsMatching(closedRecords, symbol);
@@ -84,6 +118,9 @@ export function reconcileSymbol(symbol, { lifecycleRows, intentRows, closedRecor
   const all = [...live, ...closed];
 
   if (all.length === 0) {
+    if (windowMayBeTruncated) {
+      return { kind: "truncated", label: "UNKNOWN" };
+    }
     return { kind: "none", label: "無紙上記錄" };
   }
 
@@ -119,7 +156,13 @@ export function reconcileSymbol(symbol, { lifecycleRows, intentRows, closedRecor
     return { kind: "unknown", label: "UNKNOWN" };
   }
 
-  return { kind: "none", label: "無紙上記錄" };
+  const statuses = all.map((row) => statusOf(row));
+  if (statuses.every((status) => PAPER_NON_POSITION_STATUSES.has(status))) {
+    return { kind: "none", label: "無紙上記錄" };
+  }
+
+  // Matched rows with unrecognized status are not 「無紙上記錄」.
+  return { kind: "unknown", label: "UNKNOWN" };
 }
 
 export function intentRowsFrom(data) {

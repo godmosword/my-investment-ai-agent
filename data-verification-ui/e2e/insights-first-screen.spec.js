@@ -455,6 +455,83 @@ test.describe("Insights — 紙上對帳 on first screen (ITER-TR-LOOP-001)", ()
     await expect(page.getByTestId("paper-reconcile-rows")).toHaveCount(0);
   });
 
+  test("PENDING_REVIEW intent is 無紙上記錄, not UNKNOWN", async ({ page }) => {
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["AAPL"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(route, lifecyclePayload([]));
+    });
+    await page.route((url) => isTrackRecordClosedPath(url.pathname), async (route) => {
+      await fulfillJson(route, closedPayload([]));
+    });
+    await page.route((url) => isExecutionIntentsListPath(url.pathname), async (route) => {
+      await fulfillJson(route, [{ asset: "AAPL", status: "PENDING_REVIEW", signal_id: "e2e-aapl-pending" }]);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-rows")).toBeVisible({ timeout: 60_000 });
+    const aapl = page.locator("[data-testid=paper-reconcile-row][data-symbol=AAPL]");
+    await expect(aapl).toHaveAttribute("data-status", "none");
+    await expect(aapl.getByTestId("paper-reconcile-none")).toHaveText("無紙上記錄");
+    await expect(aapl.getByTestId("paper-reconcile-missing-field")).toHaveCount(0);
+  });
+
+  test("unrecognized status is UNKNOWN, not 無紙上記錄", async ({ page }) => {
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["META"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(
+        route,
+        lifecyclePayload([{ asset: "META", status: "WEIRD_STATE", signal_id: "e2e-meta-weird" }]),
+      );
+    });
+    await page.route((url) => isTrackRecordClosedPath(url.pathname), async (route) => {
+      await fulfillJson(route, closedPayload([]));
+    });
+    await page.route((url) => isExecutionIntentsListPath(url.pathname), async (route) => {
+      await fulfillJson(route, []);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-rows")).toBeVisible({ timeout: 60_000 });
+    const meta = page.locator("[data-testid=paper-reconcile-row][data-symbol=META]");
+    await expect(meta).toHaveAttribute("data-status", "unknown");
+    await expect(meta.getByTestId("paper-reconcile-missing-field")).toHaveText("UNKNOWN");
+    await expect(meta.getByTestId("paper-reconcile-none")).toHaveCount(0);
+    await expect(page.getByTestId("paper-reconcile-strip")).not.toContainText("無紙上記錄");
+  });
+
+  test("full closed page without symbol match is truncated UNKNOWN", async ({ page }) => {
+    const fillers = Array.from({ length: 50 }, (_, i) => ({
+      asset: `F${i}`,
+      status: "PAPER_CLOSED",
+      return_pct: 1,
+      signal_id: `e2e-fill-${i}`,
+    }));
+    await page.route((url) => isReportDetailPath(url.pathname), async (route) => {
+      await fulfillJson(route, briefReport(["AMD"]));
+    });
+    await page.route((url) => isPaperLifecyclePath(url.pathname), async (route) => {
+      await fulfillJson(route, lifecyclePayload([]));
+    });
+    await page.route((url) => isTrackRecordClosedPath(url.pathname), async (route) => {
+      await fulfillJson(route, closedPayload(fillers));
+    });
+    await page.route((url) => isExecutionIntentsListPath(url.pathname), async (route) => {
+      await fulfillJson(route, []);
+    });
+
+    await page.goto("/insights", { waitUntil: "load" });
+    await expect(page.getByTestId("paper-reconcile-rows")).toBeVisible({ timeout: 60_000 });
+    const amd = page.locator("[data-testid=paper-reconcile-row][data-symbol=AMD]");
+    await expect(amd).toHaveAttribute("data-status", "truncated");
+    await expect(amd.getByTestId("paper-reconcile-truncated")).toHaveText("UNKNOWN");
+    await expect(amd.getByTestId("paper-reconcile-none")).toHaveCount(0);
+    await expect(page.getByTestId("paper-reconcile-strip")).not.toContainText("無紙上記錄");
+  });
+
   test("實績 and 生命週期 links stay on /insights tabs", async ({ page }) => {
     await page.goto("/insights", { waitUntil: "load" });
     await expect(page.getByTestId("paper-reconcile-strip")).toBeVisible({ timeout: 60_000 });

@@ -5,6 +5,12 @@
 
 ## 2026-09-08
 
+### PWA（ITER-TR-LOOP-FALSE-NEG-001 — 紙上對帳假陰性）
+
+- [`paperReconcile.js`](data-verification-ui/src/modules/daily-brief/paperReconcile.js)／[`PaperReconcileStrip.jsx`](data-verification-ui/src/modules/daily-brief/pages/PaperReconcileStrip.jsx)：分頁滿頁且標的無命中 → `truncated`／`UNKNOWN`（`paper-reconcile-truncated`），不再標「無紙上記錄」；命中列但 status 未辨識／缺欄 → `unknown`／`UNKNOWN`，不落回 none。已知非紙上倉位狀態（`PENDING_REVIEW`／`REJECTED`／`SUPERSEDED`）仍標「無紙上記錄」，不假裝 UNKNOWN。
+- 單元測試 [`paperReconcile.test.js`](data-verification-ui/src/modules/daily-brief/paperReconcile.test.js)；E2E [`insights-first-screen.spec.js`](data-verification-ui/e2e/insights-first-screen.spec.js)。候選板 W37 消耗 `TR-LOOP-FALSE-NEG`。
+- **未動**：API／Cloud Run／deploy、track-record 分頁契約、其餘 P4 文案表面。
+
 ### Docs / Governance（Human B — Grok 每週 1 張 R0/R1 配額）
 
 - 人類授權 **B 檔**：例行掃描仍不得開工（`ROUTINE_IMPLEMENTATION_AUTONOMY` = `DISABLED`）；`QSI-Director` 在 Routine F 週報之後，可從 [`.grok/CANDIDATE_BOARD.md`](.grok/CANDIDATE_BOARD.md) 消耗 **每 UTC ISO 週 1 張** 合格 `R0`/`R1`（分數 ≥ 8、不在禁做清單、無 production 耦合）。Merge 仍是人類。`PAUSE_WEEKLY_QUOTA` 可關配額。
