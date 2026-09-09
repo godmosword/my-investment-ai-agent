@@ -13,6 +13,7 @@
 - **Preview 活體（2026-09-09）**：Dashboard **Root Directory = `.`** 已改。PR #197 Redeploy `dpl_GEZEFZLWNw3zBKyngzfsbUXtLgex` 的 `GET /healthz` 回 HTTP 200、本體恰好 `{"ok": true, "service": "api"}`（Build 裝 `requirements-api.txt`、Python runtime）。Hobby 未拒 `services`。
 - **Human 剩餘（不做就不假裝正式 `/insights` 已通）**：清空 GitHub secret `VITE_API_URL`（以及 Dashboard 同名 env）→ 讓 `pwa-deploy.yml` prebuilt 上正式站 → `BASE_URL=<prod> npm run smoke:prod`。**不要**本機 `vercel --prod`。Function 除 `/tmp` 唯讀：意圖 PATCH／jsonl 不持久，待 P3。
 - **測試**：[`tests/test_vercel_polyglot.py`](tests/test_vercel_polyglot.py)、[`tests/api/test_skip_bigquery_vercel.py`](tests/api/test_skip_bigquery_vercel.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)（`API_BASE` 預設 `BASE_URL`）。[`test_reports_profile_api.py`](test_reports_profile_api.py) 測 BQ 路徑時關掉 `SKIP_BIGQUERY`／`VERCEL`，避免 `run_mock_smoke.sh` 短路。
+- **CI prebuilt（2026-09-09）**：`deploy-vercel` 在 `vercel build` 前裝 [`astral-sh/setup-uv`](https://github.com/astral-sh/setup-uv) — GitHub runner 沒有 `uv` 時 Python service 會立刻失敗（preview Git Integration 不受影響）。GitHub secret `VITE_API_URL` 已清空；正式 `/insights` 仍等這次 prebuilt 成功。
 - **未動**：Cloud Run Job、`deploy.yml`、BQ writer、Firestore、P3 commit-back。
 - **CI**：新增 [`ruff.toml`](ruff.toml) 釘選歷史預設規則（E4／E7／E9／F）。未釘選時 ruff 0.16 會報約 663 條既有噪音，把 `CI / quick` 打紅（見候選板 CI-QUICK-BASELINE）。
 
