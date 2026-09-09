@@ -16,6 +16,8 @@ Repo-side of criterion 2 only. This document does not deploy Cloud Run.
 
 **Job ≠ Service.** [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) deploys the Cloud Run **Job** (daily brief). This repo has **no** GitHub workflow that deploys the HTTP API **Service**. The Service is a manual / legacy deploy.
 
+**2026-09-09 API 契約（repo）**：`GET /api/reports` 檔案優先，不再因 BigQuery 掛掉而 503。這**不**修復正式 Cloud Run LB（程序沒在跑）。要讓 `/insights` 通，須隊列 **72 P2** 把 API 遷離該 Service。
+
 **2026-09-05 production fact** (this PR does not heal it):
 
 | Surface | Result |

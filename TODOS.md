@@ -4,6 +4,8 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
+**同步狀態（2026-09-09 — ITER-GCP-EXIT-P1）**：HTTP API 讀路徑改 **檔案／JSONL 優先**（reports／metrics／trades）；`import api` 不再載 `google.cloud`。`SKIP_BIGQUERY=1` 時 list 空陣列、detail 404，不再因 BQ 503。**正式 Cloud Run Service 仍 503／404** — 本切片不部署。下一步隊列 **72**（Vercel Services 同 origin `/api`、Job 離 GCP、再刪 BQ）。見 CHANGELOG **2026-09-09**。
+
 **同步狀態（2026-09-09 — ITER-API-SLIM-P2-2）**：trades／positions／analysis／quant 七條 route 由 `api.py` 搬入 [`api_routers/trades.py`](api_routers/trades.py)（單一 slice，不做 analysis／quant 分檔）；OpenAPI path／method 表逐字相同；monkeypatch 錨點改指 `api_routers.trades`。下一批：paper（含 `_paper_tick_lock`）／push／SSE，各一 PR；paper `pnl`／`execution-tick` 與 `/api/war-room/latest` 需先補最小契約測試。**本整理不部署 Service**。見 CHANGELOG **2026-09-09**。
 
 **同步狀態（2026-09-08 — Human B 每週配額）**：Grok 例行掃描只改 [`.grok/CANDIDATE_BOARD.md`](.grok/CANDIDATE_BOARD.md)；Director 在 Routine F 後可開 **每週 1** 張合格 `R0`/`R1`。日常 A／D／E 不得開工。Merge 仍人類。見 CHANGELOG **2026-09-08**。
@@ -179,6 +181,7 @@
 
 | 主題 | 代表檔案／行為 |
 |------|----------------|
+| **ITER-GCP-EXIT-P1 — API 檔案優先、import 不載 GCP（2026-09-09）** | reports／metrics／trades 讀 JSONL／DailyBrief JSON；`SKIP_BIGQUERY=1` 不 503；`google.cloud` 離開 `import api` 路徑。測試 [`tests/api/test_file_first_store.py`](tests/api/test_file_first_store.py)。**不部署 Service**。CHANGELOG **2026-09-09**。 |
 | **ITER-API-SLIM-P2-2 — trades/positions/analysis/quant router（2026-09-09）** | [`api_routers/trades.py`](api_routers/trades.py) 承接七條 route + `_fetch_trades`／`_validate_symbol`；契約／OpenAPI 不變；測試 monkeypatch 改指 `api_routers.trades`。**不部署 Service**。CHANGELOG **2026-09-09**。 |
 | **ITER-GO-LIVE-001 — API liveness and ship probe（2026-09-05）** | [`GET /healthz`](api_routers/health.py) 固定 `{"ok": true, "service": "api"}`（無憑證、不探 BQ／LLM／crew）。文件 [`PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」。[`smoke-prod.sh`](data-verification-ui/scripts/smoke-prod.sh) fail-closed。測試 [`tests/api/test_healthz.py`](tests/api/test_healthz.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)。**不部署 Service**。CHANGELOG **2026-09-05**。 |
 | **ITER-TR-LOOP-FALSE-NEG-001 — 紙上對帳假陰性（2026-09-08）** | [`paperReconcile.js`](data-verification-ui/src/modules/daily-brief/paperReconcile.js) 截斷／未知 status 不再標「無紙上記錄」；已知非紙上倉位狀態仍標「無紙上記錄」。E2E／unit 見 CHANGELOG **2026-09-08**。 |
@@ -569,6 +572,18 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 ## 規劃流程（隊列 71）
 
 71. **免費資料路線 — design spec + 實作計畫** — 撰寫 `docs/superpowers/specs/2026-05-20-bloomberg-free-data-design.md`（四軸 A/B/C/D、ENV、降級、與 52–56 切片對照）；再以 `writing-plans` 產出逐步實作計畫（**不**取代本檔隊列勾選）。**依賴**：無（可與 57 並行）。P2 / S。
+
+---
+
+<a id="gcp-exit-queue-72"></a>
+
+## GCP 退出（隊列 72）
+
+72. **徹底剔除 GCP — 託管與寫入** — **P1 已交付（2026-09-09）**：HTTP 讀路徑檔案優先 + lazy `google.cloud`。**剩餘**：
+    - **P2 託管**：API 離開 Cloud Run Service。自然落點是 **同一 Vercel 專案** polyglot（repo-root `vercel.json` `services`：PWA + `api:app`；`/api/*` 先於 SPA rewrite；Dashboard **Root Directory = `.`**；正式 `VITE_API_URL` 空字串走同源）。現況 Root Directory = `data-verification-ui` 且 `pwa-deploy.yml` prebuilt — **production-coupled，須 Human 改 Dashboard**。Vercel Functions 檔案系統除 `/tmp` 唯讀：`PATCH` 意圖／jsonl 寫入需 Blob／KV 或 GHA commit-back。
+    - **P3 Job**：日報 + paper tick 離開 Cloud Run Job → GitHub Actions + [`scripts/commit_state.sh`](scripts/commit_state.sh) 把 jsonl／日報 JSON commit 回 repo（否則新 host 空檔）。
+    - **P4 刪除**：BQ writer／reader、Firestore news、`deploy.yml` GCP、GAR、secrets、`config.py` table IDs。options／track-record／snapshots 仍有 BQ 分支，刪前須有替代或誠實 disabled envelope。
+    **紅線**：不假裝正式 `/insights` 已通，直到 P2 有活的 API origin。P1 / L。
 
 ---
 
@@ -1207,6 +1222,7 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 - **2026-09-05（ITER-TR-LOOP-001）**：今日建議首屏「紙上對帳」（已解析標的 × 既有紙上／已結 API）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### PWA（ITER-TR-LOOP-001）`。
 - **2026-09-05（ITER-TR-AUDIT-001）**：實績頁紙上可審計摘要（期間／as_of／樣本／source、納入規則、上期追蹤 UNKNOWN-or-證據）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### PWA/API（ITER-TR-AUDIT-001）`。
 - **2026-08-30（隊列 44 · ITER-P4-44A）**：`/insights` 第一屏改為今日建議；工作台說明／CTA／資料健康摺疊。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-08-30** `### PWA（隊列 44 · ITER-P4-44A）`。
+- **2026-09-09（ITER-GCP-EXIT-P1）**：API 檔案優先讀路徑；隊列 **72** GCP 退出 P2–P4。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-09**。
 - **2026-08-15（Portal Vercel harden）**：[`vercel.json`](data-verification-ui/vercel.json) 停掉 `main` Git 自動 production；env／SSO 契約寫入 [`PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md) 與 README。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-08-15** `### Ops（Portal Vercel harden）`。
 - **2026-05-20（Session 總表 · 隊列 57–71）**：補 [Session 總執行順序](#session-2026-05-20-execution-order)（工作流優先、不採付費訂閱）；CODEX **NEXT-1～5** 入列 **57–61**；工作流 **62–64**、閉環 **65–67**、研究／Gate **68–70**、規劃 **71**（design spec + writing-plans）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-05-20** `### Docs（Session 總表 · 隊列 57–71）`。
 

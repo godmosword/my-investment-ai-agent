@@ -302,7 +302,7 @@ def test_patch_execution_intent_writes_audit_when_table_configured(tmp_path, mon
         calls.append(kw)
 
     monkeypatch.setenv("PAPER_EXECUTION_AUDIT_TABLE", "proj.ds.paper_execution_audit")
-    monkeypatch.setattr("api_routers.execution_intents.bigquery_writer.write_paper_execution_audit_row", capture)
+    monkeypatch.setattr("bigquery_writer.write_paper_execution_audit_row", capture)
     client = TestClient(app)
     r = client.patch(
         "/api/execution-intents/audit-patch-1",

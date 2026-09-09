@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
-from google.cloud import bigquery
 
 from api_deps import get_bq_client as _bq_singleton
-from api_deps import rows_to_dicts
+from api_deps import rows_to_dicts, skip_bigquery
 from config import RECOMMENDATIONS_TABLE
 from execution_intents import latest_execution_intents
 from symbol_snapshot_service import (
@@ -31,9 +31,78 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["trades"])
 
 
-def _get_bq_client() -> bigquery.Client:
+def _get_bq_client() -> Any:
     """BQ client accessor; tests monkeypatch ``api_routers.trades._get_bq_client``."""
     return _bq_singleton()
+
+
+_RECS_JSONL = "trade_recommendations.jsonl"
+
+
+def _as_iso_date(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value).strip()
+    if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+        try:
+            date.fromisoformat(text[:10])
+        except ValueError:
+            return None
+        return text[:10]
+    return None
+
+
+def _json_serialise_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
+def _fetch_trades_from_jsonl(
+    *,
+    status: str | None,
+    days: int,
+    limit: int,
+) -> list[dict[str, Any]]:
+    from state_store import read_jsonl
+
+    cutoff = datetime.now(timezone.utc).date() - timedelta(days=days)
+    wanted = status.upper() if status else None
+    rows: list[dict[str, Any]] = []
+    for raw in read_jsonl(_RECS_JSONL):
+        if not isinstance(raw, dict):
+            continue
+        report_date = _as_iso_date(raw.get("report_date"))
+        if report_date is None:
+            continue
+        try:
+            parsed = date.fromisoformat(report_date)
+        except ValueError:
+            continue
+        if parsed < cutoff:
+            continue
+        row_status = str(raw.get("status") or "").upper()
+        if wanted and row_status != wanted:
+            continue
+        serialised = {key: _json_serialise_value(value) for key, value in raw.items()}
+        if "entry_price" not in serialised and "entry" in serialised:
+            serialised["entry_price"] = serialised["entry"]
+        if "target_price" not in serialised and "target" in serialised:
+            serialised["target_price"] = serialised["target"]
+        if "stop_price" not in serialised and "stop" in serialised:
+            serialised["stop_price"] = serialised["stop"]
+        rows.append(serialised)
+    rows.sort(
+        key=lambda row: (str(row.get("report_date") or ""), float(row.get("confidence") or 0)),
+        reverse=True,
+    )
+    return rows[:limit]
 
 
 # ── /api/trades ──────────────────────────────────────────────────────────────
@@ -56,6 +125,12 @@ def _fetch_trades(
         where_clauses.append(f"status = '{status.upper()}'")
 
     where_sql = " AND ".join(where_clauses)
+
+    jsonl_rows = _fetch_trades_from_jsonl(status=status, days=days, limit=limit)
+    if jsonl_rows:
+        return jsonl_rows
+    if skip_bigquery():
+        return []
 
     try:
         client = _get_bq_client()
@@ -123,6 +198,8 @@ def get_analysis_bundle_m6(
     quote_raw = fetch_symbol_quote(norm)
     snap: dict[str, Any] | None = None
     snap_error: str | None = None
+    if skip_bigquery():
+        return {"symbol": norm, "quote": quote_raw, "snapshot": None, "snapshot_error": None}
     try:
         client = _get_bq_client()
         snap = build_symbol_snapshot(
@@ -267,11 +344,98 @@ def get_quant_backtest(
     }
 
 
+def _safe_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _performance_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    def status_of(row: dict[str, Any]) -> str:
+        return str(row.get("status") or "").upper()
+
+    total = len(rows)
+    wins = sum(1 for row in rows if status_of(row) == "HIT_TARGET")
+    losses = sum(1 for row in rows if status_of(row) == "HIT_STOP")
+    expired = sum(1 for row in rows if status_of(row) == "EXPIRED")
+    open_count = sum(1 for row in rows if status_of(row) == "OPEN")
+    closed = [row for row in rows if status_of(row) in {"HIT_TARGET", "HIT_STOP", "EXPIRED"}]
+    pnls = [value for row in closed if (value := _safe_float(row.get("pnl_pct"))) is not None]
+    rrs = [value for row in rows if (value := _safe_float(row.get("rr_ratio"))) is not None]
+    decided = wins + losses
+
+    by_cat: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        category = row.get("category")
+        if not category:
+            continue
+        bucket = by_cat.setdefault(category, {"total": 0, "wins": 0, "pnls": []})
+        bucket["total"] += 1
+        if status_of(row) == "HIT_TARGET":
+            bucket["wins"] += 1
+        if status_of(row) in {"HIT_TARGET", "HIT_STOP", "EXPIRED"}:
+            pnl = _safe_float(row.get("pnl_pct"))
+            if pnl is not None:
+                bucket["pnls"].append(pnl)
+    by_category: list[dict[str, Any]] = []
+    for category in sorted(by_cat):
+        bucket = by_cat[category]
+        cat_decided = sum(
+            1
+            for row in rows
+            if row.get("category") == category and status_of(row) in {"HIT_TARGET", "HIT_STOP"}
+        )
+        pnls_cat: list[float] = bucket["pnls"]
+        by_category.append(
+            {
+                "category": category,
+                "total": bucket["total"],
+                "wins": bucket["wins"],
+                "win_rate_pct": round(bucket["wins"] / cat_decided * 100, 1) if cat_decided else None,
+                "avg_pnl_pct": round(sum(pnls_cat) / len(pnls_cat), 2) if pnls_cat else None,
+            }
+        )
+
+    daily: dict[str, float] = {}
+    for row in closed:
+        day = _as_iso_date(row.get("exit_date"))
+        pnl = _safe_float(row.get("pnl_pct"))
+        if day and pnl is not None:
+            daily[day] = daily.get(day, 0.0) + pnl
+    curve: list[dict[str, Any]] = []
+    cumulative = 0.0
+    for day in sorted(daily):
+        cumulative += daily[day]
+        curve.append({"date": day, "cumulative_pnl": round(cumulative, 2)})
+
+    return {
+        "total": total,
+        "wins": wins,
+        "losses": losses,
+        "expired": expired,
+        "open_count": open_count,
+        "avg_pnl_pct": round(sum(pnls) / len(pnls), 2) if pnls else None,
+        "avg_rr": round(sum(rrs) / len(rrs), 2) if rrs else None,
+        "max_loss_pct": round(min(pnls), 2) if pnls else None,
+        "max_gain_pct": round(max(pnls), 2) if pnls else None,
+        "win_rate_pct": round(wins / decided * 100, 1) if decided else None,
+        "by_category": by_category,
+        "equity_curve": curve,
+    }
+
+
 @router.get("/api/trades/performance")
 def get_trades_performance(
     days: int = Query(default=90, ge=7, le=365),
 ) -> dict[str, Any]:
     """Return aggregated trade performance statistics."""
+    jsonl_rows = _fetch_trades_from_jsonl(status=None, days=days, limit=10_000)
+    if jsonl_rows or skip_bigquery():
+        return _performance_from_rows(jsonl_rows)
+
     try:
         client = _get_bq_client()
         rows = list(client.query(f"""

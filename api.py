@@ -1,7 +1,8 @@
 """FastAPI backend for Q-Silicon Investment Report PWA.
 
-Exposes daily metrics, trade recommendations, and report summaries
-stored in BigQuery for consumption by the React PWA frontend.
+Exposes daily metrics, trade recommendations, and report summaries.
+Read path is file/JSONL first (``.qsilicon`` / ``DAILY_BRIEF_JSON_DIR``);
+BigQuery is an optional fallback unless ``SKIP_BIGQUERY`` is set.
 
 Usage:
     uvicorn api:app --reload --port 8000
@@ -18,11 +19,9 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from google.cloud import bigquery
 from pydantic import BaseModel, Field, field_validator
 
 import sse_token
-from api_deps import get_bq_client as _bq_singleton
 from api_routers import earnings as earnings_router
 from api_routers import execution_intents as execution_intents_router
 from api_routers import health as health_router
@@ -60,11 +59,6 @@ from war_room_stream import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _get_bq_client() -> bigquery.Client:
-    """BQ client accessor; tests monkeypatch ``api._get_bq_client``."""
-    return _bq_singleton()
 
 
 def run_paper_execution_tick(*args: Any, **kwargs: Any) -> Any:

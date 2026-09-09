@@ -116,7 +116,7 @@ GCP_PROJECT_ID=my-investment-ai-agent
 # CREW_VERBOSE=0
 # CREW_DISABLE_ASYNC_RESEARCH=0  # 1=Crypto／AI 研究員回退單一巨型 Task（關閉 async_execution 子任務拆分；限流除錯用）
 # SKIP_TELEGRAM=0
-# SKIP_BIGQUERY=0
+# SKIP_BIGQUERY=0   # 1=HTTP API 不開 BigQuery：GET /api/reports、/api/metrics、/api/trades 讀 JSONL／DailyBrief JSON；無檔回空列表或 404，不再 503。管線寫入亦略過 BQ（見 bigquery_writer）。
 # PIPELINE_STRICT_ENV=0   # 1=生產／排程硬擋：未 SKIP_TELEGRAM 須 TELEGRAM_BOT_TOKEN+CHAT_ID；未 SKIP_BIGQUERY 須 GCP_PROJECT_ID 與 GCP_SA_KEY 或 GOOGLE_APPLICATION_CREDENTIALS
 # STRICT_NEWS_FRESHNESS_GATE=0   # 排程／生產建議=1（見 docs/DEPLOY_RUNBOOK.md）；1=新聞時間戳須落在報告時間前 NEWS_FRESHNESS_WINDOW_HOURS 小時內
 # NEWS_FRESHNESS_WINDOW_HOURS=36   # 預設 36h（與 crew 新聞新鮮度一致）；可改 48

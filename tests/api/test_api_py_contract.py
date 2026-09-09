@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from api_routers import trades
+from tests.api.helpers import make_api_client
 
 
 def _query_result(rows: list[dict[str, Any]]) -> MagicMock:
@@ -25,11 +26,21 @@ def _bq_client(*row_sets: list[dict[str, Any]]) -> MagicMock:
 
 
 @pytest.fixture()
-def client(client_skip_bq):
-    return client_skip_bq
+def client_bq(monkeypatch, tmp_path):
+    """Unskipped client so trades/positions still exercise the BQ mock path."""
+    state = tmp_path / "state"
+    briefs = tmp_path / "briefs"
+    state.mkdir()
+    briefs.mkdir()
+    return make_api_client(
+        monkeypatch,
+        SKIP_BIGQUERY=None,
+        QSILICON_STATE_DIR=str(state),
+        DAILY_BRIEF_JSON_DIR=str(briefs),
+    )
 
 
-def test_trades_list_contract_keys(client, monkeypatch):
+def test_trades_list_contract_keys(client_bq, monkeypatch):
     monkeypatch.setattr(
         trades,
         "_get_bq_client",
@@ -62,7 +73,7 @@ def test_trades_list_contract_keys(client, monkeypatch):
         ),
     )
 
-    response = client.get("/api/trades?limit=1")
+    response = client_bq.get("/api/trades?limit=1")
 
     assert response.status_code == 200
     body = response.json()
@@ -70,13 +81,13 @@ def test_trades_list_contract_keys(client, monkeypatch):
     assert set(body[0]).issuperset({"asset", "direction", "status", "entry_price"})
 
 
-def test_trades_reject_invalid_status(client):
-    response = client.get("/api/trades?status=UNKNOWN")
+def test_trades_reject_invalid_status(client_bq):
+    response = client_bq.get("/api/trades?status=UNKNOWN")
 
     assert response.status_code == 400
 
 
-def test_open_positions_contract_uses_open_status(client, monkeypatch):
+def test_open_positions_contract_uses_open_status(client_bq, monkeypatch):
     seen_sql: list[str] = []
 
     def fake_client() -> MagicMock:
@@ -92,14 +103,14 @@ def test_open_positions_contract_uses_open_status(client, monkeypatch):
 
     monkeypatch.setattr(trades, "_get_bq_client", fake_client)
 
-    response = client.get("/api/positions/open?limit=5")
+    response = client_bq.get("/api/positions/open?limit=5")
 
     assert response.status_code == 200
     assert response.json() == []
     assert "status = 'OPEN'" in seen_sql[0]
 
 
-def test_trades_performance_contract_keys(client, monkeypatch):
+def test_trades_performance_contract_keys(client_bq, monkeypatch):
     monkeypatch.setattr(
         trades,
         "_get_bq_client",
@@ -123,7 +134,7 @@ def test_trades_performance_contract_keys(client, monkeypatch):
         ),
     )
 
-    response = client.get("/api/trades/performance?days=30")
+    response = client_bq.get("/api/trades/performance?days=30")
 
     assert response.status_code == 200
     body = response.json()
@@ -132,8 +143,8 @@ def test_trades_performance_contract_keys(client, monkeypatch):
     assert isinstance(body["equity_curve"], list)
 
 
-def test_push_subscribe_invalid_body_contract(client, monkeypatch):
+def test_push_subscribe_invalid_body_contract(client_bq, monkeypatch):
     monkeypatch.setenv("WEB_PUSH_ENABLED", "1")
-    response = client.post("/api/push/subscribe", json={})
+    response = client_bq.post("/api/push/subscribe", json={})
 
     assert response.status_code == 422

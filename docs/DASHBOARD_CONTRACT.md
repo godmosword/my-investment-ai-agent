@@ -72,8 +72,8 @@
 
 | 路由 | 用途 | 備註 |
 |------|------|------|
-| `GET /api/metrics/latest` | 最新日報指標 | 對齊 BQ schema；實作於 [`api_routers/metrics.py`](../api_routers/metrics.py)（`APIRouter` prefix `/api/metrics`） |
-| `GET /api/metrics/history` | 歷史指標 | query：`days`；同上 |
+| `GET /api/metrics/latest` | 最新日報指標 | **JSONL 優先**（`.qsilicon/daily_metrics.jsonl`）；無列且未 skip 才 BQ。`SKIP_BIGQUERY=1` 且無列 → 404 |
+| `GET /api/metrics/history` | 歷史指標 | query：`days`；同上 JSONL 優先。skip 且無列 → `[]` |
 | `GET /api/macro/snapshot` | `/dashboard` macro snapshot | 實作於 [`api_routers/macro.py`](../api_routers/macro.py)；8 指標（10Y、2s10s、DXY、VIX、BTC、SOXX/SPY、AI Momentum、Next Fed/CPI），每列含 `value`、`change_1d`、`change_5d`、7 點 `spark`、`source`、`as_of`；60 秒 in-process cache；yfinance 指標逐列降級，FMP calendar optional |
 | `GET /api/news/digest` | `/news` 科技即時報 digest | 實作於 [`api_routers/news.py`](../api_routers/news.py)；query：可選 `date=YYYY-MM-DD`、`limit`；讀 Firestore collection（`TECH_PULSE_FIRESTORE_COLLECTION`，預設 `tech_pulse_memory_items`）；只回傳有 headline 與 source 的 item；每列含 `freshness` 與 `missing_fields` |
 | `GET /api/news/deep` | `/columns` 科技專欄 deep brief list | query：可選 `pillar=ai\|semiconductor\|crypto`、`limit`；沿用 Firestore collection 與 source filter；回傳 list items 含 `title`、`summary`、`body`／`content`、`source_domain`、`source_url`、`tickers`、`reading_minutes`、`pillar_key`、`freshness`、`missing_fields` |
@@ -99,12 +99,12 @@
 | `GET /api/run-crew/status` | Crew HTTP trigger 狀態 | 永遠可讀；回傳 `status`、`job_id`、`started_at`、`finished_at`、`error`，另含 `age_seconds`、`is_stale`、`stale_after_seconds`（預設 1800；可用 `CREW_STATUS_STALE_SEC` 覆寫） |
 | `POST /api/run-crew` | Crew HTTP trigger | 預設 **404**；設 **`CREW_HTTP_ENABLED=1`**；可選 **`CREW_HTTP_API_KEY`**（`X-Crew-Api-Key`）；同時只能跑一個 job |
 | `POST /api/paper/execution-tick` | 紙上模擬 **一輪**（`run_paper_execution_tick`） | 預設 **404**；設 **`PAPER_TICK_HTTP_ENABLED=1`**；可選 **`PAPER_TICK_API_KEY`**（`X-Paper-Tick-Key`）；CLI 見 `scripts/paper_execution_tick.py` |
-| `GET /api/reports` | 報告列表 | query：`limit`（1–90，預設 30）、可選 **`profile`**（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；帶入 `profile` 時後端以 `LLM_RUN_LOG_TABLE` **INNER JOIN** `METRICS_TABLE`，只列該 profile 有產出的日期（共用 `resolved_profile` 解析，與 `GET /api/reports/{date}/structured` 一致） |
-| `GET /api/reports/{report_date}` | 單日報告內容 | BigQuery legacy 列 + `recommendations` |
+| `GET /api/reports` | 報告列表 | query：`limit`（1–90，預設 30）、可選 **`profile`**（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）。**檔案優先**：`DAILY_BRIEF_JSON_DIR`／`.qsilicon/daily_brief_reports`／`daily_metrics.jsonl`；有列即回、不打 BQ。無檔且未 `SKIP_BIGQUERY` 時才走 BigQuery；帶 `profile` 的 BQ 路徑仍 `LLM_RUN_LOG_TABLE` **INNER JOIN** `METRICS_TABLE`。`SKIP_BIGQUERY=1` 且無檔 → **`[]`**（200，不是 503） |
+| `GET /api/reports/{report_date}` | 單日報告內容 | 同上檔案優先（JSONL metrics + DailyBrief JSON + `trade_recommendations.jsonl`／QSREC）；無檔且未 skip 才 BigQuery legacy 列 + `recommendations`。`SKIP_BIGQUERY=1` 且無檔 → **404** |
 | `GET /api/reports/{report_date}/structured` | V2 區塊化報告封套 | query：`profile`（`full`｜`lite`｜`crypto-only`，對齊 `brief_profiles`）；回傳 **`block_ids`**、**`block_registry`**、**`legacy`**、**`daily_brief_report`**（見下 **`DAILY_BRIEF_JSON_DIR`**／本機 archive／`logs/run_*`）、**`structured_body_available`**、**`structured_source`**（有結構化本文時之相對路徑或絕對路徑）、**`gate_summary`**（`validate_structured_report` + 可選 **`.qsilicon/last_gate_failure`**；含 **`issues_by_block`**／**`issues_unmapped`**） |
 | `GET /api/brief-layouts` | 列 `config/brief_layouts/*.yaml`（唯讀；V3 layout UX）；後端會 **safe_load** 並附預覽；另附 **`runtime_hints`**（`BRIEF_LAYOUT_FILE`／`BRIEF_DYNAMIC_RENDER`／`REPORT_PROFILE` 之伺服器啟用態，不含機密） | 回傳 **`layouts`**: `{ filename, path, applies_to_profile?, blocks?, parse_error? }[]`；**`runtime_hints`**: `{ brief_layout_file, brief_dynamic_render, report_profile }` |
-| `GET /api/trades` | 交易列表 | |
-| `GET /api/trades/performance` | 績效彙總 | |
+| `GET /api/trades` | 交易列表 | **JSONL 優先**（`trade_recommendations.jsonl`）；無列且未 skip 才 BQ。skip 且無列 → `[]` |
+| `GET /api/trades/performance` | 績效彙總 | 同上；skip 且無列回 zeros + 空 `by_category`／`equity_curve`，不是 503 |
 | `GET /healthz` | 存活探測 | [`api_routers/health.py`](../api_routers/health.py) |
 | `POST /api/push/subscribe` | Web Push 訂閱 | 預設 **501**；`WEB_PUSH_ENABLED=1` 時：可設 **`WEB_PUSH_REDIS_URL`**（分散式儲存 + **Redis** rate limit）、或 **`WEB_PUSH_STORE=1`**（程序內）；可選 **`WEB_PUSH_BQ_PERSIST`**／**`WEB_PUSH_BQ_AUDIT`**。推送 payload 目前以 `title`／`body`／`url` 為主；**預留擴充**：`report_date`（`YYYY-MM-DD`）與 `block_id`（對應 `block_registry`），供 SW `notificationclick` 深連結至 `/report/:date#block=<block_id>`（**實作中／待 PR**，見 Phase 5）。見 [`docs/PWA_WEB_PUSH.md`](PWA_WEB_PUSH.md) |
 | `POST /api/push/test-send` | 管理端 **測試推送**（`pywebpush`） | 預設 **404**；須 **`WEB_PUSH_ADMIN_KEY`** + Header **`X-Web-Push-Admin-Key`** + **`WEB_PUSH_VAPID_PRIVATE_KEY`** + 已存完整訂閱 |

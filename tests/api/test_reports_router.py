@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from api_routers import reports as reports_router
+from tests.api.helpers import make_api_client
 
 
 def _query_result(rows: list[dict[str, Any]]) -> MagicMock:
@@ -34,7 +35,21 @@ def client(client_skip_bq):
     return client_skip_bq
 
 
-def test_reports_list_contract_keys(client, monkeypatch):
+def _client_bq(monkeypatch, tmp_path):
+    """Empty file store so the BQ mock path is not shadowed by JSONL/JSON."""
+    state = tmp_path / "state"
+    briefs = tmp_path / "briefs"
+    state.mkdir()
+    briefs.mkdir()
+    return make_api_client(
+        monkeypatch,
+        SKIP_BIGQUERY=None,
+        QSILICON_STATE_DIR=str(state),
+        DAILY_BRIEF_JSON_DIR=str(briefs),
+    )
+
+
+def test_reports_list_contract_keys(monkeypatch, tmp_path):
     monkeypatch.setattr(
         reports_router,
         "_get_bq_client",
@@ -57,7 +72,7 @@ def test_reports_list_contract_keys(client, monkeypatch):
         ),
     )
 
-    response = client.get("/api/reports?limit=1")
+    response = _client_bq(monkeypatch, tmp_path).get("/api/reports?limit=1")
 
     assert response.status_code == 200
     body = response.json()
@@ -70,7 +85,7 @@ def test_reports_list_limit_bounds(client):
     assert client.get("/api/reports?limit=91").status_code == 422
 
 
-def test_report_legacy_contract_attaches_recommendations(client, monkeypatch):
+def test_report_legacy_contract_attaches_recommendations(monkeypatch, tmp_path):
     monkeypatch.setattr(
         reports_router,
         "_get_bq_client",
@@ -116,7 +131,7 @@ def test_report_legacy_contract_attaches_recommendations(client, monkeypatch):
         ),
     )
 
-    response = client.get("/api/reports/2026-05-09")
+    response = _client_bq(monkeypatch, tmp_path).get("/api/reports/2026-05-09")
 
     assert response.status_code == 200
     body = response.json()
@@ -175,7 +190,6 @@ def test_report_html_renders_when_report_exists(tmp_path, monkeypatch):
     exercises the second one.
     """
     from test_validate_report import _make_minimal_structured_report_dbr
-    from tests.api.helpers import make_api_client
 
     report_date = "2026-05-09"
     (tmp_path / f"{report_date}.json").write_text(

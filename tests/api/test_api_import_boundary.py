@@ -9,6 +9,7 @@ regression.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -46,6 +47,8 @@ _FORBIDDEN_AT_IMPORT = (
     "matplotlib",
     "crew",
     "main",
+    "bigquery_writer",
+    "tracker",
 )
 
 _PROBE = f"""
@@ -54,6 +57,7 @@ import api
 watched = {_CLEARED_ENV_KEYS!r}
 sys.stdout.write(json.dumps({{
     "loaded": sorted(m for m in sys.modules if "." not in m),
+    "google_cloud_loaded": [m for m in sys.modules if m == "google.cloud" or m.startswith("google.cloud.")],
     "paths": sorted(api.app.openapi()["paths"]),
     "env_present": sorted(k for k in watched if os.environ.get(k)),
 }}))
@@ -61,10 +65,18 @@ sys.stdout.write(json.dumps({{
 
 
 def _run_probe() -> dict:
+    # Inherit PATH / site-packages so the same interpreter that runs pytest can
+    # find FastAPI. Still clear GCP/LLM env and use a blank HOME so ADC files
+    # in the developer home cannot leak into the probe.
+    inherited_pp = os.pathsep.join(p for p in sys.path if p)
+    parent_pp = os.environ.get("PYTHONPATH", "")
+    pythonpath = os.pathsep.join(
+        x for x in (str(_REPO_ROOT), inherited_pp, parent_pp) if x
+    )
     env = {
-        "PATH": "/usr/bin:/bin",
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": "/tmp",
-        "PYTHONPATH": str(_REPO_ROOT),
+        "PYTHONPATH": pythonpath,
         "PYTHONDONTWRITEBYTECODE": "1",
     }
     proc = subprocess.run(
@@ -103,4 +115,12 @@ def test_job_side_modules_stay_off_the_startup_path(probe, module):
     assert module not in probe["loaded"], (
         f"{module!r} is imported by `import api`; keep it lazy so FastAPI startup "
         "does not depend on the Job path"
+    )
+
+
+@pytest.mark.smoke
+def test_google_cloud_stays_off_the_startup_path(probe):
+    assert probe["google_cloud_loaded"] == [], (
+        "google.cloud is imported by `import api`; keep BigQuery lazy so FastAPI "
+        "startup does not require GCP libraries"
     )

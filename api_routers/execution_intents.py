@@ -12,7 +12,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
-import bigquery_writer
 from execution_intents import (
     ALLOWED_INTENT_STATUSES,
     CLIENT_PATCHABLE_STATUSES,
@@ -315,7 +314,9 @@ def patch_execution_intent_status(
     if prev_for_audit is not None:
         note_s = (body.note or "").strip()
         reason = note_s[:240] if note_s else f"patch:{prev_for_audit}->{updated.get('status')}"
-        bigquery_writer.write_paper_execution_audit_row(
+        from bigquery_writer import write_paper_execution_audit_row  # noqa: PLC0415
+
+        write_paper_execution_audit_row(
             signal_id=str(updated.get("signal_id") or signal_id),
             new_status=str(updated.get("status") or ""),
             reason=reason,

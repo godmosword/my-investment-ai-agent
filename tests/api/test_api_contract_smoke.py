@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
 
+from tests.api.helpers import make_api_client
+
+
+@pytest.fixture()
+def client(monkeypatch):
+    """Local fixture so mixed-path collection still has a TestClient."""
+    return make_api_client(monkeypatch)
 
 
 def test_health_ok(client):

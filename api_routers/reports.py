@@ -13,16 +13,15 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, Response
-from google.cloud import bigquery
 
 from api_deps import get_bq_client as _bq_singleton
-from api_deps import rows_to_dicts
+from api_deps import rows_to_dicts, skip_bigquery
 from api_routers.execution_intents import _latest_gate_failure_summary
 from config import (
     GATE_FAILURE_LOG_TABLE,
@@ -42,9 +41,341 @@ router = APIRouter(tags=["reports"])
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _get_bq_client() -> bigquery.Client:
+def _get_bq_client() -> Any:
     """BQ client accessor; tests monkeypatch ``api_routers.reports._get_bq_client``."""
     return _bq_singleton()
+
+
+_LIST_CARD_KEYS = (
+    "report_date",
+    "timestamp",
+    "dxy",
+    "etf_flow_millions",
+    "avg_risk_score",
+    "mvrv_z_score",
+    "regime_score",
+    "sentiment_score",
+    "grok_summary",
+    "gpt_summary",
+    "news_titles",
+)
+_METRICS_JSONL = "daily_metrics.jsonl"
+_RECS_JSONL = "trade_recommendations.jsonl"
+_DATE_FILE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.json$")
+
+
+def _as_iso_date(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value).strip()
+    if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+        try:
+            date.fromisoformat(text[:10])
+        except ValueError:
+            return None
+        return text[:10]
+    return None
+
+
+def _parse_aware_dt(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _first_text(*candidates: Any) -> str | None:
+    for candidate in candidates:
+        if isinstance(candidate, list):
+            parts = [str(item).strip() for item in candidate if str(item).strip()]
+            if parts:
+                return " ".join(parts[:5])
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    return None
+
+
+def _json_serialise_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
+def _metrics_jsonl_rows() -> list[dict[str, Any]]:
+    from state_store import read_jsonl
+
+    return [row for row in read_jsonl(_METRICS_JSONL) if isinstance(row, dict)]
+
+
+def _recs_jsonl_rows() -> list[dict[str, Any]]:
+    from state_store import read_jsonl
+
+    return [row for row in read_jsonl(_RECS_JSONL) if isinstance(row, dict)]
+
+
+def _daily_brief_json_dirs() -> list[Path]:
+    dirs: list[Path] = []
+    env_dir = (os.getenv("DAILY_BRIEF_JSON_DIR") or "").strip()
+    if env_dir:
+        dirs.append(Path(env_dir).expanduser().resolve())
+    dirs.append(_REPO_ROOT / ".qsilicon" / "daily_brief_reports")
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for path in dirs:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(path)
+    return unique
+
+
+def _iter_brief_json_by_date() -> dict[str, dict[str, Any]]:
+    found: dict[str, dict[str, Any]] = {}
+    for folder in _daily_brief_json_dirs():
+        if not folder.is_dir():
+            continue
+        for path in folder.glob("*.json"):
+            match = _DATE_FILE_RE.match(path.name)
+            if not match:
+                continue
+            data = _read_json_if_exists(path)
+            if isinstance(data, dict):
+                found[match.group(1)] = data
+    return found
+
+
+def _news_titles_from_brief(data: dict[str, Any]) -> list[str]:
+    titles: list[str] = []
+    for section_key in ("crypto", "ai"):
+        section = data.get(section_key)
+        if not isinstance(section, dict):
+            continue
+        for item in section.get("news") or []:
+            if isinstance(item, dict) and item.get("title"):
+                titles.append(str(item["title"]))
+    return titles
+
+
+def _recs_from_brief(data: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for section_key in ("crypto", "ai"):
+        section = data.get(section_key)
+        if not isinstance(section, dict):
+            continue
+        for item in section.get("qsrec") or []:
+            if not isinstance(item, dict):
+                continue
+            out.append(
+                {
+                    "asset": item.get("asset"),
+                    "direction": item.get("direction"),
+                    "entry_price": item.get("entry_price", item.get("entry")),
+                    "target_price": item.get("target_price", item.get("target")),
+                    "stop_price": item.get("stop_price", item.get("stop")),
+                    "confidence": item.get("confidence"),
+                    "narrative": item.get("narrative"),
+                    "trigger": item.get("trigger"),
+                    "invalidation": item.get("invalidation"),
+                    "position_pct": item.get("position_pct"),
+                    "timeframe": item.get("timeframe"),
+                    "category": item.get("category"),
+                    "status": item.get("status"),
+                    "exit_price": item.get("exit_price"),
+                    "exit_date": _json_serialise_value(item.get("exit_date")),
+                    "pnl_pct": item.get("pnl_pct"),
+                    "rr_ratio": item.get("rr_ratio"),
+                }
+            )
+    return out
+
+
+def _recs_from_jsonl_for_date(report_date: str) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in _recs_jsonl_rows():
+        if _as_iso_date(row.get("report_date")) != report_date:
+            continue
+        serialised = {key: _json_serialise_value(value) for key, value in row.items()}
+        if "entry_price" not in serialised and "entry" in serialised:
+            serialised["entry_price"] = serialised["entry"]
+        if "target_price" not in serialised and "target" in serialised:
+            serialised["target_price"] = serialised["target"]
+        if "stop_price" not in serialised and "stop" in serialised:
+            serialised["stop_price"] = serialised["stop"]
+        out.append(serialised)
+    return out
+
+
+def _empty_list_card(report_date: str) -> dict[str, Any]:
+    return {
+        "report_date": report_date,
+        "timestamp": f"{report_date}T00:00:00+00:00",
+        "dxy": None,
+        "etf_flow_millions": None,
+        "avg_risk_score": None,
+        "mvrv_z_score": None,
+        "regime_score": None,
+        "sentiment_score": None,
+        "grok_summary": None,
+        "gpt_summary": None,
+        "news_titles": [],
+    }
+
+
+def _list_card_from_metrics(row: dict[str, Any], report_date: str) -> dict[str, Any]:
+    card = _empty_list_card(report_date)
+    timestamp = row.get("timestamp")
+    if timestamp is not None:
+        card["timestamp"] = _json_serialise_value(timestamp)
+    for key in _LIST_CARD_KEYS:
+        if key in ("report_date", "timestamp"):
+            continue
+        if key in row:
+            card[key] = row[key]
+    return card
+
+
+def _list_card_from_brief(report_date: str, data: dict[str, Any]) -> dict[str, Any]:
+    card = _empty_list_card(report_date)
+    crypto = data.get("crypto") if isinstance(data.get("crypto"), dict) else {}
+    ai = data.get("ai") if isinstance(data.get("ai"), dict) else {}
+    card["grok_summary"] = _first_text(
+        crypto.get("exec_summary"),
+        crypto.get("narrative_of_day"),
+        crypto.get("investment_thesis_one_liner"),
+    )
+    card["gpt_summary"] = _first_text(
+        ai.get("macro_bridge_lines"),
+        ai.get("pick_reason"),
+    )
+    card["news_titles"] = _news_titles_from_brief(data)
+    profile = data.get("profile")
+    if profile:
+        card["_profile"] = str(profile).strip()
+    return card
+
+
+def _merge_list_card(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    for key, value in overlay.items():
+        current = merged.get(key)
+        empty = current in (None, "", [])
+        if empty and value not in (None, "", []):
+            merged[key] = value
+    if overlay.get("_profile") and not merged.get("_profile"):
+        merged["_profile"] = overlay["_profile"]
+    return merged
+
+
+def _public_list_card(card: dict[str, Any]) -> dict[str, Any]:
+    return {key: card.get(key) for key in _LIST_CARD_KEYS}
+
+
+def _list_reports_from_files(
+    *,
+    limit: int,
+    resolved_profile: str | None,
+) -> list[dict[str, Any]]:
+    by_date: dict[str, dict[str, Any]] = {}
+    dated_metrics: list[tuple[datetime, dict[str, Any]]] = []
+    for row in _metrics_jsonl_rows():
+        parsed = _parse_aware_dt(row.get("timestamp"))
+        if parsed is None:
+            continue
+        dated_metrics.append((parsed, row))
+    dated_metrics.sort(key=lambda item: item[0])
+    for parsed, row in dated_metrics:
+        report_date = _as_iso_date(parsed)
+        if report_date is None:
+            continue
+        by_date[report_date] = _list_card_from_metrics(row, report_date)
+
+    for report_date, data in _iter_brief_json_by_date().items():
+        brief_card = _list_card_from_brief(report_date, data)
+        if report_date in by_date:
+            by_date[report_date] = _merge_list_card(by_date[report_date], brief_card)
+        else:
+            by_date[report_date] = brief_card
+
+    cards = list(by_date.values())
+    if resolved_profile is not None:
+        cards = [
+            card
+            for card in cards
+            if card.get("_profile") in (None, "", resolved_profile)
+        ]
+    cards.sort(key=lambda card: str(card.get("timestamp") or ""), reverse=True)
+    return [_public_list_card(card) for card in cards[:limit]]
+
+
+def _list_reports_from_bq(
+    *,
+    limit: int,
+    resolved_profile: str | None,
+) -> list[dict[str, Any]]:
+    from google.cloud import bigquery
+
+    base_select = f"""
+            SELECT
+                DATE(m.timestamp) AS report_date,
+                m.timestamp,
+                m.dxy,
+                m.etf_flow_millions,
+                m.avg_risk_score,
+                m.mvrv_z_score,
+                m.regime_score,
+                m.sentiment_score,
+                m.grok_summary,
+                m.gpt_summary,
+                m.news_titles
+            FROM `{METRICS_TABLE}` m
+    """
+    try:
+        client = _get_bq_client()
+        if resolved_profile is None:
+            rows = client.query(
+                base_select
+                + f"""
+            ORDER BY m.timestamp DESC
+            LIMIT {limit}
+        """
+            ).result()
+        else:
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("profile", "STRING", resolved_profile),
+                    bigquery.ScalarQueryParameter("lim", "INT64", int(limit)),
+                ]
+            )
+            rows = client.query(
+                base_select
+                + f"""
+            INNER JOIN (
+                SELECT DISTINCT DATE(timestamp) AS d
+                FROM `{LLM_RUN_LOG_TABLE}`
+                WHERE profile = @profile
+            ) filt ON DATE(m.timestamp) = filt.d
+            ORDER BY m.timestamp DESC
+            LIMIT @lim
+        """,
+                job_config=job_config,
+            ).result()
+    except Exception as exc:
+        logger.error("BigQuery reports list failed: %s", exc)
+        raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
+
+    return rows_to_dicts(rows)
 
 
 # Module-level Jinja2 env (bytecode-cached, autoescape enabled for XSS safety)
@@ -122,56 +453,12 @@ def list_reports(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    base_select = f"""
-            SELECT
-                DATE(m.timestamp) AS report_date,
-                m.timestamp,
-                m.dxy,
-                m.etf_flow_millions,
-                m.avg_risk_score,
-                m.mvrv_z_score,
-                m.regime_score,
-                m.sentiment_score,
-                m.grok_summary,
-                m.gpt_summary,
-                m.news_titles
-            FROM `{METRICS_TABLE}` m
-    """
-    try:
-        client = _get_bq_client()
-        if resolved_profile is None:
-            rows = client.query(
-                base_select
-                + f"""
-            ORDER BY m.timestamp DESC
-            LIMIT {limit}
-        """
-            ).result()
-        else:
-            job_config = bigquery.QueryJobConfig(
-                query_parameters=[
-                    bigquery.ScalarQueryParameter("profile", "STRING", resolved_profile),
-                    bigquery.ScalarQueryParameter("lim", "INT64", int(limit)),
-                ]
-            )
-            rows = client.query(
-                base_select
-                + f"""
-            INNER JOIN (
-                SELECT DISTINCT DATE(timestamp) AS d
-                FROM `{LLM_RUN_LOG_TABLE}`
-                WHERE profile = @profile
-            ) filt ON DATE(m.timestamp) = filt.d
-            ORDER BY m.timestamp DESC
-            LIMIT @lim
-        """,
-                job_config=job_config,
-            ).result()
-    except Exception as exc:
-        logger.error("BigQuery reports list failed: %s", exc)
-        raise HTTPException(status_code=503, detail="BigQuery unavailable") from exc
-
-    return rows_to_dicts(rows)
+    file_rows = _list_reports_from_files(limit=limit, resolved_profile=resolved_profile)
+    if file_rows:
+        return file_rows
+    if skip_bigquery():
+        return []
+    return _list_reports_from_bq(limit=limit, resolved_profile=resolved_profile)
 
 
 @router.get("/api/reports/profile-stats")
@@ -192,7 +479,18 @@ def get_report_profile_stats(
         raise HTTPException(status_code=500, detail="Server configuration error") from exc
 
     known_profiles = list(PROFILES.keys())
+    if skip_bigquery():
+        return {
+            "window_days": int(days),
+            "total_reports": 0,
+            "breakdown": [
+                {"profile": name, "report_count": 0, "latest_date": None}
+                for name in known_profiles
+            ],
+        }
     try:
+        from google.cloud import bigquery
+
         client = _get_bq_client()
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
@@ -259,9 +557,53 @@ def _validate_report_date(report_date: str) -> None:
         ) from exc
 
 
+def _load_report_legacy_from_files(report_date: str) -> dict[str, Any] | None:
+    """Assemble the legacy PWA shape from JSONL + DailyBriefReport JSON. No invented numbers."""
+    metrics_row: dict[str, Any] | None = None
+    latest_ts: datetime | None = None
+    for row in _metrics_jsonl_rows():
+        parsed = _parse_aware_dt(row.get("timestamp"))
+        row_date = _as_iso_date(parsed) if parsed is not None else _as_iso_date(row.get("timestamp"))
+        if row_date != report_date:
+            continue
+        if parsed is None or latest_ts is None or parsed >= latest_ts:
+            metrics_row = row
+            latest_ts = parsed
+    raw_dict, _src = _try_load_daily_brief_raw_dict(report_date)
+    if metrics_row is None and not raw_dict:
+        return None
+
+    if metrics_row is not None:
+        report = _list_card_from_metrics(metrics_row, report_date)
+        for extra in ("sopr", "exchange_netflow"):
+            if extra in metrics_row:
+                report[extra] = metrics_row[extra]
+        if isinstance(raw_dict, dict):
+            report = _merge_list_card(report, _list_card_from_brief(report_date, raw_dict))
+            report.pop("_profile", None)
+    else:
+        report = _empty_list_card(report_date)
+        if isinstance(raw_dict, dict):
+            report = _merge_list_card(report, _list_card_from_brief(report_date, raw_dict))
+        report.pop("_profile", None)
+
+    recs = _recs_from_jsonl_for_date(report_date)
+    if not recs and isinstance(raw_dict, dict):
+        recs = _recs_from_brief(raw_dict)
+    report["recommendations"] = recs
+    return {key: report.get(key) for key in (*_LIST_CARD_KEYS, "sopr", "exchange_netflow", "recommendations")}
+
+
 def _load_report_legacy(report_date: str) -> dict[str, Any]:
-    """Load metrics row + recommendations from BigQuery (legacy PWA shape)."""
+    """Load metrics row + recommendations (files first, BigQuery fallback)."""
+    file_report = _load_report_legacy_from_files(report_date)
+    if file_report is not None:
+        return file_report
+    if skip_bigquery():
+        raise HTTPException(status_code=404, detail=f"No report found for {report_date}")
     try:
+        from google.cloud import bigquery
+
         client = _get_bq_client()
         job_config = bigquery.QueryJobConfig(
             query_parameters=[bigquery.ScalarQueryParameter("report_date", "DATE", report_date)]
@@ -433,6 +775,8 @@ def get_report_gate_status(report_date: str) -> dict[str, Any]:
 
     if not skip_bq:
         try:
+            from google.cloud import bigquery
+
             client = _get_bq_client()
             job_config = bigquery.QueryJobConfig(
                 query_parameters=[
@@ -601,6 +945,8 @@ def get_qsrec_stats(days: int = Query(default=7, ge=1, le=90)) -> dict[str, Any]
 
     if not skip_bq:
         try:
+            from google.cloud import bigquery
+
             client = _get_bq_client()
             job_config = bigquery.QueryJobConfig(
                 query_parameters=[
@@ -705,6 +1051,8 @@ def get_gate_failures(days: int = Query(default=7, ge=1, le=30)) -> dict[str, An
 
     if not skip_bq:
         try:
+            from google.cloud import bigquery
+
             client = _get_bq_client()
             job_config = bigquery.QueryJobConfig(
                 query_parameters=[bigquery.ScalarQueryParameter("days", "INT64", days)],

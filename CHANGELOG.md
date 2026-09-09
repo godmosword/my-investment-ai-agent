@@ -5,6 +5,14 @@
 
 ## 2026-09-09
 
+### API（ITER-GCP-EXIT-P1 — 檔案優先 reports／metrics／trades，import 不載 GCP）
+
+- **讀路徑不再硬打 BigQuery**：[`GET /api/reports`](api_routers/reports.py)／[`GET /api/reports/{date}`](api_routers/reports.py) 先讀 `DAILY_BRIEF_JSON_DIR`／`.qsilicon/daily_brief_reports`／`daily_metrics.jsonl`／`trade_recommendations.jsonl`；有列即回。無檔且未 `SKIP_BIGQUERY` 才走既有 BQ SQL（含 `?profile=` 的 `llm_run_log` JOIN）。`SKIP_BIGQUERY=1` 時 list 回 **`[]`**、detail **404**，不再 503。
+- **[`/api/metrics/*`](api_routers/metrics.py)、[`/api/trades*`](api_routers/trades.py)** 同樣 JSONL 優先；skip 時 trades／positions 空列表、performance zeros、metrics latest 404。
+- **`import api` 不再載入 `google.cloud`**：[`api_deps.py`](api_deps.py)／reports／trades／[`symbol_snapshot_service.py`](symbol_snapshot_service.py) 改 lazy；[`api.py`](api.py) 刪未使用的 BQ singleton；[`api_routers/execution_intents.py`](api_routers/execution_intents.py) 的 paper audit 寫入改在 PATCH 時才 import [`bigquery_writer`](bigquery_writer.py)。守門 [`tests/api/test_api_import_boundary.py`](tests/api/test_api_import_boundary.py) 新增 `google.cloud`／`bigquery_writer`／`tracker`。
+- **測試**：[`tests/api/test_file_first_store.py`](tests/api/test_file_first_store.py)。BQ 契約測試改在未 skip 時 mock（skip 不再假裝打 BQ）。
+- **未動**：Cloud Run Service／Job、`deploy.yml`、Firestore news、options BQ、PWA `VITE_API_URL`。**正式站仍指向已死的 Cloud Run LB** — 本切片修契約，不部署、不假裝 `/insights` 已通。託管遷出見 TODOS **隊列 72**。
+
 ### API/Ops（ITER-API-SLIM-P2-2 — trades/positions/analysis/quant 搬進 router）
 
 - **[`api_routers/trades.py`](api_routers/trades.py) 新檔**：由 [`api.py`](api.py) 搬入七條 route（`/api/trades`、`/api/positions/open`、`/api/positions`、`/api/analysis/{symbol}`、`/api/quant/signals`、`/api/quant/backtest`、`/api/trades/performance`）連同 `_fetch_trades`／`_validate_symbol`。單一 slice（不做 analysis／quant 分檔）；宣告順序照搬。

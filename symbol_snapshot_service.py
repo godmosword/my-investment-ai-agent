@@ -14,10 +14,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from google.cloud import bigquery
-
-from config import METRICS_TABLE, RECOMMENDATIONS_TABLE
 from api_deps import rows_to_dicts
+from config import METRICS_TABLE, RECOMMENDATIONS_TABLE
 
 logger = logging.getLogger(__name__)
 
@@ -391,7 +389,7 @@ def _apply_price_alignment_e2e_override(normalized_symbol: str, align: dict[str,
 
 
 def build_symbol_snapshot(
-    client: bigquery.Client,
+    client: Any,
     normalized_symbol: str,
     *,
     days: int = 30,
