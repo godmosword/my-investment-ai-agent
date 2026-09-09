@@ -32,7 +32,7 @@ def get_bq_client() -> Any:
     if skip_bigquery():
         raise RuntimeError("SKIP_BIGQUERY is set")
     if _bq_client is None:
-        from google.cloud import bigquery  # noqa: PLC0415
+        from google.cloud import bigquery
 
         _bq_client = bigquery.Client(project=PROJECT_ID)
     return _bq_client

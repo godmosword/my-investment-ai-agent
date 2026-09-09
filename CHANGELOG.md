@@ -13,6 +13,7 @@
 - **Human（尚未做，不做就不假裝 `/insights` 已通）**：Dashboard **Root Directory = `.`** → preview `GET /healthz` 精確 JSON → **然後**才清空 GitHub secret `VITE_API_URL`。順序反了會讓 SPA 把 `/api` 餵成 HTML。Function 除 `/tmp` 唯讀：意圖 PATCH／jsonl 不持久，待 P3。
 - **測試**：[`tests/test_vercel_polyglot.py`](tests/test_vercel_polyglot.py)、[`tests/api/test_skip_bigquery_vercel.py`](tests/api/test_skip_bigquery_vercel.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)（`API_BASE` 預設 `BASE_URL`）。
 - **未動**：Cloud Run Job、`deploy.yml`、BQ writer、Firestore、P3 commit-back。
+- **CI**：新增 [`ruff.toml`](ruff.toml) 釘選歷史預設規則（E4／E7／E9／F）。未釘選時 ruff 0.16 會報約 663 條既有噪音，把 `CI / quick` 打紅（見候選板 CI-QUICK-BASELINE）。
 
 ### API（ITER-GCP-EXIT-P1 — 檔案優先 reports／metrics／trades，import 不載 GCP）
 

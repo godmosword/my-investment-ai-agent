@@ -1219,7 +1219,7 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 ## 修訂紀錄
 
-- **2026-09-09（ITER-GCP-EXIT-P2）**：根 `vercel.json` polyglot、同源 PWA 契約、`VERCEL=1` 預設 skip BQ；Dashboard Root Directory／清空 `VITE_API_URL` 仍須 Human。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-09** `### Ops（ITER-GCP-EXIT-P2）`。
+- **2026-09-09（ITER-GCP-EXIT-P2）**：根 `vercel.json` polyglot、同源 PWA 契約、`VERCEL=1` 預設 skip BQ；Dashboard Root Directory／清空 `VITE_API_URL` 仍須 Human。CI 釘 [`ruff.toml`](ruff.toml) 歷史預設，隔離 ~663 條既有 ruff 噪音。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-09** `### Ops（ITER-GCP-EXIT-P2）`。
 - **2026-09-08（Human B 每週配額 + P4-44B～44P 補記）**：候選板／每週 1 張 R0/R1；CHANGELOG 補記 09-03～09-05 繁中包；隊列 62 仍開。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-08**。
 - **2026-09-05（ITER-GO-LIVE-001）**：`GET /healthz` 廉價 liveness + 正式上線三條／Job≠Service／503 事實寫入 checklist。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### API/Ops（ITER-GO-LIVE-001）`。
 - **2026-09-08（ITER-TR-LOOP-FALSE-NEG-001）**：紙上對帳假陰性（截斷／未知 status；已知非紙上倉位仍「無紙上記錄」）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-08**。
