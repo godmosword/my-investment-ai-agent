@@ -47,8 +47,12 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      // Proxy /api requests to FastAPI during local dev
+      // Proxy API + liveness to FastAPI during local same-origin dev
       "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "/healthz": {
         target: "http://localhost:8000",
         changeOrigin: true,
       },

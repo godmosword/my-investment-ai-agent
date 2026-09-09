@@ -34,6 +34,8 @@ test.describe("FE-4 Settings hub — gate stats / poll toggle / gate failures", 
     await expect(page.getByTestId("data-health-panel")).toBeVisible();
     await expect(page.getByTestId("data-health-panel")).toContainText("Options Flow + GEX");
     await expect(page.getByTestId("data-health-panel")).toContainText("pending");
+
+    await expect(page.getByTestId("settings-api-health")).toContainText("GET /healthz");
   });
 
   test("desktop 1280px lays out the grid in 3 columns", async ({ page }) => {

@@ -734,6 +734,10 @@ const server = http.createServer((req, res) => {
     res.end();
     return;
   }
+  if (url.pathname === "/healthz") {
+    sendJson(res, 200, { ok: true, service: "api" });
+    return;
+  }
   if (url.pathname === "/openapi.json") {
     sendJson(res, 200, {
       openapi: "3.1.0",
