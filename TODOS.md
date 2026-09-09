@@ -4,6 +4,8 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
+**同步狀態（2026-09-09 — ITER-API-SLIM-P2-2）**：trades／positions／analysis／quant 七條 route 由 `api.py` 搬入 [`api_routers/trades.py`](api_routers/trades.py)（單一 slice，不做 analysis／quant 分檔）；OpenAPI path／method 表逐字相同；monkeypatch 錨點改指 `api_routers.trades`。下一批：paper（含 `_paper_tick_lock`）／push／SSE，各一 PR；paper `pnl`／`execution-tick` 與 `/api/war-room/latest` 需先補最小契約測試。**本整理不部署 Service**。見 CHANGELOG **2026-09-09**。
+
 **同步狀態（2026-09-08 — Human B 每週配額）**：Grok 例行掃描只改 [`.grok/CANDIDATE_BOARD.md`](.grok/CANDIDATE_BOARD.md)；Director 在 Routine F 後可開 **每週 1** 張合格 `R0`/`R1`。日常 A／D／E 不得開工。Merge 仍人類。見 CHANGELOG **2026-09-08**。
 
 **同步狀態（2026-09-08 — P4-44B～44P 補記）**：09-03～09-05 已合入的繁中／UNKNOWN／觸控包補進 CHANGELOG；與隊列 62（5 月 44b 密度實作）不同名，62 仍待 maintainer 勾選盤點列。剩餘表面見候選板。見 CHANGELOG **2026-09-08**。
@@ -177,6 +179,7 @@
 
 | 主題 | 代表檔案／行為 |
 |------|----------------|
+| **ITER-API-SLIM-P2-2 — trades/positions/analysis/quant router（2026-09-09）** | [`api_routers/trades.py`](api_routers/trades.py) 承接七條 route + `_fetch_trades`／`_validate_symbol`；契約／OpenAPI 不變；測試 monkeypatch 改指 `api_routers.trades`。**不部署 Service**。CHANGELOG **2026-09-09**。 |
 | **ITER-GO-LIVE-001 — API liveness and ship probe（2026-09-05）** | [`GET /healthz`](api_routers/health.py) 固定 `{"ok": true, "service": "api"}`（無憑證、不探 BQ／LLM／crew）。文件 [`PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」。[`smoke-prod.sh`](data-verification-ui/scripts/smoke-prod.sh) fail-closed。測試 [`tests/api/test_healthz.py`](tests/api/test_healthz.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)。**不部署 Service**。CHANGELOG **2026-09-05**。 |
 | **ITER-TR-LOOP-FALSE-NEG-001 — 紙上對帳假陰性（2026-09-08）** | [`paperReconcile.js`](data-verification-ui/src/modules/daily-brief/paperReconcile.js) 截斷／未知 status 不再標「無紙上記錄」；已知非紙上倉位狀態仍標「無紙上記錄」。E2E／unit 見 CHANGELOG **2026-09-08**。 |
 | **ITER-TR-LOOP-001 — 今日建議對上紙上狀態（2026-09-05）** | [`PaperReconcileStrip.jsx`](data-verification-ui/src/modules/daily-brief/pages/PaperReconcileStrip.jsx) 首屏對帳條；標的只取日報已解析欄，狀態只讀既有紙上／意圖／已結 API。E2E [`insights-first-screen.spec.js`](data-verification-ui/e2e/insights-first-screen.spec.js)。CHANGELOG **2026-09-05**。 |

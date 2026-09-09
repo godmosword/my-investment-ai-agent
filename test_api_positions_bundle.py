@@ -17,7 +17,7 @@ def test_positions_m4_defaults_to_open(monkeypatch):
             "entry_price": 100.0,
         }
     ]
-    monkeypatch.setattr("api._fetch_trades", lambda **kwargs: rows)
+    monkeypatch.setattr("api_routers.trades._fetch_trades", lambda **kwargs: rows)
     client = TestClient(app)
     r = client.get("/api/positions")
     assert r.status_code == 200
@@ -41,15 +41,15 @@ def test_industries_themes_m5(monkeypatch):
 
 def test_analysis_bundle_m6_quote_and_snapshot(monkeypatch):
     monkeypatch.setattr(
-        "api.fetch_symbol_quote",
+        "api_routers.trades.fetch_symbol_quote",
         lambda sym: {"symbol": sym, "last": 12.5, "error": None},
     )
 
     def fake_build(_client, sym, days=30, recommendation_limit=12):
         return {"symbol": sym, "source": "unit_test"}
 
-    monkeypatch.setattr("api._get_bq_client", lambda: object())
-    monkeypatch.setattr("api.build_symbol_snapshot", fake_build)
+    monkeypatch.setattr("api_routers.trades._get_bq_client", lambda: object())
+    monkeypatch.setattr("api_routers.trades.build_symbol_snapshot", fake_build)
     client = TestClient(app)
     r = client.get("/api/analysis/NVDA")
     assert r.status_code == 200
@@ -62,12 +62,12 @@ def test_analysis_bundle_m6_quote_and_snapshot(monkeypatch):
 
 def test_analysis_bundle_m6_snapshot_error_surfaces(monkeypatch):
     monkeypatch.setattr(
-        "api.fetch_symbol_quote",
+        "api_routers.trades.fetch_symbol_quote",
         lambda sym: {"symbol": sym, "last": 1.0, "error": None},
     )
-    monkeypatch.setattr("api._get_bq_client", lambda: object())
+    monkeypatch.setattr("api_routers.trades._get_bq_client", lambda: object())
     monkeypatch.setattr(
-        "api.build_symbol_snapshot",
+        "api_routers.trades.build_symbol_snapshot",
         lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("simulated bq failure")),
     )
     client = TestClient(app)

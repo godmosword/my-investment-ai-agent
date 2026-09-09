@@ -1,4 +1,4 @@
-"""Contract coverage for inline routes that still live in ``api.py``."""
+"""Contract coverage for trades/positions routes (now in ``api_routers.trades``) and remaining ``api.py`` inline routes."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import api
+from api_routers import trades
 
 
 def _query_result(rows: list[dict[str, Any]]) -> MagicMock:
@@ -31,7 +31,7 @@ def client(client_skip_bq):
 
 def test_trades_list_contract_keys(client, monkeypatch):
     monkeypatch.setattr(
-        api,
+        trades,
         "_get_bq_client",
         lambda: _bq_client(
             [
@@ -90,7 +90,7 @@ def test_open_positions_contract_uses_open_status(client, monkeypatch):
         bq.query.side_effect = capture
         return bq
 
-    monkeypatch.setattr(api, "_get_bq_client", fake_client)
+    monkeypatch.setattr(trades, "_get_bq_client", fake_client)
 
     response = client.get("/api/positions/open?limit=5")
 
@@ -101,7 +101,7 @@ def test_open_positions_contract_uses_open_status(client, monkeypatch):
 
 def test_trades_performance_contract_keys(client, monkeypatch):
     monkeypatch.setattr(
-        api,
+        trades,
         "_get_bq_client",
         lambda: _bq_client(
             [

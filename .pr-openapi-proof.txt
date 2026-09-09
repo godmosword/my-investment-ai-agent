@@ -1,0 +1,6 @@
+OpenAPI path+method multiset proof (ITER-API-SLIM-P2-2)
+count: 62
+sha256_before: c2bf0c30debd57c2623723eff0672b2894b1c6a58f423ce612618bef122a461f
+sha256_after:  c2bf0c30debd57c2623723eff0672b2894b1c6a58f423ce612618bef122a461f
+match: true
+note: dumped via app.openapi()['paths'] (flattens included routers); OPTIONS/HEAD excluded.
