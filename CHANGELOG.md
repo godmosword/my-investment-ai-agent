@@ -11,9 +11,9 @@
 - **Vercel 預設不開 BQ**：[`api_deps.skip_bigquery`](api_deps.py) 在 `SKIP_BIGQUERY` 未設且 `VERCEL=1` 時為 True；明確 `0`/`false` 仍可覆寫。
 - **PWA**：空 `VITE_API_URL`＝同源 `/api`，不再當 production 誤設定橫幅；Settings 探活改 `GET /healthz`；意圖 blotter 不再寫「未設定就無法操作」。[`pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) 允許空 `VITE_API_URL`（警告）、CLI `vercel@59.13.1`、paths 含 API 檔。
 - **Preview 活體（2026-09-09）**：Dashboard **Root Directory = `.`** 已改。PR #197 Redeploy `dpl_GEZEFZLWNw3zBKyngzfsbUXtLgex` 的 `GET /healthz` 回 HTTP 200、本體恰好 `{"ok": true, "service": "api"}`（Build 裝 `requirements-api.txt`、Python runtime）。Hobby 未拒 `services`。
-- **Human 剩餘（不做就不假裝正式 `/insights` 已通）**：清空 GitHub secret `VITE_API_URL`（以及 Dashboard 同名 env）→ 讓 `pwa-deploy.yml` prebuilt 上正式站 → `BASE_URL=<prod> npm run smoke:prod`。**不要**本機 `vercel --prod`。Function 除 `/tmp` 唯讀：意圖 PATCH／jsonl 不持久，待 P3。
+- **正式切換（2026-09-09）**：GitHub secret `VITE_API_URL` 已清空；`pwa-deploy` prebuilt `dpl_4W7LanSCy4qDz8GBgbhYVCLnLbYC`（source=cli）的 `GET /healthz` 已通。**不要**本機 `vercel --prod`。Function 除 `/tmp` 唯讀：意圖 PATCH／jsonl 不持久，待 P3。
 - **測試**：[`tests/test_vercel_polyglot.py`](tests/test_vercel_polyglot.py)、[`tests/api/test_skip_bigquery_vercel.py`](tests/api/test_skip_bigquery_vercel.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)（`API_BASE` 預設 `BASE_URL`）。[`test_reports_profile_api.py`](test_reports_profile_api.py) 測 BQ 路徑時關掉 `SKIP_BIGQUERY`／`VERCEL`，避免 `run_mock_smoke.sh` 短路。
-- **CI prebuilt（2026-09-09）**：`deploy-vercel` 在 `vercel build` 前裝 [`astral-sh/setup-uv`](https://github.com/astral-sh/setup-uv) — GitHub runner 沒有 `uv` 時 Python service 會立刻失敗（preview Git Integration 不受影響）。GitHub secret `VITE_API_URL` 已清空；正式 `/insights` 仍等這次 prebuilt 成功。
+- **CI prebuilt**：`deploy-vercel` 在 `vercel build` 前裝 [`astral-sh/setup-uv`](https://github.com/astral-sh/setup-uv)（GitHub runner 沒有 `uv`）。SPA 路徑曾 404：頂層 rewrite 進 PWA service 後，子目錄 `vercel.json` 不會自動合併，需 `services.pwa.rewrites` → `/index.html`。
 - **未動**：Cloud Run Job、`deploy.yml`、BQ writer、Firestore、P3 commit-back。
 - **CI**：新增 [`ruff.toml`](ruff.toml) 釘選歷史預設規則（E4／E7／E9／F）。未釘選時 ruff 0.16 會報約 663 條既有噪音，把 `CI / quick` 打紅（見候選板 CI-QUICK-BASELINE）。
 
