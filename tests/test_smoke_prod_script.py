@@ -4,8 +4,15 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
 
-def _run_smoke(tmp_path: Path, fake_curl_body: str) -> subprocess.CompletedProcess[str]:
+
+def _run_smoke(
+    tmp_path: Path,
+    fake_curl_body: str,
+    *,
+    omit_api_base: bool = False,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
     calls_file = tmp_path / "curl-calls.txt"
     fake_curl = tmp_path / "curl"
     fake_curl.write_text(fake_curl_body, encoding="utf-8")
@@ -13,10 +20,13 @@ def _run_smoke(tmp_path: Path, fake_curl_body: str) -> subprocess.CompletedProce
     env = {
         **os.environ,
         "BASE_URL": "https://pwa.example.test",
-        "API_BASE": "https://api.example.test",
         "PATH": f"{tmp_path}:{os.environ['PATH']}",
         "CURL_CALLS_FILE": str(calls_file),
     }
+    if omit_api_base:
+        env.pop("API_BASE", None)
+    else:
+        env["API_BASE"] = "https://api.example.test"
     return subprocess.run(
         ["bash", "scripts/smoke-prod.sh"],
         cwd="data-verification-ui",
@@ -135,3 +145,42 @@ esac
     )
     assert result.returncode != 0
     assert "healthz body" in (result.stdout + result.stderr)
+
+
+@pytest.mark.smoke
+def test_smoke_prod_defaults_api_base_to_base_url(tmp_path: Path):
+    result, calls_file = _run_smoke(
+        tmp_path,
+        """#!/usr/bin/env bash
+set -euo pipefail
+out=""
+args=("$@")
+for ((i=0; i<${#args[@]}; i++)); do
+  if [[ "${args[$i]}" == "-o" ]]; then
+    out="${args[$((i+1))]}"
+  fi
+done
+url="${@: -1}"
+printf '%s\\n' "$url" >> "$CURL_CALLS_FILE"
+case "$url" in
+  */healthz)
+    if [[ -n "$out" ]]; then
+      printf '%s' '{"ok": true, "service": "api"}' > "$out"
+    fi
+    printf '200'
+    ;;
+  */api/options/summary|*/api/options/gex/NVDA|*/api/options/flow/NVDA|*/api/data-health|*/api/symbols/BTC/quote|*/insights|*/news|*/dashboard|*/columns|*/portfolio)
+    printf '200'
+    ;;
+  *)
+    printf '500'
+    ;;
+esac
+""",
+        omit_api_base=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "https://pwa.example.test/healthz" in calls
+    assert "https://pwa.example.test/api/data-health" in calls
+    assert not any(u.startswith("https://api.example.test") for u in calls)

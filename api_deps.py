@@ -15,8 +15,15 @@ _bq_client: Any = None
 
 
 def skip_bigquery() -> bool:
-    """True when the HTTP API must not open a BigQuery client."""
-    return os.getenv("SKIP_BIGQUERY", "").strip().lower() in ("1", "true", "yes")
+    """True when the HTTP API must not open a BigQuery client.
+
+    Explicit ``SKIP_BIGQUERY`` wins. When unset, Vercel (``VERCEL=1``) skips
+    BigQuery so the Function does not need GCP libraries.
+    """
+    raw = os.getenv("SKIP_BIGQUERY")
+    if raw is not None and str(raw).strip() != "":
+        return str(raw).strip().lower() in ("1", "true", "yes")
+    return os.getenv("VERCEL", "").strip() == "1"
 
 
 def get_bq_client() -> Any:

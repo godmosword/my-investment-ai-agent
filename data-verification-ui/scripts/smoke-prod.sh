@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Production / staging smoke: static PWA + API health + sample quote.
-# Usage: BASE_URL=https://pwa.example.com API_BASE=https://api.example.com [SMOKE_QSILICON_KEY=...] bash scripts/smoke-prod.sh
+# Usage: BASE_URL=https://pwa.example.com [API_BASE=https://api.example.com] [SMOKE_QSILICON_KEY=...] bash scripts/smoke-prod.sh
+# API_BASE defaults to BASE_URL (same-origin polyglot). Override only when the
+# API still lives on a different origin.
 set -euo pipefail
 BASE_URL="${BASE_URL:?set BASE_URL to deployed PWA origin}"
-API_BASE="${API_BASE:?set API_BASE to FastAPI origin (same host as VITE_API_URL)}"
+API_BASE="${API_BASE:-$BASE_URL}"
 HDR=()
 if [[ -n "${SMOKE_QSILICON_KEY:-}" ]]; then
   HDR=(-H "X-Q-Silicon-Key: ${SMOKE_QSILICON_KEY}")

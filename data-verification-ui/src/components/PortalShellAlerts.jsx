@@ -1,21 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { QSILICON_API_SHELL_ERROR } from "../lib/siliconApiClient";
 
 const E2E = import.meta.env.VITE_E2E === "1";
 const PROD = import.meta.env.PROD;
-const NO_API_URL = !String(import.meta.env.VITE_API_URL || "").trim();
 
 /**
- * 全域：production 缺 API 基底、API 網路／5xx 簡訊、SW 待套用更新（401 仍走 useApi）。
+ * 全域：API 網路／5xx 簡訊、SW 待套用更新（401 仍走 useApi）。
+ * 空的 VITE_API_URL 是同源 /api（Vercel polyglot），不是誤設定。
  */
 export default function PortalShellAlerts() {
   const [apiShellErr, setApiShellErr] = useState(null);
   const [swUpdateReady, setSwUpdateReady] = useState(false);
   const regRef = useRef(null);
   const reloadAfterSkipRef = useRef(false);
-
-  const showMissingApiBanner = PROD && !E2E && NO_API_URL;
 
   useEffect(() => {
     const onErr = (e) => {
@@ -91,7 +88,7 @@ export default function PortalShellAlerts() {
     r.waiting.postMessage({ type: "SKIP_WAITING" });
   };
 
-  if (!showMissingApiBanner && !apiShellErr && !swUpdateReady) return null;
+  if (!apiShellErr && !swUpdateReady) return null;
 
   return (
     <div
@@ -99,20 +96,8 @@ export default function PortalShellAlerts() {
       role="region"
       aria-label="系統提示"
     >
-      {showMissingApiBanner ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-          <span>
-            正式環境未設定 <code className="rounded bg-black/35 px-1 font-mono text-[11px]">VITE_API_URL</code>
-            ，API 請求將走同源相對路徑；請於建置時注入或至{" "}
-            <Link className="underline decoration-amber-400/80 underline-offset-2" to="/settings">
-              設定
-            </Link>{" "}
-            核對。
-          </span>
-        </div>
-      ) : null}
       {apiShellErr ? (
-        <div className="border-t border-amber-800/50 px-3 py-2 text-rose-200/95">
+        <div className="px-3 py-2 text-rose-200/95">
           <span className="font-medium">API：</span>
           {apiShellErr}
         </div>

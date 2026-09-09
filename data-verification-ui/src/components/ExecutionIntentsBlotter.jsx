@@ -6,7 +6,6 @@ import {
   getTerminalRefetchIntervalMs,
 } from "../hooks/useApi";
 
-const BASE = import.meta.env.VITE_API_URL ?? "";
 const SSE_ENABLED = import.meta.env.VITE_SSE_ENABLED === "1";
 
 function statusLabel(s) {
@@ -110,7 +109,7 @@ export default function ExecutionIntentsBlotter() {
           <div className="card-title">執行意圖（紙上前置）</div>
           <div className="page-subtitle terminal-blotter-sub">
             輪詢約每 <code>{Math.round(pollMs / 1000)}s</code>
-            {SSE_ENABLED && BASE ? (
+            {SSE_ENABLED ? (
               <span>
                 {" "}
                 · <code>SSE</code> 已啟用（<code>VITE_SSE_ENABLED=1</code>，後端需 <code>TERMINAL_SSE_ENABLED=1</code>）
@@ -118,9 +117,6 @@ export default function ExecutionIntentsBlotter() {
             ) : null}
             {" "}
             · 後端 <code>PATCH</code> 僅 append 狀態，<strong>不下單</strong>
-            {!BASE ? (
-              <span className="terminal-blotter-warn"> · 未設定 <code>VITE_API_URL</code> 時無法操作</span>
-            ) : null}
           </div>
         </div>
         {isFetching && !isLoading ? <span className="terminal-blotter-sync">更新中…</span> : null}

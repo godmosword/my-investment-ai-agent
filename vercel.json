@@ -1,0 +1,32 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  },
+  "services": {
+    "pwa": {
+      "root": "data-verification-ui",
+      "framework": "vite"
+    },
+    "api": {
+      "root": ".",
+      "framework": "fastapi",
+      "entrypoint": "api:app",
+      "installCommand": "pip install -r requirements-api.txt",
+      "functions": {
+        "api.py": {
+          "excludeFiles": "{data-verification-ui/**,tests/**,docs/**,.git/**,.github/**,agents/**,dashboard/**,.venv/**,node_modules/**,.grok/**,.cursor/**,graph/**}"
+        }
+      }
+    }
+  },
+  "rewrites": [
+    { "source": "/healthz", "destination": { "service": "api" } },
+    { "source": "/docs", "destination": { "service": "api" } },
+    { "source": "/openapi.json", "destination": { "service": "api" } },
+    { "source": "/api/(.*)", "destination": { "service": "api" } },
+    { "source": "/(.*)", "destination": { "service": "pwa" } }
+  ]
+}

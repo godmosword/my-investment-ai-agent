@@ -102,20 +102,27 @@ export default function Settings() {
 
   useEffect(() => {
     const base = String(import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
-    if (!base) {
-      setHealthErr("未設定 VITE_API_URL，無法探活");
-      return undefined;
-    }
     let cancelled = false;
     const ping = () => {
-      fetch(`${base}/openapi.json`, { method: "GET", cache: "no-store" })
-        .then((r) => {
+      fetch(`${base}/healthz`, { method: "GET", cache: "no-store" })
+        .then(async (r) => {
           if (cancelled) return;
-          if (r.ok) {
+          if (!r.ok) {
+            setHealthErr(`GET /healthz HTTP ${r.status}`);
+            return;
+          }
+          let body;
+          try {
+            body = await r.json();
+          } catch {
+            setHealthErr("GET /healthz 非 JSON");
+            return;
+          }
+          if (body && body.ok === true && body.service === "api") {
             setHealthOkAt(new Date().toISOString());
             setHealthErr("");
           } else {
-            setHealthErr(`GET /openapi.json HTTP ${r.status}`);
+            setHealthErr("GET /healthz 本體不符 {ok:true, service:api}");
           }
         })
         .catch((e) => {
@@ -416,8 +423,8 @@ export default function Settings() {
           </li>
           <li>
             VITE_API_URL:{" "}
-            <span className={apiUrl ? "text-emerald-200/90" : "text-amber-300"}>
-              {apiUrl || "未設定"}
+            <span className={apiUrl ? "text-emerald-200/90" : "text-[var(--muted)]"}>
+              {apiUrl || "未設定（同源 /api）"}
             </span>
           </li>
           <li>
@@ -441,10 +448,10 @@ export default function Settings() {
         </ul>
       </section>
 
-      <section className="card mb-4 p-3">
-        <h2 className="mb-2 text-[13px] font-semibold">API 探活（GET /openapi.json）</h2>
+      <section className="card mb-4 p-3" data-testid="settings-api-health">
+        <h2 className="mb-2 text-[13px] font-semibold">API 探活（GET /healthz）</h2>
         <p className="m-0 text-[12px] text-[var(--muted)]">
-          基底：<code className="font-mono text-[11px]">{apiUrl || "—"}</code>
+          基底：<code className="font-mono text-[11px]">{apiUrl || "（同源）"}</code>
         </p>
         {healthOkAt ? (
           <p className="mt-1 mb-0 text-[12px] text-emerald-300">

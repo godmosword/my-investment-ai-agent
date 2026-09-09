@@ -345,22 +345,22 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 - **離線／快取**：生產用 Service Worker 以 Workbox 註冊路由 — **`/api` NetworkOnly**（不快取 API），導覽／同源靜態 **NetworkFirst**。說明見 [`docs/PWA_OFFLINE.md`](docs/PWA_OFFLINE.md)（CHANGELOG **2026-04-18**）。
 
 - **路由**：底部導覽五板塊為 **`/news`**、**`/dashboard`**、**`/insights`**、**`/columns`**、**`/portfolio`**；`/insights` 承接 Terminal 工作區（watchlist 存 `localStorage`；代號卡呼叫 `GET /api/symbols/{symbol}/snapshot` 與輕量 **`GET /api/symbols/{symbol}/quote`**（最新日線收盤／1D%，僅 yfinance））。
-- **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（適合 PWA 與 API 同網域反代）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。**Production build** 若未設，Portal 會顯示頂部提示條（`VITE_E2E=1` 建置時不顯示以免干擾 Playwright）。
+- **`VITE_API_URL`**：Vite 建置時注入；未設時請求為**同源相對路徑**（Vercel polyglot：PWA 與 FastAPI 同 origin）。本機前後端分埠時例：`VITE_API_URL=http://127.0.0.1:8000 npm run dev`。
 
 ### Vercel 正式站
 
-正式 URL：[https://my-investment-ai-agent.vercel.app](https://my-investment-ai-agent.vercel.app)。靜態 PWA 在 Vercel；API 仍是 Cloud Run Service（`VITE_API_URL`）。
+正式 URL：[https://[REDACTED].vercel.app](https://[REDACTED].vercel.app)。目標是靜態 PWA 與 FastAPI 同一 Vercel 專案（根 [`vercel.json`](vercel.json) `services`）。**在 Dashboard Root Directory 仍是 `data-verification-ui` 時，同源 `/api` 不通**；此時 GitHub secret `VITE_API_URL` 仍指向舊 Cloud Run（503），不要清空。
 
-- **Production**：只走 [`.github/workflows/pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) prebuilt（`vercel pull` → `vercel build` → `vercel deploy --prebuilt --prod`）。[`data-verification-ui/vercel.json`](data-verification-ui/vercel.json) 設 `git.deploymentEnabled.main=false`，禁止 Git Integration 對 `main` 遠端 `vite build` 上正式站。
-- **`VITE_API_URL` 真相來源**：GitHub Actions **secret**（無尾斜線）。Vercel Dashboard Production 同值僅作 fallback；PR Preview 必須在 Dashboard **Preview** env 另設（遠端 build 看不到 GitHub secrets）。
-- **驗收／SSO／CORS**：見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「Vercel PWA Deploy」。建議 Production 關 Vercel Authentication（改靠 `QSILICON_MASTER_KEY` + `/api-key`），Preview 保留 SSO。`npm run smoke:prod` 範例亦在該檔。
+- **Production**：只走 [`.github/workflows/pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) prebuilt（`vercel pull` → `vercel build` → `vercel deploy --prebuilt --prod`）。根 [`vercel.json`](vercel.json) 設 `git.deploymentEnabled.main=false`，禁止 Git Integration 對 `main` 遠端 build 上正式站。
+- **`VITE_API_URL`**：polyglot `GET /healthz` 通了之後應為空（同源）。切換前勿清空。PR Preview 讀 Vercel Preview env，不是 GitHub secrets。
+- **驗收／SSO／CORS**：見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「Vercel PWA Deploy」。建議 Production 關 Vercel Authentication（改靠 `QSILICON_MASTER_KEY` + `/api-key`），Preview 保留 SSO。`npm run smoke:prod`：`BASE_URL` 必填，`API_BASE` 預設同一 origin。
 
 ### 正式上線 vs CI／E2E 專用旗標
 
 | 變數／行為 | 正式 launch（預設） | 僅 CI／E2E |
 |------------|---------------------|-----------|
 | `VITE_E2E=1` | **勿**在 production bundle 使用 | `npm run test:e2e`（`e2e/run-ci.sh`）強制；關閉 PWA plugin、關閉 production 缺 API banner、401 不跳轉 `/api-key` |
-| `VITE_API_URL` | staging／prod 應設為後端基底 URL | E2E 由腳本注入 mock `http://127.0.0.1:<port>` |
+| `VITE_API_URL` | 空＝同源 `/api`；本機分埠才設後端基底 | E2E 由腳本注入 mock `http://127.0.0.1:<port>` |
 | `VITE_STRUCTURED_REPORT` | 依產品需求 0／1 | E2E 腳本設 `1` 以走結構化路徑 |
 | `DailyBriefPage.jsx` 等 E2E seed | 僅在 `VITE_E2E=1` 時啟用測試資料 | 見各 spec 與該頁 `import.meta.env.VITE_E2E` 分支 |
 | `VITE_GLASSBOX_MOCK` | 本機 mock 儀表板用；prod 依治理關閉 | E2E 腳本可設 `0` |
