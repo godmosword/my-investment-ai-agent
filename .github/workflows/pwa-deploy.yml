@@ -99,6 +99,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install uv (vercel build Python service requires it on the runner)
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
       - name: Deploy to Vercel
         working-directory: .
         env:

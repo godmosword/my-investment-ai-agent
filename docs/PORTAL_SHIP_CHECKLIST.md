@@ -194,6 +194,7 @@ If deploy fails after `vercel build`:
 3. Confirm dashboard: **Root Directory** = `.` for polyglot; `data-verification-ui` means root `vercel.json` is ignored.
 4. If `services` is rejected (Hobby / CLI), do not empty `VITE_API_URL`; leave Root Directory as `data-verification-ui`.
 5. Ensure `.vercel/` is not committed (listed in root `.gitignore`).
+6. `vercel build` on GitHub-hosted runners needs **uv** in PATH (`Error: uv is required but was not found in PATH`). `pwa-deploy.yml` installs it via `astral-sh/setup-uv` before the CLI build. Vercel Git Integration preview already has uv; this is CI-prebuilt only.
 
 ### CI timing and emergency deploy
 

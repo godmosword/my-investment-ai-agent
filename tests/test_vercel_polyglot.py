@@ -61,6 +61,7 @@ def test_pwa_deploy_allows_empty_vite_api_url():
     assert "VITE_API_URL empty" in text
     assert "VITE_API_URL secret is required" not in text
     assert "npx vercel@59.13.1" in text
+    assert "astral-sh/setup-uv@" in text
     assert "vercel.json" in text
     assert "requirements-api.txt" in text
     assert "api_routers/**" in text
