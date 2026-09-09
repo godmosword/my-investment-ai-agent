@@ -18,7 +18,7 @@ Repo-side of criterion 2 only. This document does not deploy Cloud Run.
 
 **2026-09-09 API 契約（repo）**：`GET /api/reports` 檔案優先，不再因 BigQuery 掛掉而 503。這**不**修復正式 Cloud Run LB（程序沒在跑）。
 
-**2026-09-09 P2（repo）**：同一 Vercel 專案 polyglot（[`vercel.json`](../vercel.json) `services`：PWA + `api:app`）。**尚未**讓正式 `/insights` 通 — 須 Human 改 Dashboard **Root Directory = `.`（空）**，確認 preview／production `GET /healthz` → `{"ok": true, "service": "api"}`，**然後**才清空 GitHub secret `VITE_API_URL`。順序反了會讓 SPA rewrite 把 `/api` 餵成 `index.html`。
+**2026-09-09 P2（preview 活體）**：同一 Vercel 專案 polyglot（[`vercel.json`](../vercel.json) `services`：PWA + `api:app`）。Dashboard **Root Directory = `.`**；PR #197 preview `dpl_GEZEFZLWNw3zBKyngzfsbUXtLgex` 的 `GET /healthz` → `{"ok": true, "service": "api"}`。**正式 `/insights` 仍不通** — GitHub secret `VITE_API_URL` 仍指向已死 Cloud Run。清空 secret 後須走 `pwa-deploy.yml` prebuilt，不要本機 `vercel --prod`。
 
 **2026-09-05 production fact** (this PR does not heal it):
 
@@ -116,11 +116,11 @@ Production URL: [https://[REDACTED].vercel.app](https://[REDACTED].vercel.app). 
 
 **Dashboard（Human，P2 切換）**：
 
-1. **Root Directory** 從 `data-verification-ui` 改成 **`.`**（空／repo root）。未改之前，根目錄 [`vercel.json`](../vercel.json) 會被忽略，Git Integration preview 仍是純 Vite，同源 `/healthz` 仍 404。
+1. **Root Directory** = **`.`**（空／repo root）— **已改（2026-09-09）**。改回 `data-verification-ui` 會讓根 [`vercel.json`](../vercel.json) 被忽略。
 2. Production + Preview env：可不設 `SKIP_BIGQUERY`（`VERCEL=1` 時 API 預設 skip）；若要打 BQ 才設 `SKIP_BIGQUERY=0` 並提供憑證。
-3. 先用 **PR preview**（Root Directory 已是 `.` 之後）打 `GET {preview}/healthz`，本體必須是 `{"ok": true, "service": "api"}`。Hobby 若拒 `services`，**不要**改 Root Directory、不要清空 `VITE_API_URL`。
-4. polyglot `/healthz` 200 之後，再清空 GitHub secret **`VITE_API_URL`**（以及 Dashboard 同名 env）。空值＝PWA 同源 `/api`。
-5. 維持 Production SSO 建議關閉；`git.deploymentEnabled.main=false` 現在由**根** [`vercel.json`](../vercel.json) 負責（`data-verification-ui/vercel.json` 仍留一份，供 Root Directory 尚未切換時擋 Git production）。
+3. **PR preview `/healthz`** — **已通（2026-09-09）**：`dpl_GEZEFZLWNw3zBKyngzfsbUXtLgex` 本體恰好 `{"ok": true, "service": "api"}`。Hobby 未拒 `services`。
+4. **尚未做**：清空 GitHub secret **`VITE_API_URL`**（以及 Dashboard 同名 env），再跑 `pwa-deploy` prebuilt。空值＝PWA 同源 `/api`。
+5. 維持 Production SSO 建議關閉；`git.deploymentEnabled.main=false` 由**根** [`vercel.json`](../vercel.json) 負責。
 
 When GitHub secrets are configured (`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`, optional `VITE_API_URL` / `VITE_TECH_PULSE_URL`), workflow `.github/workflows/pwa-deploy.yml` runs lint/E2E in `verify`, then in `deploy-vercel`:
 
@@ -140,7 +140,7 @@ The artifact uploaded to Vercel is **`.vercel/output`** from `vercel build`, not
 
 | Variable | Production | Preview | Notes |
 |----------|------------|---------|-------|
-| `VITE_API_URL` | Optional after polyglot `/healthz` is live. Empty = same-origin `/api`. GitHub Actions secret is the source of truth (injected into `vercel build`). | Optional; empty = same-origin. | **Do not empty** while Root Directory is still `data-verification-ui` (SPA would serve HTML for `/api`). |
+| `VITE_API_URL` | Optional after polyglot `/healthz` is live. Empty = same-origin `/api`. GitHub Actions secret is the source of truth (injected into `vercel build`). | Optional; empty = same-origin. | Preview `/healthz` is live. **Do not empty** until ready for production `pwa-deploy` (current secret still points at dead Cloud Run). |
 | `VITE_TECH_PULSE_URL` | Optional GitHub secret | Optional Preview env | Insights earnings outbound link |
 | `VITE_WEB_PUSH_REGISTER` / `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` | Leave off this slice | Leave off | Queue 18–21 (Redis + VAPID). Do not enable until those cloud gates are signed off. |
 | `VITE_SSE_*` / `VITE_STRUCTURED_REPORT` | Keep current | Keep current | SSE on Vercel may hit Function duration limits; failure must be honest, not a fake stream. |
@@ -168,7 +168,7 @@ Note: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) still de
 
 ### Production API base URL (`VITE_API_URL` / `API_BASE`)
 
-After P2 cutover, PWA and `npm run smoke:prod` use the **same origin** as the Portal (`API_BASE` defaults to `BASE_URL`). Until Root Directory = `.` **and** `GET /healthz` is live, keep GitHub secret `VITE_API_URL` pointing at the old Cloud Run origin (or leave it set). Do not treat Cloud Run 503 as a Vercel config bug.
+After P2 production cutover, PWA and `npm run smoke:prod` use the **same origin** as the Portal (`API_BASE` defaults to `BASE_URL`). Preview `/healthz` is live; **production still uses the old `VITE_API_URL` (dead Cloud Run)**. Empty the GitHub secret only when ready for `pwa-deploy`. Do not treat Cloud Run 503 as a Vercel config bug.
 
 ### Post-deploy smoke
 

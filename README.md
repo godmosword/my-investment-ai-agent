@@ -349,10 +349,10 @@ Mock：`cd data-verification-ui && VITE_GLASSBOX_MOCK=1 npm run dev`。
 
 ### Vercel 正式站
 
-正式 URL：[https://[REDACTED].vercel.app](https://[REDACTED].vercel.app)。目標是靜態 PWA 與 FastAPI 同一 Vercel 專案（根 [`vercel.json`](vercel.json) `services`）。**在 Dashboard Root Directory 仍是 `data-verification-ui` 時，同源 `/api` 不通**；此時 GitHub secret `VITE_API_URL` 仍指向舊 Cloud Run（503），不要清空。
+正式 URL：[https://[REDACTED].vercel.app](https://[REDACTED].vercel.app)。目標是靜態 PWA 與 FastAPI 同一 Vercel 專案（根 [`vercel.json`](vercel.json) `services`）。Dashboard **Root Directory = `.`**；PR preview `GET /healthz` 已通（2026-09-09）。**正式站仍指向舊 Cloud Run**（GitHub secret `VITE_API_URL` 未清空），不要假裝 `/insights` 已通。
 
 - **Production**：只走 [`.github/workflows/pwa-deploy.yml`](.github/workflows/pwa-deploy.yml) prebuilt（`vercel pull` → `vercel build` → `vercel deploy --prebuilt --prod`）。根 [`vercel.json`](vercel.json) 設 `git.deploymentEnabled.main=false`，禁止 Git Integration 對 `main` 遠端 build 上正式站。
-- **`VITE_API_URL`**：polyglot `GET /healthz` 通了之後應為空（同源）。切換前勿清空。PR Preview 讀 Vercel Preview env，不是 GitHub secrets。
+- **`VITE_API_URL`**：preview polyglot `/healthz` 已通；正式切換時清空（同源）。PR Preview 讀 Vercel Preview env，不是 GitHub secrets。
 - **驗收／SSO／CORS**：見 [`docs/PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「Vercel PWA Deploy」。建議 Production 關 Vercel Authentication（改靠 `QSILICON_MASTER_KEY` + `/api-key`），Preview 保留 SSO。`npm run smoke:prod`：`BASE_URL` 必填，`API_BASE` 預設同一 origin。
 
 ### 正式上線 vs CI／E2E 專用旗標

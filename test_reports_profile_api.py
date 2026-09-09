@@ -12,7 +12,16 @@ from api import app
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch, tmp_path):
+    """BQ-path tests: turn skip off and isolate JSONL so mock smoke stays honest."""
+    state = tmp_path / "state"
+    briefs = tmp_path / "briefs"
+    state.mkdir()
+    briefs.mkdir()
+    monkeypatch.delenv("SKIP_BIGQUERY", raising=False)
+    monkeypatch.delenv("VERCEL", raising=False)
+    monkeypatch.setenv("QSILICON_STATE_DIR", str(state))
+    monkeypatch.setenv("DAILY_BRIEF_JSON_DIR", str(briefs))
     return TestClient(app)
 
 

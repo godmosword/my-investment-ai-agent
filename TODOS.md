@@ -4,7 +4,7 @@
 
 **`docs/architecture/` Phase 0（判讀治理）**：**事實**以 [`CHANGELOG.md`](CHANGELOG.md) 與程式為準；**架構目錄索引**僅認 [`Terminal_Master_Plan.md`](docs/architecture/Terminal_Master_Plan.md) **§0 狀態矩陣**（✅／🟡）。矩陣標 🟡 之 `*_research.md` 等為研究或 optional scaffold，**非**預設產品承諾；若列為里程碑須帶 ENV／紅線／驗收並寫入本檔隊列。協作準則見 [`AI_CONTEXT.md`](docs/architecture/AI_CONTEXT.md)。**§0 Phase 4（讀者層×工作台層 IA）**：新聞／專欄與工作台同一 Portal、不同密度；維護者 REVIEW 決策見該節；**實作切片**見 [`TODOS.md`](#terminal-master-plan-phase4-queue-44) **隊列 44**（44a–44d）與 [`TERMINAL_FRONTEND_PLAN.md`](docs/architecture/TERMINAL_FRONTEND_PLAN.md) **§ Phase 4 IA**；落地後同步本檔／`CHANGELOG`。**§3 前端尚缺方向** 是 CEO 盤點／滾動索引，不取代本檔隊列；重大 Portal ship 後須對帳 `CHANGELOG`／本檔，必要時補 `Terminal_Master_Plan` §3 修訂紀錄。
 
-**同步狀態（2026-09-09 — ITER-GCP-EXIT-P2）**：根目錄 [`vercel.json`](vercel.json) 宣告同一專案 PWA + FastAPI；空 `VITE_API_URL` 走同源。**正式 `/insights` 仍不通**，直到 Human 把 Dashboard Root Directory 改成 `.` 且 `GET /healthz` 回精確 JSON，再清空 `VITE_API_URL`。見 CHANGELOG **2026-09-09**。
+**同步狀態（2026-09-09 — ITER-GCP-EXIT-P2）**：根目錄 [`vercel.json`](vercel.json) polyglot；Dashboard Root Directory = `.`；PR preview `GET /healthz` 已是精確 `{"ok": true, "service": "api"}`。**正式 `/insights` 仍不通** — 須清空 GitHub secret `VITE_API_URL` 後走 `pwa-deploy` prebuilt。P3 Job／P4 刪 GCP 未做。見 CHANGELOG **2026-09-09**。
 
 **同步狀態（2026-09-09 — ITER-GCP-EXIT-P1）**：HTTP API 讀路徑改 **檔案／JSONL 優先**（reports／metrics／trades）；`import api` 不再載 `google.cloud`。`SKIP_BIGQUERY=1` 時 list 空陣列、detail 404，不再因 BQ 503。**正式 Cloud Run Service 仍 503／404** — 本切片不部署。下一步隊列 **72**（Vercel Services 同 origin `/api`、Job 離 GCP、再刪 BQ）。見 CHANGELOG **2026-09-09**。
 
@@ -183,7 +183,7 @@
 
 | 主題 | 代表檔案／行為 |
 |------|----------------|
-| **ITER-GCP-EXIT-P2 — Vercel polyglot repo（2026-09-09）** | 根 [`vercel.json`](vercel.json) PWA+FastAPI；空 `VITE_API_URL` 同源；`VERCEL=1` 預設 skip BQ。**Dashboard Root Directory 與清空 secret 仍須 Human**。CHANGELOG **2026-09-09**。 |
+| **ITER-GCP-EXIT-P2 — Vercel polyglot repo（2026-09-09）** | 根 [`vercel.json`](vercel.json) PWA+FastAPI；空 `VITE_API_URL` 同源；`VERCEL=1` 預設 skip BQ。**Preview `/healthz` 已通**（Root Directory = `.`）。**正式切換仍須清空 `VITE_API_URL` + `pwa-deploy`**。CHANGELOG **2026-09-09**。 |
 | **ITER-GCP-EXIT-P1 — API 檔案優先、import 不載 GCP（2026-09-09）** | reports／metrics／trades 讀 JSONL／DailyBrief JSON；`SKIP_BIGQUERY=1` 不 503；`google.cloud` 離開 `import api` 路徑。測試 [`tests/api/test_file_first_store.py`](tests/api/test_file_first_store.py)。**不部署 Service**。CHANGELOG **2026-09-09**。 |
 | **ITER-API-SLIM-P2-2 — trades/positions/analysis/quant router（2026-09-09）** | [`api_routers/trades.py`](api_routers/trades.py) 承接七條 route + `_fetch_trades`／`_validate_symbol`；契約／OpenAPI 不變；測試 monkeypatch 改指 `api_routers.trades`。**不部署 Service**。CHANGELOG **2026-09-09**。 |
 | **ITER-GO-LIVE-001 — API liveness and ship probe（2026-09-05）** | [`GET /healthz`](api_routers/health.py) 固定 `{"ok": true, "service": "api"}`（無憑證、不探 BQ／LLM／crew）。文件 [`PORTAL_SHIP_CHECKLIST.md`](docs/PORTAL_SHIP_CHECKLIST.md)「2026-09-05 正式上線」。[`smoke-prod.sh`](data-verification-ui/scripts/smoke-prod.sh) fail-closed。測試 [`tests/api/test_healthz.py`](tests/api/test_healthz.py)、[`tests/test_smoke_prod_script.py`](tests/test_smoke_prod_script.py)。**不部署 Service**。CHANGELOG **2026-09-05**。 |
@@ -582,11 +582,11 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 ## GCP 退出（隊列 72）
 
-72. **徹底剔除 GCP — 託管與寫入** — **P1 已交付（2026-09-09）**；**P2 repo 已交付（2026-09-09）**（根 `vercel.json` services、`requirements-api.txt`、同源 PWA 契約）。**剩餘 Human**：Dashboard Root Directory = `.` → preview `/healthz` 精確 JSON → 再清空 `VITE_API_URL`。**尚未完成**：
-    - **P2 切換（Dashboard）**：未改 Root Directory 前根 `vercel.json` 被忽略；清空 `VITE_API_URL` 會讓 SPA 把 `/api` 當 HTML。Hobby 若拒 Services，停在現況、不要清空 secret。
+72. **徹底剔除 GCP — 託管與寫入** — **P1 已交付（2026-09-09）**；**P2 repo + preview 活體已交付（2026-09-09）**（根 `vercel.json` services、Root Directory = `.`、preview `GET /healthz` 精確 JSON）。**剩餘 Human／本機**：清空 GitHub secret `VITE_API_URL` → `pwa-deploy.yml` prebuilt → `BASE_URL=<prod> npm run smoke:prod`。**尚未完成**：
+    - **P2 正式切換**：secret 仍指向已死 Cloud Run；清空前確認 preview `/healthz` 仍是精確 JSON（已證）。不要本機 `vercel --prod`。
     - **P3 Job**：日報 + paper tick 離開 Cloud Run Job → GitHub Actions + [`scripts/commit_state.sh`](scripts/commit_state.sh) 把 jsonl／日報 JSON commit 回 repo（否則新 host 空檔；Vercel FS 除 `/tmp` 唯讀）。
     - **P4 刪除**：BQ writer／reader、Firestore news、`deploy.yml` GCP、GAR、secrets、`config.py` table IDs。options／track-record／snapshots 仍有 BQ 分支，刪前須有替代或誠實 disabled envelope。
-    **紅線**：不假裝正式 `/insights` 已通，直到 P2 有活的 API origin（同源 `GET /healthz`）。P1 / L。
+    **紅線**：不假裝正式 `/insights` 已通，直到正式 origin 同源 `GET /healthz` 精確 JSON。P1 / L。
 
 ---
 
@@ -1219,7 +1219,7 @@ Handoff 規格：[`docs/CODEX_NEXT_BATCH.md`](docs/CODEX_NEXT_BATCH.md)。**建�
 
 ## 修訂紀錄
 
-- **2026-09-09（ITER-GCP-EXIT-P2）**：根 `vercel.json` polyglot、同源 PWA 契約、`VERCEL=1` 預設 skip BQ；Dashboard Root Directory／清空 `VITE_API_URL` 仍須 Human。CI 釘 [`ruff.toml`](ruff.toml) 歷史預設，隔離 ~663 條既有 ruff 噪音。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-09** `### Ops（ITER-GCP-EXIT-P2）`。
+- **2026-09-09（ITER-GCP-EXIT-P2）**：根 `vercel.json` polyglot、同源 PWA 契約、`VERCEL=1` 預設 skip BQ；Root Directory = `.` 且 preview `/healthz` 已通。正式切換仍須清空 `VITE_API_URL` + `pwa-deploy`。CI 釘 [`ruff.toml`](ruff.toml)；mock smoke BQ 契約不再被 `SKIP_BIGQUERY=1` 短路。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-09** `### Ops（ITER-GCP-EXIT-P2）`。
 - **2026-09-08（Human B 每週配額 + P4-44B～44P 補記）**：候選板／每週 1 張 R0/R1；CHANGELOG 補記 09-03～09-05 繁中包；隊列 62 仍開。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-08**。
 - **2026-09-05（ITER-GO-LIVE-001）**：`GET /healthz` 廉價 liveness + 正式上線三條／Job≠Service／503 事實寫入 checklist。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-05** `### API/Ops（ITER-GO-LIVE-001）`。
 - **2026-09-08（ITER-TR-LOOP-FALSE-NEG-001）**：紙上對帳假陰性（截斷／未知 status；已知非紙上倉位仍「無紙上記錄」）。見 [`CHANGELOG.md`](CHANGELOG.md) **2026-09-08**。
