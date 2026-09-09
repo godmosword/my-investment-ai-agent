@@ -34,6 +34,8 @@ def test_root_vercel_json_routes_api_before_spa_catchall():
     assert api_idx < catch_idx
     assert dests[api_idx] == "api"
     assert dests[health_idx] == "api"
+    pwa_rewrites = services["pwa"]["rewrites"]
+    assert pwa_rewrites[-1]["destination"] == "/index.html"
 
 
 @pytest.mark.smoke
