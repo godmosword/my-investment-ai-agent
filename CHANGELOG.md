@@ -3,6 +3,14 @@
 本檔案記錄專案重要功能與行為變更。  
 **工程待辦與完成度彙總**見 [`TODOS.md`](TODOS.md)。**維護契約（CHANGELOG ↔ TODOS）**：凡記入本檔之 **使用者可見／行為變更** 條目，**必須**同步更新 [`TODOS.md`](TODOS.md)（**已交付摘要**、**下一批隊列**、**修訂紀錄**）之對應敘述；若僅於 TODOS 補登「已交付」備查，**須**有本檔同日或既有日期區塊之條目支撐，避免兩檔脫節。
 
+## 2026-09-09
+
+### API/Ops（ITER-API-SLIM-P2-2 — trades/positions/analysis/quant 搬進 router）
+
+- **[`api_routers/trades.py`](api_routers/trades.py) 新檔**：由 [`api.py`](api.py) 搬入七條 route（`/api/trades`、`/api/positions/open`、`/api/positions`、`/api/analysis/{symbol}`、`/api/quant/signals`、`/api/quant/backtest`、`/api/trades/performance`）連同 `_fetch_trades`／`_validate_symbol`。單一 slice（不做 analysis／quant 分檔）；宣告順序照搬。
+- **契約不變**：路徑、query 上下界、payload 欄位、錯誤碼未改；OpenAPI path／method 表搬遷前後逐字相同。本機 monkeypatch 錨點改指 `api_routers.trades`（`test_api_positions_bundle`／`test_api_analysis_bundle`／`tests/api/test_api_py_contract`）。
+- **未動**：middleware、paper、push、SSE、war-room；不開 PR 部署。**Job ≠ Service：本切片不部署 Service**。
+
 ## 2026-09-08
 
 ### PWA（ITER-TR-LOOP-FALSE-NEG-001 — 紙上對帳假陰性）
