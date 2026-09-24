@@ -25,9 +25,9 @@
 ### 2. 並行 Review（必做，各一輪）
 
 - **架構／紅線**：Task `architect` 或 `code-reviewer`（`readonly: true`）— 範圍、架構、**AGENT-DOMAIN 紅線**、過度工程
-- **工程**：Task + `gpt-5.5-medium`（或 codex，Claude Code 環境）— 可執行性、**Domain 驗證矩陣命令**、漏檔、測試
+- **工程**：Task + `gpt-5.5-medium`（Claude Code 環境：`codex exec -m gpt-6-luna -s read-only`）— 可執行性、**Domain 驗證矩陣命令**、漏檔、測試
 - 若 plan 違反 Domain 紅線 → 標 **CRITICAL**
-- 兩路衝突或邊界模糊 → 可選 **Fable 5**（`claude-fable-5-thinking-medium`）第三意見
+- **對抗審**（Claude Code）：`cursor-agent -p --trust --mode ask --model grok-4.7-high-fast`，失敗改 `grok -m grok-4.7 --permission-mode plan -p` — 挑毛病、找漏洞與反例
 
 ### 3. Leader 綜合
 

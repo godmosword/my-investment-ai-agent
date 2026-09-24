@@ -102,8 +102,8 @@
 2. **Leader 撰寫 Draft Plan**（見 [Plan 模板](#plan-模板)）
 3. **並行 Review（必做，各一輪）**
    - **架構／紅線**：Task `architect` 或 `code-reviewer`（`readonly: true`）— 範圍、架構、Domain 紅線、過度工程
-   - **工程**：Task + `gpt-5.5-medium` 或 codex — 可執行性、驗證命令、漏檔、測試
-   - **Fable 5**（`claude-fable-5-thinking-medium`）：**備選** — 僅兩路衝突或邊界模糊時
+   - **工程**：Task + `gpt-5.5-medium`（Cursor）或 `codex exec -m gpt-6-luna -s read-only`（Claude Code）— 可執行性、驗證命令、漏檔、測試
+   - **對抗審**（Claude Code）：`cursor-agent -p --trust --mode ask --model grok-4.7-high-fast`，失敗改 `grok -m grok-4.7 --permission-mode plan -p` — 挑毛病、找漏洞與反例；送外部模型的 prompt 不得含個資或金鑰
 4. **Leader 綜合** → **Approved Plan** → 提示 **`/agent-action`**
 
 Plan 若弱化 Domain 紅線 → 審稿標 **CRITICAL**。
@@ -161,7 +161,6 @@ Task 的 `model` **只能**用 Cursor 允許的 slug：
 | Sonnet 4.6 Thinking Medium | `claude-4.6-sonnet-medium-thinking` | L2、文案 |
 | Grok 4.3 | `grok-4.3` | explore |
 | Grok Build 0.1 | `grok-build-0.1` | shell、批次命令 |
-| Fable 5 | `claude-fable-5-thinking-medium` | 備選 Plan 第三意見 |
 
 slug 不可用時：**不要**替換；Leader 代做並告知使用者。
 
@@ -221,7 +220,7 @@ slug 不可用時：**不要**替換；Leader 代做並告知使用者。
 ## Review summary
 - 架構審：...
 - 工程審：...
-- Fable 5（若有）：...
+- 對抗審：...
 - **Approved / 待決策：** ...
 ```
 

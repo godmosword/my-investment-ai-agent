@@ -34,9 +34,10 @@ alwaysApply: false
 | L2 / 戰報文案 | `claude-4.6-sonnet-medium-thinking` |
 | explore | `grok-4.3` |
 | shell / 批次 | `grok-build-0.1` |
-| 備選 Plan 審 | `claude-fable-5-thinking-medium` |
 
 **勿用** haiku／gpt-5.4 改核心金融路徑。
+
+Claude Code 審查（codex `gpt-6-luna` 工程審、cursor-agent／grok 對抗審）見 AGENT-WORKFLOW **§ Claude Code 審查模型**。
 
 ## `/agent-action` 路由
 
