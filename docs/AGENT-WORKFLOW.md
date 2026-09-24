@@ -125,13 +125,13 @@ Plan 若弱化上述任一項 → 審稿標 **CRITICAL**。
 2. **Leader 撰寫 Draft Plan**（見 [Plan 模板](#plan-模板)）
 3. **並行 Review（必做，各一輪）**
    - **架構／紅線**：Task `architect` 或 `code-reviewer`（`readonly: true`）— 範圍、架構、紅線、過度工程
-   - **工程**：`codex exec -m gpt-5.5` 或 Task + `gpt-5.5-medium` — 可執行性、驗證命令、漏檔、測試
-   - **Fable 5**（`claude-fable-5-thinking-medium`）：**備選** — 僅兩路衝突或邊界模糊時
+   - **工程**：Claude Code 用 `codex exec -m gpt-6-luna -s read-only`（見 [審查模型](#claude-code-審查模型2026-09-24-定案)）；Cursor 用 Task + `gpt-5.5-medium` — 可執行性、驗證命令、漏檔、測試
+   - **對抗審**（Claude Code）：`cursor-agent` + `grok-4.7-high-fast`，失敗改 `grok -m grok-4.7` — 挑毛病、找漏洞與反例
 4. **Leader 綜合** → **Approved Plan** → 提示 **`/agent-action`**
 
 ### 審稿缺席
 
-Codex 失敗 → 摘要表註明「工程審缺席」；Leader 仍須保留驗證矩陣（含 graph gate／E2E 若觸及）。
+Codex／對抗審失敗 → 摘要表註明缺席；Leader 仍須保留驗證矩陣（含 graph gate／E2E 若觸及）。
 
 ---
 
@@ -166,13 +166,40 @@ Codex 失敗 → 摘要表註明「工程審缺席」；Leader 仍須保留驗�
 | 環境 | 實作委派 |
 |------|----------|
 | **Cursor** | **Task** 子 agent（`explore`、`generalPurpose`、`shell`、reviewer 等） |
-| **Claude Code** | 可選 `codex exec` 審 plan；實作仍以 Leader 或 `claude -p` 為輔，**勿**指望子 process 直接改 IDE 工作區 |
+| **Claude Code** | 審 plan 見 [審查模型](#claude-code-審查模型2026-09-24-定案)；實作仍以 Leader 或 `claude -p` 為輔，**勿**指望子 process 直接改 IDE 工作區 |
+
+---
+
+## Claude Code 審查模型（2026-09-24 定案）
+
+| 角色 | 用途 | 指令 |
+|---|---|---|
+| Leader | 規劃、實作、所有寫檔 | 當前 Claude Code session（Claude Opus 5.5） |
+| 工程審 | 逐條反駁 Plan／DAG、找工程問題 | `codex exec -m gpt-6-luna -s read-only -c model_reasoning_effort="medium" "<prompt>" </dev/null` |
+| 對抗審 | 挑毛病、找漏洞與反例 | `cursor-agent -p --trust --mode ask --model grok-4.7-high-fast "<prompt>"` |
+| 對抗審備援 | cursor-agent 失敗時改用 | `grok -m grok-4.7 --permission-mode plan -p "<prompt>"` |
+| 設計審 | UI、動畫、無障礙 | Agent tool `model: "opus"`（Opus 5.5；effort high 為目標，工具無法指定） |
+
+原則：
+
+- 審查者一律唯讀，由 Leader 寫檔；同一檔案不讓多個 agent 同時修改。
+- 送給外部模型（OpenAI、xAI）的 prompt 不得含個資、使用者資料或金鑰。
+
+新 repo／新電腦檢查清單：
+
+1. **Codex CLI ≥ 0.156**：`npm install -g @openai/codex@latest`。舊版（0.144）不支援 gpt-6 系列，會出現 `not supported`、`failed to load models cache`。
+2. **模型名不加 `openai/` 前綴**：ChatGPT 帳號登入時寫 `gpt-6-luna`；`openai/gpt-6-luna` 會被拒。
+3. **舊版設定檔**：`~/.codex/config.toml` 有 `[features.xxx]` 子表時，舊版報 `invalid type: map, expected a boolean`，刪掉或升級。
+4. **Codex 預設權限很大**（`danger-full-access` + `approval: never`），審查一定要加 `-s read-only`。
+5. **cursor-agent**：先 `cursor-agent login`；每個新 repo 第一次跑加 `--trust`；**不要**用 `--yolo` 或 `-f`（會不經確認執行任何指令）。
+6. **grok CLI 可用模型**：`grok models` 查；已確認 `grok-4.7`、`grok-4.7-build-fast`、`grok-4.6`、`grok-4.5`。
+7. **每個審查者先跑一次** `"Reply with exactly: OK"`，確認印出 `OK` 再開始用。
 
 ---
 
 ## 模型 slug 對照表
 
-Task 的 `model` **只能**用 Cursor 允許的 slug：
+Cursor Task 的 `model` **只能**用 Cursor 允許的 slug：
 
 | UI / 口語 | slug | 主要用途 |
 |-----------|------|----------|
@@ -182,7 +209,6 @@ Task 的 `model` **只能**用 Cursor 允許的 slug：
 | Sonnet 4.6 Thinking Medium | `claude-4.6-sonnet-medium-thinking` | L2、戰報文案 |
 | Grok 4.3 | `grok-4.3` | explore |
 | Grok Build 0.1 | `grok-build-0.1` | shell、批次命令 |
-| Fable 5 | `claude-fable-5-thinking-medium` | 備選 Plan 第三意見 |
 
 slug 不可用時：**不要**替換；Leader 代做並告知使用者。
 
@@ -205,7 +231,8 @@ slug 不可用時：**不要**替換；Leader 代做並告知使用者。
 |----------|------|
 | Plan 撰寫 | Leader |
 | Plan 架構審 | `architect` readonly 或 Opus |
-| Plan 工程審 | GPT 5.5 / codex |
+| Plan 工程審 | codex `gpt-6-luna`（Claude Code）／`gpt-5.5-medium`（Cursor） |
+| Plan 對抗審 | cursor-agent `grok-4.7-high-fast`（備援 `grok-4.7`） |
 | 探索 codebase | Task `explore` |
 | Graph／Reviewer／crew | Leader 或 Opus；必跑 graph gate |
 | Portal／PWA | Sonnet 4.6 或 Composer；必跑 lint + e2e |
@@ -263,7 +290,7 @@ slug 不可用時：**不要**替換；Leader 代做並告知使用者。
 ## Review summary
 - 架構審：...
 - 工程審：...
-- Fable 5（若有）：...
+- 對抗審：...
 - **Approved / 待決策：** ...
 ```
 
@@ -339,3 +366,4 @@ slug 不可用時：**不要**替換；Leader 代做並告知使用者。
 | 日期 | 說明 |
 |------|------|
 | 2026-06-16 | 初版（Q-Silicon domain；Cursor Task 路由；驗證矩陣；紅線；health 檢查） |
+| 2026-09-24 | Claude Code 審查模型定案（codex `gpt-6-luna` 工程審、cursor-agent／grok 對抗審）；移除 Fable 5 |

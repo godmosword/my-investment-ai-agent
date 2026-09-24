@@ -25,14 +25,19 @@
 ### 2. 並行 Review（必做，各一輪）
 
 - **架構／紅線**：Task `architect` 或 `code-reviewer`（`readonly: true`）— 範圍、架構、Q-Silicon 紅線（無數據幻覺、Gate、Telegram HTML）、過度工程
-- **工程**：`codex exec -m gpt-5.5 -c model_reasoning_effort="medium"` 或 Task + `gpt-5.5-medium` — 可執行性、**驗證矩陣命令**、漏檔、測試
+- **工程**：Claude Code 用 `codex exec -m gpt-6-luna -s read-only`；Cursor 用 Task + `gpt-5.5-medium` — 可執行性、**驗證矩陣命令**、漏檔、測試
 - 若 plan 讓 LLM 自行算價／弱化 Gate → 標 **CRITICAL**
-- 兩路衝突或邊界模糊 → 可選 **Fable 5**（`claude-fable-5-thinking-medium`）第三意見
+- **對抗審**（Claude Code）：`cursor-agent` + `grok-4.7-high-fast`，失敗改 `grok -m grok-4.7` — 挑毛病、找漏洞與反例
+- 送外部模型的 prompt **不得**含個資、使用者資料或金鑰；模型與 CLI 檢查清單見 AGENT-WORKFLOW **§ Claude Code 審查模型**
 
-工程審 codex 範例（Claude Code 環境）：
+工程審／對抗審範例（Claude Code 環境）：
 
 ```bash
-codex exec -m gpt-5.5 -c model_reasoning_effort="medium" "你是 Q-Silicon 資深工程審查者。審查計劃的可行性、驗證命令（README/AGENT-WORKFLOW 矩陣）、漏檔、紅線違反。只審查、不改檔。計劃如下：
+codex exec -m gpt-6-luna -s read-only -c model_reasoning_effort="medium" "你是 Q-Silicon 資深工程審查者。逐條反駁計劃的可行性、驗證命令（README/AGENT-WORKFLOW 矩陣）、漏檔、紅線違反。只審查、不改檔。計劃如下：
+
+$(cat /tmp/agent-plan-<ts>.md)" </dev/null
+
+cursor-agent -p --trust --mode ask --model grok-4.7-high-fast "你是 Q-Silicon 對抗審查者。挑毛病、找漏洞與反例。只審查、不改檔。計劃如下：
 
 $(cat /tmp/agent-plan-<ts>.md)"
 ```
@@ -46,12 +51,13 @@ $(cat /tmp/agent-plan-<ts>.md)"
 | Leader | … | — |
 | 架構審 | … | 採納 / 不採納 |
 | 工程審 | … | 採納 / 不採納 |
+| 對抗審 | … | 採納 / 不採納 |
 
 產出 **Approved Plan**（含需使用者決策項）→ 覆寫 plan 檔 → 明確寫：**下一步請用 `/agent-action`**
 
 ### 4. 審稿缺席
 
-Codex／子 agent 失敗 → 摘要表註明缺席；Leader 定稿但**不可省略** Graph gate／PWA E2E（若 scope 觸及）。
+Codex／cursor-agent（含 grok 備援）／子 agent 失敗 → 摘要表註明缺席；Leader 定稿但**不可省略** Graph gate／PWA E2E（若 scope 觸及）。
 
 ### 5. CRITICAL 與 Plan mode
 
